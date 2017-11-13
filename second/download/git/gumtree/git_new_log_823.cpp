@@ -1,1 +1,1 @@
-die(_("--points-at option is only allowed in list mode"));
+fputs(o.obuf.buf, stdout);

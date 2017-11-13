@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, conn, APLOGNO()
-                      "h2_request(%d): access_status=%d, request_create failed",
-                      req->id, access_status);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c,
+                          "h2_mplx(%ld): release_join, refs=%d, waiting...", 
+                          m->id, m->refs);

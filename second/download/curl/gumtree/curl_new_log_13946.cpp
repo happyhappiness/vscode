@@ -1,10 +1,12 @@
 fputs(
-"              to the server instead of LIST.\n"
+"              vided private key is. DER, PEM, and ENG are  supported.  If  not\n"
+"              specified, PEM is assumed.\n"
 "\n"
-"              Note:  Some  FTP  servers  list  only files in their response to\n"
-"              NLST; they do not include sub-directories and symbolic links.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              (POP3) When retrieving a specific email from POP3,  this  switch\n"
-"              forces  a  LIST command to be performed instead of RETR. This is\n"
-"              particularly useful if the user wants to see if a specific  mes-\n"
+"       --key <key>\n"
+"              (TLS SSH) Private key file name. Allows you to provide your pri-\n"
+"              vate key in this separate file. For SSH, if not specified,  curl\n"
+"              tries the following candidates in order:\n"
+"\n"
 , stdout);

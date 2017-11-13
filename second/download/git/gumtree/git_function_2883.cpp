@@ -1,26 +1,22 @@
-static char *get_default_remote(void)
+static int chop_last_dir(char **remoteurl, int is_relative)
 {
-	char *dest = NULL, *ret;
-	unsigned char sha1[20];
-	struct strbuf sb = STRBUF_INIT;
-	const char *refname = resolve_ref_unsafe("HEAD", 0, sha1, NULL);
+	char *rfind = find_last_dir_sep(*remoteurl);
+	if (rfind) {
+		*rfind = '\0';
+		return 0;
+	}
 
-	if (!refname)
-		die(_("No such ref: %s"), "HEAD");
+	rfind = strrchr(*remoteurl, ':');
+	if (rfind) {
+		*rfind = '\0';
+		return 1;
+	}
 
-	/* detached HEAD */
-	if (!strcmp(refname, "HEAD"))
-		return xstrdup("origin");
+	if (is_relative || !strcmp(".", *remoteurl))
+		die(_("cannot strip one component off url '%s'"),
+			*remoteurl);
 
-	if (!skip_prefix(refname, "refs/heads/", &refname))
-		die(_("Expecting a full ref name, got %s"), refname);
-
-	strbuf_addf(&sb, "branch.%s.remote", refname);
-	if (git_config_get_string(sb.buf, &dest))
-		ret = xstrdup("origin");
-	else
-		ret = dest;
-
-	strbuf_release(&sb);
-	return ret;
+	free(*remoteurl);
+	*remoteurl = xstrdup(".");
+	return 0;
 }

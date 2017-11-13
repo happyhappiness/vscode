@@ -1,1 +1,1 @@
-error(_("could not stat '%s'"), todo_file);
+die("BUG: we don't know how to pass the flags down?");

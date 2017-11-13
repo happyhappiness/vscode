@@ -1,51 +1,33 @@
-static client_entry *add_client(unsigned long key, client_entry *info,
-                                server_rec *s)
+static apr_status_t dbd_setup_init(apr_pool_t *pool, server_rec *s)
 {
-    int bucket;
-    client_entry *entry;
+    svr_cfg *svr = ap_get_module_config(s->module_config, &dbd_module);
+    apr_status_t rv;
 
-
-    if (!key || !client_shm) {
-        return NULL;
+    /* dbd_setup in 2.2.3 and under was causing spurious error messages
+     * when dbd isn't configured.  We can stop that with a quick check here
+     * together with a similar check in ap_dbd_open (where being
+     * unconfigured is a genuine error that must be reported).
+     */
+    if (svr->name == no_dbdriver) {
+        return APR_SUCCESS;
     }
 
-    bucket = key % client_list->tbl_len;
-
-    apr_global_mutex_lock(client_lock);
-
-    /* try to allocate a new entry */
-
-    entry = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(client_entry)));
-    if (!entry) {
-        long num_removed = gc();
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                     "Digest: gc'd %ld client entries. Total new clients: "
-                     "%ld; Total removed clients: %ld; Total renewed clients: "
-                     "%ld", num_removed,
-                     client_list->num_created - client_list->num_renewed,
-                     client_list->num_removed, client_list->num_renewed);
-        entry = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(client_entry)));
-        if (!entry) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                         "unable to allocate new auth_digest client");
-            apr_global_mutex_unlock(client_lock);
-            return NULL;       /* give up */
-        }
+    if (!svr->persist) {
+        return APR_SUCCESS;
     }
 
-    /* now add the entry */
+    rv = dbd_setup(pool, svr);
+    if (rv == APR_SUCCESS) {
+        return rv;
+    }
 
-    memcpy(entry, info, sizeof(client_entry));
-    entry->key  = key;
-    entry->next = client_list->table[bucket];
-    client_list->table[bucket] = entry;
-    client_list->num_created++;
-    client_list->num_entries++;
-
-    apr_global_mutex_unlock(client_lock);
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "allocated new client %lu", key);
-
-    return entry;
+    /* we failed, so create a mutex so that subsequent competing callers
+     * to ap_dbd_open can serialize themselves while they retry
+     */
+    rv = apr_thread_mutex_create(&svr->mutex, APR_THREAD_MUTEX_DEFAULT, pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, pool,
+                      "DBD: Failed to create thread mutex");
+    }
+    return rv;
 }

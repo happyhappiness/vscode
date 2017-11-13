@@ -1,28 +1,22 @@
-static void ssl_init_ctx_crl(server_rec *s,
-                             apr_pool_t *p,
-                             apr_pool_t *ptemp,
-                             modssl_ctx_t *mctx)
+apr_status_t ajp_msg_copy(ajp_msg_t *smsg, ajp_msg_t *dmsg)
 {
-    /*
-     * Configure Certificate Revocation List (CRL) Details
-     */
-
-    if (!(mctx->crl_file || mctx->crl_path)) {
-        return;
+    if (dmsg == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                     "ajp_msg_copy(): destination msg is null");
+        return AJP_EINVAL;
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "Configuring certificate revocation facility");
-
-    mctx->crl =
-        SSL_X509_STORE_create((char *)mctx->crl_file,
-                              (char *)mctx->crl_path);
-
-    if (!mctx->crl) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                "Unable to configure X.509 CRL storage "
-                "for certificate revocation");
-        ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
-        ssl_die();
+    if (smsg->len > smsg->max_size) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                     "ajp_msg_copy(): destination buffer too "
+                     "small %" APR_SIZE_T_FMT ", max size is %" APR_SIZE_T_FMT,
+                     smsg->len, smsg->max_size);
+        return  AJP_ETOSMALL;
     }
+
+    memcpy(dmsg->buf, smsg->buf, smsg->len);
+    dmsg->len = smsg->len;
+    dmsg->pos = smsg->pos;
+
+    return APR_SUCCESS;
 }

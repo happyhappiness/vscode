@@ -1,12 +1,10 @@
 fputs(
-"              these letters are not normal legal URL contents but they  should\n"
-"              be encoded according to the URI standard.\n"
+"              (FTP) Use passive mode for the data connection. Passive  is  the\n"
+"              internal  default behavior, but using this option can be used to\n"
+"              override a previous -P, --ftp-port option.\n"
 "\n"
-"       -I, --head\n"
-"              (HTTP FTP FILE) Fetch the headers only! HTTP-servers feature the\n"
-"              command HEAD which this uses to get nothing but the header of  a\n"
-"              document.  When  used  on an FTP or FILE file, curl displays the\n"
-"              file size and last modification time only.\n"
+"              If this option is used several times,  only  the  first  one  is\n"
+"              used.  Undoing  an  enforced passive really isn't doable but you\n"
+"              must then instead enforce the correct -P, --ftp-port again.\n"
 "\n"
-"       -H, --header <header/@file>\n"
 , stdout);

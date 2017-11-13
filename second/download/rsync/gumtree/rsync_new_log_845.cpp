@@ -1,1 +1,1 @@
-assert(f_out == iobuf.out_fd);
+fprintf(stderr, "Failed to parse config file: %s\n", config_file);

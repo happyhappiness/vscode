@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
-                         "Cannot chroot when not started as root");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                  "Client sent malformed Host header");

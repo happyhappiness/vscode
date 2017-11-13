@@ -1,9 +1,9 @@
 fputs(
-"              before  sending keepalive probes and the time between individual\n"
-"              keepalive probes. It is currently effective on operating systems\n"
-"              offering  the  TCP_KEEPIDLE  and  TCP_KEEPINTVL  socket  options\n"
-"              (meaning Linux, recent AIX, HP-UX and more). This option has  no\n"
-"              effect if --no-keepalive is used. (Added in 7.18.0)\n"
+"              equals  characters  can  be used as separators. If the option is\n"
+"              specified with one or two dashes,  there  can  be  no  colon  or\n"
+"              equals character between the option and its parameter.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              If the parameter is to contain whitespace, the parameter must be\n"
+"              enclosed within quotes.  Within  double  quotes,  the  following\n"
+"              escape  sequences  are  available:  \\\\, \\\", \\t, \\n, \\r and \\v. A\n"
 , stdout);

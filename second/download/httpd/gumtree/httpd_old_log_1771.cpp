@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "proxy: *: found reverse proxy worker for %s",
-                               *url);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "cache_disk: File '%s' has a version mismatch. File had version: %d.",
+                     dobj->hdrsfile, format);

@@ -1,4 +1,3 @@
-fprintf(stderr,
-                "Usage: %s [-l] <logfile> <rotation time in seconds> "
-                "[offset minutes from UTC] or <rotation size in megabytes>\n\n",
-                argv[0]);
+ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
+                         "%s child %lu: Unable to init the start_mutex.",
+                         service_name, my_pid);

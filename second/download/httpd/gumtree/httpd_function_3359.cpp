@@ -1,39 +1,44 @@
-static void mod_info_indent(request_rec * r, int nest,
-                            const char *thisfn, int linenum)
+static const char *isapi_cmd_cachefile(cmd_parms *cmd, void *dummy,
+                                       const char *filename)
 {
-    int i;
-    const char *prevfn = get_fn_info(r);
-    if (thisfn == NULL)
-        thisfn = "*UNKNOWN*";
-    if (prevfn == NULL || 0 != strcmp(prevfn, thisfn)) {
-        if (r) {
-            thisfn = ap_escape_html(r->pool, thisfn);
-            ap_rprintf(r, "<dd><tt><strong>In file: %s</strong></tt></dd>\n",
-                   thisfn);
-        }
-        else {
-            apr_file_printf(out, "# In file: %s\n", thisfn);
-        }
-        set_fn_info(r, thisfn);
+    isapi_loaded *isa;
+    apr_finfo_t tmp;
+    apr_status_t rv;
+    char *fspec;
+
+    /* ### Just an observation ... it would be terribly cool to be
+     * able to use this per-dir, relative to the directory block being
+     * defined.  The hash result remains global, but shorthand of
+     * <Directory "c:/webapps/isapi">
+     *     ISAPICacheFile myapp.dll anotherapp.dll thirdapp.dll
+     * </Directory>
+     * would be very convienent.
+     */
+    fspec = ap_server_root_relative(cmd->pool, filename);
+    if (!fspec) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, APR_EBADPATH, cmd->server,
+                     "ISAPI: invalid module path, skipping %s", filename);
+        return NULL;
+    }
+    if ((rv = apr_stat(&tmp, fspec, APR_FINFO_TYPE,
+                      cmd->temp_pool)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, cmd->server,
+            "ISAPI: unable to stat, skipping %s", fspec);
+        return NULL;
+    }
+    if (tmp.filetype != APR_REG) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+            "ISAPI: not a regular file, skipping %s", fspec);
+        return NULL;
     }
 
-    if (r) {
-        ap_rputs("<dd><tt>", r);
-        put_int_flush_right(r, linenum > 0 ? linenum : 0, 4);
-        ap_rputs(":&nbsp;", r);
-    }
-    else if (linenum > 0) {
-        for (i = 1; i <= nest; ++i)
-            apr_file_printf(out, "  ");
-        apr_file_putc('#', out);
-        put_int_flush_right(r, linenum, 4);
-        apr_file_printf(out, ":\n");
+    /* Load the extention as cached (with null request_rec) */
+    rv = isapi_lookup(cmd->pool, cmd->server, NULL, fspec, &isa);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, cmd->server,
+                     "ISAPI: unable to cache, skipping %s", fspec);
+        return NULL;
     }
 
-    for (i = 1; i <= nest; ++i) {
-        if (r)
-            ap_rputs("&nbsp;&nbsp;", r);
-        else
-            apr_file_printf(out, "  ");
-    }
+    return NULL;
 }

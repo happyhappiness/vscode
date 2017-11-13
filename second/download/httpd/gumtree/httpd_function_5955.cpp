@@ -1,37 +1,23 @@
-static apr_status_t get_line(h2_response_parser *parser, apr_bucket_brigade *bb, 
-                             char *line, apr_size_t len)
+static void exipc_child_init(apr_pool_t *p, server_rec *s)
 {
-    h2_task *task = parser->task;
-    apr_status_t status;
-    
-    if (!parser->tmp) {
-        parser->tmp = apr_brigade_create(task->pool, task->c->bucket_alloc);
+    apr_status_t rs;
+
+    /*
+     * Re-open the mutex for the child. Note we're reusing
+     * the mutex pointer global here.
+     */
+    rs = apr_global_mutex_child_init(&exipc_mutex,
+                                     apr_global_mutex_lockfile(exipc_mutex),
+                                     p);
+    if (APR_SUCCESS != rs) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rs, s,
+                     "Failed to reopen mutex %s in child",
+                     exipc_mutex_type);
+        /* There's really nothing else we can do here, since This
+         * routine doesn't return a status. If this ever goes wrong,
+         * it will turn Apache into a fork bomb. Let's hope it never
+         * will.
+         */
+        exit(1); /* Ugly, but what else? */
     }
-    status = apr_brigade_split_line(parser->tmp, bb, APR_BLOCK_READ, 
-                                    HUGE_STRING_LEN);
-    if (status == APR_SUCCESS) {
-        --len;
-        status = apr_brigade_flatten(parser->tmp, line, &len);
-        if (status == APR_SUCCESS) {
-            /* we assume a non-0 containing line and remove trailing crlf. */
-            line[len] = '\0';
-            if (len >= 2 && !strcmp(H2_CRLF, line + len - 2)) {
-                len -= 2;
-                line[len] = '\0';
-                apr_brigade_cleanup(parser->tmp);
-                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, task->c,
-                              "h2_task(%s): read response line: %s", 
-                              task->id, line);
-            }
-            else {
-                /* this does not look like a complete line yet */
-                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, task->c,
-                              "h2_task(%s): read response, incomplete line: %s", 
-                              task->id, line);
-                return APR_EAGAIN;
-            }
-        }
-    }
-    apr_brigade_cleanup(parser->tmp);
-    return status;
 }

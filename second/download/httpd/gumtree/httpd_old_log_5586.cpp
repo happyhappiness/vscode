@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
-                                 "h2_worker(%d): waiting signal, "
-                                 "worker_count=%d", worker->id, 
-                                 (int)workers->worker_count);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r, APLOGNO(01457)
+                                  "rl: brigade pass failed.");

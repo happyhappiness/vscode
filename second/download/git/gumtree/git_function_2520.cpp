@@ -1,15 +1,10 @@
-static void print_commit(char sign, struct commit *commit, int verbose,
-			 int abbrev)
+static void add_packed_ref(const char *refname, const unsigned char *sha1)
 {
-	if (!verbose) {
-		printf("%c %s\n", sign,
-		       find_unique_abbrev(commit->object.oid.hash, abbrev));
-	} else {
-		struct strbuf buf = STRBUF_INIT;
-		pp_commit_easy(CMIT_FMT_ONELINE, commit, &buf);
-		printf("%c %s %s\n", sign,
-		       find_unique_abbrev(commit->object.oid.hash, abbrev),
-		       buf.buf);
-		strbuf_release(&buf);
-	}
+	struct packed_ref_cache *packed_ref_cache =
+		get_packed_ref_cache(&ref_cache);
+
+	if (!packed_ref_cache->lock)
+		die("internal error: packed refs not locked");
+	add_ref(get_packed_ref_dir(packed_ref_cache),
+		create_ref_entry(refname, sha1, REF_ISPACKED, 1));
 }

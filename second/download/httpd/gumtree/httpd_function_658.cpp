@@ -1,126 +1,216 @@
-static int read_type_map(apr_file_t **map, negotiation_state *neg,
-                         request_rec *rr)
+static apr_size_t find_argument(ssi_ctx_t *ctx, const char *data,
+                                apr_size_t len, char ***store,
+                                apr_size_t **store_len)
 {
-    request_rec *r = neg->r;
-    apr_file_t *map_ = NULL;
-    apr_status_t status;
-    char buffer[MAX_STRING_LEN];
-    enum header_state hstate;
-    struct var_rec mime_info;
-    int has_content;
+    const char *p = data;
+    const char *ep = data + len;
 
-    if (!map)
-        map = &map_;
+    switch (ctx->state) {
+    case PARSE_ARG:
+        /*
+         * create argument structure and append it to the current list
+         */
+        ctx->current_arg = apr_palloc(ctx->dpool,
+                                      sizeof(*ctx->current_arg));
+        ctx->current_arg->next = NULL;
 
-    /* We are not using multiviews */
-    neg->count_multiviews_variants = 0;
-
-    if ((status = apr_file_open(map, rr->filename, APR_READ | APR_BUFFERED,
-                APR_OS_DEFAULT, neg->pool)) != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                      "cannot access type map file: %s", rr->filename);
-        if (APR_STATUS_IS_ENOTDIR(status) || APR_STATUS_IS_ENOENT(status)) {
-            return HTTP_NOT_FOUND;
+        ++(ctx->argc);
+        if (!ctx->argv) {
+            ctx->argv = ctx->current_arg;
         }
         else {
-            return HTTP_FORBIDDEN;
+            ssi_arg_item_t *newarg = ctx->argv;
+
+            while (newarg->next) {
+                newarg = newarg->next;
+            }
+            newarg->next = ctx->current_arg;
         }
-    }
 
-    clean_var_rec(&mime_info);
-    has_content = 0;
+        /* check whether it's a valid one. If it begins with a quote, we
+         * can safely assume, someone forgot the name of the argument
+         */
+        switch (*p) {
+        case '"': case '\'': case '`':
+            *store = NULL;
 
-    do {
-        hstate = get_header_line(buffer, MAX_STRING_LEN, *map);
+            ctx->state = PARSE_ARG_VAL;
+            ctx->quote = *p++;
+            ctx->current_arg->name = NULL;
+            ctx->current_arg->name_len = 0;
+            ctx->error = 1;
 
-        if (hstate == header_seen) {
-            char *body1 = lcase_header_name_return_body(buffer, neg->r);
-            const char *body;
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, "missing argument "
+                          "name for value to tag %s in %s",
+                          apr_pstrmemdup(ctx->r->pool, ctx->directive,
+                                         ctx->ctx->directive_length),
+                                         ctx->r->filename);
 
-            if (body1 == NULL) {
-                return HTTP_INTERNAL_SERVER_ERROR;
+            return (p - data);
+
+        default:
+            ctx->state = PARSE_ARG_NAME;
+        }
+        /* continue immediately with next state */
+
+    case PARSE_ARG_NAME:
+        while (p < ep && !apr_isspace(*p) && *p != '=') {
+            ++p;
+        }
+
+        if (p < ep) {
+            ctx->state = PARSE_ARG_POSTNAME;
+            *store = &ctx->current_arg->name;
+            *store_len = &ctx->current_arg->name_len;
+            return (p - data);
+        }
+        break;
+
+    case PARSE_ARG_POSTNAME:
+        ctx->current_arg->name = apr_pstrmemdup(ctx->dpool,
+                                                ctx->current_arg->name,
+                                                ctx->current_arg->name_len);
+        if (!ctx->current_arg->name_len) {
+            ctx->error = 1;
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, "missing argument "
+                          "name for value to tag %s in %s",
+                          apr_pstrmemdup(ctx->r->pool, ctx->directive,
+                                         ctx->ctx->directive_length),
+                                         ctx->r->filename);
+        }
+        else {
+            char *sp = ctx->current_arg->name;
+
+            /* normalize the name */
+            while (*sp) {
+                *sp = apr_tolower(*sp);
+                ++sp;
+            }
+        }
+
+        ctx->state = PARSE_ARG_EQ;
+        /* continue with next state immediately */
+
+    case PARSE_ARG_EQ:
+        *store = NULL;
+
+        while (p < ep && apr_isspace(*p)) {
+            ++p;
+        }
+
+        if (p < ep) {
+            if (*p == '=') {
+                ctx->state = PARSE_ARG_PREVAL;
+                ++p;
+            }
+            else { /* no value */
+                ctx->current_arg->value = NULL;
+                ctx->state = PARSE_PRE_ARG;
             }
 
-            strip_paren_comments(body1);
-            body = body1;
+            return (p - data);
+        }
+        break;
 
-            if (!strncmp(buffer, "uri:", 4)) {
-                mime_info.file_name = ap_get_token(neg->pool, &body, 0);
+    case PARSE_ARG_PREVAL:
+        *store = NULL;
+
+        while (p < ep && apr_isspace(*p)) {
+            ++p;
+        }
+
+        /* buffer doesn't consist of whitespaces only */
+        if (p < ep) {
+            ctx->state = PARSE_ARG_VAL;
+            switch (*p) {
+            case '"': case '\'': case '`':
+                ctx->quote = *p++;
+                break;
+            default:
+                ctx->quote = '\0';
+                break;
             }
-            else if (!strncmp(buffer, "content-type:", 13)) {
-                struct accept_rec accept_info;
 
-                get_entry(neg->pool, &accept_info, body);
-                set_mime_fields(&mime_info, &accept_info);
-                has_content = 1;
-            }
-            else if (!strncmp(buffer, "content-length:", 15)) {
-                char *errp;
-                apr_off_t number;
+            return (p - data);
+        }
+        break;
 
-                if (apr_strtoff(&number, body, &errp, 10)
-                    || *errp || number < 0) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                  "Parse error in type map, Content-Length: "
-                                  "'%s' in %s is invalid.",
-                                  body, r->filename);
+    case PARSE_ARG_VAL_ESC:
+        if (*p == ctx->quote) {
+            ++p;
+        }
+        ctx->state = PARSE_ARG_VAL;
+        /* continue with next state immediately */
+
+    case PARSE_ARG_VAL:
+        for (; p < ep; ++p) {
+            if (ctx->quote && *p == '\\') {
+                ++p;
+                if (p == ep) {
+                    ctx->state = PARSE_ARG_VAL_ESC;
                     break;
                 }
-                mime_info.bytes = number;
-                has_content = 1;
-            }
-            else if (!strncmp(buffer, "content-language:", 17)) {
-                mime_info.content_languages = do_languages_line(neg->pool,
-                                                                &body);
-                has_content = 1;
-            }
-            else if (!strncmp(buffer, "content-encoding:", 17)) {
-                mime_info.content_encoding = ap_get_token(neg->pool, &body, 0);
-                has_content = 1;
-            }
-            else if (!strncmp(buffer, "description:", 12)) {
-                char *desc = apr_pstrdup(neg->pool, body);
-                char *cp;
 
-                for (cp = desc; *cp; ++cp) {
-                    if (*cp=='\n') *cp=' ';
+                if (*p != ctx->quote) {
+                    --p;
                 }
-                if (cp>desc) *(cp-1)=0;
-                mime_info.description = desc;
             }
-            else if (!strncmp(buffer, "body:", 5)) {
-                char *tag = apr_pstrdup(neg->pool, body);
-                char *eol = strchr(tag, '\0');
-                apr_size_t len = MAX_STRING_LEN;
-                while (--eol >= tag && apr_isspace(*eol))
-                    *eol = '\0';
-                if ((mime_info.body = get_body(buffer, &len, tag, *map)) < 0) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                  "Syntax error in type map, no end tag '%s'"
-                                  "found in %s for Body: content.",
-                                  tag, r->filename);
-                     break;
-                }
-                mime_info.bytes = len;
-                mime_info.file_name = apr_filepath_name_get(rr->filename);
+            else if (ctx->quote && *p == ctx->quote) {
+                ++p;
+                *store = &ctx->current_arg->value;
+                *store_len = &ctx->current_arg->value_len;
+                ctx->state = PARSE_ARG_POSTVAL;
+                break;
+            }
+            else if (!ctx->quote && apr_isspace(*p)) {
+                ++p;
+                *store = &ctx->current_arg->value;
+                *store_len = &ctx->current_arg->value_len;
+                ctx->state = PARSE_ARG_POSTVAL;
+                break;
             }
         }
-        else {
-            if (*mime_info.file_name && has_content) {
-                void *new_var = apr_array_push(neg->avail_vars);
 
-                memcpy(new_var, (void *) &mime_info, sizeof(var_rec));
+        return (p - data);
+
+    case PARSE_ARG_POSTVAL:
+        /*
+         * The value is still the raw input string. Finally clean it up.
+         */
+        --(ctx->current_arg->value_len);
+
+        /* strip quote escaping \ from the string */
+        if (ctx->quote) {
+            apr_size_t shift = 0;
+            char *sp;
+
+            sp = ctx->current_arg->value;
+            ep = ctx->current_arg->value + ctx->current_arg->value_len;
+            while (sp < ep && *sp != '\\') {
+                ++sp;
+            }
+            for (; sp < ep; ++sp) {
+                if (*sp == '\\' && sp[1] == ctx->quote) {
+                    ++sp;
+                    ++shift;
+                }
+                if (shift) {
+                    *(sp-shift) = *sp;
+                }
             }
 
-            clean_var_rec(&mime_info);
-            has_content = 0;
+            ctx->current_arg->value_len -= shift;
         }
-    } while (hstate != header_eof);
 
-    if (map_)
-        apr_file_close(map_);
+        ctx->current_arg->value[ctx->current_arg->value_len] = '\0';
+        ctx->state = PARSE_PRE_ARG;
 
-    set_vlist_validator(r, rr);
+        return 0;
 
-    return OK;
+    default:
+        /* get a rid of a gcc warning about unhandled enumerations */
+        break;
+    }
+
+    return len; /* partial match of something */
 }

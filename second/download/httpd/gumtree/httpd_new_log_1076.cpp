@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r,
-                          "default_handler: ap_pass_brigade returned %i",
-                          status);
+fprintf(stderr,
+		"apr_table_overlay: overlay's pool is not an ancestor of p\n");

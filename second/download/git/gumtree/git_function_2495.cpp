@@ -1,68 +1,57 @@
-static void check_unreachable_object(struct object *obj)
+void test_bitmap_walk(struct rev_info *revs)
 {
-	/*
-	 * Missing unreachable object? Ignore it. It's not like
-	 * we miss it (since it can't be reached), nor do we want
-	 * to complain about it being unreachable (since it does
-	 * not exist).
-	 */
-	if (!obj->parsed)
-		return;
+	struct object *root;
+	struct bitmap *result = NULL;
+	khiter_t pos;
+	size_t result_popcnt;
+	struct bitmap_test_data tdata;
 
-	/*
-	 * Unreachable object that exists? Show it if asked to,
-	 * since this is something that is prunable.
-	 */
-	if (show_unreachable) {
-		printf("unreachable %s %s\n", typename(obj->type), oid_to_hex(&obj->oid));
-		return;
+	if (prepare_bitmap_git())
+		die("failed to load bitmap indexes");
+
+	if (revs->pending.nr != 1)
+		die("you must specify exactly one commit to test");
+
+	fprintf(stderr, "Bitmap v%d test (%d entries loaded)\n",
+		bitmap_git.version, bitmap_git.entry_count);
+
+	root = revs->pending.objects[0].item;
+	pos = kh_get_sha1(bitmap_git.bitmaps, root->sha1);
+
+	if (pos < kh_end(bitmap_git.bitmaps)) {
+		struct stored_bitmap *st = kh_value(bitmap_git.bitmaps, pos);
+		struct ewah_bitmap *bm = lookup_stored_bitmap(st);
+
+		fprintf(stderr, "Found bitmap for %s. %d bits / %08x checksum\n",
+			sha1_to_hex(root->sha1), (int)bm->bit_size, ewah_checksum(bm));
+
+		result = ewah_to_bitmap(bm);
 	}
 
-	/*
-	 * "!used" means that nothing at all points to it, including
-	 * other unreachable objects. In other words, it's the "tip"
-	 * of some set of unreachable objects, usually a commit that
-	 * got dropped.
-	 *
-	 * Such starting points are more interesting than some random
-	 * set of unreachable objects, so we show them even if the user
-	 * hasn't asked for _all_ unreachable objects. If you have
-	 * deleted a branch by mistake, this is a prime candidate to
-	 * start looking at, for example.
-	 */
-	if (!obj->used) {
-		if (show_dangling)
-			printf("dangling %s %s\n", typename(obj->type),
-			       oid_to_hex(&obj->oid));
-		if (write_lost_and_found) {
-			char *filename = git_pathdup("lost-found/%s/%s",
-				obj->type == OBJ_COMMIT ? "commit" : "other",
-				oid_to_hex(&obj->oid));
-			FILE *f;
+	if (result == NULL)
+		die("Commit %s doesn't have an indexed bitmap", sha1_to_hex(root->sha1));
 
-			if (safe_create_leading_directories_const(filename)) {
-				error("Could not create lost-found");
-				free(filename);
-				return;
-			}
-			if (!(f = fopen(filename, "w")))
-				die_errno("Could not open '%s'", filename);
-			if (obj->type == OBJ_BLOB) {
-				if (stream_blob_to_fd(fileno(f), obj->oid.hash, NULL, 1))
-					die_errno("Could not write '%s'", filename);
-			} else
-				fprintf(f, "%s\n", oid_to_hex(&obj->oid));
-			if (fclose(f))
-				die_errno("Could not finish '%s'",
-					  filename);
-			free(filename);
-		}
-		return;
-	}
+	revs->tag_objects = 1;
+	revs->tree_objects = 1;
+	revs->blob_objects = 1;
 
-	/*
-	 * Otherwise? It's there, it's unreachable, and some other unreachable
-	 * object points to it. Ignore it - it's not interesting, and we showed
-	 * all the interesting cases above.
-	 */
+	result_popcnt = bitmap_popcount(result);
+
+	if (prepare_revision_walk(revs))
+		die("revision walk setup failed");
+
+	tdata.base = bitmap_new();
+	tdata.prg = start_progress("Verifying bitmap entries", result_popcnt);
+	tdata.seen = 0;
+
+	traverse_commit_list(revs, &test_show_commit, &test_show_object, &tdata);
+
+	stop_progress(&tdata.prg);
+
+	if (bitmap_equals(result, tdata.base))
+		fprintf(stderr, "OK!\n");
+	else
+		fprintf(stderr, "Mismatch!\n");
+
+	bitmap_free(result);
 }

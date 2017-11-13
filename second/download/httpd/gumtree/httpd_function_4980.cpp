@@ -1,70 +1,102 @@
-static void fix_hostname(request_rec *r)
+static const char *alloc_listener(process_rec *process, char *addr,
+                                  apr_port_t port, const char* proto,
+                                  void *dummy)
 {
-    char *host, *scope_id;
-    char *dst;
-    apr_port_t port;
-    apr_status_t rv;
-    const char *c;
+    ap_listen_rec **walk, *last;
+    apr_status_t status;
+    apr_sockaddr_t *sa;
+    int found_listener = 0;
 
-    /* According to RFC 2616, Host header field CAN be blank. */
-    if (!*r->hostname) {
-        return;
+    /* see if we've got an old listener for this address:port */
+    for (walk = &old_listeners; *walk;) {
+        sa = (*walk)->bind_addr;
+        /* Some listeners are not real so they will not have a bind_addr. */
+        if (sa) {
+            ap_listen_rec *new;
+            apr_port_t oldport;
+
+            oldport = sa->port;
+            /* If both ports are equivalent, then if their names are equivalent,
+             * then we will re-use the existing record.
+             */
+            if (port == oldport &&
+                ((!addr && !sa->hostname) ||
+                 ((addr && sa->hostname) && !strcmp(sa->hostname, addr)))) {
+                new = *walk;
+                *walk = new->next;
+                new->next = ap_listeners;
+                ap_listeners = new;
+                found_listener = 1;
+                continue;
+            }
+        }
+
+        walk = &(*walk)->next;
     }
 
-    /* apr_parse_addr_port will interpret a bare integer as a port
-     * which is incorrect in this context.  So treat it separately.
-     */
-    for (c = r->hostname; apr_isdigit(*c); ++c);
-    if (!*c) {  /* pure integer */
-        return;
+    if (found_listener) {
+        if (ap_listeners->slave != dummy) {
+            return "Cannot define a slave on the same IP:port as a Listener";
+        }
+        return NULL;
     }
 
-    rv = apr_parse_addr_port(&host, &scope_id, &port, r->hostname, r->pool);
-    if (rv != APR_SUCCESS || scope_id) {
-        goto bad;
+    if ((status = apr_sockaddr_info_get(&sa, addr, APR_UNSPEC, port, 0,
+                                        process->pool))
+        != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, status, process->pool,
+                      "alloc_listener: failed to set up sockaddr for %s",
+                      addr);
+        return "Listen setup failed";
     }
 
-    if (port) {
-        /* Don't throw the Host: header's port number away:
-           save it in parsed_uri -- ap_get_server_port() needs it! */
-        /* @@@ XXX there should be a better way to pass the port.
-         *         Like r->hostname, there should be a r->portno
+    /* Initialize to our last configured ap_listener. */
+    last = ap_listeners;
+    while (last && last->next) {
+        last = last->next;
+    }
+
+    while (sa) {
+        ap_listen_rec *new;
+
+        /* this has to survive restarts */
+        new = apr_palloc(process->pool, sizeof(ap_listen_rec));
+        new->active = 0;
+        new->next = 0;
+        new->bind_addr = sa;
+        new->protocol = apr_pstrdup(process->pool, proto);
+
+        /* Go to the next sockaddr. */
+        sa = sa->next;
+
+        status = apr_socket_create(&new->sd, new->bind_addr->family,
+                                    SOCK_STREAM, 0, process->pool);
+
+#if APR_HAVE_IPV6
+        /* What could happen is that we got an IPv6 address, but this system
+         * doesn't actually support IPv6.  Try the next address.
          */
-        r->parsed_uri.port = port;
-        r->parsed_uri.port_str = apr_itoa(r->pool, (int)port);
+        if (status != APR_SUCCESS && !addr &&
+            new->bind_addr->family == APR_INET6) {
+            continue;
+        }
+#endif
+        if (status != APR_SUCCESS) {
+            ap_log_perror(APLOG_MARK, APLOG_CRIT, status, process->pool,
+                          "alloc_listener: failed to get a socket for %s",
+                          addr);
+            return "Listen setup failed";
+        }
+
+        /* We need to preserve the order returned by getaddrinfo() */
+        if (last == NULL) {
+            ap_listeners = last = new;
+        } else {
+            last->next = new;
+            last = new;
+        }
+        new->slave = dummy;
     }
 
-    /* if the hostname is an IPv6 numeric address string, it was validated
-     * already; otherwise, further validation is needed
-     */
-    if (r->hostname[0] != '[') {
-        for (dst = host; *dst; dst++) {
-            if (apr_islower(*dst)) {
-                /* leave char unchanged */
-            }
-            else if (*dst == '.') {
-                if (*(dst + 1) == '.') {
-                    goto bad;
-                }
-            }
-            else if (apr_isupper(*dst)) {
-                *dst = apr_tolower(*dst);
-            }
-            else if (*dst == '/' || *dst == '\\') {
-                goto bad;
-            }
-        }
-        /* strip trailing gubbins */
-        if (dst > host && dst[-1] == '.') {
-            dst[-1] = '\0';
-        }
-    }
-    r->hostname = host;
-    return;
-
-bad:
-    r->status = HTTP_BAD_REQUEST;
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                  "Client sent malformed Host header");
-    return;
+    return NULL;
 }

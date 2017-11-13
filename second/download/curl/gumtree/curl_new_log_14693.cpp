@@ -1,9 +1,9 @@
 fputs(
-"              hashes) to verify the peer. This can be a path to a  file  which\n"
-"              contains a single public key in PEM or DER format, or any number\n"
-"              of base64 encoded sha256 hashes preceded by 'sha256//' and sepa-\n"
-"              rated by ';'\n"
+"              matches all hosts, and effectively disables the proxy. Each name\n"
+"              in this list is matched as either a domain  which  contains  the\n"
+"              hostname,  or  the hostname itself. For example, local.com would\n"
+"              match  local.com,  local.com:80,  and  www.local.com,  but   not\n"
+"              www.notlocal.com.\n"
 "\n"
-"              When  negotiating  a  TLS  or SSL connection, the server sends a\n"
-"              certificate indicating its identity. A public key  is  extracted\n"
+"              Since  7.53.0,  This  option overrides the environment variables\n"
 , stdout);

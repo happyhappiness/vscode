@@ -1,1 +1,1 @@
-out_of_memory("expand_vars");
+out_of_memory("string_set");

@@ -1,61 +1,51 @@
-static int authz_core_check_section(apr_pool_t *p, server_rec *s,
-                                    authz_section_conf *section, int is_conf)
+h2_stream *h2_mplx_next_submit(h2_mplx *m, h2_ihash_t *streams)
 {
-    authz_section_conf *prev = NULL;
-    authz_section_conf *child = section->first;
-    int ret = !OK;
+    apr_status_t status;
+    h2_stream *stream = NULL;
+    int acquired;
 
-    while (child) {
-        if (child->first) {
-            if (authz_core_check_section(p, s, child, 0) != OK) {
-                return !OK;
-            }
-
-            if (child->negate && child->op != section->op) {
-                authz_section_conf *next = child->next;
-
-                /* avoid one level of recursion when De Morgan permits */
-                child = child->first;
-
-                if (prev) {
-                    prev->next = child;
+    AP_DEBUG_ASSERT(m);
+    if ((status = enter_mutex(m, &acquired)) == APR_SUCCESS) {
+        h2_io *io = h2_io_set_shift(m->ready_ios);
+        if (io && !m->aborted) {
+            stream = h2_ihash_get(streams, io->id);
+            if (stream) {
+                io->submitted = 1;
+                if (io->rst_error) {
+                    h2_stream_rst(stream, io->rst_error);
                 }
                 else {
-                    section->first = child;
+                    AP_DEBUG_ASSERT(io->response);
+                    H2_MPLX_IO_OUT(APLOG_TRACE2, m, io, "h2_mplx_next_submit_pre");
+                    h2_stream_set_response(stream, io->response, io->bbout);
+                    H2_MPLX_IO_OUT(APLOG_TRACE2, m, io, "h2_mplx_next_submit_post");
                 }
-
-                do {
-                    child->negate = !child->negate;
-                } while (child->next && (child = child->next));
-
-                child->next = next;
             }
+            else {
+                /* We have the io ready, but the stream has gone away, maybe
+                 * reset by the client. Should no longer happen since such
+                 * streams should clear io's from the ready queue.
+                 */
+                ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, APLOGNO(03347)
+                              "h2_mplx(%ld): stream for response %d closed, "
+                              "resetting io to close request processing",
+                              m->id, io->id);
+                h2_io_make_orphaned(io, H2_ERR_STREAM_CLOSED);
+                if (!io->worker_started || io->worker_done) {
+                    io_destroy(m, io, 1);
+                }
+                else {
+                    /* hang around until the h2_task is done, but
+                     * shutdown input and send out any events (e.g. window
+                     * updates) asap. */
+                    h2_io_in_shutdown(io);
+                    io_in_consumed_signal(m, io);
+                }
+            }
+            
+            h2_io_signal(io, H2_IO_WRITE);
         }
-
-        prev = child;
-        child = child->next;
+        leave_mutex(m, acquired);
     }
-
-    child = section->first;
-
-    while (child) {
-        if (!child->negate) {
-            ret = OK;
-            break;
-        }
-
-        child = child->next;
-    }
-
-    if (ret != OK) {
-        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, APR_SUCCESS, s, APLOGNO(01624)
-                     "%s",
-                     apr_pstrcat(p, (is_conf
-                                     ? "<Directory>, <Location>, or similar"
-                                     : format_authz_command(p, section)),
-                                 " directive contains only negative "
-                                 "authorization directives", NULL));
-    }
-
-    return ret;
+    return stream;
 }

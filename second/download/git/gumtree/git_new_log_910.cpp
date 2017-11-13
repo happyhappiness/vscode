@@ -1,1 +1,1 @@
-die("process for submodule '%s' failed", path);
+fprintf(fh, "%s%s\n", prefix, msg);

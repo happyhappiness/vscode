@@ -1,30 +1,30 @@
-static int ap_proxy_retry_worker(const char *proxy_function, proxy_worker *worker,
-        server_rec *s)
+static apr_status_t open_if_needed(h2_task_output *output, ap_filter_t *f,
+                                   apr_bucket_brigade *bb)
 {
-    if (worker->s->status & PROXY_WORKER_IN_ERROR) {
-        if (PROXY_WORKER_IS(worker, PROXY_WORKER_STOPPED)) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(3305)
-                         "%s: Won't retry worker (%s): stopped",
-                         proxy_function, worker->s->hostname);
-            return DECLINED;
+    if (output->state == H2_TASK_OUT_INIT) {
+        h2_response *response;
+        output->state = H2_TASK_OUT_STARTED;
+        response = h2_from_h1_get_response(output->from_h1);
+        if (!response) {
+            if (f) {
+                /* This happens currently when ap_die(status, r) is invoked
+                 * by a read request filter.
+                 */
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
+                              "h2_task_output(%s): write without response "
+                              "for %s %s %s",
+                              output->env->id, output->env->method, 
+                              output->env->authority, output->env->path);
+                f->c->aborted = 1;
+            }
+            if (output->env->io) {
+                apr_thread_cond_broadcast(output->env->io);
+            }
+            return APR_ECONNABORTED;
         }
-        if ((worker->s->status & PROXY_WORKER_IGNORE_ERRORS)
-            || apr_time_now() > worker->s->error_time + worker->s->retry) {
-            ++worker->s->retries;
-            worker->s->status &= ~PROXY_WORKER_IN_ERROR;
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00932)
-                         "%s: worker for (%s) has been marked for retry",
-                         proxy_function, worker->s->hostname);
-            return OK;
-        }
-        else {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00933)
-                         "%s: too soon to retry worker for (%s)",
-                         proxy_function, worker->s->hostname);
-            return DECLINED;
-        }
+        
+        return h2_mplx_out_open(output->env->mplx, output->env->stream_id, 
+                                response, f, bb, output->env->io);
     }
-    else {
-        return OK;
-    }
+    return APR_EOF;
 }

@@ -1,1 +1,1 @@
-die_errno("error writing to pack-objects");
+free(to_free);

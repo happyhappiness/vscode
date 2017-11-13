@@ -1,2 +1,1 @@
-error("chmod on %s failed: %s",
-				lock->filename, strerror(errno));
+die("invalid ref format: %s", ref.buf);

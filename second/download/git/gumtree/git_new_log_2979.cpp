@@ -1,2 +1,2 @@
-die_errno("packfile %s cannot be mapped",
-					  p->pack_name);
+error_errno("unable to open object pack directory: %s",
+				    path.buf);

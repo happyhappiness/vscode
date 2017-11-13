@@ -1,11 +1,10 @@
 fputs(
-"              Since 7.21.7, this option is superfluous since you can specify a\n"
-"              socks5 hostname proxy with -x, --proxy using a socks5h:// proto-\n"
-"              col prefix.\n"
+"              in the SSL3 and TLS1.0 protocols known as BEAST.  If this option\n"
+"              isn't  used,  the  SSL  layer may use workarounds known to cause\n"
+"              interoperability problems with some older  SSL  implementations.\n"
+"              WARNING: this option loosens the SSL security, and by using this\n"
+"              flag you ask for exactly that.  (Added in 7.25.0)\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"              (This  option  was  previously  wrongly  documented  and used as\n"
-"              --socks without the number appended.)\n"
-"\n"
-"       --socks5 <host[:port]>\n"
+"       --socks4 <host[:port]>\n"
+"              Use the specified SOCKS4 proxy. If the port number is not speci-\n"
 , stdout);

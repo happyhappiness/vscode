@@ -1,1 +1,1 @@
-ap_rputs("Disabled", r);
+ap_rputs("Error", r);

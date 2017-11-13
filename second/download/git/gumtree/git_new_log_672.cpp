@@ -1,1 +1,1 @@
-error(_("could not read orig-head"));
+fprintf(stderr, " %c %-*s ", flag, summary_width, summary);

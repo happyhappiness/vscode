@@ -1,31 +1,37 @@
-static int process_input_file(struct strbuf **lines,
-			      struct trailer_item **in_tok_first,
-			      struct trailer_item **in_tok_last)
+static int log_ref_write_1(const char *refname, const unsigned char *old_sha1,
+			   const unsigned char *new_sha1, const char *msg,
+			   struct strbuf *sb_log_file)
 {
-	int count = 0;
-	int patch_start, trailer_start, trailer_end, i;
+	int logfd, result, oflags = O_APPEND | O_WRONLY;
+	char *log_file;
 
-	/* Get the line count */
-	while (lines[count])
-		count++;
+	if (log_all_ref_updates < 0)
+		log_all_ref_updates = !is_bare_repository();
 
-	patch_start = find_patch_start(lines, count);
-	trailer_end = find_trailer_end(lines, patch_start);
-	trailer_start = find_trailer_start(lines, trailer_end);
+	result = log_ref_setup(refname, sb_log_file);
+	if (result)
+		return result;
+	log_file = sb_log_file->buf;
+	/* make sure the rest of the function can't change "log_file" */
+	sb_log_file = NULL;
 
-	/* Print lines before the trailers as is */
-	print_lines(lines, 0, trailer_start);
-
-	if (!has_blank_line_before(lines, trailer_start - 1))
-		printf("\n");
-
-	/* Parse trailer lines */
-	for (i = trailer_start; i < trailer_end; i++) {
-		if (lines[i]->buf[0] != comment_line_char) {
-			struct trailer_item *new = create_trailer_item(lines[i]->buf);
-			add_trailer_item(in_tok_first, in_tok_last, new);
-		}
+	logfd = open(log_file, oflags);
+	if (logfd < 0)
+		return 0;
+	result = log_ref_write_fd(logfd, old_sha1, new_sha1,
+				  git_committer_info(0), msg);
+	if (result) {
+		int save_errno = errno;
+		close(logfd);
+		error("Unable to append to %s", log_file);
+		errno = save_errno;
+		return -1;
 	}
-
-	return trailer_end;
+	if (close(logfd)) {
+		int save_errno = errno;
+		error("Unable to append to %s", log_file);
+		errno = save_errno;
+		return -1;
+	}
+	return 0;
 }

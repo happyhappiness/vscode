@@ -1,10 +1,12 @@
 fputs(
-"              Enables a full trace dump of all  incoming  and  outgoing  data,\n"
-"              including descriptive information, to the given output file. Use\n"
-"              \"-\" as filename to have the output sent to stdout.\n"
+"              (Added in 7.20.0)\n"
 "\n"
-"              This is very similar to --trace, but leaves out the hex part and\n"
-"              only  shows  the ASCII part of the dump. It makes smaller output\n"
-"              that might be easier to read for untrained humans.\n"
+"       --tlsauthtype <authtype>\n"
+"              Set  TLS  authentication  type.  Currently,  the  only supported\n"
+"              option is \"SRP\",  for  TLS-SRP  (RFC  5054).  If  --tlsuser  and\n"
+"              --tlspassword  are specified but --tlsauthtype is not, then this\n"
+"              option defaults to \"SRP\".  (Added in 7.21.4)\n"
 "\n"
+"       --tlspassword <password>\n"
+"              Set password for use with the TLS authentication  method  speci-\n"
 , stdout);

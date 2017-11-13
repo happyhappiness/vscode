@@ -1,104 +1,121 @@
-int ap_mpm_run(apr_pool_t *_pconf, apr_pool_t *plog, server_rec *s)
+static int prefork_check_config(apr_pool_t *p, apr_pool_t *plog,
+                                apr_pool_t *ptemp, server_rec *s)
 {
-    apr_status_t status=0;
+    int startup = 0;
 
-    pconf = _pconf;
-    ap_server_conf = s;
-
-    if (setup_listeners(s)) {
-        ap_log_error(APLOG_MARK, APLOG_ALERT, status, s,
-            "no listening sockets available, shutting down");
-        return -1;
+    /* the reverse of pre_config, we want this only the first time around */
+    if (retained->module_loads == 1) {
+        startup = 1;
     }
 
-    restart_pending = shutdown_pending = 0;
-    worker_thread_count = 0;
-
-    if (!is_graceful) {
-        if (ap_run_pre_mpm(s->process->pool, SB_NOT_SHARED) != OK) {
-            return 1;
+    if (server_limit > MAX_SERVER_LIMIT) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ServerLimit of %d exceeds compile-time "
+                         "limit of", server_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d servers, decreasing to %d.",
+                         MAX_SERVER_LIMIT, MAX_SERVER_LIMIT);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ServerLimit of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         server_limit, MAX_SERVER_LIMIT);
         }
+        server_limit = MAX_SERVER_LIMIT;
     }
-
-    /* Only set slot 0 since that is all NetWare will ever have. */
-    ap_scoreboard_image->parent[0].pid = getpid();
-
-    set_signals();
-
-    apr_pool_create(&pmain, pconf);
-    ap_run_child_init(pmain, ap_server_conf);
-
-    if (ap_threads_max_free < ap_threads_min_free + 1)  /* Don't thrash... */
-        ap_threads_max_free = ap_threads_min_free + 1;
-    request_count = 0;
-
-    startup_workers(ap_threads_to_start);
-
-     /* Allow the Apache screen to be closed normally on exit() only if it
-        has not been explicitly forced to close on exit(). (ie. the -E flag
-        was specified at startup) */
-    if (hold_screen_on_exit > 0) {
-        hold_screen_on_exit = 0;
-    }
-
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-            "%s configured -- resuming normal operations",
-            ap_get_server_version());
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
-            "Server built: %s", ap_get_server_built());
-#ifdef AP_MPM_WANT_SET_ACCEPT_LOCK_MECH
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-            "AcceptMutex: %s (default: %s)",
-            apr_proc_mutex_name(accept_mutex),
-            apr_proc_mutex_defname());
-#endif
-    show_server_data();
-
-    mpm_state = AP_MPMQ_RUNNING;
-    while (!restart_pending && !shutdown_pending) {
-        perform_idle_server_maintenance(pconf);
-        if (show_settings)
-            display_settings();
-        apr_thread_yield();
-        apr_sleep(SCOREBOARD_MAINTENANCE_INTERVAL);
-    }
-    mpm_state = AP_MPMQ_STOPPING;
-
-
-    /* Shutdown the listen sockets so that we don't get stuck in a blocking call.
-    shutdown_listeners();*/
-
-    if (shutdown_pending) { /* Got an unload from the console */
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-            "caught SIGTERM, shutting down");
-
-        while (worker_thread_count > 0) {
-            printf ("\rShutdown pending. Waiting for %d thread(s) to terminate...",
-                    worker_thread_count);
-            apr_thread_yield();
+    else if (server_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ServerLimit of %d not allowed, "
+                         "increasing to 1.", server_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ServerLimit of %d not allowed, increasing to 1",
+                         server_limit);
         }
-
-        return 1;
+        server_limit = 1;
     }
-    else {  /* the only other way out is a restart */
-        /* advance to the next generation */
-        /* XXX: we really need to make sure this new generation number isn't in
-         * use by any of the children.
-         */
-        ++ap_my_generation;
-        ap_scoreboard_image->global->running_generation = ap_my_generation;
 
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                "Graceful restart requested, doing restart");
+    /* you cannot change ServerLimit across a restart; ignore
+     * any such attempts
+     */
+    if (!retained->first_server_limit) {
+        retained->first_server_limit = server_limit;
+    }
+    else if (server_limit != retained->first_server_limit) {
+        /* don't need a startup console version here */
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     "changing ServerLimit to %d from original value of %d "
+                     "not allowed during restart",
+                     server_limit, retained->first_server_limit);
+        server_limit = retained->first_server_limit;
+    }
 
-        /* Wait for all of the threads to terminate before initiating the restart */
-        while (worker_thread_count > 0) {
-            printf ("\rRestart pending. Waiting for %d thread(s) to terminate...",
-                    worker_thread_count);
-            apr_thread_yield();
+    if (ap_daemons_limit > server_limit) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxClients of %d exceeds ServerLimit "
+                         "value of", ap_daemons_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d servers, decreasing MaxClients to %d.",
+                         server_limit, server_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " To increase, please see the ServerLimit "
+                         "directive.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxClients of %d exceeds ServerLimit value "
+                         "of %d, decreasing to match",
+                         ap_daemons_limit, server_limit);
         }
-        printf ("\nRestarting...\n");
+        ap_daemons_limit = server_limit;
+    }
+    else if (ap_daemons_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxClients of %d not allowed, "
+                         "increasing to 1.", ap_daemons_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxClients of %d not allowed, increasing to 1",
+                         ap_daemons_limit);
+        }
+        ap_daemons_limit = 1;
     }
 
-    return 0;
+    /* ap_daemons_to_start > ap_daemons_limit checked in prefork_run() */
+    if (ap_daemons_to_start < 0) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: StartServers of %d not allowed, "
+                         "increasing to 1.", ap_daemons_to_start);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "StartServers of %d not allowed, increasing to 1",
+                         ap_daemons_to_start);
+        }
+        ap_daemons_to_start = 1;
+    }
+
+    if (ap_daemons_min_free < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MinSpareServers of %d not allowed, "
+                         "increasing to 1", ap_daemons_min_free);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " to avoid almost certain server failure.");
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " Please read the documentation.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MinSpareServers of %d not allowed, increasing to 1",
+                         ap_daemons_min_free);
+        }
+        ap_daemons_min_free = 1;
+    }
+
+    /* ap_daemons_max_free < ap_daemons_min_free + 1 checked in prefork_run() */
+
+    return OK;
 }

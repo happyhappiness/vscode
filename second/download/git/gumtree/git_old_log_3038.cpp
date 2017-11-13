@@ -1,1 +1,1 @@
-die("Too long path: %.*s", 60, path);
+die("cannot load shell32.dll");

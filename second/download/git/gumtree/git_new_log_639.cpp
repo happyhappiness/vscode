@@ -1,2 +1,1 @@
-error(_("could not read '%s'"),
-				rebase_path_squash_msg());
+error(_("invalid value for %s: %s"), key, value);

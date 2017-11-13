@@ -1,2 +1,2 @@
-error(_("No note found for object %s."),
-				       sha1_to_hex(object));
+error("the patch applies to an empty "
+				     "'%s' but it is not empty", name);

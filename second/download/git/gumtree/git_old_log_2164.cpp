@@ -1,1 +1,1 @@
-warning("ignoring broken ref %s", refname);
+die(_("BUG: reopen a lockfile that is still open"));

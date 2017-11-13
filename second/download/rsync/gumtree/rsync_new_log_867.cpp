@@ -1,2 +1,2 @@
-fprintf(stderr, "failed to read xattr %s for %s: %s\n",
-			XSTAT_ATTR, fname, strerror(errno));
+fprintf(stderr, "Corrupt %s xattr attached to %s: \"%s\"\n",
+			XSTAT_ATTR, fname, buf);

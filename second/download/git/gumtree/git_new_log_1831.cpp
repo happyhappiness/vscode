@@ -1,1 +1,0 @@
-die(_("cannot delete packs in a precious-objects repo"));

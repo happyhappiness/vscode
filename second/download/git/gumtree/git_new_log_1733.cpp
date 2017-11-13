@@ -1,1 +1,1 @@
-die("could not read ref '%s'", pseudoref);
+fprintf(stderr, "\n");

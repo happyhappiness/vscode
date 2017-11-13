@@ -1,1 +1,1 @@
-fprintf(FINFO,"done\n");
+fprintf(stderr,"EOF in map_ptr!\n");

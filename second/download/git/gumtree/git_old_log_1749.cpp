@@ -1,1 +1,1 @@
-error("Couldn't write %s", lock->lk->filename.buf);
+rp_error("failed to delete %s", name);

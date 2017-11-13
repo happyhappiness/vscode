@@ -1,1 +1,1 @@
-report_unmatched_refs(sought, nr_sought);
+die(_("could not parse %s"), am_path(state, "abort-safety"));

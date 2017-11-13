@@ -1,34 +1,39 @@
-static int filter_init(ap_filter_t *f)
+static const char *set_thread_limit (cmd_parms *cmd, void *dummy, const char *arg)
 {
-    ap_filter_provider_t *p;
-    provider_ctx *pctx;
-    int err;
-    ap_filter_rec_t *filter = f->frec;
+    int tmp_thread_limit;
 
-    harness_ctx *fctx = apr_pcalloc(f->r->pool, sizeof(harness_ctx));
-    for (p = filter->providers; p; p = p->next) {
-        if (p->frec->filter_init_func == filter_init) {
-            ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, f->c,
-                          "Chaining of FilterProviders not supported");
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
-        else if (p->frec->filter_init_func) {
-            f->ctx = NULL;
-            if ((err = p->frec->filter_init_func(f)) != OK) {
-                ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, f->c,
-                              "filter_init for %s failed", p->frec->name);
-                return err;   /* if anyone errors out here, so do we */
-            }
-            if (f->ctx != NULL) {
-                /* the filter init function set a ctx - we need to record it */
-                pctx = apr_pcalloc(f->r->pool, sizeof(provider_ctx));
-                pctx->provider = p;
-                pctx->ctx = f->ctx;
-                pctx->next = fctx->init_ctx;
-                fctx->init_ctx = pctx;
-            }
-        }
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
     }
-    f->ctx = fctx;
-    return OK;
+
+    tmp_thread_limit = atoi(arg);
+    /* you cannot change ThreadLimit across a restart; ignore
+     * any such attempts
+     */
+    if (first_thread_limit &&
+        tmp_thread_limit != thread_limit) {
+        /* how do we log a message?  the error log is a bit bucket at this
+         * point; we'll just have to set a flag so that ap_mpm_run()
+         * logs a warning later
+         */
+        changed_limit_at_restart = 1;
+        return NULL;
+    }
+    thread_limit = tmp_thread_limit;
+
+    if (thread_limit > MAX_THREAD_LIMIT) {
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                    "WARNING: ThreadLimit of %d exceeds compile time limit "
+                    "of %d threads,", thread_limit, MAX_THREAD_LIMIT);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                    " lowering ThreadLimit to %d.", MAX_THREAD_LIMIT);
+       thread_limit = MAX_THREAD_LIMIT;
+    }
+    else if (thread_limit < 1) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "WARNING: Require ThreadLimit > 0, setting to 1");
+        thread_limit = 1;
+    }
+    return NULL;
 }

@@ -1,11 +1,9 @@
 fputs(
-"              mand line options.\n"
+"              Only digit characters (0-9) are valid in the 'start' and  'stop'\n"
+"              fields  of the 'start-stop' range syntax. If a non-digit charac-\n"
+"              ter is given in the range, the server's response will be unspec-\n"
+"              ified, depending on the server's configuration.\n"
 "\n"
-"              This option only changes  the  actual  word  used  in  the  HTTP\n"
-"              request,  it does not alter the way curl behaves. So for example\n"
-"              if you want to make a proper HEAD request, using  -X  HEAD  will\n"
-"              not suffice. You need to use the -I, --head option.\n"
-"\n"
-"              The  method  string  you set with -X, --request will be used for\n"
-"              all requests, which if you for example use  -L,  --location  may\n"
+"              You  should also be aware that many HTTP/1.1 servers do not have\n"
+"              this feature enabled, so that when you attempt to get  a  range,\n"
 , stdout);

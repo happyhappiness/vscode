@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rc, cmd->server, APLOGNO(00799)
-                         "unable to mmap %s, skipping", filename);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "auth_ldap authorize: "
+                              "require user: authorization failed [%s][%s]",
+                              ldc->reason, ldap_err2string(result));

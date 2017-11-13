@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, APLOGNO(01080)
-                      "ajp_msg_check_header() got bad signature %02x%02x",
-                      head[0], head[1]);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01388)
+                          "Zlib: Unsupported flags %02x", (int)deflate_hdr[3]);

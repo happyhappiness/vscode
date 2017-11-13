@@ -1,39 +1,63 @@
-long ssl_io_data_cb(BIO *bio, int cmd,
-                    MODSSL_BIO_CB_ARG_TYPE *argp,
-                    int argi, long argl, long rc)
+static proxy_worker *find_best_worker(proxy_balancer *balancer,
+                                      request_rec *r)
 {
-    SSL *ssl;
-    conn_rec *c;
-    server_rec *s;
-    SSLSrvConfigRec *sc;
+    proxy_worker *candidate = NULL;
+    apr_status_t rv;
 
-    if ((ssl = (SSL *)BIO_get_callback_arg(bio)) == NULL)
-        return rc;
-    if ((c = (conn_rec *)SSL_get_app_data(ssl)) == NULL)
-        return rc;
-    s = mySrvFromConn(c);
-    sc = mySrvConfig(s);
-
-    if (   cmd == (BIO_CB_WRITE|BIO_CB_RETURN)
-        || cmd == (BIO_CB_READ |BIO_CB_RETURN) ) {
-        if (rc >= 0) {
-            ap_log_error(APLOG_MARK, APLOG_TRACE4, 0, s,
-                    "%s: %s %ld/%d bytes %s BIO#%pp [mem: %pp] %s",
-                    SSL_LIBRARY_NAME,
-                    (cmd == (BIO_CB_WRITE|BIO_CB_RETURN) ? "write" : "read"),
-                    rc, argi, (cmd == (BIO_CB_WRITE|BIO_CB_RETURN) ? "to" : "from"),
-                    bio, argp,
-                    (argp != NULL ? "(BIO dump follows)" : "(Oops, no memory buffer?)"));
-            if ((argp != NULL) && APLOGctrace7(c))
-                ssl_io_data_dump(s, argp, rc);
-        }
-        else {
-            ap_log_error(APLOG_MARK, APLOG_TRACE4, 0, s,
-                    "%s: I/O error, %d bytes expected to %s on BIO#%pp [mem: %pp]",
-                    SSL_LIBRARY_NAME, argi,
-                    (cmd == (BIO_CB_WRITE|BIO_CB_RETURN) ? "write" : "read"),
-                    bio, argp);
-        }
+    if ((rv = PROXY_THREAD_LOCK(balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+        "proxy: BALANCER: (%s). Lock failed for find_best_worker()", balancer->name);
+        return NULL;
     }
-    return rc;
+
+    candidate = (*balancer->lbmethod->finder)(balancer, r);
+
+    if (candidate)
+        candidate->s->elected++;
+
+/*
+        PROXY_THREAD_UNLOCK(balancer);
+        return NULL;
+*/
+
+    if ((rv = PROXY_THREAD_UNLOCK(balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+        "proxy: BALANCER: (%s). Unlock failed for find_best_worker()", balancer->name);
+    }
+
+    if (candidate == NULL) {
+        /* All the workers are in error state or disabled.
+         * If the balancer has a timeout sleep for a while
+         * and try again to find the worker. The chances are
+         * that some other thread will release a connection.
+         * By default the timeout is not set, and the server
+         * returns SERVER_BUSY.
+         */
+#if APR_HAS_THREADS
+        if (balancer->timeout) {
+            /* XXX: This can perhaps be build using some
+             * smarter mechanism, like tread_cond.
+             * But since the statuses can came from
+             * different childs, use the provided algo.
+             */
+            apr_interval_time_t timeout = balancer->timeout;
+            apr_interval_time_t step, tval = 0;
+            /* Set the timeout to 0 so that we don't
+             * end in infinite loop
+             */
+            balancer->timeout = 0;
+            step = timeout / 100;
+            while (tval < timeout) {
+                apr_sleep(step);
+                /* Try again */
+                if ((candidate = find_best_worker(balancer, r)))
+                    break;
+                tval += step;
+            }
+            /* restore the timeout */
+            balancer->timeout = timeout;
+        }
+#endif
+    }
+    return candidate;
 }

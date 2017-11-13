@@ -1,3 +1,1 @@
-warning("core.untrackedCache is set to true; "
-				"remove or change it, if you really want to "
-				"disable the untracked cache");
+printf("%d\t%d\t", patch->lines_added, patch->lines_deleted);

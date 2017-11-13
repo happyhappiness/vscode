@@ -1,1 +1,1 @@
-die_errno(_("Could not open %s"), todo_file);
+error("cannot lock ref '%s'", ref);

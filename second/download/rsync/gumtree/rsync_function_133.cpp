@@ -1,26 +1,60 @@
-static void matched(int f,struct sum_struct *s,char *buf,off_t len,
-		    int offset,int i)
+int do_cmd(char *cmd,char *machine,char *user,char *path,int *f_in,int *f_out)
 {
-  int n = offset - last_match;
-  
-  if (verbose > 2)
-    if (i != -1)
-      fprintf(stderr,"match at %d last_match=%d j=%d len=%d n=%d\n",
-	      (int)offset,(int)last_match,i,(int)s->sums[i].len,n);
+  char *args[100];
+  int i,argc=0;
+  char *tok,*p;
 
-  if (n > 0) {
-    int l = 0;
-    write_int(f,n);
-    while (l < n) {
-      int n1 = MIN(CHUNK_SIZE,n-l);
-      write_buf(f,map_ptr(buf,last_match+l,n1),n1);
-      l += n1;
+  if (!local_server) {
+    if (!cmd)
+      cmd = getenv(RSYNC_RSH_ENV);
+    if (!cmd)
+      cmd = RSYNC_RSH;
+    cmd = strdup(cmd);
+    if (!cmd) 
+      goto oom;
+
+    for (tok=strtok(cmd," ");tok;tok=strtok(NULL," ")) {
+      args[argc++] = tok;
     }
-    data_transfer += n;
+
+    if (user) {
+      args[argc++] = "-l";
+      args[argc++] = user;
+    }
+    args[argc++] = machine;
   }
-  write_int(f,-(i+1));
-  if (i != -1)
-    last_match = offset + s->sums[i].len;
-  if (n > 0)
-    write_flush(f);
+
+  args[argc++] = rsync_path;
+
+  server_options(args,&argc);
+
+  if (path && *path) {
+    char *dir = strdup(path);
+    p = strrchr(dir,'/');
+    if (p) {
+      *p = 0;
+      args[argc++] = dir;
+      p++;
+    } else {
+      args[argc++] = ".";
+      p = dir;
+    }
+    if (p[0])
+      args[argc++] = path;
+  }
+
+  args[argc] = NULL;
+
+  if (verbose > 3) {
+    fprintf(stderr,"cmd=");
+    for (i=0;i<argc;i++)
+      fprintf(stderr,"%s ",args[i]);
+    fprintf(stderr,"\n");
+  }
+
+  return piped_child(args,f_in,f_out);
+
+oom:
+  out_of_memory("do_cmd");
+  return 0; /* not reached */
 }

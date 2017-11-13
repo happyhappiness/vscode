@@ -1,144 +1,83 @@
-void rwrite(enum logcode code, const char *buf, int len, int is_utf8)
+static char *make_output_option(struct output_struct *words, short *levels, uchar where)
 {
-	int trailing_CR_or_NL;
-	FILE *f = msgs2stderr ? stderr : stdout;
-#ifdef ICONV_OPTION
-	iconv_t ic = is_utf8 && ic_recv != (iconv_t)-1 ? ic_recv : ic_chck;
-#else
-#ifdef ICONV_CONST
-	iconv_t ic = ic_chck;
-#endif
-#endif
+	char *str = words == info_words ? "--info=" : "--debug=";
+	int j, counts[MAX_OUT_LEVEL+1], pos, skipped = 0, len = 0, max = 0, lev = 0;
+	int word_count = words == info_words ? COUNT_INFO : COUNT_DEBUG;
+	char *buf;
 
-	if (len < 0)
-		exit_cleanup(RERR_MESSAGEIO);
+	memset(counts, 0, sizeof counts);
 
-	if (msgs2stderr) {
-		if (!am_daemon) {
-			if (code == FLOG)
-				return;
-			goto output_msg;
+	for (j = 0; words[j].name; j++) {
+		if (words[j].flag != j) {
+			rprintf(FERROR, "rsync: internal error on %s%s: %d != %d\n",
+				words == info_words ? "INFO_" : "DEBUG_",
+				words[j].name, words[j].flag, j);
+			exit_cleanup(RERR_UNSUPPORTED);
 		}
-		if (code == FCLIENT)
-			return;
-		code = FLOG;
-	} else if (send_msgs_to_gen) {
-		assert(!is_utf8);
-		/* Pass the message to our sibling in native charset. */
-		send_msg((enum msgcode)code, buf, len, 0);
-		return;
-	}
-
-	if (code == FERROR_SOCKET) /* This gets simplified for a non-sibling. */
-		code = FERROR;
-	else if (code == FERROR_UTF8) {
-		is_utf8 = 1;
-		code = FERROR;
-	}
-
-	if (code == FCLIENT)
-		code = FINFO;
-	else if (am_daemon || logfile_name) {
-		static int in_block;
-		char msg[2048];
-		int priority = code == FINFO || code == FLOG ? LOG_INFO :  LOG_WARNING;
-
-		if (in_block)
-			return;
-		in_block = 1;
-		if (!log_initialised)
-			log_init(0);
-		strlcpy(msg, buf, MIN((int)sizeof msg, len + 1));
-		logit(priority, msg);
-		in_block = 0;
-
-		if (code == FLOG || (am_daemon && !am_server))
-			return;
-	} else if (code == FLOG)
-		return;
-
-	if (quiet && code == FINFO)
-		return;
-
-	if (am_server) {
-		enum msgcode msg = (enum msgcode)code;
-		if (protocol_version < 30) {
-			if (msg == MSG_ERROR)
-				msg = MSG_ERROR_XFER;
-			else if (msg == MSG_WARNING)
-				msg = MSG_INFO;
+		if (!(words[j].where & where))
+			continue;
+		if (words[j].priority == DEFAULT_PRIORITY) {
+			/* Implied items don't need to be mentioned. */
+			skipped++;
+			continue;
 		}
-		/* Pass the message to the non-server side. */
-		if (send_msg(msg, buf, len, !is_utf8))
-			return;
-		if (am_daemon) {
-			/* TODO: can we send the error to the user somehow? */
-			return;
+		len += len ? 1 : strlen(str);
+		len += strlen(words[j].name);
+		len += levels[j] == 1 ? 0 : 1;
+
+		if (words[j].priority == HELP_PRIORITY)
+			continue; /* no abbreviating for help */
+
+		assert(levels[j] <= MAX_OUT_LEVEL);
+		if (++counts[levels[j]] > max) {
+			/* Determine which level has the most items. */
+			lev = levels[j];
+			max = counts[lev];
 		}
-		f = stderr;
 	}
 
-output_msg:
-	switch (code) {
-	case FERROR_XFER:
-		got_xfer_error = 1;
-		/* FALL THROUGH */
-	case FERROR:
-	case FERROR_UTF8:
-	case FERROR_SOCKET:
-	case FWARNING:
-		f = stderr;
-		break;
-	case FLOG:
-	case FINFO:
-	case FCLIENT:
-		break;
-	default:
-		fprintf(stderr, "Unknown logcode in rwrite(): %d [%s]\n", (int)code, who_am_i());
-		exit_cleanup(RERR_MESSAGEIO);
+	/* Sanity check the COUNT_* define against the length of the table. */
+	if (j != word_count) {
+		rprintf(FERROR, "rsync: internal error: %s is wrong! (%d != %d)\n",
+			words == info_words ? "COUNT_INFO" : "COUNT_DEBUG",
+			j, word_count);
+		exit_cleanup(RERR_UNSUPPORTED);
 	}
 
-	if (output_needs_newline) {
-		fputc('\n', f);
-		output_needs_newline = 0;
+	if (!len)
+		return NULL;
+
+	len++;
+	if (!(buf = new_array(char, len)))
+		out_of_memory("make_output_option");
+	pos = 0;
+
+	if (skipped || max < 5)
+		lev = -1;
+	else {
+		if (lev == 0)
+			pos += snprintf(buf, len, "%sNONE", str);
+		else if (lev == 1)
+			pos += snprintf(buf, len, "%sALL", str);
+		else
+			pos += snprintf(buf, len, "%sALL%d", str, lev);
 	}
 
-	trailing_CR_or_NL = len && (buf[len-1] == '\n' || buf[len-1] == '\r')
-			  ? buf[--len] : 0;
-
-	if (len && buf[0] == '\r') {
-		fputc('\r', f);
-		buf++;
-		len--;
+	for (j = 0; words[j].name && pos < len; j++) {
+		if (words[j].priority == DEFAULT_PRIORITY || levels[j] == lev || !(words[j].where & where))
+			continue;
+		if (pos)
+			buf[pos++] = ',';
+		else
+			pos += strlcpy(buf+pos, str, len-pos);
+		if (pos < len)
+			pos += strlcpy(buf+pos, words[j].name, len-pos);
+		/* Level 1 is implied by the name alone. */
+		if (levels[j] != 1 && pos < len)
+			buf[pos++] = '0' + levels[j];
 	}
 
-#ifdef ICONV_CONST
-	if (ic != (iconv_t)-1) {
-		xbuf outbuf, inbuf;
-		char convbuf[1024];
-		int ierrno;
+	buf[pos] = '\0';
 
-		INIT_CONST_XBUF(outbuf, convbuf);
-		INIT_XBUF(inbuf, (char*)buf, len, (size_t)-1);
-
-		while (inbuf.len) {
-			iconvbufs(ic, &inbuf, &outbuf, inbuf.pos ? 0 : ICB_INIT);
-			ierrno = errno;
-			if (outbuf.len) {
-				filtered_fwrite(f, convbuf, outbuf.len, 0);
-				outbuf.len = 0;
-			}
-			if (!ierrno || ierrno == E2BIG)
-				continue;
-			fprintf(f, "\\#%03o", CVAL(inbuf.buf, inbuf.pos++));
-			inbuf.len--;
-		}
-	} else
-#endif
-		filtered_fwrite(f, buf, len, !allow_8bit_chars);
-
-	if (trailing_CR_or_NL) {
-		fputc(trailing_CR_or_NL, f);
-		fflush(f);
-	}
+	return buf;
 }

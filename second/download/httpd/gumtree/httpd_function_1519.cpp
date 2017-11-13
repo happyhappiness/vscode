@@ -1,66 +1,52 @@
-static authz_status dbmfilegroup_check_authorization(request_rec *r,
-                                              const char *require_args)
+static int proxy_balancer_post_request(proxy_worker *worker,
+                                       proxy_balancer *balancer,
+                                       request_rec *r,
+                                       proxy_server_conf *conf)
 {
-    authz_dbm_config_rec *conf = ap_get_module_config(r->per_dir_config,
-                                                      &authz_dbm_module);
-    char *user = r->user;
-    const char *realm = ap_auth_name(r);
-    const char *filegroup = NULL;
-    const char *orig_groups = NULL;
-    apr_status_t status;
-    const char *groups;
-    char *v;
 
-    if (!user) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-            "access to %s failed, reason: no authenticated user", r->uri);
-        return AUTHZ_DENIED;
+    apr_status_t rv;
+
+    if ((rv = PROXY_THREAD_LOCK(balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+            "proxy: BALANCER: (%s). Lock failed for post_request",
+            balancer->name);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
-
-    if (!conf->grpfile) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                        "No group file was specified in the configuration");
-        return AUTHZ_DENIED;
-    }
-
-    /* fetch group data from dbm file. */
-    status = get_dbm_grp(r, apr_pstrcat(r->pool, user, ":", realm, NULL),
-                         user, conf->grpfile, conf->dbmtype, &groups);
-
-    if (status != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                      "could not open dbm (type %s) group access "
-                      "file: %s", conf->dbmtype, conf->grpfile);
-        return AUTHZ_DENIED;
-    }
-
-    if (groups == NULL) {
-        /* no groups available, so exit immediately */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Authorization of user %s to access %s failed, reason: "
-                      "user doesn't appear in DBM group file (%s).", 
-                      r->user, r->uri, conf->grpfile);
-        return AUTHZ_DENIED;
-    }
-
-    orig_groups = groups;
-
-    filegroup = authz_owner_get_file_group(r);
-
-    if (filegroup) {
-        groups = orig_groups;
-        while (groups[0]) {
-            v = ap_getword(r->pool, &groups, ',');
-            if (!strcmp(v, filegroup)) {
-                return AUTHZ_GRANTED;
+    if (!apr_is_empty_array(balancer->errstatuses)) {
+        int i;
+        for (i = 0; i < balancer->errstatuses->nelts; i++) {
+            int val = ((int *)balancer->errstatuses->elts)[i];
+            if (r->status == val) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                             "proxy: BALANCER: (%s).  Forcing worker (%s) into error state "
+                             "due to status code %d matching 'failonstatus' "
+                             "balancer parameter",
+                             balancer->name, worker->name, val);
+                worker->s->status |= PROXY_WORKER_IN_ERROR;
+                worker->s->error_time = apr_time_now();
+                break;
             }
         }
     }
 
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                  "Authorization of user %s to access %s failed, reason: "
-                  "user is not part of the 'require'ed group(s).",
-                  r->user, r->uri);
+    if (balancer->failontimeout
+        && (apr_table_get(r->notes, "proxy_timedout")) != NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "%s: Forcing worker (%s) into error state "
+                      "due to timeout and 'failonstatus' parameter being set",
+                       balancer->name, worker->name);
+        worker->s->status |= PROXY_WORKER_IN_ERROR;
+        worker->s->error_time = apr_time_now();
 
-    return AUTHZ_DENIED;
+    }
+
+    if ((rv = PROXY_THREAD_UNLOCK(balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+            "proxy: BALANCER: (%s). Unlock failed for post_request",
+            balancer->name);
+    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy_balancer_post_request for (%s)", balancer->name);
+
+    return OK;
 }

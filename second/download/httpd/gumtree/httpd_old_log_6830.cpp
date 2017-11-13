@@ -1,3 +1,4 @@
-apr_file_printf(errfile,
-                        "Could not remove file '%s': %s" APR_EOL_STR, file,
-                        apr_strerror(rv, errmsg, sizeof errmsg));
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
+                      APLOGNO(02925) 
+                      "h2_stream(%ld-%d): failed send_data_cb",
+                      session->id, (int)stream_id);

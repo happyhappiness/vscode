@@ -1,1 +1,2 @@
-die_errno(_("could not open '%s'"), git_path_commit_editmsg());
+die(_("pack has bad object at offset %"PRIuMAX": %s"),
+	    (uintmax_t)offset, buf);

@@ -1,11 +1,11 @@
 fputs(
-"              forces  a  LIST command to be performed instead of RETR. This is\n"
-"              particularly useful if the user wants to see if a specific  mes-\n"
-"              sage id exists on the server and what size it is.\n"
+"              option will make it discard all  \"session  cookies\".  This  will\n"
+"              basically  have  the same effect as if a new session is started.\n"
+"              Typical browsers always discard  session  cookies  when  they're\n"
+"              closed down.\n"
 "\n"
-"              Note:  When combined with -X, --request, this option can be used\n"
-"              to send an UIDL command instead, so the user may use the email's\n"
-"              unique  identifier  rather  than  it's  message  id  to make the\n"
-"              request.\n"
+"              See also -b, --cookie and -c, --cookie-jar.\n"
 "\n"
+"       --keepalive-time <seconds>\n"
+"              This  option  sets  the  time  a connection needs to remain idle\n"
 , stdout);

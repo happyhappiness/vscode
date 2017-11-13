@@ -1,1 +1,1 @@
-error("ftell error: %s", strerror(errno));
+die_errno("Failed to send request");

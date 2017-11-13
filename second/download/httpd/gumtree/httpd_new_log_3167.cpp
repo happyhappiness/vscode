@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, rv, c->base_server, APLOGNO(01612)
-                         "ProtocolEcho: Error - read empty brigade from %s!",
-                         c->client_ip);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01620)
+                      "Could not open password file: %s", conf->pwfile);

@@ -1,1 +1,1 @@
-die("Cannot use --contents with final commit object name");
+fputs("~\n", ecbdata->opt->file);

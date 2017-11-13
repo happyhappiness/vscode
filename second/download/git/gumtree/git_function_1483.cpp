@@ -1,66 +1,161 @@
-int cmd_rerere(int argc, const char **argv, const char *prefix)
+static const char *prepare_index(int argc, const char **argv, const char *prefix,
+				 const struct commit *current_head, int is_status)
 {
-	struct string_list merge_rr = STRING_LIST_INIT_DUP;
-	int i, fd, autoupdate = -1, flags = 0;
+	struct string_list partial;
+	struct pathspec pathspec;
+	int refresh_flags = REFRESH_QUIET;
 
-	struct option options[] = {
-		OPT_SET_INT(0, "rerere-autoupdate", &autoupdate,
-			N_("register clean resolutions in index"), 1),
-		OPT_END(),
-	};
+	if (is_status)
+		refresh_flags |= REFRESH_UNMERGED;
+	parse_pathspec(&pathspec, 0,
+		       PATHSPEC_PREFER_FULL,
+		       prefix, argv);
 
-	argc = parse_options(argc, argv, prefix, options, rerere_usage, 0);
+	if (read_cache_preload(&pathspec) < 0)
+		die(_("index file corrupt"));
 
-	git_config(git_xmerge_config, NULL);
+	if (interactive) {
+		char *old_index_env = NULL;
+		hold_locked_index(&index_lock, 1);
 
-	if (autoupdate == 1)
-		flags = RERERE_AUTOUPDATE;
-	if (autoupdate == 0)
-		flags = RERERE_NOAUTOUPDATE;
+		refresh_cache_or_die(refresh_flags);
 
-	if (argc < 1)
-		return rerere(flags);
+		if (write_locked_index(&the_index, &index_lock, CLOSE_LOCK))
+			die(_("unable to create temporary index"));
 
-	if (!strcmp(argv[0], "forget")) {
-		struct pathspec pathspec;
-		if (argc < 2)
-			warning("'git rerere forget' without paths is deprecated");
-		parse_pathspec(&pathspec, 0, PATHSPEC_PREFER_CWD,
-			       prefix, argv + 1);
-		return rerere_forget(&pathspec);
+		old_index_env = getenv(INDEX_ENVIRONMENT);
+		setenv(INDEX_ENVIRONMENT, index_lock.filename.buf, 1);
+
+		if (interactive_add(argc, argv, prefix, patch_interactive) != 0)
+			die(_("interactive add failed"));
+
+		if (old_index_env && *old_index_env)
+			setenv(INDEX_ENVIRONMENT, old_index_env, 1);
+		else
+			unsetenv(INDEX_ENVIRONMENT);
+
+		discard_cache();
+		read_cache_from(index_lock.filename.buf);
+		if (update_main_cache_tree(WRITE_TREE_SILENT) == 0) {
+			if (reopen_lock_file(&index_lock) < 0)
+				die(_("unable to write index file"));
+			if (write_locked_index(&the_index, &index_lock, CLOSE_LOCK))
+				die(_("unable to update temporary index"));
+		} else
+			warning(_("Failed to update main cache tree"));
+
+		commit_style = COMMIT_NORMAL;
+		return index_lock.filename.buf;
 	}
 
-	fd = setup_rerere(&merge_rr, flags);
-	if (fd < 0)
-		return 0;
+	/*
+	 * Non partial, non as-is commit.
+	 *
+	 * (1) get the real index;
+	 * (2) update the_index as necessary;
+	 * (3) write the_index out to the real index (still locked);
+	 * (4) return the name of the locked index file.
+	 *
+	 * The caller should run hooks on the locked real index, and
+	 * (A) if all goes well, commit the real index;
+	 * (B) on failure, rollback the real index.
+	 */
+	if (all || (also && pathspec.nr)) {
+		hold_locked_index(&index_lock, 1);
+		add_files_to_cache(also ? prefix : NULL, &pathspec, 0);
+		refresh_cache_or_die(refresh_flags);
+		update_main_cache_tree(WRITE_TREE_SILENT);
+		if (write_locked_index(&the_index, &index_lock, CLOSE_LOCK))
+			die(_("unable to write new_index file"));
+		commit_style = COMMIT_NORMAL;
+		return index_lock.filename.buf;
+	}
 
-	if (!strcmp(argv[0], "clear")) {
-		rerere_clear(&merge_rr);
-	} else if (!strcmp(argv[0], "gc"))
-		rerere_gc(&merge_rr);
-	else if (!strcmp(argv[0], "status"))
-		for (i = 0; i < merge_rr.nr; i++)
-			printf("%s\n", merge_rr.items[i].string);
-	else if (!strcmp(argv[0], "remaining")) {
-		rerere_remaining(&merge_rr);
-		for (i = 0; i < merge_rr.nr; i++) {
-			if (merge_rr.items[i].util != RERERE_RESOLVED)
-				printf("%s\n", merge_rr.items[i].string);
-			else
-				/* prepare for later call to
-				 * string_list_clear() */
-				merge_rr.items[i].util = NULL;
+	/*
+	 * As-is commit.
+	 *
+	 * (1) return the name of the real index file.
+	 *
+	 * The caller should run hooks on the real index,
+	 * and create commit from the_index.
+	 * We still need to refresh the index here.
+	 */
+	if (!only && !pathspec.nr) {
+		hold_locked_index(&index_lock, 1);
+		refresh_cache_or_die(refresh_flags);
+		if (active_cache_changed
+		    || !cache_tree_fully_valid(active_cache_tree)) {
+			update_main_cache_tree(WRITE_TREE_SILENT);
+			active_cache_changed = 1;
 		}
-	} else if (!strcmp(argv[0], "diff"))
-		for (i = 0; i < merge_rr.nr; i++) {
-			const char *path = merge_rr.items[i].string;
-			const char *name = (const char *)merge_rr.items[i].util;
-			if (diff_two(rerere_path(name, "preimage"), path, path, path))
-				die("unable to generate diff for %s", name);
+		if (active_cache_changed) {
+			if (write_locked_index(&the_index, &index_lock,
+					       COMMIT_LOCK))
+				die(_("unable to write new_index file"));
+		} else {
+			rollback_lock_file(&index_lock);
 		}
-	else
-		usage_with_options(rerere_usage, options);
+		commit_style = COMMIT_AS_IS;
+		return get_index_file();
+	}
 
-	string_list_clear(&merge_rr, 1);
-	return 0;
+	/*
+	 * A partial commit.
+	 *
+	 * (0) find the set of affected paths;
+	 * (1) get lock on the real index file;
+	 * (2) update the_index with the given paths;
+	 * (3) write the_index out to the real index (still locked);
+	 * (4) get lock on the false index file;
+	 * (5) reset the_index from HEAD;
+	 * (6) update the_index the same way as (2);
+	 * (7) write the_index out to the false index file;
+	 * (8) return the name of the false index file (still locked);
+	 *
+	 * The caller should run hooks on the locked false index, and
+	 * create commit from it.  Then
+	 * (A) if all goes well, commit the real index;
+	 * (B) on failure, rollback the real index;
+	 * In either case, rollback the false index.
+	 */
+	commit_style = COMMIT_PARTIAL;
+
+	if (whence != FROM_COMMIT) {
+		if (whence == FROM_MERGE)
+			die(_("cannot do a partial commit during a merge."));
+		else if (whence == FROM_CHERRY_PICK)
+			die(_("cannot do a partial commit during a cherry-pick."));
+	}
+
+	string_list_init(&partial, 1);
+	if (list_paths(&partial, !current_head ? NULL : "HEAD", prefix, &pathspec))
+		exit(1);
+
+	discard_cache();
+	if (read_cache() < 0)
+		die(_("cannot read the index"));
+
+	hold_locked_index(&index_lock, 1);
+	add_remove_files(&partial);
+	refresh_cache(REFRESH_QUIET);
+	update_main_cache_tree(WRITE_TREE_SILENT);
+	if (write_locked_index(&the_index, &index_lock, CLOSE_LOCK))
+		die(_("unable to write new_index file"));
+
+	hold_lock_file_for_update(&false_lock,
+				  git_path("next-index-%"PRIuMAX,
+					   (uintmax_t) getpid()),
+				  LOCK_DIE_ON_ERROR);
+
+	create_base_index(current_head);
+	add_remove_files(&partial);
+	refresh_cache(REFRESH_QUIET);
+
+	if (write_locked_index(&the_index, &false_lock, CLOSE_LOCK))
+		die(_("unable to write temporary index file"));
+
+	discard_cache();
+	read_cache_from(false_lock.filename.buf);
+
+	return false_lock.filename.buf;
 }

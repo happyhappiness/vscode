@@ -1,78 +1,156 @@
-static int open_error_log(server_rec *s, int is_main, apr_pool_t *p)
+static int uldap_cache_compare(request_rec *r, util_ldap_connection_t *ldc,
+                               const char *url, const char *dn,
+                               const char *attrib, const char *value)
 {
-    const char *fname;
-    int rc;
+    int result = 0;
+    util_url_node_t *curl;
+    util_url_node_t curnode;
+    util_compare_node_t *compare_nodep;
+    util_compare_node_t the_compare_node;
+    apr_time_t curtime = 0; /* silence gcc -Wall */
+    int failures = 0;
 
-    if (*s->error_fname == '|') {
-        apr_file_t *dummy = NULL;
-        apr_cmdtype_e cmdtype = APR_SHELLCMD_ENV;
-        fname = s->error_fname + 1;
+    util_ldap_state_t *st = (util_ldap_state_t *)
+                            ap_get_module_config(r->server->module_config,
+                                                 &ldap_module);
 
-        /* In 2.4 favor PROGRAM_ENV, accept "||prog" syntax for compatibility
-         * and "|$cmd" to override the default.
-         * Any 2.2 backport would continue to favor SHELLCMD_ENV so there 
-         * accept "||prog" to override, and "|$cmd" to ease conversion.
-         */
-        if (*fname == '|') {
-            cmdtype = APR_PROGRAM_ENV;
-            ++fname;
-        }
-        if (*fname == '$')
-            ++fname;
-	
-        /* Spawn a new child logger.  If this is the main server_rec,
-         * the new child must use a dummy stderr since the current
-         * stderr might be a pipe to the old logger.  Otherwise, the
-         * child inherits the parents stderr. */
-        rc = log_child(p, fname, &dummy, cmdtype, is_main);
-        if (rc != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
-                         "Couldn't start ErrorLog process");
-            return DONE;
-        }
-
-        s->error_log = dummy;
+    /* get cache entry (or create one) */
+    LDAP_CACHE_LOCK();
+    curnode.url = url;
+    curl = util_ald_cache_fetch(st->util_ldap_cache, &curnode);
+    if (curl == NULL) {
+        curl = util_ald_create_caches(st, url);
     }
+    LDAP_CACHE_UNLOCK();
 
-#ifdef HAVE_SYSLOG
-    else if (!strncasecmp(s->error_fname, "syslog", 6)) {
-        if ((fname = strchr(s->error_fname, ':'))) {
-            const TRANS *fac;
+    if (curl) {
+        /* make a comparison to the cache */
+        LDAP_CACHE_LOCK();
+        curtime = apr_time_now();
 
-            fname++;
-            for (fac = facilities; fac->t_name; fac++) {
-                if (!strcasecmp(fname, fac->t_name)) {
-                    openlog(ap_server_argv0, LOG_NDELAY|LOG_CONS|LOG_PID,
-                            fac->t_val);
-                    s->error_log = NULL;
-                    return OK;
+        the_compare_node.dn = (char *)dn;
+        the_compare_node.attrib = (char *)attrib;
+        the_compare_node.value = (char *)value;
+        the_compare_node.result = 0;
+        the_compare_node.sgl_processed = 0;
+        the_compare_node.subgroupList = NULL;
+
+        compare_nodep = util_ald_cache_fetch(curl->compare_cache,
+                                             &the_compare_node);
+
+        if (compare_nodep != NULL) {
+            /* found it... */
+            if (curtime - compare_nodep->lastcompare > st->compare_cache_ttl) {
+                /* ...but it is too old */
+                util_ald_cache_remove(curl->compare_cache, compare_nodep);
+            }
+            else {
+                /* ...and it is good */
+                if (LDAP_COMPARE_TRUE == compare_nodep->result) {
+                    ldc->reason = "Comparison true (cached)";
                 }
+                else if (LDAP_COMPARE_FALSE == compare_nodep->result) {
+                    ldc->reason = "Comparison false (cached)";
+                }
+                else if (LDAP_NO_SUCH_ATTRIBUTE == compare_nodep->result) {
+                    ldc->reason = "Comparison no such attribute (cached)";
+                }
+                else {
+                    ldc->reason = "Comparison undefined (cached)";
+                }
+
+                /* record the result code to return with the reason... */
+                result = compare_nodep->result;
+                /* and unlock this read lock */
+                LDAP_CACHE_UNLOCK();
+                return result;
             }
         }
+        /* unlock this read lock */
+        LDAP_CACHE_UNLOCK();
+    }
+
+start_over:
+    if (failures++ > 10) {
+        /* too many failures */
+        return result;
+    }
+
+    if (LDAP_SUCCESS != (result = uldap_connection_open(r, ldc))) {
+        /* connect failed */
+        return result;
+    }
+
+    result = ldap_compare_s(ldc->ldap,
+                            (char *)dn,
+                            (char *)attrib,
+                            (char *)value);
+    if (AP_LDAP_IS_SERVER_DOWN(result)) { 
+        /* connection failed - try again */
+        ldc->reason = "ldap_compare_s() failed with server down";
+        uldap_connection_unbind(ldc);
+        goto start_over;
+    }
+    if (result == LDAP_TIMEOUT && failures == 0) {
+        /*
+         * we are reusing a connection that doesn't seem to be active anymore
+         * (firewall state drop?), let's try a new connection.
+         */
+        ldc->reason = "ldap_compare_s() failed with timeout";
+        uldap_connection_unbind(ldc);
+        goto start_over;
+    }
+
+    ldc->reason = "Comparison complete";
+    if ((LDAP_COMPARE_TRUE == result) ||
+        (LDAP_COMPARE_FALSE == result) ||
+        (LDAP_NO_SUCH_ATTRIBUTE == result)) {
+        if (curl) {
+            /* compare completed; caching result */
+            LDAP_CACHE_LOCK();
+            the_compare_node.lastcompare = curtime;
+            the_compare_node.result = result;
+            the_compare_node.sgl_processed = 0;
+            the_compare_node.subgroupList = NULL;
+
+            /* If the node doesn't exist then insert it, otherwise just update
+             * it with the last results
+             */
+            compare_nodep = util_ald_cache_fetch(curl->compare_cache,
+                                                 &the_compare_node);
+            if (   (compare_nodep == NULL)
+                || (strcmp(the_compare_node.dn, compare_nodep->dn) != 0)
+                || (strcmp(the_compare_node.attrib,compare_nodep->attrib) != 0)
+                || (strcmp(the_compare_node.value, compare_nodep->value) != 0))
+            {
+                void *junk;
+
+                junk = util_ald_cache_insert(curl->compare_cache,
+                                             &the_compare_node);
+                if(junk == NULL) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "[%" APR_PID_T_FMT "] cache_compare: Cache"
+                                  " insertion failure.", getpid());
+                }
+            }
+            else {
+                compare_nodep->lastcompare = curtime;
+                compare_nodep->result = result;
+            }
+            LDAP_CACHE_UNLOCK();
+        }
+        if (LDAP_COMPARE_TRUE == result) {
+            ldc->reason = "Comparison true (adding to cache)";
+            return LDAP_COMPARE_TRUE;
+        }
+        else if (LDAP_COMPARE_FALSE == result) {
+            ldc->reason = "Comparison false (adding to cache)";
+            return LDAP_COMPARE_FALSE;
+        }
         else {
-            openlog(ap_server_argv0, LOG_NDELAY|LOG_CONS|LOG_PID, LOG_LOCAL7);
-        }
-
-        s->error_log = NULL;
-    }
-#endif
-    else {
-        fname = ap_server_root_relative(p, s->error_fname);
-        if (!fname) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, APR_EBADPATH, NULL,
-                         "%s: Invalid error log path %s.",
-                         ap_server_argv0, s->error_fname);
-            return DONE;
-        }
-        if ((rc = apr_file_open(&s->error_log, fname,
-                               APR_APPEND | APR_WRITE | APR_CREATE | APR_LARGEFILE,
-                               APR_OS_DEFAULT, p)) != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
-                         "%s: could not open error log file %s.",
-                         ap_server_argv0, fname);
-            return DONE;
+            ldc->reason = "Comparison no such attribute (adding to cache)";
+            return LDAP_NO_SUCH_ATTRIBUTE;
         }
     }
-
-    return OK;
+    return result;
 }

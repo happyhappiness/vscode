@@ -1,1 +1,2 @@
-fprintf(FERROR,"failed to open %s : %s\n",fname,strerror(errno));
+fprintf(FERROR,"hash search s->n=%d len=%d count=%d\n",
+	    s->n,(int)len,s->count);

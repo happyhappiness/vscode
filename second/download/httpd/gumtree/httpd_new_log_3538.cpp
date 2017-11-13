@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00662)
-                          "mod_rewrite: can't access DBM RewriteMap file %s",
-                          s->checkfile);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02070)
+                     "Failed to set APR_SO_NONBLOCK to 1 on socket.");

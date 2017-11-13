@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL, APLOGNO(00496)
-                             "apr_proc_detach failed");
+ap_log_rerror(APLOG_MARK, loglevel, rv, r, APLOGNO(00935)
+                          "%s: error creating fam %d socket for target %s",
+                          proxy_function, backend_addr->family, backend_name);

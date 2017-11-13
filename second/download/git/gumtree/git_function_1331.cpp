@@ -1,22 +1,13 @@
-static void prune_ref(struct ref_to_prune *r)
+void set_git_work_tree(const char *new_work_tree)
 {
-	struct ref_transaction *transaction;
-	struct strbuf err = STRBUF_INIT;
-
-	if (check_refname_format(r->name, 0))
-		return;
-
-	transaction = ref_transaction_begin(&err);
-	if (!transaction ||
-	    ref_transaction_delete(transaction, r->name, r->sha1,
-				   REF_ISPRUNING, 1, NULL, &err) ||
-	    ref_transaction_commit(transaction, &err)) {
-		ref_transaction_free(transaction);
-		error("%s", err.buf);
-		strbuf_release(&err);
+	if (git_work_tree_initialized) {
+		new_work_tree = real_path(new_work_tree);
+		if (strcmp(new_work_tree, work_tree))
+			die("internal error: work tree has already been set\n"
+			    "Current worktree: %s\nNew worktree: %s",
+			    work_tree, new_work_tree);
 		return;
 	}
-	ref_transaction_free(transaction);
-	strbuf_release(&err);
-	try_remove_empty_parents(r->name);
+	git_work_tree_initialized = 1;
+	work_tree = real_pathdup(new_work_tree, 1);
 }

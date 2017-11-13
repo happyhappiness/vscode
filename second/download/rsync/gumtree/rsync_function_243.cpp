@@ -1,36 +1,68 @@
-void do_server_sender(int argc,char *argv[])
+static int receive_data(int f_in,struct map_struct *buf,int fd,char *fname)
 {
-  int i;
-  char *dir = argv[0];
-  struct file_list *flist;
+  int i,n,remainder,len,count;
+  off_t offset = 0;
+  off_t offset2;
+  char *data;
+  static char file_sum1[SUM_LENGTH];
+  static char file_sum2[SUM_LENGTH];
+  char *map=NULL;
 
-  if (verbose > 2)
-    fprintf(FERROR,"server_sender starting pid=%d\n",(int)getpid());
-  
-  if (chdir(dir) != 0) {
-    fprintf(FERROR,"chdir %s: %s\n",dir,strerror(errno));
+  count = read_int(f_in);
+  n = read_int(f_in);
+  remainder = read_int(f_in);
+
+  sum_init();
+
+  for (i=recv_token(f_in,&data); i != 0; i=recv_token(f_in,&data)) {
+    if (i > 0) {
+      if (verbose > 3)
+	fprintf(FERROR,"data recv %d at %d\n",i,(int)offset);
+
+      sum_update(data,i);
+
+      if (write_sparse(fd,data,i) != i) {
+	fprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));
+	exit_cleanup(1);
+      }
+      offset += i;
+    } else {
+      i = -(i+1);
+      offset2 = i*n;
+      len = n;
+      if (i == count-1 && remainder != 0)
+	len = remainder;
+
+      if (verbose > 3)
+	fprintf(FERROR,"chunk[%d] of size %d at %d offset=%d\n",
+		i,len,(int)offset2,(int)offset);
+
+      map = map_ptr(buf,offset2,len);
+
+      see_token(map, len);
+      sum_update(map,len);
+
+      if (write_sparse(fd,map,len) != len) {
+	fprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));
+	exit_cleanup(1);
+      }
+      offset += len;
+    }
+  }
+
+  if (offset > 0 && sparse_end(fd) != 0) {
+    fprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));
     exit_cleanup(1);
   }
-  argc--;
-  argv++;
-  
-  if (strcmp(dir,".")) {
-    int l = strlen(dir);
-    if (strcmp(dir,"/") == 0) 
-      l = 0;
-    for (i=0;i<argc;i++)
-      argv[i] += l+1;
-  }
 
-  if (argc == 0 && recurse) {
-    argc=1;
-    argv--;
-    argv[0] = ".";
-  }
-    
+  sum_end(file_sum1);
 
-  flist = send_file_list(STDOUT_FILENO,argc,argv);
-  send_files(flist,STDOUT_FILENO,STDIN_FILENO);
-  report(STDOUT_FILENO);
-  exit_cleanup(0);
+  if (remote_version >= 14) {
+    read_buf(f_in,file_sum2,SUM_LENGTH);
+    if (verbose > 2)
+      fprintf(FERROR,"got file_sum\n");
+    if (memcmp(file_sum1,file_sum2,SUM_LENGTH) != 0)
+      return 0;
+  }
+  return 1;
 }

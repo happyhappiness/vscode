@@ -1,1 +1,2 @@
-fprintf(stderr, "Checking %s\n", oid_to_hex(&obj->oid));
+fprintf(stderr, "Checking %s %s\n",
+			typename(obj->type), oid_to_hex(&obj->oid));

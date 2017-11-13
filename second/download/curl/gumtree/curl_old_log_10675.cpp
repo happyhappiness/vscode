@@ -1,12 +1,9 @@
 fputs(
-"              (FTP,  POP3,  IMAP,  SMTP)  Require  SSL/TLS for the connection.\n"
-"              Terminates the connection if the server doesn't support SSL/TLS.\n"
-"              (Added in 7.20.0)\n"
+"              second  and  then for all forthcoming retries it will double the\n"
+"              waiting time until it reaches 10 minutes which then will be  the\n"
+"              delay  between  the rest of the retries.  By using --retry-delay\n"
+"              you  disable  this  exponential  backoff  algorithm.  See   also\n"
+"              --retry-max-time  to  limit  the total time allowed for retries.\n"
+"              (Added in 7.12.3)\n"
 "\n"
-"              This  option  was  formerly  known  as  --ftp-ssl-reqd (added in\n"
-"              7.15.5). That option name can still be used but will be  removed\n"
-"              in a future version.\n"
-"\n"
-"       --ssl-allow-beast\n"
-"              (SSL)  This option tells curl to not work around a security flaw\n"
 , stdout);

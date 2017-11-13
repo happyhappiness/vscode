@@ -1,1 +1,2 @@
-warning_errno("unable to set SO_KEEPALIVE on socket");
+printf("broken link from %7s %s\n",
+				 typename(parent->type), oid_to_hex(&parent->oid));

@@ -1,1 +1,3 @@
-ap_fatal_signal_setup(ap_server_conf, pconf);
+fprintf(stderr, "%s: could not open config directory %s: %s\n",
+                    ap_server_argv0, path,
+                    apr_strerror(rv, errmsg, sizeof errmsg));

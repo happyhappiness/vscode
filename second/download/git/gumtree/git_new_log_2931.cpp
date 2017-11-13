@@ -1,1 +1,1 @@
-error_errno("error while reading from stdin");
+error_errno("could not read file '%s'", path);

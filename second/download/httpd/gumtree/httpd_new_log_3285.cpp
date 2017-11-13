@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, APLOGNO(01455)
-                              "rl: full speed brigade pass failed.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01668)
+                        "No group file was specified in the configuration");

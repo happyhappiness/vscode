@@ -1,1 +1,1 @@
-die (_("Please stage your changes to .gitmodules or stash them to proceed"));
+warning("could not mark '%s' as hidden.", filename);

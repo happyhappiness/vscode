@@ -1,11 +1,11 @@
 fputs(
-"              lows  a  Location: header. The \";auto\" string can be used alone,\n"
-"              even if you don't set an initial --referer.\n"
+"              only such one. (Added in 7.33.0)\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"       --dns-ipv4-addr <ip-address>\n"
+"              Tell curl to bind to <ip-address> when making IPv4 DNS requests,\n"
+"              so  that the DNS requests originate from this address. The argu-\n"
+"              ment should be a single IPv4 address.\n"
 "\n"
-"       -E, --cert <certificate[:password]>\n"
-"              (SSL) Tells curl to use the specified  client  certificate  file\n"
-"              when getting a file with HTTPS, FTPS or another SSL-based proto-\n"
-"              col. The certificate must be in PKCS#12 format if  using  Secure\n"
+"              This option requires that libcurl  was  built  with  a  resolver\n"
+"              backend  that supports this operation. The c-ares backend is the\n"
 , stdout);

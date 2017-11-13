@@ -1,2 +1,1 @@
-error("unable to stat %s: %s",
-			     sha1_to_hex(sha1), strerror(errno));
+printf("tagged %s %s", typename(tag->tagged->type), sha1_to_hex(tag->tagged->sha1));

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "possible match at idx=%d, data=%d", pos, idx->data_pos);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                 "[%" APR_PID_T_FMT "] ldap cache: Setting operation cache TTL"
+                 " to %ld microseconds.", getpid(), st->compare_cache_ttl);

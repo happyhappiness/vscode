@@ -1,4 +1,2 @@
-error(_("Cannot copy notes. Found existing "
-				       "notes for object %s. Use '-f' to "
-				       "overwrite existing notes"),
-				       sha1_to_hex(object));
+error("unpack should have generated %s, "
+		      "but I can't find it!", sha1_to_hex(new_sha1));

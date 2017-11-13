@@ -1,81 +1,55 @@
-int cmd_ls_remote(int argc, const char **argv, const char *prefix)
+static int prune_remote(const char *remote, int dry_run)
 {
-	const char *dest = NULL;
-	unsigned flags = 0;
-	int get_url = 0;
-	int quiet = 0;
-	int status = 0;
-	int show_symref_target = 0;
-	const char *uploadpack = NULL;
-	const char **pattern = NULL;
+	int result = 0;
+	struct ref_states states;
+	struct string_list refs_to_prune = STRING_LIST_INIT_NODUP;
+	struct string_list_item *item;
+	const char *dangling_msg = dry_run
+		? _(" %s will become dangling!")
+		: _(" %s has become dangling!");
 
-	struct remote *remote;
-	struct transport *transport;
-	const struct ref *ref;
+	memset(&states, 0, sizeof(states));
+	get_remote_ref_states(remote, &states, GET_REF_STATES);
 
-	struct option options[] = {
-		OPT__QUIET(&quiet, N_("do not print remote URL")),
-		OPT_STRING(0, "upload-pack", &uploadpack, N_("exec"),
-			   N_("path of git-upload-pack on the remote host")),
-		{ OPTION_STRING, 0, "exec", &uploadpack, N_("exec"),
-			   N_("path of git-upload-pack on the remote host"),
-			   PARSE_OPT_HIDDEN },
-		OPT_BIT('t', "tags", &flags, N_("limit to tags"), REF_TAGS),
-		OPT_BIT('h', "heads", &flags, N_("limit to heads"), REF_HEADS),
-		OPT_BIT(0, "refs", &flags, N_("do not show peeled tags"), REF_NORMAL),
-		OPT_BOOL(0, "get-url", &get_url,
-			 N_("take url.<base>.insteadOf into account")),
-		OPT_SET_INT(0, "exit-code", &status,
-			    N_("exit with exit code 2 if no matching refs are found"), 2),
-		OPT_BOOL(0, "symref", &show_symref_target,
-			 N_("show underlying ref in addition to the object pointed by it")),
-		OPT_END()
-	};
-
-	argc = parse_options(argc, argv, prefix, options, ls_remote_usage,
-			     PARSE_OPT_STOP_AT_NON_OPTION);
-	dest = argv[0];
-
-	if (argc > 1) {
-		int i;
-		pattern = xcalloc(argc, sizeof(const char *));
-		for (i = 1; i < argc; i++)
-			pattern[i - 1] = xstrfmt("*/%s", argv[i]);
-	}
-
-	remote = remote_get(dest);
-	if (!remote) {
-		if (dest)
-			die("bad repository '%s'", dest);
-		die("No remote configured to list refs from.");
-	}
-	if (!remote->url_nr)
-		die("remote %s has no configured URL", dest);
-
-	if (get_url) {
-		printf("%s\n", *remote->url);
+	if (!states.stale.nr) {
+		free_remote_ref_states(&states);
 		return 0;
 	}
 
-	transport = transport_get(remote, NULL);
-	if (uploadpack != NULL)
-		transport_set_option(transport, TRANS_OPT_UPLOADPACK, uploadpack);
+	printf_ln(_("Pruning %s"), remote);
+	printf_ln(_("URL: %s"),
+		  states.remote->url_nr
+		  ? states.remote->url[0]
+		  : _("(no URL)"));
 
-	ref = transport_get_remote_refs(transport);
-	if (transport_disconnect(transport))
-		return 1;
+	for_each_string_list_item(item, &states.stale)
+		string_list_append(&refs_to_prune, item->util);
+	string_list_sort(&refs_to_prune);
 
-	if (!dest && !quiet)
-		fprintf(stderr, "From %s\n", *remote->url);
-	for ( ; ref; ref = ref->next) {
-		if (!check_ref_type(ref, flags))
-			continue;
-		if (!tail_match(pattern, ref->name))
-			continue;
-		if (show_symref_target && ref->symref)
-			printf("ref: %s\t%s\n", ref->symref, ref->name);
-		printf("%s\t%s\n", oid_to_hex(&ref->old_oid), ref->name);
-		status = 0; /* we found something */
+	if (!dry_run) {
+		struct strbuf err = STRBUF_INIT;
+		if (repack_without_refs(&refs_to_prune, &err))
+			result |= error("%s", err.buf);
+		strbuf_release(&err);
 	}
-	return status;
+
+	for_each_string_list_item(item, &states.stale) {
+		const char *refname = item->util;
+
+		if (!dry_run)
+			result |= delete_ref(refname, NULL, 0);
+
+		if (dry_run)
+			printf_ln(_(" * [would prune] %s"),
+			       abbrev_ref(refname, "refs/remotes/"));
+		else
+			printf_ln(_(" * [pruned] %s"),
+			       abbrev_ref(refname, "refs/remotes/"));
+	}
+
+	warn_dangling_symrefs(stdout, dangling_msg, &refs_to_prune);
+
+	string_list_clear(&refs_to_prune, 0);
+	free_remote_ref_states(&states);
+	return result;
 }

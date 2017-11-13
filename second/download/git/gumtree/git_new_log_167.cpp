@@ -1,1 +1,1 @@
-fprintf(stderr, "  %s\n", needs_pushing->items[i].string);
+die("Log for %s is empty.", refname);

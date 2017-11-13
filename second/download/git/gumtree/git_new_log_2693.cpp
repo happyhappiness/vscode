@@ -1,2 +1,1 @@
-warning("unable to write trace for %s: %s",
-			key->key, strerror(errno));
+warning(_("Public key pinning not supported with cURL < 7.44.0"));

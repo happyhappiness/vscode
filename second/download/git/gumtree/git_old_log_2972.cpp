@@ -1,1 +1,1 @@
-error("cannot create thread: %s", strerror(err));
+fputs(pp->buffered_output.buf, stderr);

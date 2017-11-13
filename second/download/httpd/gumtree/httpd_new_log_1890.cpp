@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -n name            : set service name and use its "
-                 "ServerConfigFile and ServerRoot");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                 "[%" APR_PID_T_FMT "] ldap connection: Setting op timeout "
+                 "to %ld seconds.", getpid(), timeout);

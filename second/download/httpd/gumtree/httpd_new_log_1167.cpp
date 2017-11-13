@@ -1,1 +1,1 @@
-fprintf(stderr, " %.*s", (int)(val.dptr+val.dsize - (cmnt+1)), cmnt + 1);
+fprintf(stderr, "pcregrep: malloc failed\n");

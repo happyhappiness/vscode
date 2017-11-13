@@ -1,271 +1,297 @@
-static void output_results(int sig)
+int main(int argc, char **argv)
 {
-    double timetaken;
+pcre *re;
+const char *error;
+char *pattern;
+char *subject;
+unsigned char *name_table;
+int erroffset;
+int find_all;
+int namecount;
+int name_entry_size;
+int ovector[OVECCOUNT];
+int subject_length;
+int rc, i;
 
-    if (sig) {
-        lasttime = apr_time_now();  /* record final time if interrupted */
+
+/**************************************************************************
+* First, sort out the command line. There is only one possible option at  *
+* the moment, "-g" to request repeated matching to find all occurrences,  *
+* like Perl's /g option. We set the variable find_all to a non-zero value *
+* if the -g option is present. Apart from that, there must be exactly two *
+* arguments.                                                              *
+**************************************************************************/
+
+find_all = 0;
+for (i = 1; i < argc; i++)
+  {
+  if (strcmp(argv[i], "-g") == 0) find_all = 1;
+    else break;
+  }
+
+/* After the options, we require exactly two arguments, which are the pattern,
+and the subject string. */
+
+if (argc - i != 2)
+  {
+  printf("Two arguments required: a regex and a subject string\n");
+  return 1;
+  }
+
+pattern = argv[i];
+subject = argv[i+1];
+subject_length = (int)strlen(subject);
+
+
+/*************************************************************************
+* Now we are going to compile the regular expression pattern, and handle *
+* and errors that are detected.                                          *
+*************************************************************************/
+
+re = pcre_compile(
+  pattern,              /* the pattern */
+  0,                    /* default options */
+  &error,               /* for error message */
+  &erroffset,           /* for error offset */
+  NULL);                /* use default character tables */
+
+/* Compilation failed: print the error message and exit */
+
+if (re == NULL)
+  {
+  printf("PCRE compilation failed at offset %d: %s\n", erroffset, error);
+  return 1;
+  }
+
+
+/*************************************************************************
+* If the compilation succeeded, we call PCRE again, in order to do a     *
+* pattern match against the subject string. This does just ONE match. If *
+* further matching is needed, it will be done below.                     *
+*************************************************************************/
+
+rc = pcre_exec(
+  re,                   /* the compiled pattern */
+  NULL,                 /* no extra data - we didn't study the pattern */
+  subject,              /* the subject string */
+  subject_length,       /* the length of the subject */
+  0,                    /* start at offset 0 in the subject */
+  0,                    /* default options */
+  ovector,              /* output vector for substring information */
+  OVECCOUNT);           /* number of elements in the output vector */
+
+/* Matching failed: handle error cases */
+
+if (rc < 0)
+  {
+  switch(rc)
+    {
+    case PCRE_ERROR_NOMATCH: printf("No match\n"); break;
+    /*
+    Handle other special cases if you like
+    */
+    default: printf("Matching error %d\n", rc); break;
     }
-    timetaken = (double) (lasttime - start) / APR_USEC_PER_SEC;
+  free(re);     /* Release memory used for the compiled pattern */
+  return 1;
+  }
 
-    printf("\n\n");
-    printf("Server Software:        %s\n", servername);
-    printf("Server Hostname:        %s\n", hostname);
-    printf("Server Port:            %hu\n", port);
-#ifdef USE_SSL
-    if (is_ssl && ssl_info) {
-        printf("SSL/TLS Protocol:       %s\n", ssl_info);
+/* Match succeded */
+
+printf("\nMatch succeeded at offset %d\n", ovector[0]);
+
+
+/*************************************************************************
+* We have found the first match within the subject string. If the output *
+* vector wasn't big enough, set its size to the maximum. Then output any *
+* substrings that were captured.                                         *
+*************************************************************************/
+
+/* The output vector wasn't big enough */
+
+if (rc == 0)
+  {
+  rc = OVECCOUNT/3;
+  printf("ovector only has room for %d captured substrings\n", rc - 1);
+  }
+
+/* Show substrings stored in the output vector by number. Obviously, in a real
+application you might want to do things other than print them. */
+
+for (i = 0; i < rc; i++)
+  {
+  char *substring_start = subject + ovector[2*i];
+  int substring_length = ovector[2*i+1] - ovector[2*i];
+  printf("%2d: %.*s\n", i, substring_length, substring_start);
+  }
+
+
+/**************************************************************************
+* That concludes the basic part of this demonstration program. We have    *
+* compiled a pattern, and performed a single match. The code that follows *
+* first shows how to access named substrings, and then how to code for    *
+* repeated matches on the same subject.                                   *
+**************************************************************************/
+
+/* See if there are any named substrings, and if so, show them by name. First
+we have to extract the count of named parentheses from the pattern. */
+
+(void)pcre_fullinfo(
+  re,                   /* the compiled pattern */
+  NULL,                 /* no extra data - we didn't study the pattern */
+  PCRE_INFO_NAMECOUNT,  /* number of named substrings */
+  &namecount);          /* where to put the answer */
+
+if (namecount <= 0) printf("No named substrings\n"); else
+  {
+  unsigned char *tabptr;
+  printf("Named substrings\n");
+
+  /* Before we can access the substrings, we must extract the table for
+  translating names to numbers, and the size of each entry in the table. */
+
+  (void)pcre_fullinfo(
+    re,                       /* the compiled pattern */
+    NULL,                     /* no extra data - we didn't study the pattern */
+    PCRE_INFO_NAMETABLE,      /* address of the table */
+    &name_table);             /* where to put the answer */
+
+  (void)pcre_fullinfo(
+    re,                       /* the compiled pattern */
+    NULL,                     /* no extra data - we didn't study the pattern */
+    PCRE_INFO_NAMEENTRYSIZE,  /* size of each entry in the table */
+    &name_entry_size);        /* where to put the answer */
+
+  /* Now we can scan the table and, for each entry, print the number, the name,
+  and the substring itself. */
+
+  tabptr = name_table;
+  for (i = 0; i < namecount; i++)
+    {
+    int n = (tabptr[0] << 8) | tabptr[1];
+    printf("(%d) %*s: %.*s\n", n, name_entry_size - 3, tabptr + 2,
+      ovector[2*n+1] - ovector[2*n], subject + ovector[2*n]);
+    tabptr += name_entry_size;
     }
-#endif
-    printf("\n");
-    printf("Document Path:          %s\n", path);
-    printf("Document Length:        %" APR_SIZE_T_FMT " bytes\n", doclen);
-    printf("\n");
-    printf("Concurrency Level:      %d\n", concurrency);
-    printf("Time taken for tests:   %.3f seconds\n", timetaken);
-    printf("Complete requests:      %d\n", done);
-    printf("Failed requests:        %d\n", bad);
-    if (bad)
-        printf("   (Connect: %d, Receive: %d, Length: %d, Exceptions: %d)\n",
-            err_conn, err_recv, err_length, err_except);
-    printf("Write errors:           %d\n", epipe);
-    if (err_response)
-        printf("Non-2xx responses:      %d\n", err_response);
-    if (keepalive)
-        printf("Keep-Alive requests:    %d\n", doneka);
-    printf("Total transferred:      %" APR_INT64_T_FMT " bytes\n", totalread);
-    if (posting == 1)
-        printf("Total POSTed:           %" APR_INT64_T_FMT "\n", totalposted);
-    if (posting == 2)
-        printf("Total PUT:              %" APR_INT64_T_FMT "\n", totalposted);
-    printf("HTML transferred:       %" APR_INT64_T_FMT " bytes\n", totalbread);
-
-    /* avoid divide by zero */
-    if (timetaken && done) {
-        printf("Requests per second:    %.2f [#/sec] (mean)\n",
-               (double) done / timetaken);
-        printf("Time per request:       %.3f [ms] (mean)\n",
-               (double) concurrency * timetaken * 1000 / done);
-        printf("Time per request:       %.3f [ms] (mean, across all concurrent requests)\n",
-               (double) timetaken * 1000 / done);
-        printf("Transfer rate:          %.2f [Kbytes/sec] received\n",
-               (double) totalread / 1024 / timetaken);
-        if (posting > 0) {
-            printf("                        %.2f kb/s sent\n",
-               (double) totalposted / timetaken / 1024);
-            printf("                        %.2f kb/s total\n",
-               (double) (totalread + totalposted) / timetaken / 1024);
-        }
-    }
-
-    if (done > 0) {
-        /* work out connection times */
-        int i;
-        apr_time_t totalcon = 0, total = 0, totald = 0, totalwait = 0;
-        apr_time_t meancon, meantot, meand, meanwait;
-        apr_interval_time_t mincon = AB_MAX, mintot = AB_MAX, mind = AB_MAX,
-                            minwait = AB_MAX;
-        apr_interval_time_t maxcon = 0, maxtot = 0, maxd = 0, maxwait = 0;
-        apr_interval_time_t mediancon = 0, mediantot = 0, mediand = 0, medianwait = 0;
-        double sdtot = 0, sdcon = 0, sdd = 0, sdwait = 0;
-
-        for (i = 0; i < done; i++) {
-            struct data *s = &stats[i];
-            mincon = ap_min(mincon, s->ctime);
-            mintot = ap_min(mintot, s->time);
-            mind = ap_min(mind, s->time - s->ctime);
-            minwait = ap_min(minwait, s->waittime);
-
-            maxcon = ap_max(maxcon, s->ctime);
-            maxtot = ap_max(maxtot, s->time);
-            maxd = ap_max(maxd, s->time - s->ctime);
-            maxwait = ap_max(maxwait, s->waittime);
-
-            totalcon += s->ctime;
-            total += s->time;
-            totald += s->time - s->ctime;
-            totalwait += s->waittime;
-        }
-        meancon = totalcon / done;
-        meantot = total / done;
-        meand = totald / done;
-        meanwait = totalwait / done;
-
-        /* calculating the sample variance: the sum of the squared deviations, divided by n-1 */
-        for (i = 0; i < done; i++) {
-            struct data *s = &stats[i];
-            double a;
-            a = ((double)s->time - meantot);
-            sdtot += a * a;
-            a = ((double)s->ctime - meancon);
-            sdcon += a * a;
-            a = ((double)s->time - (double)s->ctime - meand);
-            sdd += a * a;
-            a = ((double)s->waittime - meanwait);
-            sdwait += a * a;
-        }
-
-        sdtot = (done > 1) ? sqrt(sdtot / (done - 1)) : 0;
-        sdcon = (done > 1) ? sqrt(sdcon / (done - 1)) : 0;
-        sdd = (done > 1) ? sqrt(sdd / (done - 1)) : 0;
-        sdwait = (done > 1) ? sqrt(sdwait / (done - 1)) : 0;
-
-        /*
-         * XXX: what is better; this hideous cast of the compradre function; or
-         * the four warnings during compile ? dirkx just does not know and
-         * hates both/
-         */
-        qsort(stats, done, sizeof(struct data),
-              (int (*) (const void *, const void *)) compradre);
-        if ((done > 1) && (done % 2))
-            mediancon = (stats[done / 2].ctime + stats[done / 2 + 1].ctime) / 2;
-        else
-            mediancon = stats[done / 2].ctime;
-
-        qsort(stats, done, sizeof(struct data),
-              (int (*) (const void *, const void *)) compri);
-        if ((done > 1) && (done % 2))
-            mediand = (stats[done / 2].time + stats[done / 2 + 1].time \
-            -stats[done / 2].ctime - stats[done / 2 + 1].ctime) / 2;
-        else
-            mediand = stats[done / 2].time - stats[done / 2].ctime;
-
-        qsort(stats, done, sizeof(struct data),
-              (int (*) (const void *, const void *)) compwait);
-        if ((done > 1) && (done % 2))
-            medianwait = (stats[done / 2].waittime + stats[done / 2 + 1].waittime) / 2;
-        else
-            medianwait = stats[done / 2].waittime;
-
-        qsort(stats, done, sizeof(struct data),
-              (int (*) (const void *, const void *)) comprando);
-        if ((done > 1) && (done % 2))
-            mediantot = (stats[done / 2].time + stats[done / 2 + 1].time) / 2;
-        else
-            mediantot = stats[done / 2].time;
-
-        printf("\nConnection Times (ms)\n");
-        /*
-         * Reduce stats from apr time to milliseconds
-         */
-        mincon     = ap_round_ms(mincon);
-        mind       = ap_round_ms(mind);
-        minwait    = ap_round_ms(minwait);
-        mintot     = ap_round_ms(mintot);
-        meancon    = ap_round_ms(meancon);
-        meand      = ap_round_ms(meand);
-        meanwait   = ap_round_ms(meanwait);
-        meantot    = ap_round_ms(meantot);
-        mediancon  = ap_round_ms(mediancon);
-        mediand    = ap_round_ms(mediand);
-        medianwait = ap_round_ms(medianwait);
-        mediantot  = ap_round_ms(mediantot);
-        maxcon     = ap_round_ms(maxcon);
-        maxd       = ap_round_ms(maxd);
-        maxwait    = ap_round_ms(maxwait);
-        maxtot     = ap_round_ms(maxtot);
-        sdcon      = ap_double_ms(sdcon);
-        sdd        = ap_double_ms(sdd);
-        sdwait     = ap_double_ms(sdwait);
-        sdtot      = ap_double_ms(sdtot);
-
-        if (confidence) {
-#define CONF_FMT_STRING "%5" APR_TIME_T_FMT " %4" APR_TIME_T_FMT " %5.1f %6" APR_TIME_T_FMT " %7" APR_TIME_T_FMT "\n"
-            printf("              min  mean[+/-sd] median   max\n");
-            printf("Connect:    " CONF_FMT_STRING,
-                   mincon, meancon, sdcon, mediancon, maxcon);
-            printf("Processing: " CONF_FMT_STRING,
-                   mind, meand, sdd, mediand, maxd);
-            printf("Waiting:    " CONF_FMT_STRING,
-                   minwait, meanwait, sdwait, medianwait, maxwait);
-            printf("Total:      " CONF_FMT_STRING,
-                   mintot, meantot, sdtot, mediantot, maxtot);
-#undef CONF_FMT_STRING
-
-#define     SANE(what,mean,median,sd) \
-              { \
-                double d = (double)mean - median; \
-                if (d < 0) d = -d; \
-                if (d > 2 * sd ) \
-                    printf("ERROR: The median and mean for " what " are more than twice the standard\n" \
-                           "       deviation apart. These results are NOT reliable.\n"); \
-                else if (d > sd ) \
-                    printf("WARNING: The median and mean for " what " are not within a normal deviation\n" \
-                           "        These results are probably not that reliable.\n"); \
-            }
-            SANE("the initial connection time", meancon, mediancon, sdcon);
-            SANE("the processing time", meand, mediand, sdd);
-            SANE("the waiting time", meanwait, medianwait, sdwait);
-            SANE("the total time", meantot, mediantot, sdtot);
-        }
-        else {
-            printf("              min   avg   max\n");
-#define CONF_FMT_STRING "%5" APR_TIME_T_FMT " %5" APR_TIME_T_FMT "%5" APR_TIME_T_FMT "\n"
-            printf("Connect:    " CONF_FMT_STRING, mincon, meancon, maxcon);
-            printf("Processing: " CONF_FMT_STRING, mintot - mincon,
-                                                   meantot - meancon,
-                                                   maxtot - maxcon);
-            printf("Total:      " CONF_FMT_STRING, mintot, meantot, maxtot);
-#undef CONF_FMT_STRING
-        }
+  }
 
 
-        /* Sorted on total connect times */
-        if (percentile && (done > 1)) {
-            printf("\nPercentage of the requests served within a certain time (ms)\n");
-            for (i = 0; i < sizeof(percs) / sizeof(int); i++) {
-                if (percs[i] <= 0)
-                    printf(" 0%%  <0> (never)\n");
-                else if (percs[i] >= 100)
-                    printf(" 100%%  %5" APR_TIME_T_FMT " (longest request)\n",
-                           ap_round_ms(stats[done - 1].time));
-                else
-                    printf("  %d%%  %5" APR_TIME_T_FMT "\n", percs[i],
-                           ap_round_ms(stats[(int) (done * percs[i] / 100)].time));
-            }
-        }
-        if (csvperc) {
-            FILE *out = fopen(csvperc, "w");
-            if (!out) {
-                perror("Cannot open CSV output file");
-                exit(1);
-            }
-            fprintf(out, "" "Percentage served" "," "Time in ms" "\n");
-            for (i = 0; i < 100; i++) {
-                double t;
-                if (i == 0)
-                    t = ap_double_ms(stats[0].time);
-                else if (i == 100)
-                    t = ap_double_ms(stats[done - 1].time);
-                else
-                    t = ap_double_ms(stats[(int) (0.5 + done * i / 100.0)].time);
-                fprintf(out, "%d,%.3f\n", i, t);
-            }
-            fclose(out);
-        }
-        if (gnuplot) {
-            FILE *out = fopen(gnuplot, "w");
-            char tmstring[APR_CTIME_LEN];
-            if (!out) {
-                perror("Cannot open gnuplot output file");
-                exit(1);
-            }
-            fprintf(out, "starttime\tseconds\tctime\tdtime\tttime\twait\n");
-            for (i = 0; i < done; i++) {
-                (void) apr_ctime(tmstring, stats[i].starttime);
-                fprintf(out, "%s\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT
-                               "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT
-                               "\t%" APR_TIME_T_FMT "\n", tmstring,
-                        apr_time_sec(stats[i].starttime),
-                        ap_round_ms(stats[i].ctime),
-                        ap_round_ms(stats[i].time - stats[i].ctime),
-                        ap_round_ms(stats[i].time),
-                        ap_round_ms(stats[i].waittime));
-            }
-            fclose(out);
-        }
+/*************************************************************************
+* If the "-g" option was given on the command line, we want to continue  *
+* to search for additional matches in the subject string, in a similar   *
+* way to the /g option in Perl. This turns out to be trickier than you   *
+* might think because of the possibility of matching an empty string.    *
+* What happens is as follows:                                            *
+*                                                                        *
+* If the previous match was NOT for an empty string, we can just start   *
+* the next match at the end of the previous one.                         *
+*                                                                        *
+* If the previous match WAS for an empty string, we can't do that, as it *
+* would lead to an infinite loop. Instead, a special call of pcre_exec() *
+* is made with the PCRE_NOTEMPTY and PCRE_ANCHORED flags set. The first  *
+* of these tells PCRE that an empty string is not a valid match; other   *
+* possibilities must be tried. The second flag restricts PCRE to one     *
+* match attempt at the initial string position. If this match succeeds,  *
+* an alternative to the empty string match has been found, and we can    *
+* proceed round the loop.                                                *
+*************************************************************************/
+
+if (!find_all)
+  {
+  free(re);   /* Release the memory used for the compiled pattern */
+  return 0;   /* Finish unless -g was given */
+  }
+
+/* Loop for second and subsequent matches */
+
+for (;;)
+  {
+  int options = 0;                 /* Normally no options */
+  int start_offset = ovector[1];   /* Start at end of previous match */
+
+  /* If the previous match was for an empty string, we are finished if we are
+  at the end of the subject. Otherwise, arrange to run another match at the
+  same point to see if a non-empty match can be found. */
+
+  if (ovector[0] == ovector[1])
+    {
+    if (ovector[0] == subject_length) break;
+    options = PCRE_NOTEMPTY | PCRE_ANCHORED;
     }
 
-    if (sig) {
-        exit(1);
+  /* Run the next matching operation */
+
+  rc = pcre_exec(
+    re,                   /* the compiled pattern */
+    NULL,                 /* no extra data - we didn't study the pattern */
+    subject,              /* the subject string */
+    subject_length,       /* the length of the subject */
+    start_offset,         /* starting offset in the subject */
+    options,              /* options */
+    ovector,              /* output vector for substring information */
+    OVECCOUNT);           /* number of elements in the output vector */
+
+  /* This time, a result of NOMATCH isn't an error. If the value in "options"
+  is zero, it just means we have found all possible matches, so the loop ends.
+  Otherwise, it means we have failed to find a non-empty-string match at a
+  point where there was a previous empty-string match. In this case, we do what
+  Perl does: advance the matching position by one, and continue. We do this by
+  setting the "end of previous match" offset, because that is picked up at the
+  top of the loop as the point at which to start again. */
+
+  if (rc == PCRE_ERROR_NOMATCH)
+    {
+    if (options == 0) break;
+    ovector[1] = start_offset + 1;
+    continue;    /* Go round the loop again */
     }
+
+  /* Other matching errors are not recoverable. */
+
+  if (rc < 0)
+    {
+    printf("Matching error %d\n", rc);
+    free(re);    /* Release memory used for the compiled pattern */
+    return 1;
+    }
+
+  /* Match succeded */
+
+  printf("\nMatch succeeded again at offset %d\n", ovector[0]);
+
+  /* The match succeeded, but the output vector wasn't big enough. */
+
+  if (rc == 0)
+    {
+    rc = OVECCOUNT/3;
+    printf("ovector only has room for %d captured substrings\n", rc - 1);
+    }
+
+  /* As before, show substrings stored in the output vector by number, and then
+  also any named substrings. */
+
+  for (i = 0; i < rc; i++)
+    {
+    char *substring_start = subject + ovector[2*i];
+    int substring_length = ovector[2*i+1] - ovector[2*i];
+    printf("%2d: %.*s\n", i, substring_length, substring_start);
+    }
+
+  if (namecount <= 0) printf("No named substrings\n"); else
+    {
+    unsigned char *tabptr = name_table;
+    printf("Named substrings\n");
+    for (i = 0; i < namecount; i++)
+      {
+      int n = (tabptr[0] << 8) | tabptr[1];
+      printf("(%d) %*s: %.*s\n", n, name_entry_size - 3, tabptr + 2,
+        ovector[2*n+1] - ovector[2*n], subject + ovector[2*n]);
+      tabptr += name_entry_size;
+      }
+    }
+  }      /* End of loop to find second and subsequent matches */
+
+printf("\n");
+free(re);       /* Release memory used for the compiled pattern */
+return 0;
 }

@@ -1,1 +1,1 @@
-fputs(pp->buffered_output.buf, stderr);
+error(_("could not remove reference %s"), refname);

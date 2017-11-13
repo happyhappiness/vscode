@@ -1,67 +1,114 @@
-static int do_cmd(char *cmd,char *machine,char *user,char *path,int *f_in,int *f_out)
+static struct file_struct *make_file(char *fname)
 {
-	char *args[100];
-	int i,argc=0, ret;
-	char *tok,*dir=NULL;
+	struct file_struct *file;
+	struct stat st;
+	char sum[SUM_LENGTH];
+	char *p;
+	char cleaned_name[MAXPATHLEN];
 
-	if (!local_server) {
-		if (!cmd)
-			cmd = getenv(RSYNC_RSH_ENV);
-		if (!cmd)
-			cmd = RSYNC_RSH;
-		cmd = strdup(cmd);
-		if (!cmd) 
-			goto oom;
+	strncpy(cleaned_name, fname, MAXPATHLEN-1);
+	cleaned_name[MAXPATHLEN-1] = 0;
+	clean_fname(cleaned_name);
+	fname = cleaned_name;
 
-		for (tok=strtok(cmd," ");tok;tok=strtok(NULL," ")) {
-			args[argc++] = tok;
-		}
+	bzero(sum,SUM_LENGTH);
 
-#if HAVE_REMSH
-		/* remsh (on HPUX) takes the arguments the other way around */
-		args[argc++] = machine;
-		if (user) {
-			args[argc++] = "-l";
-			args[argc++] = user;
+	if (link_stat(fname,&st) != 0) {
+		io_error = 1;
+		fprintf(FERROR,"%s: %s\n",
+			fname,strerror(errno));
+		return NULL;
+	}
+
+	if (S_ISDIR(st.st_mode) && !recurse) {
+		fprintf(FINFO,"skipping directory %s\n",fname);
+		return NULL;
+	}
+	
+	if (one_file_system && st.st_dev != filesystem_dev) {
+		if (skip_filesystem(fname, &st))
+			return NULL;
+	}
+	
+	if (!match_file_name(fname,&st))
+		return NULL;
+	
+	if (verbose > 2)
+		fprintf(FINFO,"make_file(%s)\n",fname);
+	
+	file = (struct file_struct *)malloc(sizeof(*file));
+	if (!file) out_of_memory("make_file");
+	bzero((char *)file,sizeof(*file));
+
+	if ((p = strrchr(fname,'/'))) {
+		static char *lastdir;
+		*p = 0;
+		if (lastdir && strcmp(fname, lastdir)==0) {
+			file->dirname = lastdir;
+		} else {
+			file->dirname = strdup(fname);
+			lastdir = file->dirname;
 		}
-#else
-		if (user) {
-			args[argc++] = "-l";
-			args[argc++] = user;
-		}
-		args[argc++] = machine;
+		file->basename = strdup(p+1);
+		*p = '/';
+	} else {
+		file->dirname = NULL;
+		file->basename = strdup(fname);
+	}
+
+	file->modtime = st.st_mtime;
+	file->length = st.st_size;
+	file->mode = st.st_mode;
+	file->uid = st.st_uid;
+	file->gid = st.st_gid;
+	file->dev = st.st_dev;
+	file->inode = st.st_ino;
+#ifdef HAVE_ST_RDEV
+	file->rdev = st.st_rdev;
 #endif
 
-		args[argc++] = rsync_path;
-
-		server_options(args,&argc);
+#if SUPPORT_LINKS
+	if (S_ISLNK(st.st_mode)) {
+		int l;
+		char lnk[MAXPATHLEN];
+		if ((l=readlink(fname,lnk,MAXPATHLEN-1)) == -1) {
+			io_error=1;
+			fprintf(FERROR,"readlink %s : %s\n",
+				fname,strerror(errno));
+			return NULL;
+		}
+		lnk[l] = 0;
+		file->link = strdup(lnk);
 	}
+#endif
 
-	args[argc++] = ".";
+	if (always_checksum) {
+		file->sum = (char *)malloc(MD4_SUM_LENGTH);
+		if (!file->sum) out_of_memory("md4 sum");
+		/* drat. we have to provide a null checksum for non-regular
+		   files in order to be compatible with earlier versions
+		   of rsync */
+		if (S_ISREG(st.st_mode)) {
+			file_checksum(fname,file->sum,st.st_size);
+		} else {
+			memset(file->sum, 0, MD4_SUM_LENGTH);
+		}
+	}       
 
-	if (path && *path) 
-		args[argc++] = path;
-
-	args[argc] = NULL;
-
-	if (verbose > 3) {
-		fprintf(FINFO,"cmd=");
-		for (i=0;i<argc;i++)
-			fprintf(FINFO,"%s ",args[i]);
-		fprintf(FINFO,"\n");
-	}
-
-	if (local_server) {
-		ret = local_child(argc, args, f_in, f_out);
+	if (flist_dir) {
+		static char *lastdir;
+		if (lastdir && strcmp(lastdir, flist_dir)==0) {
+			file->basedir = lastdir;
+		} else {
+			file->basedir = strdup(flist_dir);
+			lastdir = file->basedir;
+		}
 	} else {
-		ret = piped_child(args,f_in,f_out);
+		file->basedir = NULL;
 	}
 
-	if (dir) free(dir);
+	if (!S_ISDIR(st.st_mode))
+		total_size += st.st_size;
 
-	return ret;
-
-oom:
-	out_of_memory("do_cmd");
-	return 0; /* not reached */
+	return file;
 }

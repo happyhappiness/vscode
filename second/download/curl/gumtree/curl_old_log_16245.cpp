@@ -1,9 +1,12 @@
 fputs(
-"              curl will make sure that each header  you  add/replace  is  sent\n"
-"              with the proper end-of-line marker, you should thus not add that\n"
-"              as a part of the header content: do not add newlines or carriage\n"
-"              returns, they will only mess things up for you.\n"
+"                     i.e \"192.168.10.1\" to specify the exact IP address\n"
 "\n"
-"              Starting  in  7.55.0, this option can take an argument in @file-\n"
-"              name style, which then adds a header for each line in the  input\n"
+"              host name\n"
+"                     i.e \"my.host.domain\" to specify the machine\n"
+"\n"
+"              -      make curl pick the same IP address that is  already  used\n"
+"                     for the control connection\n"
+"\n"
+"       If  this  option is used several times, the last one will be used. Dis-\n"
+"       able the use of PORT with --ftp-pasv. Disable the attempt  to  use  the\n"
 , stdout);

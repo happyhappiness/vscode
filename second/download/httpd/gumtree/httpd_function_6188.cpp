@@ -1,34 +1,43 @@
-static int on_header_cb(nghttp2_session *ngh2, const nghttp2_frame *frame,
-                        const uint8_t *name, size_t namelen,
-                        const uint8_t *value, size_t valuelen,
-                        uint8_t flags,
-                        void *userp)
+static int lua_websocket_greet(lua_State *L)
 {
-    h2_session *session = (h2_session *)userp;
-    h2_stream * stream;
-    apr_status_t status;
-    
-    (void)flags;
-    stream = get_stream(session, frame->hd.stream_id);
-    if (!stream) {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
-                      APLOGNO(02920) 
-                      "h2_session:  stream(%ld-%d): on_header unknown stream",
-                      session->id, (int)frame->hd.stream_id);
-        return NGHTTP2_ERR_TEMPORAL_CALLBACK_FAILURE;
+    const char *key = NULL;
+    unsigned char digest[APR_SHA1_DIGESTSIZE];
+    apr_sha1_ctx_t sha1;
+    char           *encoded;
+    int encoded_len;
+    request_rec *r = ap_lua_check_request_rec(L, 1);
+    key = apr_table_get(r->headers_in, "Sec-WebSocket-Key");
+    if (key != NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
+                    "Websocket: Got websocket key: %s", key);
+        key = apr_pstrcat(r->pool, key, "258EAFA5-E914-47DA-95CA-C5AB0DC85B11", 
+                NULL);
+        apr_sha1_init(&sha1);
+        apr_sha1_update(&sha1, key, strlen(key));
+        apr_sha1_final(digest, &sha1);
+        encoded_len = apr_base64_encode_len(APR_SHA1_DIGESTSIZE);
+        if (encoded_len) {
+            encoded = apr_palloc(r->pool, encoded_len);
+            encoded_len = apr_base64_encode(encoded, (char*) digest, APR_SHA1_DIGESTSIZE);
+            r->status = 101;
+            apr_table_set(r->headers_out, "Upgrade", "websocket");
+            apr_table_set(r->headers_out, "Connection", "Upgrade");
+            apr_table_set(r->headers_out, "Sec-WebSocket-Accept", encoded);
+            
+            /* Trick httpd into NOT using the chunked filter, IMPORTANT!!!111*/
+            apr_table_set(r->headers_out, "Transfer-Encoding", "chunked");
+            
+            r->clength = 0;
+            r->bytes_sent = 0;
+            r->read_chunked = 0;
+            ap_rflush(r);
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
+                          "Websocket: Upgraded from HTTP to Websocket");
+            lua_pushboolean(L, 1);
+            return 1;
+        }
     }
-    
-    status = h2_stream_add_header(stream, (const char *)name, namelen,
-                                  (const char *)value, valuelen);
-    if (status == APR_ECONNRESET) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, session->c,
-                      "h2-stream(%ld-%d): on_header, reset stream",
-                      session->id, stream->id);
-        nghttp2_submit_rst_stream(ngh2, NGHTTP2_FLAG_NONE, stream->id,
-                                  NGHTTP2_INTERNAL_ERROR);
-    }
-    else if (status != APR_SUCCESS && !h2_stream_is_ready(stream)) {
-        return NGHTTP2_ERR_TEMPORAL_CALLBACK_FAILURE;
-    }
+    ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r, APLOGNO(02666)
+                  "Websocket: Upgrade from HTTP to Websocket failed");
     return 0;
 }

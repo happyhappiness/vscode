@@ -1,11 +1,11 @@
 fputs(
-"  Curl supports Metalink (both version 3 and 4 (RFC 5854) are supported), a way\n"
-"  to list multiple URIs and hashes for a file. Curl will make use of the mirrors\n"
-"  listed within for failover if there are errors (such as the file or server not\n"
-"  being available). It will also verify the hash of the file after the download\n"
-"  completes. The Metalink file itself is downloaded and processed in memory and\n"
-"  not stored in the local file system.\n"
+"  same command line if they are using the same host, as that'll make the\n"
+"  transfers faster. If you use an HTTP proxy for file transfers, practically\n"
+"  all transfers will be persistent.\n"
 "\n"
-"  Example to use a remote Metalink file:\n"
+"MULTIPLE TRANSFERS WITH A SINGLE COMMAND LINE\n"
 "\n"
+"  As is mentioned above, you can download multiple files with one command line\n"
+"  by simply adding more URLs. If you want those to get saved to a local file\n"
+"  instead of just printed to stdout, you need to add one save option for each\n"
 , stdout);

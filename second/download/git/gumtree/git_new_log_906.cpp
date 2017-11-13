@@ -1,1 +1,1 @@
-die(_("Cannot change to '%s'"), dir.buf);
+die("helper %s does not support 'push-option'", name);

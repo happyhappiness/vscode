@@ -1,2 +1,1 @@
-fprintf(stderr, "Server version is %.*s\n",
-				agent_len, agent_feature);
+printf_ln(_("`git %s' is aliased to `%s'"), argv[0], alias);

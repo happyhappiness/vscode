@@ -1,1 +1,1 @@
-die(_("Not a valid object name %s"), obj_name);
+printf("committer-time %"PRItime"\n", ci.committer_time);

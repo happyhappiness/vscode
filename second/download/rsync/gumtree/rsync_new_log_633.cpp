@@ -1,1 +1,1 @@
-io_printf(f_out, "%s\n", sargs[i]);
+out_of_memory("make_exclude");

@@ -1,1 +1,1 @@
-insert_one_record(log, author + 8, oneline);
+fputs(signature_check.gpg_output, stderr);

@@ -1,1 +1,0 @@
-fputc('\n', stderr);

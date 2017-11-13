@@ -1,74 +1,132 @@
-void mpm_signal_service(apr_pool_t *ptemp, int signal)
+static char master_main()
 {
-    int success = FALSE;
-    SC_HANDLE   schService;
-    SC_HANDLE   schSCManager;
+    server_rec *s = ap_server_conf;
+    ap_listen_rec *lr;
+    parent_info_t *parent_info;
+    char *listener_shm_name;
+    int listener_num, num_listeners, slot;
+    ULONG rc;
 
-    schSCManager = OpenSCManager(NULL, NULL, /* default machine & database */
-                                 SC_MANAGER_CONNECT);
+    printf("%s \n", ap_get_server_description());
+    set_signals();
 
-    if (!schSCManager) {
-        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), NULL, APLOGNO(00379)
-                     "Failed to open the NT Service Manager");
-        return;
+    if (ap_setup_listeners(ap_server_conf) < 1) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, 0, s,
+                     "no listening sockets available, shutting down");
+        return FALSE;
     }
 
-    /* ###: utf-ize */
-    schService = OpenService(schSCManager, mpm_service_name,
-                             SERVICE_INTERROGATE | SERVICE_QUERY_STATUS |
-                             SERVICE_USER_DEFINED_CONTROL |
-                             SERVICE_START | SERVICE_STOP);
-
-    if (schService == NULL) {
-        /* Could not open the service */
-        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), NULL, APLOGNO(00380)
-                     "Failed to open the %s Service", mpm_display_name);
-        CloseServiceHandle(schSCManager);
-        return;
+    /* Allocate a shared memory block for the array of listeners */
+    for (num_listeners = 0, lr = ap_listeners; lr; lr = lr->next) {
+        num_listeners++;
     }
 
-    if (!QueryServiceStatus(schService, &globdat.ssStatus)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), NULL, APLOGNO(00381)
-                     "Query of Service %s failed", mpm_display_name);
-        CloseServiceHandle(schService);
-        CloseServiceHandle(schSCManager);
-        return;
+    listener_shm_name = apr_psprintf(pconf, "/sharemem/httpd/parent_info.%d", getpid());
+    rc = DosAllocSharedMem((PPVOID)&parent_info, listener_shm_name,
+                           sizeof(parent_info_t) + num_listeners * sizeof(listen_socket_t),
+                           PAG_READ|PAG_WRITE|PAG_COMMIT);
+
+    if (rc) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, APR_FROM_OS_ERROR(rc), s,
+                     "failure allocating shared memory, shutting down");
+        return FALSE;
     }
 
-    if (!signal && (globdat.ssStatus.dwCurrentState == SERVICE_STOPPED)) {
-        fprintf(stderr,"The %s service is not started.\n", mpm_display_name);
-        CloseServiceHandle(schService);
-        CloseServiceHandle(schSCManager);
-        return;
+    /* Store the listener sockets in the shared memory area for our children to see */
+    for (listener_num = 0, lr = ap_listeners; lr; lr = lr->next, listener_num++) {
+        apr_os_sock_get(&parent_info->listeners[listener_num].listen_fd, lr->sd);
     }
 
-    fprintf(stderr,"The %s service is %s.\n", mpm_display_name,
-            signal ? "restarting" : "stopping");
+    /* Create mutex to prevent multiple child processes from detecting
+     * a connection with apr_poll()
+     */
 
-    if (!signal)
-        success = signal_service_transition(schService,
-                                            SERVICE_CONTROL_STOP,
-                                            SERVICE_STOP_PENDING,
-                                            SERVICE_STOPPED);
-    else if (globdat.ssStatus.dwCurrentState == SERVICE_STOPPED) {
-        mpm_service_start(ptemp, 0, NULL);
-        CloseServiceHandle(schService);
-        CloseServiceHandle(schSCManager);
-        return;
+    rc = DosCreateMutexSem(NULL, &ap_mpm_accept_mutex, DC_SEM_SHARED, FALSE);
+
+    if (rc) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, APR_FROM_OS_ERROR(rc), s,
+                     "failure creating accept mutex, shutting down");
+        return FALSE;
     }
-    else
-        success = signal_service_transition(schService,
-                                            SERVICE_APACHE_RESTART,
-                                            SERVICE_START_PENDING,
-                                            SERVICE_RUNNING);
 
-    CloseServiceHandle(schService);
-    CloseServiceHandle(schSCManager);
+    parent_info->accept_mutex = ap_mpm_accept_mutex;
 
-    if (success)
-        fprintf(stderr,"The %s service has %s.\n", mpm_display_name,
-               signal ? "restarted" : "stopped");
-    else
-        fprintf(stderr,"Failed to %s the %s service.\n",
-               signal ? "restart" : "stop", mpm_display_name);
+    /* Allocate shared memory for scoreboard */
+    if (ap_scoreboard_image == NULL) {
+        void *sb_mem;
+        rc = DosAllocSharedMem(&sb_mem, ap_scoreboard_fname,
+                               ap_calc_scoreboard_size(),
+                               PAG_COMMIT|PAG_READ|PAG_WRITE);
+
+        if (rc) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, APR_FROM_OS_ERROR(rc), ap_server_conf,
+                         "unable to allocate shared memory for scoreboard , exiting");
+            return FALSE;
+        }
+
+        ap_init_scoreboard(sb_mem);
+    }
+
+    ap_scoreboard_image->global->restart_time = apr_time_now();
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                "%s configured -- resuming normal operations",
+                ap_get_server_description());
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
+                "Server built: %s", ap_get_server_built());
+    if (one_process) {
+        ap_scoreboard_image->parent[0].pid = getpid();
+        ap_mpm_child_main(pconf);
+        return FALSE;
+    }
+
+    while (!restart_pending && !shutdown_pending) {
+        RESULTCODES proc_rc;
+        PID child_pid;
+        int active_children = 0;
+
+        /* Count number of active children */
+        for (slot=0; slot < HARD_SERVER_LIMIT; slot++) {
+            active_children += ap_scoreboard_image->parent[slot].pid != 0 &&
+                !ap_scoreboard_image->parent[slot].quiescing;
+        }
+
+        /* Spawn children if needed */
+        for (slot=0; slot < HARD_SERVER_LIMIT && active_children < ap_daemons_to_start; slot++) {
+            if (ap_scoreboard_image->parent[slot].pid == 0) {
+                spawn_child(slot);
+                active_children++;
+            }
+        }
+
+        rc = DosWaitChild(DCWA_PROCESSTREE, DCWW_NOWAIT, &proc_rc, &child_pid, 0);
+
+        if (rc == 0) {
+            /* A child has terminated, remove its scoreboard entry & terminate if necessary */
+            for (slot=0; ap_scoreboard_image->parent[slot].pid != child_pid && slot < HARD_SERVER_LIMIT; slot++);
+
+            if (slot < HARD_SERVER_LIMIT) {
+                ap_scoreboard_image->parent[slot].pid = 0;
+                ap_scoreboard_image->parent[slot].quiescing = 0;
+
+                if (proc_rc.codeTerminate == TC_EXIT) {
+                    /* Child terminated normally, check its exit code and
+                     * terminate server if child indicates a fatal error
+                     */
+                    if (proc_rc.codeResult == APEXIT_CHILDFATAL)
+                        break;
+                }
+            }
+        } else if (rc == ERROR_CHILD_NOT_COMPLETE) {
+            /* No child exited, lets sleep for a while.... */
+            apr_sleep(SCOREBOARD_MAINTENANCE_INTERVAL);
+        }
+    }
+
+    /* Signal children to shut down, either gracefully or immediately */
+    for (slot=0; slot<HARD_SERVER_LIMIT; slot++) {
+      kill(ap_scoreboard_image->parent[slot].pid, is_graceful ? SIGHUP : SIGTERM);
+    }
+
+    DosFreeMem(parent_info);
+    return restart_pending;
 }

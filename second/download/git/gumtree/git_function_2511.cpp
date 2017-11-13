@@ -1,30 +1,18 @@
-static int reopen_stdout(struct commit *commit, const char *subject,
-			 struct rev_info *rev, int quiet)
+int parse_opt_merge_filter(const struct option *opt, const char *arg, int unset)
 {
-	struct strbuf filename = STRBUF_INIT;
-	int suffix_len = strlen(rev->patch_suffix) + 1;
+	struct ref_filter *rf = opt->value;
+	unsigned char sha1[20];
 
-	if (output_directory) {
-		strbuf_addstr(&filename, output_directory);
-		if (filename.len >=
-		    PATH_MAX - FORMAT_PATCH_NAME_MAX - suffix_len)
-			return error(_("name of output directory is too long"));
-		strbuf_complete(&filename, '/');
-	}
+	rf->merge = starts_with(opt->long_name, "no")
+		? REF_FILTER_MERGED_OMIT
+		: REF_FILTER_MERGED_INCLUDE;
 
-	if (rev->numbered_files)
-		strbuf_addf(&filename, "%d", rev->nr);
-	else if (commit)
-		fmt_output_commit(&filename, commit, rev);
-	else
-		fmt_output_subject(&filename, subject, rev);
+	if (get_sha1(arg, sha1))
+		die(_("malformed object name %s"), arg);
 
-	if (!quiet)
-		fprintf(realstdout, "%s\n", filename.buf + outdir_offset);
+	rf->merge_commit = lookup_commit_reference_gently(sha1, 0);
+	if (!rf->merge_commit)
+		return opterror(opt, "must point to a commit", 0);
 
-	if (freopen(filename.buf, "w", stdout) == NULL)
-		return error(_("Cannot open patch file %s"), filename.buf);
-
-	strbuf_release(&filename);
 	return 0;
 }

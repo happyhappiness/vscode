@@ -1,1 +1,2 @@
-die(_("revision walk setup failed"));
+die("conflict between reference and directory: %s",
+				    e1->name);

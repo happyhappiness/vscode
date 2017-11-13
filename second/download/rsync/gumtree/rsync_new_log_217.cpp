@@ -1,1 +1,1 @@
-fprintf(FERROR,"recv_files phase=%d\n",phase);
+fprintf(FERROR,"fstat failed : %s\n",strerror(errno));

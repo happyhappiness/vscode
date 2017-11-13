@@ -8,68 +8,67 @@ curl: log hunk / hunk
 1479,40033
 rsync: log hunk / hunk
 1021,8251
-
 #now analyzing repos:httpd
 #edition cluster info
-addLog:309, removeLog:62, updateLog:119, addVariable:288, removeVariable:219, updateVariable:242, moveVariable:17, addContent:92, removeContent:123, updateContent:330, moveContent:2, 
-cluster is:4244, repeted cluster is:339, repeted log is:1118
+addLog:123, removeLog:120, updateLog:119, addVariable:288, removeVariable:219, updateVariable:243, moveVariable:17, addContent:92, removeContent:123, updateContent:330, moveContent:2, 
+cluster is:3552, repeted cluster is:282, repeted log is:991
 #edition and feature cluster info
-addLog:192, removeLog:56, updateLog:34, addVariable:88, removeVariable:62, updateVariable:69, moveVariable:9, addContent:33, removeContent:40, updateContent:136, moveContent:2, 
-cluster is:4742, repeted cluster is:214, repeted log is:495
+addLog:68, removeLog:105, updateLog:34, addVariable:88, removeVariable:62, updateVariable:69, moveVariable:9, addContent:33, removeContent:40, updateContent:136, moveContent:2, 
+cluster is:4019, repeted cluster is:178, repeted log is:420
 #log info
-number of log is:5062
-addLog:1748, removeLog:175, updateLog:409, addVariable:2275, removeVariable:742, updateVariable:642, moveVariable:47, addContent:1918, removeContent:324, updateContent:1195, moveContent:34, 
+number of log is:4300
+addLog:769, removeLog:390, updateLog:409, addVariable:2276, removeVariable:742, updateVariable:643, moveVariable:47, addContent:1919, removeContent:324, updateContent:1194, moveContent:34, 
 #rule info
-insert rule:87, modify rule:129
+insert rule:31, modify rule:149
 
 #now analyzing repos:git
 #edition cluster info
-addLog:303, removeLog:13, updateLog:253, addVariable:456, removeVariable:193, updateVariable:279, moveVariable:2, addContent:15, removeContent:10, updateContent:176, moveContent:1, 
-cluster is:1488, repeted cluster is:204, repeted log is:1042
+addLog:112, removeLog:52, updateLog:253, addVariable:456, removeVariable:193, updateVariable:279, moveVariable:2, addContent:15, removeContent:10, updateContent:176, moveContent:1, 
+cluster is:898, repeted cluster is:164, repeted log is:890
 #edition and feature cluster info
-addLog:206, removeLog:9, updateLog:59, addVariable:110, removeVariable:33, updateVariable:78, moveVariable:0, addContent:6, removeContent:4, updateContent:44, moveContent:0, 
-cluster is:2078, repeted cluster is:149, repeted log is:397
+addLog:75, removeLog:36, updateLog:60, addVariable:110, removeVariable:34, updateVariable:78, moveVariable:0, addContent:6, removeContent:4, updateContent:45, moveContent:0, 
+cluster is:1445, repeted cluster is:115, repeted log is:294
 #log info
-number of log is:2393
-addLog:1175, removeLog:51, updateLog:411, addVariable:692, removeVariable:339, updateVariable:445, moveVariable:6, addContent:48, removeContent:109, updateContent:402, moveContent:3, 
+number of log is:1690
+addLog:378, removeLog:147, updateLog:411, addVariable:692, removeVariable:339, updateVariable:445, moveVariable:6, addContent:48, removeContent:109, updateContent:401, moveContent:3, 
 #rule info
-insert rule:62, modify rule:95
+insert rule:17, modify rule:106
 
 #now analyzing repos:mutt
 #edition cluster info
-addLog:4, removeLog:3, updateLog:43, addVariable:13, removeVariable:0, updateVariable:19, moveVariable:0, addContent:2, removeContent:9, updateContent:4, moveContent:0, 
-cluster is:76, repeted cluster is:8, repeted log is:77
+addLog:0, removeLog:9, updateLog:43, addVariable:13, removeVariable:0, updateVariable:19, moveVariable:0, addContent:2, removeContent:9, updateContent:4, moveContent:0, 
+cluster is:62, repeted cluster is:9, repeted log is:79
 #edition and feature cluster info
-addLog:2, removeLog:1, updateLog:24, addVariable:8, removeVariable:0, updateVariable:6, moveVariable:0, addContent:0, removeContent:6, updateContent:2, moveContent:0, 
-cluster is:120, repeted cluster is:13, repeted log is:38
+addLog:0, removeLog:1, updateLog:24, addVariable:8, removeVariable:0, updateVariable:6, moveVariable:0, addContent:0, removeContent:6, updateContent:2, moveContent:0, 
+cluster is:108, repeted cluster is:12, repeted log is:36
 #log info
-number of log is:147
-addLog:47, removeLog:10, updateLog:53, addVariable:21, removeVariable:9, updateVariable:28, moveVariable:0, addContent:9, removeContent:14, updateContent:12, moveContent:0, 
+number of log is:134
+addLog:27, removeLog:17, updateLog:53, addVariable:21, removeVariable:9, updateVariable:28, moveVariable:0, addContent:9, removeContent:14, updateContent:12, moveContent:0, 
 #rule info
-insert rule:1, modify rule:12
+insert rule:0, modify rule:12
 
 #now analyzing repos:curl
 #edition cluster info
-addLog:38, removeLog:0, updateLog:2, addVariable:29, removeVariable:25, updateVariable:21, moveVariable:0, addContent:3, removeContent:0, updateContent:9, moveContent:0, 
-cluster is:143, repeted cluster is:22, repeted log is:93
+addLog:8, removeLog:2, updateLog:2, addVariable:29, removeVariable:25, updateVariable:21, moveVariable:0, addContent:3, removeContent:0, updateContent:9, moveContent:0, 
+cluster is:84, repeted cluster is:10, repeted log is:65
 #edition and feature cluster info
-addLog:25, removeLog:0, updateLog:2, addVariable:4, removeVariable:4, updateVariable:4, moveVariable:0, addContent:1, removeContent:0, updateContent:3, moveContent:0, 
-cluster is:194, repeted cluster is:15, repeted log is:35
+addLog:8, removeLog:2, updateLog:2, addVariable:4, removeVariable:4, updateVariable:4, moveVariable:0, addContent:1, removeContent:0, updateContent:3, moveContent:0, 
+cluster is:128, repeted cluster is:9, repeted log is:20
 #log info
-number of log is:214
-addLog:126, removeLog:2, updateLog:7, addVariable:35, removeVariable:33, updateVariable:28, moveVariable:0, addContent:3, removeContent:4, updateContent:28, moveContent:0, 
+number of log is:139
+addLog:48, removeLog:5, updateLog:7, addVariable:35, removeVariable:33, updateVariable:28, moveVariable:0, addContent:3, removeContent:4, updateContent:28, moveContent:0, 
 #rule info
-insert rule:10, modify rule:5
+insert rule:3, modify rule:6
 
 #now analyzing repos:rsync
 #edition cluster info
-addLog:77, removeLog:0, updateLog:173, addVariable:26, removeVariable:18, updateVariable:196, moveVariable:8, addContent:4, removeContent:2, updateContent:15, moveContent:0, 
-cluster is:290, repeted cluster is:51, repeted log is:469
+addLog:11, removeLog:4, updateLog:173, addVariable:26, removeVariable:18, updateVariable:196, moveVariable:8, addContent:4, removeContent:2, updateContent:15, moveContent:0, 
+cluster is:179, repeted cluster is:30, repeted log is:407
 #edition and feature cluster info
-addLog:28, removeLog:0, updateLog:57, addVariable:4, removeVariable:4, updateVariable:47, moveVariable:2, addContent:0, removeContent:2, updateContent:2, moveContent:0, 
-cluster is:622, repeted cluster is:48, repeted log is:134
+addLog:2, removeLog:2, updateLog:57, addVariable:4, removeVariable:4, updateVariable:47, moveVariable:2, addContent:0, removeContent:2, updateContent:2, moveContent:0, 
+cluster is:482, repeted cluster is:36, repeted log is:110
 #log info
-number of log is:714
-addLog:248, removeLog:13, updateLog:192, addVariable:54, removeVariable:33, updateVariable:212, moveVariable:13, addContent:6, removeContent:14, updateContent:53, moveContent:0, 
+number of log is:561
+addLog:82, removeLog:27, updateLog:192, addVariable:54, removeVariable:33, updateVariable:212, moveVariable:13, addContent:6, removeContent:14, updateContent:53, moveContent:0, 
 #rule info
-insert rule:14, modify rule:34
+insert rule:1, modify rule:35

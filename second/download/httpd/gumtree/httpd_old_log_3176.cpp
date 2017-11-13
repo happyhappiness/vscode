@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r,
-                              "can't open translation %s->%s",
-                              dc->charset_source, dc->charset_default);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
+                     "failed to initialise mutex in child_init");

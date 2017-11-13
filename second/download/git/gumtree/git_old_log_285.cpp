@@ -1,1 +1,2 @@
-error(_("Unknown -s/--strategy: %s"), strategy);
+error("cannot read the current contents of '%s'",
+				     patch->new_name);

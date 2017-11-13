@@ -1,1 +1,1 @@
-fprintf(stderr,"nothing to do\n");
+fprintf(stderr,"chdir %s : %s\n",name,strerror(errno));

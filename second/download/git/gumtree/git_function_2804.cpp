@@ -1,68 +1,37 @@
-const char *fmt_ident(const char *name, const char *email,
-		      const char *date_str, int flag)
+static char *cram(const char *challenge_64, const char *user, const char *pass)
 {
-	static struct strbuf ident = STRBUF_INIT;
-	int strict = (flag & IDENT_STRICT);
-	int want_date = !(flag & IDENT_NO_DATE);
-	int want_name = !(flag & IDENT_NO_NAME);
+	int i, resp_len, encoded_len, decoded_len;
+	unsigned char hash[16];
+	char hex[33];
+	char *response, *response_64, *challenge;
 
-	if (want_name) {
-		int using_default = 0;
-		if (!name) {
-			if (strict && ident_use_config_only
-			    && !(ident_config_given & IDENT_NAME_GIVEN)) {
-				fputs(env_hint, stderr);
-				die("no name was given and auto-detection is disabled");
-			}
-			name = ident_default_name();
-			using_default = 1;
-			if (strict && default_name_is_bogus) {
-				fputs(env_hint, stderr);
-				die("unable to auto-detect name (got '%s')", name);
-			}
-		}
-		if (!*name) {
-			struct passwd *pw;
-			if (strict) {
-				if (using_default)
-					fputs(env_hint, stderr);
-				die("empty ident name (for <%s>) not allowed", email);
-			}
-			pw = xgetpwuid_self(NULL);
-			name = pw->pw_name;
-		}
+	/*
+	 * length of challenge_64 (i.e. base-64 encoded string) is a good
+	 * enough upper bound for challenge (decoded result).
+	 */
+	encoded_len = strlen(challenge_64);
+	challenge = xmalloc(encoded_len);
+	decoded_len = EVP_DecodeBlock((unsigned char *)challenge,
+				      (unsigned char *)challenge_64, encoded_len);
+	if (decoded_len < 0)
+		die("invalid challenge %s", challenge_64);
+	if (!HMAC(EVP_md5(), pass, strlen(pass), (unsigned char *)challenge, decoded_len, hash, NULL))
+		die("HMAC error");
+
+	hex[32] = 0;
+	for (i = 0; i < 16; i++) {
+		hex[2 * i] = hexchar((hash[i] >> 4) & 0xf);
+		hex[2 * i + 1] = hexchar(hash[i] & 0xf);
 	}
 
-	if (!email) {
-		if (strict && ident_use_config_only
-		    && !(ident_config_given & IDENT_MAIL_GIVEN)) {
-			fputs(env_hint, stderr);
-			die("no email was given and auto-detection is disabled");
-		}
-		email = ident_default_email();
-		if (strict && default_email_is_bogus) {
-			fputs(env_hint, stderr);
-			die("unable to auto-detect email address (got '%s')", email);
-		}
-	}
+	/* response: "<user> <digest in hex>" */
+	response = xstrfmt("%s %s", user, hex);
+	resp_len = strlen(response);
 
-	strbuf_reset(&ident);
-	if (want_name) {
-		strbuf_addstr_without_crud(&ident, name);
-		strbuf_addstr(&ident, " <");
-	}
-	strbuf_addstr_without_crud(&ident, email);
-	if (want_name)
-			strbuf_addch(&ident, '>');
-	if (want_date) {
-		strbuf_addch(&ident, ' ');
-		if (date_str && date_str[0]) {
-			if (parse_date(date_str, &ident) < 0)
-				die("invalid date format: %s", date_str);
-		}
-		else
-			strbuf_addstr(&ident, ident_default_date());
-	}
-
-	return ident.buf;
+	response_64 = xmallocz(ENCODED_SIZE(resp_len));
+	encoded_len = EVP_EncodeBlock((unsigned char *)response_64,
+				      (unsigned char *)response, resp_len);
+	if (encoded_len < 0)
+		die("EVP_EncodeBlock error");
+	return (char *)response_64;
 }

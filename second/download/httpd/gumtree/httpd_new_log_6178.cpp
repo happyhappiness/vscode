@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c, 
-                  "h2_mplx(%ld): dispatch events", m->id);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(03002)
+                              "%d:  userdata", i);

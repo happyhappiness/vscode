@@ -1,1 +1,1 @@
-fprintf(FINFO,"cmd=");
+fprintf(FERROR,"%s : %s\n",fname,strerror(errno));

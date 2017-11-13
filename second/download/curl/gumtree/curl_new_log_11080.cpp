@@ -1,9 +1,12 @@
 fputs(
-"              literal \"string\", or you can have curl read the  format  from  a\n"
-"              file  with  \"@filename\" and to tell curl to read the format from\n"
-"              stdin you write \"@-\".\n"
+"              don't then the initial authentication handshake may fail.\n"
 "\n"
-"              The variables present in the output format will  be  substituted\n"
-"              by  the  value or text that curl thinks fit, as described below.\n"
-"              All variables are specified as %{variable_name} and to output  a\n"
+"              When using NTLM, the user name can be specified  simply  as  the\n"
+"              user  name,  without the domain, if there is a single domain and\n"
+"              forest in your setup for example.\n"
+"\n"
+"              To specify the domain name use either Down-Level Logon  Name  or\n"
+"              UPN (User Principal Name) formats. For example, EXAMPLE\\user and\n"
+"              user@example.com respectively.\n"
+"\n"
 , stdout);

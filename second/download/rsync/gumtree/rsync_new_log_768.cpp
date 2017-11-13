@@ -1,1 +1,0 @@
-fprintf(stderr, "failed to fork: %s\n", strerror(errno));

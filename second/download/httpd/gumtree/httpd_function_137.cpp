@@ -1,73 +1,137 @@
-static void dav_send_multistatus(request_rec *r, int status,
-                                 dav_response *first,
-                                 apr_array_header_t *namespaces)
+static apr_status_t make_sock(apr_pool_t *p, ap_listen_rec *server)
 {
-    /* Set the correct status and Content-Type */
-    r->status = status;
-    ap_set_content_type(r, DAV_XML_CONTENT_TYPE);
+    apr_socket_t *s = server->sd;
+    int one = 1;
+#if APR_HAVE_IPV6
+#ifdef AP_ENABLE_V4_MAPPED
+    int v6only_setting = 0;
+#else
+    int v6only_setting = 1;
+#endif
+#endif
+    apr_status_t stat;
 
-    /* Send the headers and actual multistatus response now... */
-    ap_rputs(DAV_XML_HEADER DEBUG_CR
-             "<D:multistatus xmlns:D=\"DAV:\"", r);
+#ifndef WIN32
+    stat = apr_socket_opt_set(s, APR_SO_REUSEADDR, one);
+    if (stat != APR_SUCCESS && stat != APR_ENOTIMPL) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p,
+                      "make_sock: for address %pI, apr_socket_opt_set: (SO_REUSEADDR)",
+                      server->bind_addr);
+        apr_socket_close(s);
+        return stat;
+    }
+#endif
 
-    if (namespaces != NULL) {
-       int i;
-
-       for (i = namespaces->nelts; i--; ) {
-           ap_rprintf(r, " xmlns:ns%d=\"%s\"", i,
-                      APR_XML_GET_URI_ITEM(namespaces, i));
-       }
+    stat = apr_socket_opt_set(s, APR_SO_KEEPALIVE, one);
+    if (stat != APR_SUCCESS && stat != APR_ENOTIMPL) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p,
+                      "make_sock: for address %pI, apr_socket_opt_set: (SO_KEEPALIVE)",
+                      server->bind_addr);
+        apr_socket_close(s);
+        return stat;
     }
 
-    /* ap_rputc('>', r); */
-    ap_rputs(">" DEBUG_CR, r);
-
-    for (; first != NULL; first = first->next) {
-        apr_text *t;
-
-        if (first->propresult.xmlns == NULL) {
-            ap_rputs("<D:response>", r);
+#if APR_HAVE_IPV6
+    if (server->bind_addr->family == APR_INET6) {
+        stat = apr_socket_opt_set(s, APR_IPV6_V6ONLY, v6only_setting);
+        if (stat != APR_SUCCESS && stat != APR_ENOTIMPL) {
+            ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p,
+                          "make_sock: for address %pI, apr_socket_opt_set: "
+                          "(IPV6_V6ONLY)",
+                          server->bind_addr);
+            apr_socket_close(s);
+            return stat;
         }
-        else {
-            ap_rputs("<D:response", r);
-            for (t = first->propresult.xmlns; t; t = t->next) {
-                ap_rputs(t->text, r);
-            }
-            ap_rputc('>', r);
-        }
+    }
+#endif
 
-        ap_rputs(DEBUG_CR "<D:href>", r);
-        ap_rputs(dav_xml_escape_uri(r->pool, first->href), r);
-        ap_rputs("</D:href>" DEBUG_CR, r);
-
-        if (first->propresult.propstats == NULL) {
-            /* use the Status-Line text from Apache.  Note, this will
-             * default to 500 Internal Server Error if first->status
-             * is not a known (or valid) status code.
-             */
-            ap_rprintf(r,
-                       "<D:status>HTTP/1.1 %s</D:status>" DEBUG_CR,
-                       ap_get_status_line(first->status));
+    /*
+     * To send data over high bandwidth-delay connections at full
+     * speed we must force the TCP window to open wide enough to keep the
+     * pipe full.  The default window size on many systems
+     * is only 4kB.  Cross-country WAN connections of 100ms
+     * at 1Mb/s are not impossible for well connected sites.
+     * If we assume 100ms cross-country latency,
+     * a 4kB buffer limits throughput to 40kB/s.
+     *
+     * To avoid this problem I've added the SendBufferSize directive
+     * to allow the web master to configure send buffer size.
+     *
+     * The trade-off of larger buffers is that more kernel memory
+     * is consumed.  YMMV, know your customers and your network!
+     *
+     * -John Heidemann <johnh@isi.edu> 25-Oct-96
+     *
+     * If no size is specified, use the kernel default.
+     */
+    if (send_buffer_size) {
+        stat = apr_socket_opt_set(s, APR_SO_SNDBUF,  send_buffer_size);
+        if (stat != APR_SUCCESS && stat != APR_ENOTIMPL) {
+            ap_log_perror(APLOG_MARK, APLOG_WARNING, stat, p,
+                          "make_sock: failed to set SendBufferSize for "
+                          "address %pI, using default",
+                          server->bind_addr);
+            /* not a fatal error */
         }
-        else {
-            /* assume this includes <propstat> and is quoted properly */
-            for (t = first->propresult.propstats; t; t = t->next) {
-                ap_rputs(t->text, r);
-            }
-        }
-
-        if (first->desc != NULL) {
-            /*
-             * We supply the description, so we know it doesn't have to
-             * have any escaping/encoding applied to it.
-             */
-            ap_rputs("<D:responsedescription>", r);
-            ap_rputs(first->desc, r);
-            ap_rputs("</D:responsedescription>" DEBUG_CR, r);
-        }
-
-        ap_rputs("</D:response>" DEBUG_CR, r);
     }
 
-    ap_rputs("</D:multistatus>" DEBUG_CR, r);
+#if APR_TCP_NODELAY_INHERITED
+    ap_sock_disable_nagle(s);
+#endif
+
+    if ((stat = apr_bind(s, server->bind_addr)) != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT, stat, p,
+                      "make_sock: could not bind to address %pI",
+                      server->bind_addr);
+        apr_socket_close(s);
+        return stat;
+    }
+
+    if ((stat = apr_listen(s, ap_listenbacklog)) != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_ERR, stat, p,
+                      "make_sock: unable to listen for connections "
+                      "on address %pI",
+                      server->bind_addr);
+        apr_socket_close(s);
+        return stat;
+    }
+
+#ifdef WIN32
+    /* I seriously doubt that this would work on Unix; I have doubts that
+     * it entirely solves the problem on Win32.  However, since setting
+     * reuseaddr on the listener -prior- to binding the socket has allowed
+     * us to attach to the same port as an already running instance of
+     * Apache, or even another web server, we cannot identify that this
+     * port was exclusively granted to this instance of Apache.
+     *
+     * So set reuseaddr, but do not attempt to do so until we have the
+     * parent listeners successfully bound.
+     */
+    stat = apr_socket_opt_set(s, APR_SO_REUSEADDR, one);
+    if (stat != APR_SUCCESS && stat != APR_ENOTIMPL) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p,
+                    "make_sock: for address %pI, apr_socket_opt_set: (SO_REUSEADDR)", 
+                     server->bind_addr);
+        apr_socket_close(s);
+        return stat;
+    }
+#endif
+
+#if APR_HAS_SO_ACCEPTFILTER
+#ifndef ACCEPT_FILTER_NAME
+#define ACCEPT_FILTER_NAME "dataready"
+#endif
+    apr_socket_accept_filter(s, ACCEPT_FILTER_NAME, "");
+#endif
+
+    server->sd = s;
+    server->active = 1;
+
+#ifdef MPM_ACCEPT_FUNC
+    server->accept_func = MPM_ACCEPT_FUNC;
+#else
+    server->accept_func = NULL;
+#endif
+
+    return APR_SUCCESS;
 }

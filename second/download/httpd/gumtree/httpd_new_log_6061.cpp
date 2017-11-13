@@ -1,1 +1,0 @@
-ap_add_output_filter("H2_SLAVE_OUT", NULL, NULL, c);

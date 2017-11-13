@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -w                 : hold open the console window on error");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
+                      "buffered SSL brigade now exhausted; removing filter");

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00494)
-                     "SIGHUP received.  Attempting to restart");
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                              "*: found forward proxy worker for %s", *url);

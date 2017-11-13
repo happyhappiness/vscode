@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "[%" APR_PID_T_FMT "] auth_ldap authorize dn: authorization denied for user %s to %s",
-                  getpid(), r->user, r->uri);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                                     "ap_proxy_ajp_request: origin server "
+                                     "sent 401 without WWW-Authenticate header");

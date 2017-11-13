@@ -1,1 +1,0 @@
-object_as_type(obj, OBJ_TAG, 0);

@@ -1,1 +1,1 @@
-fprintf(f,"    --exclude FILE       exclude file FILE\n");
+fprintf(FERROR,"nothing to do\n");

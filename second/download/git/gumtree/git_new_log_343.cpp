@@ -1,1 +1,0 @@
-die("unexpected filter type");

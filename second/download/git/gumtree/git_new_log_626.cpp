@@ -1,1 +1,0 @@
-warning("ignoring alternate with restricted protocol: %s", url);

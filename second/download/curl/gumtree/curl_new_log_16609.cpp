@@ -1,7 +1,12 @@
-puts(" -C/--continue-at <offset> Specify absolute resume offset\n"
-       " -d/--data <data>   HTTP POST data (H)\n"
-       "    --data-ascii <data>   HTTP POST ASCII data (H)\n"
-       "    --data-binary <data>  HTTP POST binary data (H)\n"
-       " -D/--dump-header <file> Write the headers to this file\n"
-       "    --egd-file <file> EGD socket path for random data (SSL)\n"
-       " -e/--referer       Referer page (H)");
+puts(
+"  N. Henson has written a patch for SSLeay that adds this functionality. You\n"
+"  can get his patch (that requires an SSLeay installation) from his site at:\n"
+"  http://www.drh-consultancy.demon.co.uk/\n"
+"\n"
+"  Example on how to automatically retrieve a document using a certificate with\n"
+"  a personal password:\n"
+"\n"
+"        curl -E /path/to/cert.pem:password https://secure.site.com/\n"
+"\n"
+"  If you neglect to specify the password on the command line, you will be\n"
+);

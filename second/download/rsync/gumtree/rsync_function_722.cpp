@@ -1,58 +1,45 @@
-char *auth_server(int f_in, int f_out, int module, char *addr, char *leader)
+int unsafe_symlink(char *dest, char *src)
 {
-	char *users = lp_auth_users(module);
-	char challenge[16];
-	char b64_challenge[30];
-	char line[MAXPATHLEN];
-	static char user[100];
-	char secret[100];
-	char pass[30];
-	char pass2[30];
 	char *tok;
+	int depth = 0;
 
-	/* if no auth list then allow anyone in! */
-	if (!users || !*users)
-		return "";
+	/* all absolute and null symlinks are unsafe */
+	if (!dest || !(*dest) || (*dest == '/')) return 1;
 
-	gen_challenge(addr, challenge);
+	src = strdup(src);
+	if (!src) out_of_memory("unsafe_symlink");
 
-	base64_encode(challenge, 16, b64_challenge);
-
-	io_printf(f_out, "%s%s\n", leader, b64_challenge);
-
-	if (!read_line(f_in, line, sizeof line - 1))
-		return NULL;
-
-	memset(user, 0, sizeof user);
-	memset(pass, 0, sizeof pass);
-
-	if (sscanf(line,"%99s %29s", user, pass) != 2)
-		return NULL;
-
-	users = strdup(users);
-	if (!users)
-		return NULL;
-
-	for (tok=strtok(users," ,\t"); tok; tok = strtok(NULL," ,\t")) {
-		if (wildmatch(tok, user))
-			break;
+	/* find out what our safety margin is */
+	for (tok=strtok(src,"/"); tok; tok=strtok(NULL,"/")) {
+		if (strcmp(tok,"..") == 0) {
+			depth=0;
+		} else if (strcmp(tok,".") == 0) {
+			/* nothing */
+		} else {
+			depth++;
+		}
 	}
-	free(users);
+	free(src);
 
-	if (!tok)
-		return NULL;
+	/* drop by one to account for the filename portion */
+	depth--;
 
-	memset(secret, 0, sizeof secret);
-	if (!get_secret(module, user, secret, sizeof secret - 1)) {
-		memset(secret, 0, sizeof secret);
-		return NULL;
+	dest = strdup(dest);
+	if (!dest) out_of_memory("unsafe_symlink");
+
+	for (tok=strtok(dest,"/"); tok; tok=strtok(NULL,"/")) {
+		if (strcmp(tok,"..") == 0) {
+			depth--;
+		} else if (strcmp(tok,".") == 0) {
+			/* nothing */
+		} else {
+			depth++;
+		}
+		/* if at any point we go outside the current directory then
+		   stop - it is unsafe */
+		if (depth < 0) break;
 	}
 
-	generate_hash(secret, b64_challenge, pass2);
-	memset(secret, 0, sizeof secret);
-
-	if (strcmp(pass, pass2) == 0)
-		return user;
-
-	return NULL;
+	free(dest);
+	return (depth < 0);
 }

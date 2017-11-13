@@ -1,9 +1,11 @@
 fputs(
-"              Specify which config file to read curl arguments from. The  con-\n"
-"              fig  file  is a text file in which command line arguments can be\n"
-"              written which then will be used as if they were written  on  the\n"
-"              actual command line.\n"
+"              dir given the current user in your system). On Windows, it  then\n"
+"              checks for the APPDATA variable, or as a last resort the '%USER-\n"
+"              PROFILE%\\Application Data'.\n"
 "\n"
-"              Options  and their parameters must be specified on the same con-\n"
-"              fig file line, separated by whitespace,  colon,  or  the  equals\n"
+"              2) On windows, if there is no _curlrc file in the home  dir,  it\n"
+"              checks for one in the same dir the curl executable is placed. On\n"
+"              UNIX-like systems, it will simply try to load .curlrc  from  the\n"
+"              determined home dir.\n"
+"\n"
 , stdout);

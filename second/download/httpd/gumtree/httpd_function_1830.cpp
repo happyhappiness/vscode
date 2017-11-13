@@ -1,191 +1,377 @@
-int ssl_callback_SSLVerify_CRL(int ok, X509_STORE_CTX *ctx, conn_rec *c)
+static void output_directories(struct ent **ar, int n,
+                               autoindex_config_rec *d, request_rec *r,
+                               apr_int32_t autoindex_opts, char keyid,
+                               char direction, const char *colargs)
 {
-    SSL *ssl = X509_STORE_CTX_get_ex_data(ctx,
-                                          SSL_get_ex_data_X509_STORE_CTX_idx());
-    request_rec *r      = (request_rec *)SSL_get_app_data2(ssl);
-    server_rec *s       = r ? r->server : mySrvFromConn(c);
-    SSLSrvConfigRec *sc = mySrvConfig(s);
-    SSLConnRec *sslconn = myConnConfig(c);
-    modssl_ctx_t *mctx  = myCtxConfig(sslconn, sc);
-    X509_OBJECT obj;
-    X509_NAME *subject, *issuer;
-    X509 *cert;
-    X509_CRL *crl;
-    EVP_PKEY *pubkey;
-    int i, n, rc;
+    int x;
+    apr_size_t rv;
+    char *name = r->uri;
+    char *tp;
+    int static_columns = !!(autoindex_opts & SUPPRESS_COLSORT);
+    apr_pool_t *scratch;
+    int name_width;
+    int desc_width;
+    char *name_scratch;
+    char *pad_scratch;
+    char *breakrow = "";
 
-    /*
-     * Unless a revocation store for CRLs was created we
-     * cannot do any CRL-based verification, of course.
-     */
-    if (!mctx->crl) {
-        return ok;
+    apr_pool_create(&scratch, r->pool);
+    if (name[0] == '\0') {
+        name = "/";
     }
 
-    /*
-     * Determine certificate ingredients in advance
-     */
-    cert    = X509_STORE_CTX_get_current_cert(ctx);
-    subject = X509_get_subject_name(cert);
-    issuer  = X509_get_issuer_name(cert);
+    name_width = d->name_width;
+    desc_width = d->desc_width;
 
-    /*
-     * OpenSSL provides the general mechanism to deal with CRLs but does not
-     * use them automatically when verifying certificates, so we do it
-     * explicitly here. We will check the CRL for the currently checked
-     * certificate, if there is such a CRL in the store.
-     *
-     * We come through this procedure for each certificate in the certificate
-     * chain, starting with the root-CA's certificate. At each step we've to
-     * both verify the signature on the CRL (to make sure it's a valid CRL)
-     * and it's revocation list (to make sure the current certificate isn't
-     * revoked).  But because to check the signature on the CRL we need the
-     * public key of the issuing CA certificate (which was already processed
-     * one round before), we've a little problem. But we can both solve it and
-     * at the same time optimize the processing by using the following
-     * verification scheme (idea and code snippets borrowed from the GLOBUS
-     * project):
-     *
-     * 1. We'll check the signature of a CRL in each step when we find a CRL
-     *    through the _subject_ name of the current certificate. This CRL
-     *    itself will be needed the first time in the next round, of course.
-     *    But we do the signature processing one round before this where the
-     *    public key of the CA is available.
-     *
-     * 2. We'll check the revocation list of a CRL in each step when
-     *    we find a CRL through the _issuer_ name of the current certificate.
-     *    This CRLs signature was then already verified one round before.
-     *
-     * This verification scheme allows a CA to revoke its own certificate as
-     * well, of course.
-     */
-
-    /*
-     * Try to retrieve a CRL corresponding to the _subject_ of
-     * the current certificate in order to verify it's integrity.
-     */
-    memset((char *)&obj, 0, sizeof(obj));
-    rc = SSL_X509_STORE_lookup(mctx->crl,
-                               X509_LU_CRL, subject, &obj);
-    crl = obj.data.crl;
-
-    if ((rc > 0) && crl) {
-        /*
-         * Log information about CRL
-         * (A little bit complicated because of ASN.1 and BIOs...)
-         */
-        if (s->loglevel >= APLOG_DEBUG) {
-            char buff[512]; /* should be plenty */
-            BIO *bio = BIO_new(BIO_s_mem());
-
-            BIO_printf(bio, "CA CRL: Issuer: ");
-            X509_NAME_print(bio, issuer, 0);
-
-            BIO_printf(bio, ", lastUpdate: ");
-            ASN1_UTCTIME_print(bio, X509_CRL_get_lastUpdate(crl));
-
-            BIO_printf(bio, ", nextUpdate: ");
-            ASN1_UTCTIME_print(bio, X509_CRL_get_nextUpdate(crl));
-
-            n = BIO_read(bio, buff, sizeof(buff) - 1);
-            buff[n] = '\0';
-
-            BIO_free(bio);
-
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "%s", buff);
-        }
-
-        /*
-         * Verify the signature on this CRL
-         */
-        pubkey = X509_get_pubkey(cert);
-        rc = X509_CRL_verify(crl, pubkey);
-#ifdef OPENSSL_VERSION_NUMBER
-        /* Only refcounted in OpenSSL */
-        if (pubkey)
-            EVP_PKEY_free(pubkey);
-#endif
-        if (rc <= 0) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "Invalid signature on CRL");
-
-            X509_STORE_CTX_set_error(ctx, X509_V_ERR_CRL_SIGNATURE_FAILURE);
-            X509_OBJECT_free_contents(&obj);
-            return FALSE;
-        }
-
-        /*
-         * Check date of CRL to make sure it's not expired
-         */
-        i = X509_cmp_current_time(X509_CRL_get_nextUpdate(crl));
-
-        if (i == 0) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "Found CRL has invalid nextUpdate field");
-
-            X509_STORE_CTX_set_error(ctx,
-                                     X509_V_ERR_ERROR_IN_CRL_NEXT_UPDATE_FIELD);
-            X509_OBJECT_free_contents(&obj);
-
-            return FALSE;
-        }
-
-        if (i < 0) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "Found CRL is expired - "
-                         "revoking all certificates until you get updated CRL");
-
-            X509_STORE_CTX_set_error(ctx, X509_V_ERR_CRL_HAS_EXPIRED);
-            X509_OBJECT_free_contents(&obj);
-
-            return FALSE;
-        }
-
-        X509_OBJECT_free_contents(&obj);
-    }
-
-    /*
-     * Try to retrieve a CRL corresponding to the _issuer_ of
-     * the current certificate in order to check for revocation.
-     */
-    memset((char *)&obj, 0, sizeof(obj));
-    rc = SSL_X509_STORE_lookup(mctx->crl,
-                               X509_LU_CRL, issuer, &obj);
-
-    crl = obj.data.crl;
-    if ((rc > 0) && crl) {
-        /*
-         * Check if the current certificate is revoked by this CRL
-         */
-        n = sk_X509_REVOKED_num(X509_CRL_get_REVOKED(crl));
-
-        for (i = 0; i < n; i++) {
-            X509_REVOKED *revoked =
-                sk_X509_REVOKED_value(X509_CRL_get_REVOKED(crl), i);
-
-            ASN1_INTEGER *sn = X509_REVOKED_get_serialNumber(revoked);
-
-            if (!ASN1_INTEGER_cmp(sn, X509_get_serialNumber(cert))) {
-                if (s->loglevel >= APLOG_INFO) {
-                    char *cp = X509_NAME_oneline(issuer, NULL, 0);
-                    long serial = ASN1_INTEGER_get(sn);
-
-                    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                                 "Certificate with serial %ld (0x%lX) "
-                                 "revoked per CRL from issuer %s",
-                                 serial, serial, cp);
-                    modssl_free(cp);
+    if ((autoindex_opts & (FANCY_INDEXING | TABLE_INDEXING))
+                        == FANCY_INDEXING) {
+        if (d->name_adjust == K_ADJUST) {
+            for (x = 0; x < n; x++) {
+                int t = strlen(ar[x]->name);
+                if (t > name_width) {
+                    name_width = t;
                 }
-
-                X509_STORE_CTX_set_error(ctx, X509_V_ERR_CERT_REVOKED);
-                X509_OBJECT_free_contents(&obj);
-
-                return FALSE;
             }
         }
 
-        X509_OBJECT_free_contents(&obj);
+        if (d->desc_adjust == K_ADJUST) {
+            for (x = 0; x < n; x++) {
+                if (ar[x]->desc != NULL) {
+                    int t = strlen(ar[x]->desc);
+                    if (t > desc_width) {
+                        desc_width = t;
+                    }
+                }
+            }
+        }
+    }
+    name_scratch = apr_palloc(r->pool, name_width + 1);
+    pad_scratch = apr_palloc(r->pool, name_width + 1);
+    memset(pad_scratch, ' ', name_width);
+    pad_scratch[name_width] = '\0';
+
+    if (autoindex_opts & TABLE_INDEXING) {
+        int cols = 1;
+        ap_rputs("<table><tr>", r);
+        if (!(autoindex_opts & SUPPRESS_ICON)) {
+            ap_rputs("<th>", r);
+            if ((tp = find_default_icon(d, "^^BLANKICON^^"))) {
+                ap_rvputs(r, "<img src=\"", ap_escape_html(scratch, tp),
+                             "\" alt=\"[ICO]\"", NULL);
+                if (d->icon_width) {
+                    ap_rprintf(r, " width=\"%d\"", d->icon_width);
+                }
+                if (d->icon_height) {
+                    ap_rprintf(r, " height=\"%d\"", d->icon_height);
+                }
+
+                if (autoindex_opts & EMIT_XHTML) {
+                    ap_rputs(" /", r);
+                }
+                ap_rputs("></th>", r);
+            }
+            else {
+                ap_rputs("&nbsp;</th>", r);
+            }
+
+            ++cols;
+        }
+        ap_rputs("<th>", r);
+        emit_link(r, "Name", K_NAME, keyid, direction,
+                  colargs, static_columns);
+        if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
+            ap_rputs("</th><th>", r);
+            emit_link(r, "Last modified", K_LAST_MOD, keyid, direction,
+                      colargs, static_columns);
+            ++cols;
+        }
+        if (!(autoindex_opts & SUPPRESS_SIZE)) {
+            ap_rputs("</th><th>", r);
+            emit_link(r, "Size", K_SIZE, keyid, direction,
+                      colargs, static_columns);
+            ++cols;
+        }
+        if (!(autoindex_opts & SUPPRESS_DESC)) {
+            ap_rputs("</th><th>", r);
+            emit_link(r, "Description", K_DESC, keyid, direction,
+                      colargs, static_columns);
+            ++cols;
+        }
+        if (!(autoindex_opts & SUPPRESS_RULES)) {
+            breakrow = apr_psprintf(r->pool,
+                                    "<tr><th colspan=\"%d\">"
+                                    "<hr%s></th></tr>\n", cols,
+                                    (autoindex_opts & EMIT_XHTML) ? " /" : "");
+        }
+        ap_rvputs(r, "</th></tr>", breakrow, NULL);
+    }
+    else if (autoindex_opts & FANCY_INDEXING) {
+        ap_rputs("<pre>", r);
+        if (!(autoindex_opts & SUPPRESS_ICON)) {
+            if ((tp = find_default_icon(d, "^^BLANKICON^^"))) {
+                ap_rvputs(r, "<img src=\"", ap_escape_html(scratch, tp),
+                             "\" alt=\"Icon \"", NULL);
+                if (d->icon_width) {
+                    ap_rprintf(r, " width=\"%d\"", d->icon_width);
+                }
+                if (d->icon_height) {
+                    ap_rprintf(r, " height=\"%d\"", d->icon_height);
+                }
+
+                if (autoindex_opts & EMIT_XHTML) {
+                    ap_rputs(" /", r);
+                }
+                ap_rputs("> ", r);
+            }
+            else {
+                ap_rputs("      ", r);
+            }
+        }
+        emit_link(r, "Name", K_NAME, keyid, direction,
+                  colargs, static_columns);
+        ap_rputs(pad_scratch + 4, r);
+        /*
+         * Emit the guaranteed-at-least-one-space-between-columns byte.
+         */
+        ap_rputs(" ", r);
+        if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
+            emit_link(r, "Last modified", K_LAST_MOD, keyid, direction,
+                      colargs, static_columns);
+            ap_rputs("      ", r);
+        }
+        if (!(autoindex_opts & SUPPRESS_SIZE)) {
+            emit_link(r, "Size", K_SIZE, keyid, direction,
+                      colargs, static_columns);
+            ap_rputs("  ", r);
+        }
+        if (!(autoindex_opts & SUPPRESS_DESC)) {
+            emit_link(r, "Description", K_DESC, keyid, direction,
+                      colargs, static_columns);
+        }
+        if (!(autoindex_opts & SUPPRESS_RULES)) {
+            ap_rputs("<hr", r);
+            if (autoindex_opts & EMIT_XHTML) {
+                ap_rputs(" /", r);
+            }
+            ap_rputs(">", r);
+        }
+        else {
+            ap_rputc('\n', r);
+        }
+    }
+    else {
+        ap_rputs("<ul>", r);
     }
 
-    return ok;
+    for (x = 0; x < n; x++) {
+        char *anchor, *t, *t2;
+        int nwidth;
+
+        apr_pool_clear(scratch);
+
+        t = ar[x]->name;
+        anchor = ap_escape_html(scratch, ap_os_escape_path(scratch, t, 0));
+
+        if (!x && t[0] == '/') {
+            t2 = "Parent Directory";
+        }
+        else {
+            t2 = t;
+        }
+
+        if (autoindex_opts & TABLE_INDEXING) {
+            ap_rputs("<tr>", r);
+            if (!(autoindex_opts & SUPPRESS_ICON)) {
+                ap_rputs("<td valign=\"top\">", r);
+                if (autoindex_opts & ICONS_ARE_LINKS) {
+                    ap_rvputs(r, "<a href=\"", anchor, "\">", NULL);
+                }
+                if ((ar[x]->icon) || d->default_icon) {
+                    ap_rvputs(r, "<img src=\"",
+                              ap_escape_html(scratch,
+                                             ar[x]->icon ? ar[x]->icon
+                                                         : d->default_icon),
+                              "\" alt=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
+                              "]\"", NULL);
+                    if (d->icon_width) {
+                        ap_rprintf(r, " width=\"%d\"", d->icon_width);
+                    }
+                    if (d->icon_height) {
+                        ap_rprintf(r, " height=\"%d\"", d->icon_height);
+                    }
+
+                    if (autoindex_opts & EMIT_XHTML) {
+                        ap_rputs(" /", r);
+                    }
+                    ap_rputs(">", r);
+                }
+                else {
+                    ap_rputs("&nbsp;", r);
+                }
+                if (autoindex_opts & ICONS_ARE_LINKS) {
+                    ap_rputs("</a></td>", r);
+                }
+                else {
+                    ap_rputs("</td>", r);
+                }
+            }
+            if (d->name_adjust == K_ADJUST) {
+                ap_rvputs(r, "<td><a href=\"", anchor, "\">",
+                          ap_escape_html(scratch, t2), "</a>", NULL);
+            }
+            else {
+                nwidth = strlen(t2);
+                if (nwidth > name_width) {
+                  memcpy(name_scratch, t2, name_width - 3);
+                  name_scratch[name_width - 3] = '.';
+                  name_scratch[name_width - 2] = '.';
+                  name_scratch[name_width - 1] = '>';
+                  name_scratch[name_width] = 0;
+                  t2 = name_scratch;
+                  nwidth = name_width;
+                }
+                ap_rvputs(r, "<td><a href=\"", anchor, "\">",
+                          ap_escape_html(scratch, t2),
+                          "</a>", pad_scratch + nwidth, NULL);
+            }
+            if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
+                if (ar[x]->lm != -1) {
+                    char time_str[MAX_STRING_LEN];
+                    apr_time_exp_t ts;
+                    apr_time_exp_lt(&ts, ar[x]->lm);
+                    apr_strftime(time_str, &rv, MAX_STRING_LEN,
+                                 "</td><td align=\"right\">%d-%b-%Y %H:%M  ",
+                                 &ts);
+                    ap_rputs(time_str, r);
+                }
+                else {
+                    ap_rputs("</td><td>&nbsp;", r);
+                }
+            }
+            if (!(autoindex_opts & SUPPRESS_SIZE)) {
+                char buf[5];
+                ap_rvputs(r, "</td><td align=\"right\">",
+                          apr_strfsize(ar[x]->size, buf), NULL);
+            }
+            if (!(autoindex_opts & SUPPRESS_DESC)) {
+                if (ar[x]->desc) {
+                    if (d->desc_adjust == K_ADJUST) {
+                        ap_rvputs(r, "</td><td>", ar[x]->desc, NULL);
+                    }
+                    else {
+                        ap_rvputs(r, "</td><td>",
+                                  terminate_description(d, ar[x]->desc,
+                                                        autoindex_opts,
+                                                        desc_width), NULL);
+                    }
+                }
+                else {
+                    ap_rputs("</td><td>&nbsp;", r);
+                }
+            }
+            ap_rputs("</td></tr>\n", r);
+        }
+        else if (autoindex_opts & FANCY_INDEXING) {
+            if (!(autoindex_opts & SUPPRESS_ICON)) {
+                if (autoindex_opts & ICONS_ARE_LINKS) {
+                    ap_rvputs(r, "<a href=\"", anchor, "\">", NULL);
+                }
+                if ((ar[x]->icon) || d->default_icon) {
+                    ap_rvputs(r, "<img src=\"",
+                              ap_escape_html(scratch,
+                                             ar[x]->icon ? ar[x]->icon
+                                                         : d->default_icon),
+                              "\" alt=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
+                              "]\"", NULL);
+                    if (d->icon_width) {
+                        ap_rprintf(r, " width=\"%d\"", d->icon_width);
+                    }
+                    if (d->icon_height) {
+                        ap_rprintf(r, " height=\"%d\"", d->icon_height);
+                    }
+
+                    if (autoindex_opts & EMIT_XHTML) {
+                        ap_rputs(" /", r);
+                    }
+                    ap_rputs(">", r);
+                }
+                else {
+                    ap_rputs("     ", r);
+                }
+                if (autoindex_opts & ICONS_ARE_LINKS) {
+                    ap_rputs("</a> ", r);
+                }
+                else {
+                    ap_rputc(' ', r);
+                }
+            }
+            nwidth = strlen(t2);
+            if (nwidth > name_width) {
+                memcpy(name_scratch, t2, name_width - 3);
+                name_scratch[name_width - 3] = '.';
+                name_scratch[name_width - 2] = '.';
+                name_scratch[name_width - 1] = '>';
+                name_scratch[name_width] = 0;
+                t2 = name_scratch;
+                nwidth = name_width;
+            }
+            ap_rvputs(r, "<a href=\"", anchor, "\">",
+                      ap_escape_html(scratch, t2),
+                      "</a>", pad_scratch + nwidth, NULL);
+            /*
+             * The blank before the storm.. er, before the next field.
+             */
+            ap_rputs(" ", r);
+            if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
+                if (ar[x]->lm != -1) {
+                    char time_str[MAX_STRING_LEN];
+                    apr_time_exp_t ts;
+                    apr_time_exp_lt(&ts, ar[x]->lm);
+                    apr_strftime(time_str, &rv, MAX_STRING_LEN,
+                                "%d-%b-%Y %H:%M  ", &ts);
+                    ap_rputs(time_str, r);
+                }
+                else {
+                    /*Length="22-Feb-1998 23:42  " (see 4 lines above) */
+                    ap_rputs("                   ", r);
+                }
+            }
+            if (!(autoindex_opts & SUPPRESS_SIZE)) {
+                char buf[5];
+                ap_rputs(apr_strfsize(ar[x]->size, buf), r);
+                ap_rputs("  ", r);
+            }
+            if (!(autoindex_opts & SUPPRESS_DESC)) {
+                if (ar[x]->desc) {
+                    ap_rputs(terminate_description(d, ar[x]->desc,
+                                                   autoindex_opts,
+                                                   desc_width), r);
+                }
+            }
+            ap_rputc('\n', r);
+        }
+        else {
+            ap_rvputs(r, "<li><a href=\"", anchor, "\"> ",
+                      ap_escape_html(scratch, t2),
+                      "</a></li>\n", NULL);
+        }
+    }
+    if (autoindex_opts & TABLE_INDEXING) {
+        ap_rvputs(r, breakrow, "</table>\n", NULL);
+    }
+    else if (autoindex_opts & FANCY_INDEXING) {
+        if (!(autoindex_opts & SUPPRESS_RULES)) {
+            ap_rputs("<hr", r);
+            if (autoindex_opts & EMIT_XHTML) {
+                ap_rputs(" /", r);
+            }
+            ap_rputs("></pre>\n", r);
+        }
+        else {
+            ap_rputs("</pre>\n", r);
+        }
+    }
+    else {
+        ap_rputs("</ul>\n", r);
+    }
 }

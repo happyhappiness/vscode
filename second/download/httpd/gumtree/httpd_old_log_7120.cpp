@@ -1,1 +1,2 @@
-ap_rvputs(r, "<a href=\"", href, "\">", text, "</a>", NULL);
+ap_rvputs(r, "<pre>          <a href=\"", href, "\">", text,
+               "</a></pre>\n", NULL);

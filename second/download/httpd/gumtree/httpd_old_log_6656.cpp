@@ -1,5 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01719)
-                              "auth_ldap authorize: require group \"%s\": "
-                              "didn't match with attr %s [%s][%d - %s]",
-                              t, ldc->reason, ent[i].name, result, 
-                              ldap_err2string(result));
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, c,
+                  "h2_stream(%ld-%d): set_response(%d)", 
+                  stream->session->id, stream->id, 
+                  stream->response->http_status);

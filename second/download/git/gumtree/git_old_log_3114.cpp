@@ -1,1 +1,1 @@
-printf("root %s\n", oid_to_hex(&commit->object.oid));
+printf("tagged %s %s", typename(tag->tagged->type), oid_to_hex(&tag->tagged->oid));

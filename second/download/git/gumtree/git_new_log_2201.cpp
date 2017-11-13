@@ -1,1 +1,1 @@
-die(_("submodule--helper: unspecified or empty --path"));
+die_errno(_("Could not open %s"), git_path_todo_file());

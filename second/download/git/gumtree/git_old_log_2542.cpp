@@ -1,1 +1,1 @@
-warning(_("removing '%s' failed"), fname);
+error("unable to delete existing %s", newrefname);

@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00306)
-                         "ThreadLimit of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         thread_limit, MAX_THREAD_LIMIT);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c, APLOGNO(01976)
+                          "failed to send request to OCSP responder '%s'",
+                          uri->hostinfo);

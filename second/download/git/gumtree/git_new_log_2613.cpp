@@ -1,1 +1,1 @@
-fputs(sb.buf, opt->diffopt.file);
+print_ref_status(type, quickref.buf, ref, ref->peer_ref, msg, porcelain);

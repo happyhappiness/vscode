@@ -1,1 +1,1 @@
-io_printf(f_out, "@ERROR: setgid failed\n");
+fprintf(stderr,"failed to load config file %s\n", config_file);

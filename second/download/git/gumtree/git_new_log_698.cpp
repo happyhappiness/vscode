@@ -1,1 +1,1 @@
-error("unable to parse header of %s", path);
+packet_write_fmt(1, "ACK %s ready\n", last_hex);

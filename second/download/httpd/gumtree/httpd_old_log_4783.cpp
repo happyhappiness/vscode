@@ -1,3 +1,6 @@
-ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
-                             "%s: Unable to create the start_mutex.",
-                             service_name);
+ap_log_cerror(file, line, APLOG_MODULE_INDEX, level, rv, c,
+                  "%s [subject: %s, issuer: %s, serial: %s]",
+                  buf,
+                  sname ? sname : "-unknown-",
+                  iname ? iname : "-unknown-",
+                  serial ? serial : "-unknown-");

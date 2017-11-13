@@ -1,1 +1,1 @@
-die("unable to generate word diff");
+die("BUG: create called for transaction that is not open");

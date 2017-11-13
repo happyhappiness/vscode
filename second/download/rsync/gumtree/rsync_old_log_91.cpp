@@ -1,1 +1,1 @@
-fprintf(stderr,"make_file(%s)\n",fname);
+out_of_memory("read_write");

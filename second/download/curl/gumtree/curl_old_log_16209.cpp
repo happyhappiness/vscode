@@ -1,11 +1,9 @@
 fputs(
-"              requires  that  the  underlying  libcurl was built to support c-\n"
-"              ares. Added in 7.33.0.\n"
+"              pretation of the @ character. To post data  purely  binary,  you\n"
+"              should  instead use the --data-binary option.  To URL-encode the\n"
+"              value of a form field you may use --data-urlencode.\n"
 "\n"
-"       --dns-ipv6-addr <address>\n"
-"              (DNS) Tell curl to bind to <ip-address>  when  making  IPv6  DNS\n"
-"              requests,  so that the DNS requests originate from this address.\n"
-"              The argument should be a single IPv6 address.\n"
-"\n"
-"              See also --dns-interface  and  --dns-ipv4-addr.  --dns-ipv6-addr\n"
+"              If any of these options is used more than once on the same  com-\n"
+"              mand  line,  the  data  pieces specified will be merged together\n"
+"              with a separating  &-symbol.  Thus,  using  '-d  name=daniel  -d\n"
 , stdout);

@@ -1,2 +1,2 @@
-die ("Could not find author in commit %s",
-		     sha1_to_hex(commit->object.sha1));
+git_die_config("gc.pruneexpire", _("Invalid gc.pruneexpire: '%s'"),
+						prune_expire);

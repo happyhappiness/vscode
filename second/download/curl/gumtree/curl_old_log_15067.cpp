@@ -1,11 +1,9 @@
 fputs(
-"              details on the default config file search path.\n"
+"              pretation  of  the  @ character. To post data purely binary, you\n"
+"              should instead use the --data-binary option.  To URL-encode  the\n"
+"              value of a form field you may use --data-urlencode.\n"
 "\n"
-"       --dns-interface <interface>\n"
-"              (DNS) Tell curl to send outgoing DNS  requests  through  <inter-\n"
-"              face>.  This  option is a counterpart to --interface (which does\n"
-"              not affect DNS). The supplied string must be an  interface  name\n"
-"              (not an address).\n"
-"\n"
-"              See  also  --dns-ipv4-addr  and --dns-ipv6-addr. --dns-interface\n"
+"              If  any of these options is used more than once on the same com-\n"
+"              mand line, the data pieces specified  will  be  merged  together\n"
+"              with  a  separating  &-symbol.  Thus,  using  '-d name=daniel -d\n"
 , stdout);

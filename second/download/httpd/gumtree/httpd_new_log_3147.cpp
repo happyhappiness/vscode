@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00612)
-                      "The label command element does not contain "
-                      "a \"label-name\" element.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01808)
+                          "user '%s' not found: %s", sent_user, r->uri);

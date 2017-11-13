@@ -1,27 +1,52 @@
-static const char *register_filter_function_hook(const char *filter,
-                                                     cmd_parms *cmd,
-                                                     void *_cfg,
-                                                     const char *file,
-                                                     const char *function,
-                                                     int direction)
+static int proxy_balancer_post_request(proxy_worker *worker,
+                                       proxy_balancer *balancer,
+                                       request_rec *r,
+                                       proxy_server_conf *conf)
 {
-    ap_lua_filter_handler_spec *spec;
-    ap_lua_dir_cfg *cfg = (ap_lua_dir_cfg *) _cfg;
-   
-    spec = apr_pcalloc(cmd->pool, sizeof(ap_lua_filter_handler_spec));
-    spec->file_name = apr_pstrdup(cmd->pool, file);
-    spec->function_name = apr_pstrdup(cmd->pool, function);
-    spec->filter_name = filter;
 
-    *(ap_lua_filter_handler_spec **) apr_array_push(cfg->mapped_filters) = spec;
-    /* TODO: Make it work on other types than just AP_FTYPE_RESOURCE? */
-    if (direction == AP_LUA_FILTER_OUTPUT) {
-        spec->direction = AP_LUA_FILTER_OUTPUT;
-        ap_register_output_filter(filter, lua_output_filter_handle, NULL, AP_FTYPE_RESOURCE);
+    apr_status_t rv;
+
+    if ((rv = PROXY_THREAD_LOCK(balancer)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01173)
+                      "%s: Lock failed for post_request",
+                      balancer->s->name);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
-    else {
-        spec->direction = AP_LUA_FILTER_INPUT;
-        ap_register_input_filter(filter, lua_input_filter_handle, NULL, AP_FTYPE_RESOURCE);
+
+    if (!apr_is_empty_array(balancer->errstatuses)) {
+        int i;
+        for (i = 0; i < balancer->errstatuses->nelts; i++) {
+            int val = ((int *)balancer->errstatuses->elts)[i];
+            if (r->status == val) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01174)
+                              "%s: Forcing worker (%s) into error state " 
+                              "due to status code %d matching 'failonstatus' "
+                              "balancer parameter",
+                              balancer->s->name, worker->s->name, val);
+                worker->s->status |= PROXY_WORKER_IN_ERROR;
+                worker->s->error_time = apr_time_now();
+                break;
+            }
+        }
     }
-    return NULL;
+
+    if (balancer->failontimeout
+        && (apr_table_get(r->notes, "proxy_timedout")) != NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02460)
+                      "%s: Forcing worker (%s) into error state "
+                      "due to timeout and 'failonstatus' parameter being set",
+                       balancer->s->name, worker->s->name);
+        worker->s->status |= PROXY_WORKER_IN_ERROR;
+        worker->s->error_time = apr_time_now();
+
+    }
+
+    if ((rv = PROXY_THREAD_UNLOCK(balancer)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01175)
+                      "%s: Unlock failed for post_request", balancer->s->name);
+    }
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01176)
+                  "proxy_balancer_post_request for (%s)", balancer->s->name);
+
+    return OK;
 }

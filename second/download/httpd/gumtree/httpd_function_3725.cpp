@@ -1,106 +1,415 @@
-static int proxy_ajp_handler(request_rec *r, proxy_worker *worker,
-                             proxy_server_conf *conf,
-                             char *url, const char *proxyname,
-                             apr_port_t proxyport)
+static int parse_expr(include_ctx_t *ctx, const char *expr, int *was_error)
 {
-    int status;
-    char server_portstr[32];
-    conn_rec *origin = NULL;
-    proxy_conn_rec *backend = NULL;
-    const char *scheme = "AJP";
-    int retry;
-    proxy_dir_conf *dconf = ap_get_module_config(r->per_dir_config,
-                                                 &proxy_module);
+    parse_node_t *new, *root = NULL, *current = NULL;
+    request_rec *r = ctx->r;
+    request_rec *rr = NULL;
+    const char *error = "Invalid expression \"%s\" in file %s";
+    const char *parse = expr;
+    unsigned regex = 0;
 
-    /*
-     * Note: Memory pool allocation.
-     * A downstream keepalive connection is always connected to the existence
-     * (or not) of an upstream keepalive connection. If this is not done then
-     * load balancing against multiple backend servers breaks (one backend
-     * server ends up taking 100% of the load), and the risk is run of
-     * downstream keepalive connections being kept open unnecessarily. This
-     * keeps webservers busy and ties up resources.
-     *
-     * As a result, we allocate all sockets out of the upstream connection
-     * pool, and when we want to reuse a socket, we check first whether the
-     * connection ID of the current upstream connection is the same as that
-     * of the connection when the socket was opened.
-     */
-    apr_pool_t *p = r->connection->pool;
-    apr_uri_t *uri = apr_palloc(r->connection->pool, sizeof(*uri));
+    *was_error = 0;
 
-
-    if (strncasecmp(url, "ajp:", 4) != 0) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: AJP: declining URL %s", url);
-        return DECLINED;
-    }
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "proxy: AJP: serving URL %s", url);
-
-    /* create space for state information */
-    status = ap_proxy_acquire_connection(scheme, &backend, worker,
-                                         r->server);
-    if (status != OK) {
-        if (backend) {
-            backend->close = 1;
-            ap_proxy_release_connection(scheme, backend, r->server);
-        }
-        return status;
+    if (!parse) {
+        return 0;
     }
 
-    backend->is_ssl = 0;
-    backend->close = 0;
+    /* Create Parse Tree */
+    while (1) {
+        /* uncomment this to see how the tree a built:
+         *
+         * DEBUG_DUMP_TREE(ctx, root);
+         */
+        CREATE_NODE(ctx, new);
 
-    retry = 0;
-    while (retry < 2) {
-        char *locurl = url;
-        /* Step One: Determine Who To Connect To */
-        status = ap_proxy_determine_connection(p, r, conf, worker, backend,
-                                               uri, &locurl, proxyname, proxyport,
-                                               server_portstr,
-                                               sizeof(server_portstr));
+        {
+#ifdef DEBUG_INCLUDE
+            int was_unmatched =
+#endif
+            get_ptoken(ctx, &parse, &new->token,
+                       (current != NULL ? &current->token : NULL));
+            if (!parse)
+                break;
 
-        if (status != OK)
-            break;
-
-        /* Step Two: Make the Connection */
-        if (ap_proxy_connect_backend(scheme, backend, worker, r->server)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                         "proxy: AJP: failed to make connection to backend: %s",
-                         backend->hostname);
-            status = HTTP_SERVICE_UNAVAILABLE;
-            break;
+            DEBUG_DUMP_UNMATCHED(ctx, was_unmatched);
+            DEBUG_DUMP_TOKEN(ctx, &new->token);
         }
 
-        /* Handle CPING/CPONG */
-        if (worker->ping_timeout_set) {
-            status = ajp_handle_cping_cpong(backend->sock, r,
-                                            worker->ping_timeout);
-            /*
-             * In case the CPING / CPONG failed for the first time we might be
-             * just out of luck and got a faulty backend connection, but the
-             * backend might be healthy nevertheless. So ensure that the backend
-             * TCP connection gets closed and try it once again.
-             */
-            if (status != APR_SUCCESS) {
-                backend->close++;
-                ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                             "proxy: AJP: cping/cpong failed to %pI (%s)",
-                             worker->cp->addr,
-                             worker->hostname);
-                status = HTTP_SERVICE_UNAVAILABLE;
-                retry++;
+        if (!current) {
+            switch (new->token.type) {
+            case TOKEN_STRING:
+            case TOKEN_NOT:
+            case TOKEN_ACCESS:
+            case TOKEN_LBRACE:
+                root = current = new;
                 continue;
+
+            default:
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, error, expr,
+                              r->filename);
+                *was_error = 1;
+                return 0;
             }
         }
-        /* Step Three: Process the Request */
-        status = ap_proxy_ajp_request(p, r, backend, origin, dconf, uri, locurl,
-                                      server_portstr);
-        break;
+
+        switch (new->token.type) {
+        case TOKEN_STRING:
+            switch (current->token.type) {
+            case TOKEN_STRING:
+                current->token.value =
+                    apr_pstrcat(ctx->dpool, current->token.value,
+                                *current->token.value ? " " : "",
+                                new->token.value, NULL);
+                continue;
+
+            case TOKEN_RE:
+            case TOKEN_RBRACE:
+            case TOKEN_GROUP:
+                break;
+
+            default:
+                new->parent = current;
+                current = current->right = new;
+                continue;
+            }
+            break;
+
+        case TOKEN_RE:
+            switch (current->token.type) {
+            case TOKEN_EQ:
+            case TOKEN_NE:
+                new->parent = current;
+                current = current->right = new;
+                ++regex;
+                continue;
+
+            default:
+                break;
+            }
+            break;
+
+        case TOKEN_AND:
+        case TOKEN_OR:
+            switch (current->token.type) {
+            case TOKEN_STRING:
+            case TOKEN_RE:
+            case TOKEN_GROUP:
+                current = current->parent;
+
+                while (current) {
+                    switch (current->token.type) {
+                    case TOKEN_AND:
+                    case TOKEN_OR:
+                    case TOKEN_LBRACE:
+                        break;
+
+                    default:
+                        current = current->parent;
+                        continue;
+                    }
+                    break;
+                }
+
+                if (!current) {
+                    new->left = root;
+                    root->parent = new;
+                    current = root = new;
+                    continue;
+                }
+
+                new->left = current->right;
+                new->left->parent = new;
+                new->parent = current;
+                current = current->right = new;
+                continue;
+
+            default:
+                break;
+            }
+            break;
+
+        case TOKEN_EQ:
+        case TOKEN_NE:
+        case TOKEN_GE:
+        case TOKEN_GT:
+        case TOKEN_LE:
+        case TOKEN_LT:
+            if (current->token.type == TOKEN_STRING) {
+                current = current->parent;
+
+                if (!current) {
+                    new->left = root;
+                    root->parent = new;
+                    current = root = new;
+                    continue;
+                }
+
+                switch (current->token.type) {
+                case TOKEN_LBRACE:
+                case TOKEN_AND:
+                case TOKEN_OR:
+                    new->left = current->right;
+                    new->left->parent = new;
+                    new->parent = current;
+                    current = current->right = new;
+                    continue;
+
+                default:
+                    break;
+                }
+            }
+            break;
+
+        case TOKEN_RBRACE:
+            while (current && current->token.type != TOKEN_LBRACE) {
+                current = current->parent;
+            }
+
+            if (current) {
+                TYPE_TOKEN(&current->token, TOKEN_GROUP);
+                continue;
+            }
+
+            error = "Unmatched ')' in \"%s\" in file %s";
+            break;
+
+        case TOKEN_NOT:
+        case TOKEN_ACCESS:
+        case TOKEN_LBRACE:
+            switch (current->token.type) {
+            case TOKEN_STRING:
+            case TOKEN_RE:
+            case TOKEN_RBRACE:
+            case TOKEN_GROUP:
+                break;
+
+            default:
+                current->right = new;
+                new->parent = current;
+                current = new;
+                continue;
+            }
+            break;
+
+        default:
+            break;
+        }
+
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, error, expr, r->filename);
+        *was_error = 1;
+        return 0;
     }
 
-    /* Do not close the socket */
-    ap_proxy_release_connection(scheme, backend, r->server);
-    return status;
+    DEBUG_DUMP_TREE(ctx, root);
+
+    /* Evaluate Parse Tree */
+    current = root;
+    error = NULL;
+    while (current) {
+        switch (current->token.type) {
+        case TOKEN_STRING:
+            current->token.value =
+                ap_ssi_parse_string(ctx, current->token.value, NULL, 0,
+                                    SSI_EXPAND_DROP_NAME);
+            current->value = !!*current->token.value;
+            break;
+
+        case TOKEN_AND:
+        case TOKEN_OR:
+            if (!current->left || !current->right) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01332)
+                              "Invalid expression \"%s\" in file %s",
+                              expr, r->filename);
+                *was_error = 1;
+                return 0;
+            }
+
+            if (!current->left->done) {
+                switch (current->left->token.type) {
+                case TOKEN_STRING:
+                    current->left->token.value =
+                        ap_ssi_parse_string(ctx, current->left->token.value,
+                                            NULL, 0, SSI_EXPAND_DROP_NAME);
+                    current->left->value = !!*current->left->token.value;
+                    DEBUG_DUMP_EVAL(ctx, current->left);
+                    current->left->done = 1;
+                    break;
+
+                default:
+                    current = current->left;
+                    continue;
+                }
+            }
+
+            /* short circuit evaluation */
+            if (!current->right->done && !regex &&
+                ((current->token.type == TOKEN_AND && !current->left->value) ||
+                (current->token.type == TOKEN_OR && current->left->value))) {
+                current->value = current->left->value;
+            }
+            else {
+                if (!current->right->done) {
+                    switch (current->right->token.type) {
+                    case TOKEN_STRING:
+                        current->right->token.value =
+                            ap_ssi_parse_string(ctx,current->right->token.value,
+                                                NULL, 0, SSI_EXPAND_DROP_NAME);
+                        current->right->value = !!*current->right->token.value;
+                        DEBUG_DUMP_EVAL(ctx, current->right);
+                        current->right->done = 1;
+                        break;
+
+                    default:
+                        current = current->right;
+                        continue;
+                    }
+                }
+
+                if (current->token.type == TOKEN_AND) {
+                    current->value = current->left->value &&
+                                     current->right->value;
+                }
+                else {
+                    current->value = current->left->value ||
+                                     current->right->value;
+                }
+            }
+            break;
+
+        case TOKEN_EQ:
+        case TOKEN_NE:
+            if (!current->left || !current->right ||
+                current->left->token.type != TOKEN_STRING ||
+                (current->right->token.type != TOKEN_STRING &&
+                 current->right->token.type != TOKEN_RE)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01333)
+                            "Invalid expression \"%s\" in file %s",
+                            expr, r->filename);
+                *was_error = 1;
+                return 0;
+            }
+            current->left->token.value =
+                ap_ssi_parse_string(ctx, current->left->token.value, NULL, 0,
+                                    SSI_EXPAND_DROP_NAME);
+            current->right->token.value =
+                ap_ssi_parse_string(ctx, current->right->token.value, NULL, 0,
+                                    SSI_EXPAND_DROP_NAME);
+
+            if (current->right->token.type == TOKEN_RE) {
+                current->value = re_check(ctx, current->left->token.value,
+                                          current->right->token.value);
+                --regex;
+            }
+            else {
+                current->value = !strcmp(current->left->token.value,
+                                         current->right->token.value);
+            }
+
+            if (current->token.type == TOKEN_NE) {
+                current->value = !current->value;
+            }
+            break;
+
+        case TOKEN_GE:
+        case TOKEN_GT:
+        case TOKEN_LE:
+        case TOKEN_LT:
+            if (!current->left || !current->right ||
+                current->left->token.type != TOKEN_STRING ||
+                current->right->token.type != TOKEN_STRING) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01334)
+                              "Invalid expression \"%s\" in file %s",
+                              expr, r->filename);
+                *was_error = 1;
+                return 0;
+            }
+
+            current->left->token.value =
+                ap_ssi_parse_string(ctx, current->left->token.value, NULL, 0,
+                                    SSI_EXPAND_DROP_NAME);
+            current->right->token.value =
+                ap_ssi_parse_string(ctx, current->right->token.value, NULL, 0,
+                                    SSI_EXPAND_DROP_NAME);
+
+            current->value = strcmp(current->left->token.value,
+                                    current->right->token.value);
+
+            switch (current->token.type) {
+            case TOKEN_GE: current->value = current->value >= 0; break;
+            case TOKEN_GT: current->value = current->value >  0; break;
+            case TOKEN_LE: current->value = current->value <= 0; break;
+            case TOKEN_LT: current->value = current->value <  0; break;
+            default: current->value = 0; break; /* should not happen */
+            }
+            break;
+
+        case TOKEN_NOT:
+        case TOKEN_GROUP:
+            if (current->right) {
+                if (!current->right->done) {
+                    current = current->right;
+                    continue;
+                }
+                current->value = current->right->value;
+            }
+            else {
+                current->value = 1;
+            }
+
+            if (current->token.type == TOKEN_NOT) {
+                current->value = !current->value;
+            }
+            break;
+
+        case TOKEN_ACCESS:
+            if (current->left || !current->right ||
+                (current->right->token.type != TOKEN_STRING &&
+                 current->right->token.type != TOKEN_RE)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01335)
+                            "Invalid expression \"%s\" in file %s: Token '-A' must be followed by a URI string.",
+                            expr, r->filename);
+                *was_error = 1;
+                return 0;
+            }
+            current->right->token.value =
+                ap_ssi_parse_string(ctx, current->right->token.value, NULL, 0,
+                                    SSI_EXPAND_DROP_NAME);
+            rr = ap_sub_req_lookup_uri(current->right->token.value, r, NULL);
+            /* 400 and higher are considered access denied */
+            if (rr->status < HTTP_BAD_REQUEST) {
+                current->value = 1;
+            }
+            else {
+                current->value = 0;
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rr->status, r, APLOGNO(01336)
+                              "mod_include: The tested "
+                              "subrequest -A \"%s\" returned an error code.",
+                              current->right->token.value);
+            }
+            ap_destroy_sub_req(rr);
+            break;
+
+        case TOKEN_RE:
+            if (!error) {
+                error = "No operator before regex in expr \"%s\" in file %s";
+            }
+        case TOKEN_LBRACE:
+            if (!error) {
+                error = "Unmatched '(' in \"%s\" in file %s";
+            }
+        default:
+            if (!error) {
+                error = "internal parser error in \"%s\" in file %s";
+            }
+
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, error, expr,r->filename);
+            *was_error = 1;
+            return 0;
+        }
+
+        DEBUG_DUMP_EVAL(ctx, current);
+        current->done = 1;
+        current = current->parent;
+    }
+
+    return (root ? root->value : 0);
 }

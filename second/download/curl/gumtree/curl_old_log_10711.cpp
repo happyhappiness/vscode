@@ -1,10 +1,11 @@
 fputs(
-"                             steps  include  name lookup, connect, pretransfer\n"
-"                             and transfer before  the  final  transaction  was\n"
-"                             started.  time_redirect shows the complete execu-\n"
-"                             tion time for multiple  redirections.  (Added  in\n"
-"                             7.12.3)\n"
+"              num_redirects  Number of redirects that  were  followed  in  the\n"
+"                             request. (Added in 7.12.3)\n"
 "\n"
-"              time_starttransfer\n"
-"                             The  time,  in  seconds,  it  took from the start\n"
+"              redirect_url   When  an HTTP request was made without -L to fol-\n"
+"                             low redirects, this variable will show the actual\n"
+"                             URL  a  redirect  would  take  you  to. (Added in\n"
+"                             7.18.2)\n"
+"\n"
+"              remote_ip      The remote IP address of the most  recently  done\n"
 , stdout);

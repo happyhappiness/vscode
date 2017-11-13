@@ -1,15 +1,24 @@
-static void prepare_revs(struct replay_opts *opts)
+static void show_ref(const char *path, const unsigned char *sha1)
 {
-	/*
-	 * picking (but not reverting) ranges (but not individual revisions)
-	 * should be done in reverse
-	 */
-	if (opts->action == REPLAY_PICK && !opts->revs->no_walk)
-		opts->revs->reverse ^= 1;
+	if (sent_capabilities) {
+		packet_write(1, "%s %s\n", sha1_to_hex(sha1), path);
+	} else {
+		struct strbuf cap = STRBUF_INIT;
 
-	if (prepare_revision_walk(opts->revs))
-		die(_("revision walk setup failed"));
-
-	if (!opts->revs->commits)
-		die(_("empty commit set passed"));
+		strbuf_addstr(&cap,
+			      "report-status delete-refs side-band-64k quiet");
+		if (advertise_atomic_push)
+			strbuf_addstr(&cap, " atomic");
+		if (prefer_ofs_delta)
+			strbuf_addstr(&cap, " ofs-delta");
+		if (push_cert_nonce)
+			strbuf_addf(&cap, " push-cert=%s", push_cert_nonce);
+		if (advertise_push_options)
+			strbuf_addstr(&cap, " push-options");
+		strbuf_addf(&cap, " agent=%s", git_user_agent_sanitized());
+		packet_write(1, "%s %s%c%s\n",
+			     sha1_to_hex(sha1), path, 0, cap.buf);
+		strbuf_release(&cap);
+		sent_capabilities = 1;
+	}
 }

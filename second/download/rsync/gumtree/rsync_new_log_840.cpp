@@ -1,1 +1,1 @@
-out_of_memory("parse_rule_tok");
+(exchange_protocols(f_in, f_out, line, sizeof line, 0);

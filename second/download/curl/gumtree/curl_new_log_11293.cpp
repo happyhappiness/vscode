@@ -1,9 +1,10 @@
 fputs(
-"              with any number of variables. The format can be specified  as  a\n"
-"              literal  \"string\",  or  you can have curl read the format from a\n"
-"              file with \"@filename\" and to tell curl to read the  format  from\n"
-"              stdin you write \"@-\".\n"
+"              requests into GET requests when following a 303 redirection. The\n"
+"              non-RFC behaviour is ubiquitous in web browsers,  so  curl  does\n"
+"              the  conversion  by  default to maintain consistency. However, a\n"
+"              server may require a POST to remain a POST after  such  a  redi-\n"
+"              rection.  This  option is meaningful only when using -L, --loca-\n"
+"              tion (Added in 7.26.0)\n"
 "\n"
-"              The  variables  present in the output format will be substituted\n"
-"              by the value or text that curl thinks fit, as  described  below.\n"
+"       --proto <protocols>\n"
 , stdout);

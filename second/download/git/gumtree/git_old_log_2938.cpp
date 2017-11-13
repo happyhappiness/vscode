@@ -1,2 +1,2 @@
-error("Unable to write file %s: %s",
-			export_marks_file, strerror(errno));
+error(_("could not create temporary file '%s': %s"),
+			     path, strerror(errno));

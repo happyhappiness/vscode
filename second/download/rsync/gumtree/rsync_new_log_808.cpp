@@ -1,1 +1,1 @@
-ENSURE_MEMSPACE(glob.argv, char *, glob.maxargs, 100);
+out_of_memory("rsync_module");

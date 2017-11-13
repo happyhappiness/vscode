@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, "unusably short session_id provided "
-                "(%u bytes)", idlen);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "request failed: invalid characters in URI");

@@ -1,1 +1,1 @@
-fprintf(f, " %s", fn);
+fprintf(stderr,"ERROR: data in read buffer at mplx start\n");

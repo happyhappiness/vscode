@@ -1,255 +1,145 @@
-static int balancer_handler(request_rec *r)
+static authz_status ldapfilter_check_authorization(request_rec *r,
+                                             const char *require_args)
 {
-    void *sconf = r->server->module_config;
-    proxy_server_conf *conf = (proxy_server_conf *)
-        ap_get_module_config(sconf, &proxy_module);
-    proxy_balancer *balancer, *bsel = NULL;
-    proxy_worker *worker, *wsel = NULL;
-    apr_table_t *params = apr_table_make(r->pool, 10);
-    int access_status;
-    int i, n;
-    const char *name;
+    int result = 0;
+    authn_ldap_request_t *req =
+        (authn_ldap_request_t *)ap_get_module_config(r->request_config, &authnz_ldap_module);
+    authn_ldap_config_t *sec =
+        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
 
-    /* is this for us? */
-    if (strcmp(r->handler, "balancer-manager"))
-        return DECLINED;
-    r->allowed = (AP_METHOD_BIT << M_GET);
-    if (r->method_number != M_GET)
-        return DECLINED;
+    util_ldap_connection_t *ldc = NULL;
+    const char *t;
 
-    if (r->args) {
-        char *args = apr_pstrdup(r->pool, r->args);
-        char *tok, *val;
-        while (args && *args) {
-            if ((val = ap_strchr(args, '='))) {
-                *val++ = '\0';
-                if ((tok = ap_strchr(val, '&')))
-                    *tok++ = '\0';
-                /*
-                 * Special case: workers are allowed path information
-                 */
-                if ((access_status = ap_unescape_url(val)) != OK)
-                    if (strcmp(args, "w") || (access_status !=  HTTP_NOT_FOUND))
-                        return access_status;
-                apr_table_setn(params, args, val);
-                args = tok;
-            }
-            else
-                return HTTP_BAD_REQUEST;
-        }
-    }
-    
-    /* Check that the supplied nonce matches this server's nonce;
-     * otherwise ignore all parameters, to prevent a CSRF attack. */
-    if ((name = apr_table_get(params, "nonce")) == NULL 
-        || strcmp(balancer_nonce, name) != 0) {
-        apr_table_clear(params);
+    char filtbuf[FILTER_LENGTH];
+    const char *dn = NULL;
+
+    if (!sec->have_ldap_url) {
+        return AUTHZ_DENIED;
     }
 
-    if ((name = apr_table_get(params, "b")))
-        bsel = ap_proxy_get_balancer(r->pool, conf,
-            apr_pstrcat(r->pool, "balancer://", name, NULL));
-    if ((name = apr_table_get(params, "w"))) {
-        proxy_worker *ws;
-
-        ws = ap_proxy_get_worker(r->pool, conf, name);
-        if (bsel && ws) {
-            worker = (proxy_worker *)bsel->workers->elts;
-            for (n = 0; n < bsel->workers->nelts; n++) {
-                if (strcasecmp(worker->name, ws->name) == 0) {
-                    wsel = worker;
-                    break;
-                }
-                ++worker;
-            }
-        }
-    }
-    /* First set the params */
-    /*
-     * Note that it is not possible set the proxy_balancer because it is not
-     * in shared memory.
-     */
-    if (wsel) {
-        const char *val;
-        if ((val = apr_table_get(params, "lf"))) {
-            int ival = atoi(val);
-            if (ival >= 1 && ival <= 100) {
-                wsel->s->lbfactor = ival;
-                if (bsel)
-                    recalc_factors(bsel);
-            }
-        }
-        if ((val = apr_table_get(params, "wr"))) {
-            if (strlen(val) && strlen(val) < PROXY_WORKER_MAX_ROUTE_SIZ)
-                strcpy(wsel->s->route, val);
-            else
-                *wsel->s->route = '\0';
-        }
-        if ((val = apr_table_get(params, "rr"))) {
-            if (strlen(val) && strlen(val) < PROXY_WORKER_MAX_ROUTE_SIZ)
-                strcpy(wsel->s->redirect, val);
-            else
-                *wsel->s->redirect = '\0';
-        }
-        if ((val = apr_table_get(params, "dw"))) {
-            if (!strcasecmp(val, "Disable"))
-                wsel->s->status |= PROXY_WORKER_DISABLED;
-            else if (!strcasecmp(val, "Enable"))
-                wsel->s->status &= ~PROXY_WORKER_DISABLED;
-        }
-        if ((val = apr_table_get(params, "ls"))) {
-            int ival = atoi(val);
-            if (ival >= 0 && ival <= 99) {
-                wsel->s->lbset = ival;
-             }
-        }
-
-    }
-    if (apr_table_get(params, "xml")) {
-        ap_set_content_type(r, "text/xml");
-        ap_rputs("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n", r);
-        ap_rputs("<httpd:manager xmlns:httpd=\"http://httpd.apache.org\">\n", r);
-        ap_rputs("  <httpd:balancers>\n", r);
-        balancer = (proxy_balancer *)conf->balancers->elts;
-        for (i = 0; i < conf->balancers->nelts; i++) {
-            ap_rputs("    <httpd:balancer>\n", r);
-            ap_rvputs(r, "      <httpd:name>", balancer->name, "</httpd:name>\n", NULL);
-            ap_rputs("      <httpd:workers>\n", r);
-            worker = (proxy_worker *)balancer->workers->elts;
-            for (n = 0; n < balancer->workers->nelts; n++) {
-                ap_rputs("        <httpd:worker>\n", r);
-                ap_rvputs(r, "          <httpd:scheme>", worker->scheme,
-                          "</httpd:scheme>\n", NULL);
-                ap_rvputs(r, "          <httpd:hostname>", worker->hostname,
-                          "</httpd:hostname>\n", NULL);
-               ap_rprintf(r, "          <httpd:loadfactor>%d</httpd:loadfactor>\n",
-                          worker->s->lbfactor);
-                ap_rputs("        </httpd:worker>\n", r);
-                ++worker;
-            }
-            ap_rputs("      </httpd:workers>\n", r);
-            ap_rputs("    </httpd:balancer>\n", r);
-            ++balancer;
-        }
-        ap_rputs("  </httpd:balancers>\n", r);
-        ap_rputs("</httpd:manager>", r);
+    if (sec->host) {
+        ldc = get_connection_for_authz(r, LDAP_SEARCH);
+        apr_pool_cleanup_register(r->pool, ldc,
+                                  authnz_ldap_cleanup_connection_close,
+                                  apr_pool_cleanup_null);
     }
     else {
-        ap_set_content_type(r, "text/html; charset=ISO-8859-1");
-        ap_rputs(DOCTYPE_HTML_3_2
-                 "<html><head><title>Balancer Manager</title></head>\n", r);
-        ap_rputs("<body><h1>Load Balancer Manager for ", r);
-        ap_rvputs(r, ap_escape_html(r->pool, ap_get_server_name(r)),
-                  "</h1>\n\n", NULL);
-        ap_rvputs(r, "<dl><dt>Server Version: ",
-                  ap_get_server_description(), "</dt>\n", NULL);
-        ap_rvputs(r, "<dt>Server Built: ",
-                  ap_get_server_built(), "\n</dt></dl>\n", NULL);
-        balancer = (proxy_balancer *)conf->balancers->elts;
-        for (i = 0; i < conf->balancers->nelts; i++) {
-
-            ap_rputs("<hr />\n<h3>LoadBalancer Status for ", r);
-            ap_rvputs(r, balancer->name, "</h3>\n\n", NULL);
-            ap_rputs("\n\n<table border=\"0\" style=\"text-align: left;\"><tr>"
-                "<th>StickySession</th><th>Timeout</th><th>FailoverAttempts</th><th>Method</th>"
-                "</tr>\n<tr>", r);
-            if (balancer->sticky) {
-                ap_rvputs(r, "<td>", balancer->sticky, NULL);
-            }
-            else {
-                ap_rputs("<td> - ", r);
-            }
-            ap_rprintf(r, "</td><td>%" APR_TIME_T_FMT "</td>",
-                apr_time_sec(balancer->timeout));
-            ap_rprintf(r, "<td>%d</td>\n", balancer->max_attempts);
-            ap_rprintf(r, "<td>%s</td>\n",
-                       balancer->lbmethod->name);
-            ap_rputs("</table>\n<br />", r);
-            ap_rputs("\n\n<table border=\"0\" style=\"text-align: left;\"><tr>"
-                "<th>Worker URL</th>"
-                "<th>Route</th><th>RouteRedir</th>"
-                "<th>Factor</th><th>Set</th><th>Status</th>"
-                "<th>Elected</th><th>To</th><th>From</th>"
-                "</tr>\n", r);
-
-            worker = (proxy_worker *)balancer->workers->elts;
-            for (n = 0; n < balancer->workers->nelts; n++) {
-                char fbuf[50];
-                ap_rvputs(r, "<tr>\n<td><a href=\"",
-                          ap_escape_uri(r->pool, r->uri), "?b=",
-                          balancer->name + sizeof("balancer://") - 1, "&w=",
-                          ap_escape_uri(r->pool, worker->name),
-                          "&nonce=", balancer_nonce, 
-                          "\">", NULL);
-                ap_rvputs(r, worker->name, "</a></td>", NULL);
-                ap_rvputs(r, "<td>", ap_escape_html(r->pool, worker->s->route),
-                          NULL);
-                ap_rvputs(r, "</td><td>",
-                          ap_escape_html(r->pool, worker->s->redirect), NULL);
-                ap_rprintf(r, "</td><td>%d</td>", worker->s->lbfactor);
-                ap_rprintf(r, "<td>%d</td><td>", worker->s->lbset);
-                if (worker->s->status & PROXY_WORKER_DISABLED)
-                   ap_rputs("Dis ", r);
-                if (worker->s->status & PROXY_WORKER_IN_ERROR)
-                   ap_rputs("Err ", r);
-                if (worker->s->status & PROXY_WORKER_STOPPED)
-                   ap_rputs("Stop ", r);
-                if (worker->s->status & PROXY_WORKER_HOT_STANDBY)
-                   ap_rputs("Stby ", r);
-                if (PROXY_WORKER_IS_USABLE(worker))
-                    ap_rputs("Ok", r);
-                if (!PROXY_WORKER_IS_INITIALIZED(worker))
-                    ap_rputs("-", r);
-                ap_rputs("</td>", r);
-                ap_rprintf(r, "<td>%" APR_SIZE_T_FMT "</td><td>", worker->s->elected);
-                ap_rputs(apr_strfsize(worker->s->transferred, fbuf), r);
-                ap_rputs("</td><td>", r);
-                ap_rputs(apr_strfsize(worker->s->read, fbuf), r);
-                ap_rputs("</td></tr>\n", r);
-
-                ++worker;
-            }
-            ap_rputs("</table>\n", r);
-            ++balancer;
-        }
-        ap_rputs("<hr />\n", r);
-        if (wsel && bsel) {
-            ap_rputs("<h3>Edit worker settings for ", r);
-            ap_rvputs(r, wsel->name, "</h3>\n", NULL);
-            ap_rvputs(r, "<form method=\"GET\" action=\"", NULL);
-            ap_rvputs(r, ap_escape_uri(r->pool, r->uri), "\">\n<dl>", NULL);
-            ap_rputs("<table><tr><td>Load factor:</td><td><input name=\"lf\" type=text ", r);
-            ap_rprintf(r, "value=\"%d\"></td></tr>\n", wsel->s->lbfactor);
-            ap_rputs("<tr><td>LB Set:</td><td><input name=\"ls\" type=text ", r);
-            ap_rprintf(r, "value=\"%d\"></td></tr>\n", wsel->s->lbset);
-            ap_rputs("<tr><td>Route:</td><td><input name=\"wr\" type=text ", r);
-            ap_rvputs(r, "value=\"", ap_escape_html(r->pool, wsel->s->route),
-                      NULL);
-            ap_rputs("\"></td></tr>\n", r);
-            ap_rputs("<tr><td>Route Redirect:</td><td><input name=\"rr\" type=text ", r);
-            ap_rvputs(r, "value=\"", ap_escape_html(r->pool, wsel->s->redirect),
-                      NULL);
-            ap_rputs("\"></td></tr>\n", r);
-            ap_rputs("<tr><td>Status:</td><td>Disabled: <input name=\"dw\" value=\"Disable\" type=radio", r);
-            if (wsel->s->status & PROXY_WORKER_DISABLED)
-                ap_rputs(" checked", r);
-            ap_rputs("> | Enabled: <input name=\"dw\" value=\"Enable\" type=radio", r);
-            if (!(wsel->s->status & PROXY_WORKER_DISABLED))
-                ap_rputs(" checked", r);
-            ap_rputs("></td></tr>\n", r);
-            ap_rputs("<tr><td colspan=2><input type=submit value=\"Submit\"></td></tr>\n", r);
-            ap_rvputs(r, "</table>\n<input type=hidden name=\"w\" ",  NULL);
-            ap_rvputs(r, "value=\"", ap_escape_uri(r->pool, wsel->name), "\">\n", NULL);
-            ap_rvputs(r, "<input type=hidden name=\"b\" ", NULL);
-            ap_rvputs(r, "value=\"", bsel->name + sizeof("balancer://") - 1,
-                      "\">\n", NULL);
-            ap_rvputs(r, "<input type=hidden name=\"nonce\" value=\"", 
-                      balancer_nonce, "\">\n", NULL);
-            ap_rvputs(r, "</form>\n", NULL);
-            ap_rputs("<hr />\n", r);
-        }
-        ap_rputs(ap_psignature("",r), r);
-        ap_rputs("</body></html>\n", r);
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorize: no sec->host - weird...?", getpid());
+        return AUTHZ_DENIED;
     }
-    return OK;
+
+    /*
+     * If we have been authenticated by some other module than mod_auth_ldap,
+     * the req structure needed for authorization needs to be created
+     * and populated with the userid and DN of the account in LDAP
+     */
+
+    /* Check that we have a userid to start with */
+    if (!r->user) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+            "access to %s failed, reason: no authenticated user", r->uri);
+        return AUTHZ_DENIED;
+    }
+
+    if (!strlen(r->user)) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+            "ldap authorize: Userid is blank, AuthType=%s",
+            r->ap_auth_type);
+    }
+
+    if(!req) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+            "ldap authorize: Creating LDAP req structure");
+
+        /* Build the username filter */
+        authn_ldap_build_filter(filtbuf, r, r->user, NULL, sec);
+
+        /* Search for the user DN */
+        result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
+             sec->scope, sec->attributes, filtbuf, &dn, &(req->vals));
+
+        /* Search failed, log error and return failure */
+        if(result != LDAP_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                "auth_ldap authorise: User DN not found, %s", ldc->reason);
+            return AUTHZ_DENIED;
+        }
+
+        req = (authn_ldap_request_t *)apr_pcalloc(r->pool,
+            sizeof(authn_ldap_request_t));
+        ap_set_module_config(r->request_config, &authnz_ldap_module, req);
+        req->dn = apr_pstrdup(r->pool, dn);
+        req->user = r->user;
+    }
+
+    if (req->dn == NULL || strlen(req->dn) == 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorize: "
+                      "require ldap-filter: user's DN has not been defined; failing authorization",
+                      getpid());
+        return AUTHZ_DENIED;
+    }
+
+    t = require_args;
+
+    if (t[0]) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorize: checking filter %s",
+                      getpid(), t);
+
+        /* Build the username filter */
+        authn_ldap_build_filter(filtbuf, r, req->user, t, sec);
+
+        /* Search for the user DN */
+        result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
+             sec->scope, sec->attributes, filtbuf, &dn, &(req->vals));
+
+        /* Make sure that the filtered search returned the correct user dn */
+        if (result == LDAP_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "[%" APR_PID_T_FMT "] auth_ldap authorize: checking dn match %s",
+                          getpid(), dn);
+            if (sec->compare_as_user) {
+                /* ldap-filter is the only authz that requires a search and a compare */
+                apr_pool_cleanup_kill(r->pool, ldc, authnz_ldap_cleanup_connection_close);
+                authnz_ldap_cleanup_connection_close(ldc);
+                ldc = get_connection_for_authz(r, LDAP_COMPARE);
+            }
+            result = util_ldap_cache_comparedn(r, ldc, sec->url, req->dn, dn,
+                                               sec->compare_dn_on_server);
+        }
+
+        switch(result) {
+            case LDAP_COMPARE_TRUE: {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
+                              0, r, "[%" APR_PID_T_FMT "] auth_ldap authorize: "
+                              "require ldap-filter: authorization "
+                              "successful", getpid());
+                set_request_vars(r, LDAP_AUTHZ);
+                return AUTHZ_GRANTED;
+            }
+            case LDAP_FILTER_ERROR: {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
+                              0, r, "[%" APR_PID_T_FMT "] auth_ldap authorize: "
+                              "require ldap-filter: %s authorization "
+                              "failed [%s][%s]", getpid(),
+                              filtbuf, ldc->reason, ldap_err2string(result));
+                break;
+            }
+            default: {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
+                              0, r, "[%" APR_PID_T_FMT "] auth_ldap authorize: "
+                              "require ldap-filter: authorization "
+                              "failed [%s][%s]", getpid(),
+                              ldc->reason, ldap_err2string(result));
+            }
+        }
+    }
+
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "[%" APR_PID_T_FMT "] auth_ldap authorize filter: authorization denied for user %s to %s",
+                  getpid(), r->user, r->uri);
+
+    return AUTHZ_DENIED;
 }

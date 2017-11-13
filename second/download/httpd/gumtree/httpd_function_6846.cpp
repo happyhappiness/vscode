@@ -1,304 +1,109 @@
-static apr_status_t deflate_in_filter(ap_filter_t *f,
-                                      apr_bucket_brigade *bb,
-                                      ap_input_mode_t mode,
-                                      apr_read_type_e block,
-                                      apr_off_t readbytes)
+static apr_status_t h2_session_start(h2_session *session, int *rv)
 {
-    apr_bucket *bkt;
-    request_rec *r = f->r;
-    deflate_ctx *ctx = f->ctx;
-    int zRC;
-    apr_status_t rv;
-    deflate_filter_config *c;
+    apr_status_t status = APR_SUCCESS;
+    nghttp2_settings_entry settings[3];
+    size_t slen;
+    int win_size;
+    
+    ap_assert(session);
+    /* Start the conversation by submitting our SETTINGS frame */
+    *rv = 0;
+    if (session->r) {
+        const char *s, *cs;
+        apr_size_t dlen; 
+        h2_stream * stream;
 
-    /* just get out of the way of things we don't want. */
-    if (mode != AP_MODE_READBYTES) {
-        return ap_get_brigade(f->next, bb, mode, block, readbytes);
+        /* 'h2c' mode: we should have a 'HTTP2-Settings' header with
+         * base64 encoded client settings. */
+        s = apr_table_get(session->r->headers_in, "HTTP2-Settings");
+        if (!s) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_EINVAL, session->r,
+                          APLOGNO(02931) 
+                          "HTTP2-Settings header missing in request");
+            return APR_EINVAL;
+        }
+        cs = NULL;
+        dlen = h2_util_base64url_decode(&cs, s, session->pool);
+        
+        if (APLOGrdebug(session->r)) {
+            char buffer[128];
+            h2_util_hex_dump(buffer, 128, (char*)cs, dlen);
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, session->r, APLOGNO(03070)
+                          "upgrading h2c session with HTTP2-Settings: %s -> %s (%d)",
+                          s, buffer, (int)dlen);
+        }
+        
+        *rv = nghttp2_session_upgrade(session->ngh2, (uint8_t*)cs, dlen, NULL);
+        if (*rv != 0) {
+            status = APR_EINVAL;
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, session->r,
+                          APLOGNO(02932) "nghttp2_session_upgrade: %s", 
+                          nghttp2_strerror(*rv));
+            return status;
+        }
+        
+        /* Now we need to auto-open stream 1 for the request we got. */
+        stream = h2_session_open_stream(session, 1, 0, NULL);
+        if (!stream) {
+            status = APR_EGENERAL;
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, session->r,
+                          APLOGNO(02933) "open stream 1: %s", 
+                          nghttp2_strerror(*rv));
+            return status;
+        }
+        
+        status = h2_stream_set_request_rec(stream, session->r);
+        if (status != APR_SUCCESS) {
+            return status;
+        }
+        status = stream_schedule(session, stream, 1);
+        if (status != APR_SUCCESS) {
+            return status;
+        }
     }
 
-    c = ap_get_module_config(r->server->module_config, &deflate_module);
-
-    if (!ctx) {
-        char deflate_hdr[10];
-        apr_size_t len;
-
-        /* only work on main request/no subrequests */
-        if (!ap_is_initial_req(r)) {
-            ap_remove_input_filter(f);
-            return ap_get_brigade(f->next, bb, mode, block, readbytes);
-        }
-
-        /* We can't operate on Content-Ranges */
-        if (apr_table_get(r->headers_in, "Content-Range") != NULL) {
-            ap_remove_input_filter(f);
-            return ap_get_brigade(f->next, bb, mode, block, readbytes);
-        }
-
-        /* Check whether request body is gzipped.
-         *
-         * If it is, we're transforming the contents, invalidating
-         * some request headers including Content-Encoding.
-         *
-         * If not, we just remove ourself.
+    slen = 0;
+    settings[slen].settings_id = NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS;
+    settings[slen].value = (uint32_t)session->max_stream_count;
+    ++slen;
+    win_size = h2_config_geti(session->config, H2_CONF_WIN_SIZE);
+    if (win_size != H2_INITIAL_WINDOW_SIZE) {
+        settings[slen].settings_id = NGHTTP2_SETTINGS_INITIAL_WINDOW_SIZE;
+        settings[slen].value = win_size;
+        ++slen;
+    }
+    
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c, APLOGNO(03201)
+                  "h2_session(%ld): start, INITIAL_WINDOW_SIZE=%ld, "
+                  "MAX_CONCURRENT_STREAMS=%d", 
+                  session->id, (long)win_size, (int)session->max_stream_count);
+    *rv = nghttp2_submit_settings(session->ngh2, NGHTTP2_FLAG_NONE,
+                                  settings, slen);
+    if (*rv != 0) {
+        status = APR_EGENERAL;
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, status, session->c,
+                      APLOGNO(02935) "nghttp2_submit_settings: %s", 
+                      nghttp2_strerror(*rv));
+    }
+    else {
+        /* use maximum possible value for connection window size. We are only
+         * interested in per stream flow control. which have the initial window
+         * size configured above.
+         * Therefore, for our use, the connection window can only get in the
+         * way. Example: if we allow 100 streams with a 32KB window each, we
+         * buffer up to 3.2 MB of data. Unless we do separate connection window
+         * interim updates, any smaller connection window will lead to blocking
+         * in DATA flow.
          */
-        if (check_gzip(r, r->headers_in, NULL) == 0) {
-            ap_remove_input_filter(f);
-            return ap_get_brigade(f->next, bb, mode, block, readbytes);
-        }
-
-        f->ctx = ctx = apr_pcalloc(f->r->pool, sizeof(*ctx));
-        ctx->bb = apr_brigade_create(r->pool, f->c->bucket_alloc);
-        ctx->proc_bb = apr_brigade_create(r->pool, f->c->bucket_alloc);
-        ctx->buffer = apr_palloc(r->pool, c->bufferSize);
-
-        rv = ap_get_brigade(f->next, ctx->bb, AP_MODE_READBYTES, block, 10);
-        if (rv != APR_SUCCESS) {
-            return rv;
-        }
-
-        /* zero length body? step aside */
-        bkt = APR_BRIGADE_FIRST(ctx->bb);
-        if (APR_BUCKET_IS_EOS(bkt)) {
-            ap_remove_input_filter(f);
-            return ap_get_brigade(f->next, bb, mode, block, readbytes);
-        }
-
-        apr_table_unset(r->headers_in, "Content-Length");
-        apr_table_unset(r->headers_in, "Content-MD5");
-
-        len = 10;
-        rv = apr_brigade_flatten(ctx->bb, deflate_hdr, &len);
-        if (rv != APR_SUCCESS) {
-            return rv;
-        }
-
-        /* We didn't get the magic bytes. */
-        if (len != 10 ||
-            deflate_hdr[0] != deflate_magic[0] ||
-            deflate_hdr[1] != deflate_magic[1]) {
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01387) "Zlib: Invalid header");
-            return APR_EGENERAL;
-        }
-
-        /* We can't handle flags for now. */
-        if (deflate_hdr[3] != 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01388)
-                          "Zlib: Unsupported flags %02x", (int)deflate_hdr[3]);
-            return APR_EGENERAL;
-        }
-
-        zRC = inflateInit2(&ctx->stream, c->windowSize);
-
-        if (zRC != Z_OK) {
-            f->ctx = NULL;
-            inflateEnd(&ctx->stream);
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01389)
-                          "unable to init Zlib: "
-                          "inflateInit2 returned %d: URL %s",
-                          zRC, r->uri);
-            ap_remove_input_filter(f);
-            return ap_get_brigade(f->next, bb, mode, block, readbytes);
-        }
-
-        /* initialize deflate output buffer */
-        ctx->stream.next_out = ctx->buffer;
-        ctx->stream.avail_out = c->bufferSize;
-
-        apr_brigade_cleanup(ctx->bb);
-    }
-
-    if (APR_BRIGADE_EMPTY(ctx->proc_bb)) {
-        rv = ap_get_brigade(f->next, ctx->bb, mode, block, readbytes);
-
-        if (rv != APR_SUCCESS) {
-            /* What about APR_EAGAIN errors? */
-            inflateEnd(&ctx->stream);
-            return rv;
-        }
-
-        for (bkt = APR_BRIGADE_FIRST(ctx->bb);
-             bkt != APR_BRIGADE_SENTINEL(ctx->bb);
-             bkt = APR_BUCKET_NEXT(bkt))
-        {
-            const char *data;
-            apr_size_t len;
-
-            if (APR_BUCKET_IS_EOS(bkt)) {
-                if (!ctx->done) {
-                    inflateEnd(&ctx->stream);
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02481)
-                                  "Encountered premature end-of-stream while inflating");
-                    return APR_EGENERAL;
-                }
-
-                /* Move everything to the returning brigade. */
-                APR_BUCKET_REMOVE(bkt);
-                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, bkt);
-                ap_remove_input_filter(f);
-                break;
-            }
-
-            if (APR_BUCKET_IS_FLUSH(bkt)) {
-                apr_bucket *tmp_heap;
-                zRC = inflate(&(ctx->stream), Z_SYNC_FLUSH);
-                if (zRC != Z_OK) {
-                    inflateEnd(&ctx->stream);
-                    ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01391)
-                                  "Zlib error %d inflating data (%s)", zRC,
-                                  ctx->stream.msg);
-                    return APR_EGENERAL;
-                }
-
-                ctx->stream.next_out = ctx->buffer;
-                len = c->bufferSize - ctx->stream.avail_out;
-
-                ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
-                tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
-                                                 NULL, f->c->bucket_alloc);
-                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
-                ctx->stream.avail_out = c->bufferSize;
-
-                /* Move everything to the returning brigade. */
-                APR_BUCKET_REMOVE(bkt);
-                APR_BRIGADE_CONCAT(bb, ctx->bb);
-                break;
-            }
-
-            /* sanity check - data after completed compressed body and before eos? */
-            if (ctx->done) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02482)
-                              "Encountered extra data after compressed data");
-                return APR_EGENERAL;
-            }
-
-            /* read */
-            apr_bucket_read(bkt, &data, &len, APR_BLOCK_READ);
-
-            /* pass through zlib inflate. */
-            ctx->stream.next_in = (unsigned char *)data;
-            ctx->stream.avail_in = len;
-
-            zRC = Z_OK;
-
-            while (ctx->stream.avail_in != 0) {
-                if (ctx->stream.avail_out == 0) {
-                    apr_bucket *tmp_heap;
-                    ctx->stream.next_out = ctx->buffer;
-                    len = c->bufferSize - ctx->stream.avail_out;
-
-                    ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
-                    tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
-                                                      NULL, f->c->bucket_alloc);
-                    APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
-                    ctx->stream.avail_out = c->bufferSize;
-                }
-
-                zRC = inflate(&ctx->stream, Z_NO_FLUSH);
-
-                if (zRC == Z_STREAM_END) {
-                    break;
-                }
-
-                if (zRC != Z_OK) {
-                    inflateEnd(&ctx->stream);
-                    ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01392)
-                                  "Zlib error %d inflating data (%s)", zRC,
-                                  ctx->stream.msg);
-                    return APR_EGENERAL;
-                }
-            }
-            if (zRC == Z_STREAM_END) {
-                apr_bucket *tmp_heap;
-                apr_size_t avail;
-
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01393)
-                              "Zlib: Inflated %ld to %ld : URL %s",
-                              ctx->stream.total_in, ctx->stream.total_out,
-                              r->uri);
-
-                len = c->bufferSize - ctx->stream.avail_out;
-
-                ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
-                tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
-                                                  NULL, f->c->bucket_alloc);
-                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
-                ctx->stream.avail_out = c->bufferSize;
-
-                avail = ctx->stream.avail_in;
-
-                /* Is the remaining 8 bytes already in the avail stream? */
-                if (avail >= 8) {
-                    unsigned long compCRC, compLen;
-                    compCRC = getLong(ctx->stream.next_in);
-                    if (ctx->crc != compCRC) {
-                        inflateEnd(&ctx->stream);
-                        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01394)
-                                      "Zlib: CRC error inflating data");
-                        return APR_EGENERAL;
-                    }
-                    ctx->stream.next_in += 4;
-                    compLen = getLong(ctx->stream.next_in);
-                    if (ctx->stream.total_out != compLen) {
-                        inflateEnd(&ctx->stream);
-                        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01395)
-                                      "Zlib: Length %ld of inflated data does "
-                                      "not match expected value %ld",
-                                      ctx->stream.total_out, compLen);
-                        return APR_EGENERAL;
-                    }
-                }
-                else {
-                    /* FIXME: We need to grab the 8 verification bytes
-                     * from the wire! */
-                    inflateEnd(&ctx->stream);
-                    ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01396)
-                                  "Verification data not available (bug?)");
-                    return APR_EGENERAL;
-                }
-
-                inflateEnd(&ctx->stream);
-
-                ctx->done = 1;
-
-                /* Did we have trailing data behind the closing 8 bytes? */
-                if (avail > 8) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02485)
-                                  "Encountered extra data after compressed data");
-                    return APR_EGENERAL;
-                }
-            }
-
-        }
-        apr_brigade_cleanup(ctx->bb);
-    }
-
-    /* If we are about to return nothing for a 'blocking' read and we have
-     * some data in our zlib buffer, flush it out so we can return something.
-     */
-    if (block == APR_BLOCK_READ &&
-        APR_BRIGADE_EMPTY(ctx->proc_bb) &&
-        ctx->stream.avail_out < c->bufferSize) {
-        apr_bucket *tmp_heap;
-        apr_size_t len;
-        ctx->stream.next_out = ctx->buffer;
-        len = c->bufferSize - ctx->stream.avail_out;
-
-        ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
-        tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
-                                          NULL, f->c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
-        ctx->stream.avail_out = c->bufferSize;
-    }
-
-    if (!APR_BRIGADE_EMPTY(ctx->proc_bb)) {
-        if (apr_brigade_partition(ctx->proc_bb, readbytes, &bkt) == APR_INCOMPLETE) {
-            APR_BRIGADE_CONCAT(bb, ctx->proc_bb);
-        }
-        else {
-            APR_BRIGADE_CONCAT(bb, ctx->proc_bb);
-            apr_brigade_split_ex(bb, bkt, ctx->proc_bb);
+        *rv = nghttp2_submit_window_update(session->ngh2, NGHTTP2_FLAG_NONE,
+                                           0, NGHTTP2_MAX_WINDOW_SIZE - win_size);
+        if (*rv != 0) {
+            status = APR_EGENERAL;
+            ap_log_cerror(APLOG_MARK, APLOG_ERR, status, session->c,
+                          APLOGNO(02970) "nghttp2_submit_window_update: %s", 
+                          nghttp2_strerror(*rv));        
         }
     }
-
-    return APR_SUCCESS;
+    
+    return status;
 }

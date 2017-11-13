@@ -1,11 +1,10 @@
 fputs(
-"              --http2-prior-knowledge requires that the underlying libcurl was\n"
-"              built to support HTTP/2. This option overrides --http1.1 and -0,\n"
-"              --http1.0 and --http2. Added in 7.49.0.\n"
+"              If this option is used several times,  only  the  first  one  is\n"
+"              used.  This is because undoing a GET doesn't make sense, but you\n"
+"              should then instead enforce the alternative method you prefer.\n"
 "\n"
-"       --http2\n"
-"              (HTTP) Tells curl to use HTTP version 2.\n"
-"\n"
-"              See also --no-alpn. --http2 requires that the underlying libcurl\n"
-"              was built to support HTTP/2. This option overrides --http1.1 and\n"
+"       -g, --globoff\n"
+"              This option switches off the \"URL globbing parser\". When you set\n"
+"              this  option, you can specify URLs that contain the letters {}[]\n"
+"              without having them being interpreted by curl itself. Note  that\n"
 , stdout);

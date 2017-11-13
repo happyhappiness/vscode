@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02262)
-                              "Re-negotiation handshake failed: "
-                              "Client verification failed");
+ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01180)
+                             "mutex creation of %s : %s failed", balancer_mutex_type,
+                             balancer->s->sname);

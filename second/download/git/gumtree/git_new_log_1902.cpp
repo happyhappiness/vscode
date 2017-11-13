@@ -1,1 +1,1 @@
-fprintf(stderr, "bad sha1 file: %s\n", path);
+die_errno(_("failed to delete directory %s"), path);

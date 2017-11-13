@@ -1,32 +1,54 @@
-static apr_status_t open_if_needed(h2_task_output *output, ap_filter_t *f,
-                                   apr_bucket_brigade *bb)
+static const char *check_macro_arguments(apr_pool_t * pool,
+                                         const ap_macro_t * macro)
 {
-    if (output->state == H2_TASK_OUT_INIT) {
-        h2_response *response;
-        output->state = H2_TASK_OUT_STARTED;
-        response = h2_from_h1_get_response(output->from_h1);
-        if (!response) {
-            if (f) {
-                /* This happens currently when ap_die(status, r) is invoked
-                 * by a read request filter.
-                 */
-                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
-                              "h2_task_output(%s): write without response "
-                              "for %s %s %s",
-                              output->task->id, output->task->request->method, 
-                              output->task->request->authority, 
-                              output->task->request->path);
-                f->c->aborted = 1;
-            }
-            if (output->task->io) {
-                apr_thread_cond_broadcast(output->task->io);
-            }
-            return APR_ECONNABORTED;
+    char **tab = (char **) macro->arguments->elts;
+    int nelts = macro->arguments->nelts;
+    int i;
+
+    for (i = 0; i < nelts; i++) {
+        size_t ltabi = strlen(tab[i]);
+        int j;
+
+        if (ltabi == 0) {
+            return apr_psprintf(pool,
+                                "macro '%s' (%s): empty argument #%d name",
+                                macro->name, macro->location, i + 1);
         }
-        
-        output->trailers_passed = !!response->trailers;
-        return h2_mplx_out_open(output->task->mplx, output->task->stream_id, 
-                                response, f, bb, output->task->io);
+        else if (!looks_like_an_argument(tab[i])) {
+            ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_WARNING, 0, NULL,
+                         "macro '%s' (%s) "
+                         "argument name '%s' (#%d) without expected prefix, "
+                         "better prefix argument names with one of '%s'.",
+                         macro->name, macro->location,
+                         tab[i], i + 1, ARG_PREFIX);
+        }
+
+        for (j = i + 1; j < nelts; j++) {
+            size_t ltabj = strlen(tab[j]);
+
+            /* must not use the same argument name twice */
+            if (!strcmp(tab[i], tab[j])) {
+                return apr_psprintf(pool,
+                                   "argument name conflict in macro '%s' (%s): "
+                                    "argument '%s': #%d and #%d, "
+                                    "change argument names!",
+                                    macro->name, macro->location,
+                                    tab[i], i + 1, j + 1);
+            }
+
+            /* warn about common prefix, but only if non empty names */
+            if (ltabi && ltabj &&
+                !strncmp(tab[i], tab[j], ltabi < ltabj ? ltabi : ltabj)) {
+                ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_WARNING,
+                             0, NULL,
+                             "macro '%s' (%s): "
+                            "argument name prefix conflict (%s #%d and %s #%d),"
+                             " be careful about your macro definition!",
+                             macro->name, macro->location,
+                             tab[i], i + 1, tab[j], j + 1);
+            }
+        }
     }
-    return APR_EOF;
+
+    return NULL;
 }

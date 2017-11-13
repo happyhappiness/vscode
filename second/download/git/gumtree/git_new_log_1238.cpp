@@ -1,1 +1,1 @@
-die("%s", err.buf);
+printf("num read blob: %d\n", sb.num_read_blob);

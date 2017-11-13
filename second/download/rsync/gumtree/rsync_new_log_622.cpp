@@ -1,1 +1,1 @@
-io_printf(fd,"@ERROR: invalid uid %s\n", p);
+rprintf(FERROR,"Failed to close : %s\n",strerror(errno));

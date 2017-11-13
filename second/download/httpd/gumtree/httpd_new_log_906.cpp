@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                        "Parent: Unable to connect child stdout to NUL.");
+printf("%sdebug: state %d, reading %d (%s)\n",
+                        YYPREFIX, YYFINAL, ssl_expr_yychar, ssl_expr_yys);

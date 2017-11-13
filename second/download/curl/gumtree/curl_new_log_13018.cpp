@@ -1,10 +1,10 @@
 fputs(
-"              ssl_verify_result\n"
-"                             The  result of the SSL peer certificate verifica-\n"
-"                             tion that was requested. 0 means the verification\n"
-"                             was successful. (Added in 7.19.0)\n"
+"                             This  is only meaningful if curl is told to write\n"
+"                             to a file  with  the  --remote-name  or  --output\n"
+"                             option.  It's most useful in combination with the\n"
+"                             --remote-header-name option. (Added in 7.26.0)\n"
 "\n"
-"              time_appconnect\n"
-"                             The  time,  in  seconds,  it  took from the start\n"
-"                             until the SSL/SSH/etc  connect/handshake  to  the\n"
+"              ftp_entry_path The initial path curl ended up in when logging on\n"
+"                             to the remote FTP server. (Added in 7.15.4)\n"
+"\n"
 , stdout);

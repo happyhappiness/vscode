@@ -1,91 +1,51 @@
-static int fold_one_header (FILE *fp, const char *tag, const char *value,
-			      const char *pfx, int wraplen, int flags)
+void mutt_attach_bounce (FILE * fp, HEADER * hdr, 
+	   ATTACHPTR ** idx, short idxlen, BODY * cur)
 {
-  const char *p = value, *next, *sp;
-  char buf[HUGE_STRING] = "";
-  int first = 1, enc, col = 0, w, l = 0, fold;
+  short i;
+  short ntagged;
+  char prompt[STRING];
+  char buf[HUGE_STRING];
+  ADDRESS *adr = NULL;
 
-  dprint(4,(debugfile,"mwoh: pfx=[%s], tag=[%s], flags=%d value=[%s]\n",
-	    pfx, tag, flags, value));
+  if (check_all_msg (idx, idxlen, cur, 1) == -1)
+    return;
 
-  if (tag && *tag && fprintf (fp, "%s%s: ", NONULL (pfx), tag) < 0)
-    return -1;
-  col = mutt_strlen (tag) + (tag && *tag ? 2 : 0) + mutt_strlen (pfx);
+  ntagged = count_tagged (idx, idxlen);
+  
+  if (cur || ntagged == 1)
+    strfcpy (prompt, _("Bounce message to: "), sizeof (prompt));
+  else
+    strfcpy (prompt, _("Bounce tagged messages to: "), sizeof (prompt));
 
-  while (p && *p)
+  buf[0] = '\0';
+  if (mutt_get_field (prompt, buf, sizeof (buf), M_ALIAS) 
+      || buf[0] == '\0')
+    return;
+
+  adr = rfc822_parse_adrlist (adr, buf);
+  adr = mutt_expand_aliases (adr);
+  buf[0] = 0;
+  rfc822_write_address (buf, sizeof (buf), adr);
+
+  snprintf (prompt, sizeof (prompt), 
+	    cur ? _("Bounce message to %s...?") :  _("Bounce messages to %s...?"), buf);
+
+  if (mutt_yesorno (prompt, 1) != 1)
+    goto bail;
+
+  if (cur)
+    mutt_bounce_message (fp, cur->hdr, adr);
+  else
   {
-    fold = 0;
-
-    /* find the next word and place it in `buf'. it may start with
-     * whitespace we can fold before */
-    next = find_word (p);
-    l = MIN(sizeof (buf) - 1, next - p);
-    memcpy (buf, p, l);
-    buf[l] = 0;
-
-    /* determine width: character cells for display, bytes for sending
-     * (we get pure ascii only) */
-    w = my_width (buf, col, flags);
-    enc = mutt_strncmp (buf, "=?", 2) == 0;
-
-    dprint(5,(debugfile,"mwoh: word=[%s], col=%d, w=%d, next=[0x0%x]\n",
-	      buf, col, w, *next));
-
-    /* insert a folding \n before the current word's lwsp except for
-     * header name, first word on a line (word longer than wrap width)
-     * and encoded words */
-    if (!first && !enc && col && col + w >= wraplen)
+    for (i = 0; i < idxlen; i++)
     {
-      col = mutt_strlen (pfx);
-      fold = 1;
-      if (fprintf (fp, "\n%s", NONULL(pfx)) <= 0)
-	return -1;
+      if (idx[i]->content->tagged)
+	mutt_bounce_message (fp, idx[i]->content->hdr, adr);
     }
-
-    /* print the actual word; for display, ignore leading ws for word
-     * and fold with tab for readability */
-    if ((flags & CH_DISPLAY) && fold)
-    {
-      char *p = buf;
-      while (*p && (*p == ' ' || *p == '\t'))
-      {
-	p++;
-	col--;
-      }
-      if (fputc ('\t', fp) == EOF)
-	return -1;
-      if (print_val (fp, pfx, p, flags, col) < 0)
-	return -1;
-      col += 8;
-    }
-    else if (print_val (fp, pfx, buf, flags, col) < 0)
-      return -1;
-    col += w;
-
-    /* if the current word ends in \n, ignore all its trailing spaces
-     * and reset column; this prevents us from putting only spaces (or
-     * even none) on a line if the trailing spaces are located at our
-     * current line width
-     * XXX this covers ASCII space only, for display we probably
-     * XXX want something like iswspace() here */
-    sp = next;
-    while (*sp && (*sp == ' ' || *sp == '\t'))
-      sp++;
-    if (*sp == '\n')
-    {
-      next = sp;
-      col = 0;
-    }
-
-    p = next;
-    first = 0;
   }
 
-  /* if we have printed something but didn't \n-terminate it, do it
-   * except the last word we printed ended in \n already */
-  if (col && buf[l - 1] != '\n')
-    if (putc ('\n', fp) == EOF)
-      return -1;
+bail:
 
-  return 0;
+  rfc822_free_address (&adr);
+  CLEARLINE (LINES - 1);
 }

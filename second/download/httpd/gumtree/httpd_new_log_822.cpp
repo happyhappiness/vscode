@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                         "ap_get_server_name: Invalid UCN Option somehow");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                             "apr_socket_opt_set(SO_KEEPALIVE): Failed to set"
+                             " Keepalive");

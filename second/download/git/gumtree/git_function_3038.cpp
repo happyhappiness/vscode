@@ -1,14 +1,25 @@
-static const char *make_backslash_path(const char *path)
+void mingw_open_html(const char *unixpath)
 {
-	static char buf[PATH_MAX + 1];
-	char *c;
+	const char *htmlpath = make_backslash_path(unixpath);
+	typedef HINSTANCE (WINAPI *T)(HWND, const char *,
+			const char *, const char *, const char *, INT);
+	T ShellExecute;
+	HMODULE shell32;
+	int r;
 
-	if (strlcpy(buf, path, PATH_MAX) >= PATH_MAX)
-		die("Too long path: %.*s", 60, path);
+	shell32 = LoadLibrary("shell32.dll");
+	if (!shell32)
+		die("cannot load shell32.dll");
+	ShellExecute = (T)GetProcAddress(shell32, "ShellExecuteA");
+	if (!ShellExecute)
+		die("cannot run browser");
 
-	for (c = buf; *c; c++) {
-		if (*c == '/')
-			*c = '\\';
+	printf("Launching default browser to display HTML ...\n");
+	r = HCAST(int, ShellExecute(NULL, "open", htmlpath,
+				NULL, "\\", SW_SHOWNORMAL));
+	FreeLibrary(shell32);
+	/* see the MSDN documentation referring to the result codes here */
+	if (r <= 32) {
+		die("failed to launch browser for %.*s", MAX_PATH, unixpath);
 	}
-	return buf;
 }

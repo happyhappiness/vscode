@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, cmd->server, APLOGNO(01145)
-                         "Sharing worker '%s' instead of creating new worker '%s'",
-                         worker->s->name, new->real);
+ap_rputs("\n  </tt>\n</dt>\n", r);

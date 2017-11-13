@@ -1,11 +1,11 @@
 fputs(
-"              If  this  option is used several times, the last given file name\n"
-"              will be used. (Added in 7.16.1)\n"
+"              a GET if the HTTP response was 301, 302, or 303. If the response\n"
+"              code was any other 3xx code, curl  will  re-send  the  following\n"
+"              request using the same unmodified method.\n"
 "\n"
-"       --limit-rate <speed>\n"
-"              Specify the maximum transfer rate you want  curl  to  use.  This\n"
-"              feature is useful if you have a limited pipe and you'd like your\n"
-"              transfer not to use your entire bandwidth.\n"
+"       --libcurl <file>\n"
+"              Append  this  option  to any ordinary curl command line, and you\n"
+"              will get a libcurl-using C source code written to the file  that\n"
+"              does the equivalent of what your command-line operation does!\n"
 "\n"
-"              The given speed is measured in bytes/second, unless a suffix  is\n"
 , stdout);

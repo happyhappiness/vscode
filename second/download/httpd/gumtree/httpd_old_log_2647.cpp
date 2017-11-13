@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                      "Digest: cannot check nonce count without shared memory");
+ap_log_perror(APLOG_MARK, APLOG_ERR, 0, pool, "DBD: not configured");

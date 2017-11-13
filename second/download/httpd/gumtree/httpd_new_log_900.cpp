@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK,APLOG_ERR, apr_get_netos_error(), ap_server_conf,
-                    "winnt_accept: getsockname error on listening socket, is IPv6 available?");
+printf("%sdebug: state %d, shifting to state %d\n",
+                    YYPREFIX, ssl_expr_yystate, ssl_expr_yytable[ssl_expr_yyn]);

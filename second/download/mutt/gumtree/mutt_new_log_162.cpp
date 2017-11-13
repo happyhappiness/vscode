@@ -1,1 +1,1 @@
-state_puts (_("Available CRL is too old\n"), s);
+mutt_yesorno (buf, MUTT_YES);

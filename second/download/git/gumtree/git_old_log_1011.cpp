@@ -1,2 +1,1 @@
-error(_("missing notes on source object %s. Cannot "
-			       "copy."), sha1_to_hex(from_obj));
+die("replace ref name too long: %.*s...", 50, ref);

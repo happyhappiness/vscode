@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00318)
-                         "WARNING: MaxRequestWorkers of %d would require %d "
-                         "servers and ", max_workers, ap_daemons_limit);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01883)
+                 "Init: Initialized %s library", SSL_LIBRARY_NAME);

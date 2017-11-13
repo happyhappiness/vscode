@@ -1,1 +1,1 @@
-state_puts (_("created: "), s);
+state_puts (_("PKA verified signer's address is: "), s);

@@ -1,11 +1,8 @@
 fputs(
-"              If curl is built against  the  NSS  SSL  library,  the  NSS  PEM\n"
-"              PKCS#11  module  (libnsspem.so)  needs  to be available for this\n"
-"              option to work properly.\n"
-"\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --capath <CA certificate directory>\n"
-"              (SSL) Tells curl to use the specified certificate  directory  to\n"
-"              verify  the  peer.  Multiple paths can be provided by separating\n"
+"  certificate needs to be in PEM-format. PEM is a standard and open format to\n"
+"  store certificates with, but it is not used by the most commonly used\n"
+"  browsers (Netscape and MSIE both use the so called PKCS#12 format). If you\n"
+"  want curl to use the certificates you use with your (favourite) browser, you\n"
+"  may need to download/compile a converter that can convert your browser's\n"
+"  formatted certificates to PEM formatted ones. This kind of converter is\n"
 , stdout);

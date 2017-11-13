@@ -1,1 +1,1 @@
-die(_("--merged and --no-merged options are only allowed in list mode"));
+fputs(buf.buf, stderr);

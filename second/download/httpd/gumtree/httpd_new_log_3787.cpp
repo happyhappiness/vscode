@@ -1,4 +1,2 @@
-ap_rvputs(r, "<a href='", r->uri, "?b=",
-                      balancer->s->name + sizeof(BALANCER_PREFIX) - 1,
-                      "&nonce=", balancer->s->nonce,
-                      "'>", NULL);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, data->r, APLOGNO(01221)
+                          "poll failed waiting for CGI child");

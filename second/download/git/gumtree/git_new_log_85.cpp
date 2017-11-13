@@ -1,1 +1,1 @@
-die("create: missing <ref>");
+die("whitespace before command: %s", next);

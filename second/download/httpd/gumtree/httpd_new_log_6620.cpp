@@ -1,2 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog, APLOGNO(02478)
-        "failed to create %s mutex", proxy_id);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, ctx->r, 
+                      "reverse_map[%s] %s --> %s", ctx->p_server_uri, buffer, mapped);

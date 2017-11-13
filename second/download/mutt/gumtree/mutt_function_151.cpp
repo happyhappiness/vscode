@@ -1,97 +1,72 @@
-static smime_key_t *smime_select_key (smime_key_t *keys, char *query)
+int mutt_change_flag (HEADER *h, int bf)
 {
-  smime_key_t **table = NULL;
-  int table_size = 0;
-  int table_index = 0;
-  smime_key_t *key = NULL;
-  smime_key_t *selected_key = NULL;
-  char helpstr[LONG_STRING];
-  char buf[LONG_STRING];
-  char title[256];
-  MUTTMENU* menu;
-  char *s = "";
-  int done = 0;
+  int i, flag;
+  event_t event;
 
-  for (table_index = 0, key = keys; key; key = key->next)
+  mutt_window_mvprintw (MuttMessageWindow, 0, 0,
+                        "%s? (D/N/O/r/*/!): ", bf ? _("Set flag") : _("Clear flag"));
+  mutt_window_clrtoeol (MuttMessageWindow);
+
+  event = mutt_getch();
+  i = event.ch;
+  if (i < 0)
   {
-    if (table_index == table_size)
-    {
-      table_size += 5;
-      safe_realloc (&table, sizeof (smime_key_t *) * table_size);
-    }
-
-    table[table_index++] = key;
+    mutt_window_clearline (MuttMessageWindow, 0);
+    return (-1);
   }
 
-  snprintf(title, sizeof(title), _("S/MIME certificates matching \"%s\"."),
-    query);
+  mutt_window_clearline (MuttMessageWindow, 0);
 
-  /* Make Helpstring */
-  helpstr[0] = 0;
-  mutt_make_help (buf, sizeof (buf), _("Exit  "), MENU_SMIME, OP_EXIT);
-  strcat (helpstr, buf);	/* __STRCAT_CHECKED__ */
-  mutt_make_help (buf, sizeof (buf), _("Select  "), MENU_SMIME,
-      OP_GENERIC_SELECT_ENTRY);
-  strcat (helpstr, buf);	/* __STRCAT_CHECKED__ */
-  mutt_make_help (buf, sizeof(buf), _("Help"), MENU_SMIME, OP_HELP);
-  strcat (helpstr, buf);	/* __STRCAT_CHECKED__ */
-
-  /* Create the menu */
-  menu = mutt_new_menu(MENU_SMIME);
-  menu->max = table_index;
-  menu->make_entry = smime_entry;
-  menu->help = helpstr;
-  menu->data = table;
-  menu->title = title;
-  /* sorting keys might be done later - TODO */
-
-  mutt_clear_error();
-
-  done = 0;
-  while (!done)
+  switch (i)
   {
-    switch (mutt_menuLoop (menu))
-    {
-      case OP_GENERIC_SELECT_ENTRY:
-        if (table[menu->current]->trust != 't')
-        {
-          switch (table[menu->current]->trust)
-          {
-            case 'i':
-            case 'r':
-            case 'e':
-              s = N_("ID is expired/disabled/revoked.");
-              break;
-            case 'u':
-              s = N_("ID has undefined validity.");
-              break;
-            case 'v':
-              s = N_("ID is not trusted.");
-              break;
-          }
+    case 'd':
+    case 'D':
+      if (!bf)
+      {
+        if (h)
+          mutt_set_flag (Context, h, MUTT_PURGE, bf);
+        else
+          mutt_tag_set_flag (MUTT_PURGE, bf);
+      }
+      flag = MUTT_DELETE;
+      break;
 
-          snprintf (buf, sizeof (buf), _("%s Do you really want to use the key?"),
-                    _(s));
+    case 'N':
+    case 'n':
+      flag = MUTT_NEW;
+      break;
 
-          if (mutt_yesorno (buf, M_NO) != M_YES)
-          {
-            mutt_clear_error ();
-            break;
-          }
-        }
+    case 'o':
+    case 'O':
+      if (h)
+	mutt_set_flag (Context, h, MUTT_READ, !bf);
+      else
+	mutt_tag_set_flag (MUTT_READ, !bf);
+      flag = MUTT_OLD;
+      break;
 
-        selected_key = table[menu->current];
-        done = 1;
-        break;
-      case OP_EXIT:
-        done = 1;
-        break;
-    }
+    case 'r':
+    case 'R':
+      flag = MUTT_REPLIED;
+      break;
+
+    case '*':
+      flag = MUTT_TAG;
+      break;
+
+    case '!':
+      flag = MUTT_FLAG;
+      break;
+
+    default:
+      BEEP ();
+      return (-1);
   }
 
-  mutt_menuDestroy (&menu);
-  FREE (&table);
-  set_option (OPTNEEDREDRAW);
+  if (h)
+    mutt_set_flag (Context, h, flag, bf);
+  else
+    mutt_tag_set_flag (flag, bf);
 
-  return selected_key;
+  return 0;
 }

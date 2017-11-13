@@ -1,1 +1,1 @@
-fprintf(FERROR,"recv_generator failed to open %s\n",fname);
+fprintf(FINFO,"offset=%d sum=%08x\n",(int)offset,sum);

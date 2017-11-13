@@ -1,1 +1,1 @@
-printw ("%s", NONULL(SmimeCryptAlg));
+state_puts (notation->name, s);

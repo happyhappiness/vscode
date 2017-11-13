@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c, APLOGNO(02004)
-                              "SSL Proxy: Peer certificate is expired");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00886)
+                                              "Ignoring flush message "
+                                              "received before headers");

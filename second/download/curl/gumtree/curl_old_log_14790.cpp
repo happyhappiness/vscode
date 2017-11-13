@@ -1,13 +1,11 @@
 fputs(
-"              causes data sent to stdout to be in text mode for win32 systems.\n"
+"              including descriptive information, to the given output file. Use\n"
+"              \"-\" as filename to have the output sent to stdout.\n"
 "\n"
-"       -A, --user-agent <name>\n"
-"              (HTTP) Specify the User-Agent string to send to the HTTP server.\n"
-"              To encode blanks in the string, surround the string with  single\n"
-"              quote  marks.  This can also be set with the -H, --header option\n"
-"              of course.\n"
+"              This is very similar to --trace, but leaves out the hex part and\n"
+"              only shows the ASCII part of the dump. It makes  smaller  output\n"
+"              that might be easier to read for untrained humans.\n"
 "\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       -u, --user <user:password>\n"
 , stdout);

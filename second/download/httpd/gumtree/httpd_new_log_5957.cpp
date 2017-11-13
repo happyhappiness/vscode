@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_WARNING, APR_EINVAL, task->c,
-                              APLOGNO(02955) "h2_task(%s): invalid header[%d] '%s'",
-                              task->id, i, (char*)hline);
+ap_log_error(APLOG_MARK, APLOG_ERR, rs, r->server, APLOGNO(02996)
+                         "Child %ld failed to try and acquire lock",
+                         (long int)getpid());

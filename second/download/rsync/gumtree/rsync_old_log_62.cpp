@@ -1,1 +1,0 @@
-fprintf(stderr,"deleting %s\n",local_file_list->files[i].name);

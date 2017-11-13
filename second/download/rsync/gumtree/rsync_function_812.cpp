@@ -1,55 +1,105 @@
-int recv_xattr_request(struct file_struct *file, int f_in)
+void rwrite(enum logcode code, char *buf, int len)
 {
-	item_list *lst = rsync_xal_l.items;
-	char *old_datum, *name;
-	rsync_xa *rxa;
-	int rel_pos, cnt, num, got_xattr_data = 0;
+	int trailing_CR_or_NL;
+	FILE *f = NULL;
 
-	if (F_XATTR(file) < 0) {
-		rprintf(FERROR, "recv_xattr_request: internal data error!\n");
-		exit_cleanup(RERR_STREAMIO);
-	}
-	lst += F_XATTR(file);
+	if (len < 0)
+		exit_cleanup(RERR_MESSAGEIO);
 
-	cnt = lst->count;
-	rxa = lst->items;
-	num = 0;
-	while ((rel_pos = read_varint(f_in)) != 0) {
-		num += rel_pos;
-		while (cnt && rxa->num < num) {
-		    rxa++;
-		    cnt--;
-		}
-		if (!cnt || rxa->num != num) {
-			rprintf(FERROR, "[%s] could not find xattr #%d for %s\n",
-				who_am_i(), num, f_name(file, NULL));
-			exit_cleanup(RERR_STREAMIO);
-		}
-		if (rxa->datum_len <= MAX_FULL_DATUM || rxa->datum[0] != XSTATE_ABBREV) {
-			rprintf(FERROR, "[%s] internal abbrev error!\n", who_am_i());
-			exit_cleanup(RERR_STREAMIO);
-		}
+	if (quiet && code == FINFO)
+		return;
 
-		if (am_sender) {
-			rxa->datum[0] = XSTATE_TODO;
-			continue;
-		}
-
-		old_datum = rxa->datum;
-		rxa->datum_len = read_varint(f_in);
-
-		if (rxa->name_len + rxa->datum_len < rxa->name_len)
-			out_of_memory("recv_xattr_request"); /* overflow */
-		rxa->datum = new_array(char, rxa->datum_len + rxa->name_len);
-		if (!rxa->datum)
-			out_of_memory("recv_xattr_request");
-		name = rxa->datum + rxa->datum_len;
-		memcpy(name, rxa->name, rxa->name_len);
-		rxa->name = name;
-		free(old_datum);
-		read_buf(f_in, rxa->datum, rxa->datum_len);
-		got_xattr_data = 1;
+	if (am_server && msg_fd_out >= 0) {
+		/* Pass the message to our sibling. */
+		send_msg((enum msgcode)code, buf, len);
+		return;
 	}
 
-	return got_xattr_data;
+	if (code == FSOCKERR) /* This gets simplified for a non-sibling. */
+		code = FERROR;
+
+	if (code == FCLIENT)
+		code = FINFO;
+	else if (am_daemon) {
+		static int in_block;
+		char msg[2048];
+		int priority = code == FERROR ? LOG_WARNING : LOG_INFO;
+
+		if (in_block)
+			return;
+		in_block = 1;
+		if (!log_initialised)
+			log_init();
+		strlcpy(msg, buf, MIN((int)sizeof msg, len + 1));
+		logit(priority, msg);
+		in_block = 0;
+
+		if (code == FLOG || !am_server)
+			return;
+	} else if (code == FLOG)
+		return;
+
+	if (am_server) {
+		/* Pass the message to the non-server side. */
+		if (io_multiplex_write((enum msgcode)code, buf, len))
+			return;
+		if (am_daemon) {
+			/* TODO: can we send the error to the user somehow? */
+			return;
+		}
+	}
+
+	switch (code) {
+	case FERROR:
+		log_got_error = 1;
+		f = stderr;
+		goto pre_scan;
+	case FINFO:
+		f = am_server ? stderr : stdout;
+	pre_scan:
+		while (len > 1 && *buf == '\n') {
+			fputc(*buf, f);
+			buf++;
+			len--;
+		}
+		break;
+	case FNAME:
+		f = am_server ? stderr : stdout;
+		break;
+	default:
+		exit_cleanup(RERR_MESSAGEIO);
+	}
+
+	trailing_CR_or_NL = len && (buf[len-1] == '\n' || buf[len-1] == '\r')
+			  ? buf[--len] : 0;
+
+#if defined HAVE_ICONV_OPEN && defined HAVE_ICONV_H
+	if (ic_chck != (iconv_t)-1) {
+		char convbuf[1024];
+		char *in_buf = buf, *out_buf = convbuf;
+		size_t in_cnt = len, out_cnt = sizeof convbuf - 1;
+
+		iconv(ic_chck, NULL, 0, NULL, 0);
+		while (iconv(ic_chck, &in_buf,&in_cnt,
+				 &out_buf,&out_cnt) == (size_t)-1) {
+			if (out_buf != convbuf) {
+				filtered_fwrite(f, convbuf, out_buf - convbuf, 0);
+				out_buf = convbuf;
+				out_cnt = sizeof convbuf - 1;
+			}
+			if (errno == E2BIG)
+				continue;
+			fprintf(f, "\\#%03o", *(uchar*)in_buf++);
+			in_cnt--;
+		}
+		if (out_buf != convbuf)
+			filtered_fwrite(f, convbuf, out_buf - convbuf, 0);
+	} else
+#endif
+		filtered_fwrite(f, buf, len, !allow_8bit_chars);
+
+	if (trailing_CR_or_NL) {
+		fputc(trailing_CR_or_NL, f);
+		fflush(f);
+	}
 }

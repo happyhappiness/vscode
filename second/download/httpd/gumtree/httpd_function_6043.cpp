@@ -1,68 +1,34 @@
-static apr_status_t slave_out(h2_task *task, ap_filter_t* f, 
-                              apr_bucket_brigade* bb)
+apr_status_t h2_request_rwrite(h2_request *req, request_rec *r)
 {
-    apr_bucket *b;
-    apr_status_t status = APR_SUCCESS;
-    int flush = 0, blocking;
+    apr_status_t status;
     
-    if (task->frozen) {
-        h2_util_bb_log(task->c, task->stream_id, APLOG_TRACE2,
-                       "frozen task output write, ignored", bb);
-        while (!APR_BRIGADE_EMPTY(bb)) {
-            b = APR_BRIGADE_FIRST(bb);
-            if (AP_BUCKET_IS_EOR(b)) {
-                APR_BUCKET_REMOVE(b);
-                task->eor = b;
-            }
-            else {
-                apr_bucket_delete(b);
-            }
-        }
-        return APR_SUCCESS;
-    }
+    req->config    = h2_config_rget(r);
+    req->method    = r->method;
+    req->scheme    = (r->parsed_uri.scheme? r->parsed_uri.scheme
+                      : ap_http_scheme(r));
+    req->authority = r->hostname;
+    req->path      = apr_uri_unparse(r->pool, &r->parsed_uri, 
+                                     APR_URI_UNP_OMITSITEPART);
 
-    /* we send block once we opened the output, so someone is there
-     * reading it *and* the task is not assigned to a h2_req_engine */
-    blocking = (!task->assigned && task->output.opened);
-    if (!task->output.opened) {
-        for (b = APR_BRIGADE_FIRST(bb);
-             b != APR_BRIGADE_SENTINEL(bb);
-             b = APR_BUCKET_NEXT(b)) {
-            if (APR_BUCKET_IS_FLUSH(b)) {
-                flush = 1;
-                break;
-            }
+    if (!ap_strchr_c(req->authority, ':') && r->server && r->server->port) {
+        apr_port_t defport = apr_uri_port_of_scheme(req->scheme);
+        if (defport != r->server->port) {
+            /* port info missing and port is not default for scheme: append */
+            req->authority = apr_psprintf(r->pool, "%s:%d", req->authority,
+                                          (int)r->server->port);
         }
     }
     
-    if (task->output.bb && !APR_BRIGADE_EMPTY(task->output.bb)) {
-        /* still have data buffered from previous attempt.
-         * setaside and append new data and try to pass the complete data */
-        if (!APR_BRIGADE_EMPTY(bb)) {
-            status = ap_save_brigade(f, &task->output.bb, &bb, task->pool);
-        }
-        if (status == APR_SUCCESS) {
-            status = send_out(task, task->output.bb, blocking);
-        } 
-    }
-    else {
-        /* no data buffered here, try to pass the brigade directly */
-        status = send_out(task, bb, blocking); 
-        if (status == APR_SUCCESS && !APR_BRIGADE_EMPTY(bb)) {
-            /* could not write all, buffer the rest */
-            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, task->c, APLOGNO(03405)
-                          "h2_slave_out(%s): saving brigade", 
-                          task->id);
-            status = ap_save_brigade(f, &task->output.bb, &bb, task->pool);
-            flush = 1;
-        }
-    }
-    
-    if (status == APR_SUCCESS && !task->output.opened && flush) {
-        /* got a flush or could not write all, time to tell someone to read */
-        status = open_output(task);
-    }
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, task->c, 
-                  "h2_slave_out(%s): slave_out leave", task->id);    
+    AP_DEBUG_ASSERT(req->scheme);
+    AP_DEBUG_ASSERT(req->authority);
+    AP_DEBUG_ASSERT(req->path);
+    AP_DEBUG_ASSERT(req->method);
+
+    status = add_all_h1_header(req, r->pool, r->headers_in);
+
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r,
+                  "h2_request(%d): rwrite %s host=%s://%s%s",
+                  req->id, req->method, req->scheme, req->authority, req->path);
+                  
     return status;
 }

@@ -1,46 +1,18 @@
-static void show_stats(struct apply_state *state, struct patch *patch)
+static void wt_status_print_dirty_header(struct wt_status *s,
+					 int has_deleted,
+					 int has_dirty_submodules)
 {
-	struct strbuf qname = STRBUF_INIT;
-	char *cp = patch->new_name ? patch->new_name : patch->old_name;
-	int max, add, del;
+	const char *c = color(WT_STATUS_HEADER, s);
 
-	quote_c_style(cp, &qname, NULL, 0);
-
-	/*
-	 * "scale" the filename
-	 */
-	max = state->max_len;
-	if (max > 50)
-		max = 50;
-
-	if (qname.len > max) {
-		cp = strchr(qname.buf + qname.len + 3 - max, '/');
-		if (!cp)
-			cp = qname.buf + qname.len + 3 - max;
-		strbuf_splice(&qname, 0, cp - qname.buf, "...", 3);
-	}
-
-	if (patch->is_binary) {
-		printf(" %-*s |  Bin\n", max, qname.buf);
-		strbuf_release(&qname);
+	status_printf_ln(s, c, _("Changes not staged for commit:"));
+	if (!s->hints)
 		return;
-	}
-
-	printf(" %-*s |", max, qname.buf);
-	strbuf_release(&qname);
-
-	/*
-	 * scale the add/delete
-	 */
-	max = max + state->max_change > 70 ? 70 - max : state->max_change;
-	add = patch->lines_added;
-	del = patch->lines_deleted;
-
-	if (state->max_change > 0) {
-		int total = ((add + del) * max + state->max_change / 2) / state->max_change;
-		add = (add * max + state->max_change / 2) / state->max_change;
-		del = total - add;
-	}
-	printf("%5d %.*s%.*s\n", patch->lines_added + patch->lines_deleted,
-		add, pluses, del, minuses);
+	if (!has_deleted)
+		status_printf_ln(s, c, _("  (use \"git add <file>...\" to update what will be committed)"));
+	else
+		status_printf_ln(s, c, _("  (use \"git add/rm <file>...\" to update what will be committed)"));
+	status_printf_ln(s, c, _("  (use \"git checkout -- <file>...\" to discard changes in working directory)"));
+	if (has_dirty_submodules)
+		status_printf_ln(s, c, _("  (commit or discard the untracked or modified content in submodules)"));
+	status_printf_ln(s, c, "");
 }

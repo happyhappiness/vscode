@@ -1,1 +1,1 @@
-die(_("Could not set '%s' to '%s'"), key, value);
+die(_("Error wrapping up %s."), head_file);

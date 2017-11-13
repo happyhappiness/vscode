@@ -1,2 +1,1 @@
-die_errno(_("cannot close written keep file '%s'"),
-					  keep_name);
+printf("previous %s ", oid_to_hex(&prev->commit->object.oid));

@@ -1,5 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02824)
-                         "%s: connection established with %pI (%s)",
-                         proxy_function,
-                         backend_addr,
-                         worker->s->hostname);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00493)
+                     AP_SIG_GRACEFUL_STRING
+                     " received.  Doing graceful restart");

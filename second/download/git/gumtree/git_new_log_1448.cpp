@@ -1,1 +1,2 @@
-die("BUG: run_command with a pipe can cause deadlock");
+error("external filter '%s' is not available anymore although "
+		      "not all paths have been filtered", cmd);

@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "auth_ldap authorize: require group: user's DN has "
-                          "not been defined; failing authorization for user %s",
-                          r->user);
+apr_file_printf(errfile, "Could not remove file %s: %s" APR_EOL_STR,
+                        remove, apr_strerror(status, errmsg, sizeof errmsg));

@@ -1,1 +1,0 @@
-die(_("cannot update HEAD ref"));

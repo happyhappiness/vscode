@@ -1,2 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                         "Parent: Unable to write duplicated socket %d to the child.", lr->sd );
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                         "Non-default virtual host with SSLVerify set to "
+                         "'require' and VirtualHost-specific CA certificate "
+                         "list is only available to clients with TLS server "
+                         "name indication (SNI) support");

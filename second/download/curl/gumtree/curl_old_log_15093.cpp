@@ -1,11 +1,11 @@
 fputs(
-"              must then instead enforce the correct -P, --ftp-port again.\n"
+"              name of the form-field to which portrait.jpg will be the input:\n"
 "\n"
-"              Passive mode means that curl will try the EPSV command first and\n"
-"              then PASV, unless --disable-epsv is used.\n"
-"              See also --disable-epsv. Added in 7.11.0.\n"
+"               curl -F profile=@portrait.jpg https://example.com/upload.cgi\n"
 "\n"
-"       -P, --ftp-port <address>\n"
-"              (FTP) Reverses the default initiator/listener  roles  when  con-\n"
-"              necting  with  FTP. This option makes curl use active mode. curl\n"
+"              To read content from stdin instead of a file, use - as the file-\n"
+"              name. This goes for both @ and <  constructs.  Unfortunately  it\n"
+"              does  not support reading the file from a named pipe or similar,\n"
+"              as it needs the full size before the transfer starts.\n"
+"\n"
 , stdout);

@@ -1,32 +1,23 @@
-static void restore_slotmem(void *ptr, const char *name, apr_size_t size,
-                            apr_pool_t *pool)
+static apr_status_t slotmem_fgrab(ap_slotmem_instance_t *slot, unsigned int id)
 {
-    const char *storename;
-    apr_file_t *fp;
-    apr_size_t nbytes = size;
-    apr_status_t rv;
-
-    storename = slotmem_filename(pool, name, 1);
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02335)
-                 "restoring %s", storename);
-
-    if (storename) {
-        rv = apr_file_open(&fp, storename, APR_READ | APR_WRITE, APR_OS_DEFAULT,
-                           pool);
-        if (rv == APR_SUCCESS) {
-            apr_finfo_t fi;
-            if (apr_file_info_get(&fi, APR_FINFO_SIZE, fp) == APR_SUCCESS) {
-                if (fi.size == nbytes) {
-                    apr_file_read(fp, ptr, &nbytes);
-                }
-                else {
-                    apr_file_close(fp);
-                    apr_file_remove(storename, pool);
-                    return;
-                }
-            }
-            apr_file_close(fp);
-        }
+    char *inuse;
+    
+    if (!slot) {
+        return APR_ENOSHMAVAIL;
     }
+
+    if (id >= slot->desc.num) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02236)
+                     "slotmem(%s) fgrab failed. Num %u/num_free %u",
+                     slot->name, slotmem_num_slots(slot),
+                     slotmem_num_free_slots(slot));
+        return APR_EINVAL;
+    }
+    inuse = slot->inuse + id;
+
+    if (!*inuse) {
+        *inuse = 1;
+        (*slot->num_free)--;
+    }
+    return APR_SUCCESS;
 }

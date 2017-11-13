@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01741)
-                "auth_ldap authorise: User DN not found with filter %s: %s", filtbuf, ldc->reason);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Query execution error looking up '%s:%s' "
+                      "in database", user, realm);

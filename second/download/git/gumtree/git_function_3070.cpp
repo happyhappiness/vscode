@@ -1,31 +1,23 @@
-static void check_good_are_ancestors_of_bad(const char *prefix, int no_checkout)
+void read_bisect_terms(const char **read_bad, const char **read_good)
 {
-	char *filename = git_pathdup("BISECT_ANCESTORS_OK");
-	struct stat st;
-	int fd;
+	struct strbuf str = STRBUF_INIT;
+	const char *filename = git_path("BISECT_TERMS");
+	FILE *fp = fopen(filename, "r");
 
-	if (!current_bad_oid)
-		die("a %s revision is needed", term_bad);
-
-	/* Check if file BISECT_ANCESTORS_OK exists. */
-	if (!stat(filename, &st) && S_ISREG(st.st_mode))
-		goto done;
-
-	/* Bisecting with no good rev is ok. */
-	if (good_revs.nr == 0)
-		goto done;
-
-	/* Check if all good revs are ancestor of the bad rev. */
-	if (check_ancestors(prefix))
-		check_merge_bases(no_checkout);
-
-	/* Create file BISECT_ANCESTORS_OK. */
-	fd = open(filename, O_CREAT | O_TRUNC | O_WRONLY, 0600);
-	if (fd < 0)
-		warning_errno("could not create file '%s'",
-			      filename);
-	else
-		close(fd);
- done:
-	free(filename);
+	if (!fp) {
+		if (errno == ENOENT) {
+			*read_bad = "bad";
+			*read_good = "good";
+			return;
+		} else {
+			die_errno("could not read file '%s'", filename);
+		}
+	} else {
+		strbuf_getline_lf(&str, fp);
+		*read_bad = strbuf_detach(&str, NULL);
+		strbuf_getline_lf(&str, fp);
+		*read_good = strbuf_detach(&str, NULL);
+	}
+	strbuf_release(&str);
+	fclose(fp);
 }

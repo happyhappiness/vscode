@@ -1,4 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, server,
-                     "%s: reusing backend connection %pI<>%pI",
-                     scheme, conn->connection->local_addr,
-                     conn->connection->client_addr);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03076)
+                  "h2_stream(%ld-%d): SERVER_PUSH %d for %s %s on %d",
+                  session->id, is->id, nid,
+                  push->req->method, push->req->path, is->id);

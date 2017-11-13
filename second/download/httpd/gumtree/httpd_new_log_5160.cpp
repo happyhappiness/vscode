@@ -1,4 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, parms->server, APLOGNO(02532)
-                             "%s: Protocol '%s' overrides already set parameter(s). "
-                             "Check if a +/- prefix is missing.",
-                             parms->cmd->name, w);
+ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00154) "sigaction(" AP_SIG_GRACEFUL_STRING ")");

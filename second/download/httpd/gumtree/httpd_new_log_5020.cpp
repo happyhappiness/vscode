@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02679)
-                          "ServerSupportFunction "
-                          "HSE_REQ_CLOSE_CONNECTION "
-                          "is not supported: %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00459)
+                     "sigaction(SIGTERM)");

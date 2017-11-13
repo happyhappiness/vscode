@@ -1,1 +1,1 @@
-die("BUG: %s ref_store '%s' initialized twice", type, name);
+die("BUG: error while iterating over references");

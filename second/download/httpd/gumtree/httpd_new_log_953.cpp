@@ -1,1 +1,1 @@
-fprintf(f, " /* ");
+apr_table_setn(r->headers_out, "Accept-Ranges", "bytes");

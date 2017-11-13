@@ -1,1 +1,1 @@
-die(_("--chmod param '%s' must be either -x or +x"), chmod_arg);
+die(_("unknown error occurred while reading the configuration files"));

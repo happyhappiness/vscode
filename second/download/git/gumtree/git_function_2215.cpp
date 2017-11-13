@@ -1,37 +1,51 @@
-static char *cram(const char *challenge_64, const char *user, const char *pass)
+const char *read_gitfile(const char *path)
 {
-	int i, resp_len, encoded_len, decoded_len;
-	unsigned char hash[16];
-	char hex[33];
-	char *response, *response_64, *challenge;
+	char *buf;
+	char *dir;
+	const char *slash;
+	struct stat st;
+	int fd;
+	ssize_t len;
 
-	/*
-	 * length of challenge_64 (i.e. base-64 encoded string) is a good
-	 * enough upper bound for challenge (decoded result).
-	 */
-	encoded_len = strlen(challenge_64);
-	challenge = xmalloc(encoded_len);
-	decoded_len = EVP_DecodeBlock((unsigned char *)challenge,
-				      (unsigned char *)challenge_64, encoded_len);
-	if (decoded_len < 0)
-		die("invalid challenge %s", challenge_64);
-	if (!HMAC(EVP_md5(), pass, strlen(pass), (unsigned char *)challenge, decoded_len, hash, NULL))
-		die("HMAC error");
+	if (stat(path, &st))
+		return NULL;
+	if (!S_ISREG(st.st_mode))
+		return NULL;
+	fd = open(path, O_RDONLY);
+	if (fd < 0)
+		die_errno("Error opening '%s'", path);
+	buf = xmalloc(st.st_size + 1);
+	len = read_in_full(fd, buf, st.st_size);
+	close(fd);
+	if (len != st.st_size)
+		die("Error reading %s", path);
+	buf[len] = '\0';
+	if (!starts_with(buf, "gitdir: "))
+		die("Invalid gitfile format: %s", path);
+	while (buf[len - 1] == '\n' || buf[len - 1] == '\r')
+		len--;
+	if (len < 9)
+		die("No path in gitfile: %s", path);
+	buf[len] = '\0';
+	dir = buf + 8;
 
-	hex[32] = 0;
-	for (i = 0; i < 16; i++) {
-		hex[2 * i] = hexchar((hash[i] >> 4) & 0xf);
-		hex[2 * i + 1] = hexchar(hash[i] & 0xf);
+	if (!is_absolute_path(dir) && (slash = strrchr(path, '/'))) {
+		size_t pathlen = slash+1 - path;
+		size_t dirlen = pathlen + len - 8;
+		dir = xmalloc(dirlen + 1);
+		strncpy(dir, path, pathlen);
+		strncpy(dir + pathlen, buf + 8, len - 8);
+		dir[dirlen] = '\0';
+		free(buf);
+		buf = dir;
 	}
 
-	/* response: "<user> <digest in hex>" */
-	response = xstrfmt("%s %s", user, hex);
-	resp_len = strlen(response);
+	if (!is_git_directory(dir))
+		die("Not a git repository: %s", dir);
 
-	response_64 = xmallocz(ENCODED_SIZE(resp_len));
-	encoded_len = EVP_EncodeBlock((unsigned char *)response_64,
-				      (unsigned char *)response, resp_len);
-	if (encoded_len < 0)
-		die("EVP_EncodeBlock error");
-	return (char *)response_64;
+	update_linked_gitdir(path, dir);
+	path = real_path(dir);
+
+	free(buf);
+	return path;
 }

@@ -1,71 +1,93 @@
-static int ap_listen_open(apr_pool_t *pool, apr_port_t port)
+static int ssl_hook_pre_connection(conn_rec *c, void *csd)
 {
-    ap_listen_rec *lr;
-    ap_listen_rec *next;
-    int num_open;
-    const char *userdata_key = "ap_listen_open";
-    void *data;
+    SSLSrvConfigRec *sc = mySrvConfig(c->base_server);
+    SSL *ssl;
+    SSLConnRec *sslconn = myConnConfig(c);
+    char *vhost_md5;
+    modssl_ctx_t *mctx;
 
-    /* Don't allocate a default listener.  If we need to listen to a
-     * port, then the user needs to have a Listen directive in their
-     * config file.
+    /*
+     * Immediately stop processing if SSL is disabled for this connection
      */
-    num_open = 0;
-    for (lr = ap_listeners; lr; lr = lr->next) {
-        if (lr->active) {
-            ++num_open;
-        }
-        else {
-            if (make_sock(pool, lr) == APR_SUCCESS) {
-                ++num_open;
-                lr->active = 1;
-            }
-            else {
-                /* fatal error */
-                return -1;
-            }
-        }
+    if (!(sc && (sc->enabled ||
+                 (sslconn && sslconn->is_proxy))))
+    {
+        return DECLINED;
     }
 
-    /* close the old listeners */
-    for (lr = old_listeners; lr; lr = next) {
-        apr_socket_close(lr->sd);
-        lr->active = 0;
-        next = lr->next;
-    }
-    old_listeners = NULL;
-
-#if AP_NONBLOCK_WHEN_MULTI_LISTEN
-    /* if multiple listening sockets, make them non-blocking so that
-     * if select()/poll() reports readability for a reset connection that
-     * is already forgotten about by the time we call accept, we won't
-     * be hung until another connection arrives on that port
+    /*
+     * Create SSL context
      */
-    if (ap_listeners && ap_listeners->next) {
-        for (lr = ap_listeners; lr; lr = lr->next) {
-            apr_status_t status;
-
-            status = apr_socket_opt_set(lr->sd, APR_SO_NONBLOCK, 1);
-            if (status != APR_SUCCESS) {
-                ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_ERR, status, pool,
-                              "ap_listen_open: unable to make socket non-blocking");
-                return -1;
-            }
-        }
+    if (!sslconn) {
+        sslconn = ssl_init_connection_ctx(c);
     }
-#endif /* AP_NONBLOCK_WHEN_MULTI_LISTEN */
 
-    /* we come through here on both passes of the open logs phase
-     * only register the cleanup once... otherwise we try to close
-     * listening sockets twice when cleaning up prior to exec
+    if (sslconn->disabled) {
+        return DECLINED;
+    }
+
+    /*
+     * Remember the connection information for
+     * later access inside callback functions
      */
-    apr_pool_userdata_get(&data, userdata_key, pool);
-    if (!data) {
-        apr_pool_userdata_set((const void *)1, userdata_key,
-                              apr_pool_cleanup_null, pool);
-        apr_pool_cleanup_register(pool, NULL, apr_pool_cleanup_null,
-                                  close_listeners_on_exec);
+
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, c->base_server,
+                 "Connection to child %ld established "
+                 "(server %s, client %s)", c->id, sc->vhost_id, 
+                 c->remote_ip ? c->remote_ip : "unknown");
+
+    /*
+     * Seed the Pseudo Random Number Generator (PRNG)
+     */
+    ssl_rand_seed(c->base_server, c->pool, SSL_RSCTX_CONNECT, "");
+
+    mctx = sslconn->is_proxy ? sc->proxy : sc->server;
+
+    /*
+     * Create a new SSL connection with the configured server SSL context and
+     * attach this to the socket. Additionally we register this attachment
+     * so we can detach later.
+     */
+    if (!(ssl = SSL_new(mctx->ssl_ctx))) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
+                     "Unable to create a new SSL connection from the SSL "
+                     "context");
+        ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, c->base_server);
+
+        c->aborted = 1;
+
+        return DECLINED; /* XXX */
     }
 
-    return num_open ? 0 : -1;
+    vhost_md5 = ap_md5_binary(c->pool, (unsigned char *)sc->vhost_id,
+                              sc->vhost_id_len);
+
+    if (!SSL_set_session_id_context(ssl, (unsigned char *)vhost_md5,
+                                    MD5_DIGESTSIZE*2))
+    {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
+                     "Unable to set session id context to `%s'", vhost_md5);
+        ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, c->base_server);
+
+        c->aborted = 1;
+
+        return DECLINED; /* XXX */
+    }
+
+    SSL_set_app_data(ssl, c);
+    SSL_set_app_data2(ssl, NULL); /* will be request_rec */
+
+    sslconn->ssl = ssl;
+
+    /*
+     *  Configure callbacks for SSL connection
+     */
+    SSL_set_tmp_rsa_callback(ssl, ssl_callback_TmpRSA);
+    SSL_set_tmp_dh_callback(ssl,  ssl_callback_TmpDH);
+
+    SSL_set_verify_result(ssl, X509_V_OK);
+
+    ssl_io_filter_init(c, ssl);
+
+    return APR_SUCCESS;
 }

@@ -1,9 +1,11 @@
 fputs(
-"              to a asterisk '*' only, it matches all hosts.\n"
+"              speed_upload   The average upload speed that curl  measured  for\n"
+"                             the complete upload. Bytes per second.\n"
 "\n"
-"              Since 7.53.0, this environment variable disable the  proxy  even\n"
-"              if  specify  -x,  --proxy  option. That is NO_PROXY=direct.exam-\n"
-"              ple.com  curl  -x  http://proxy.example.com  http://direct.exam-\n"
-"              ple.com     accesses    the    target    URL    directly,    and\n"
-"              NO_PROXY=direct.example.com  curl  -x   http://proxy.example.com\n"
+"              ssl_verify_result\n"
+"                             The  result of the SSL peer certificate verifica-\n"
+"                             tion that was requested. 0 means the verification\n"
+"                             was successful. (Added in 7.19.0)\n"
+"\n"
+"              time_appconnect\n"
 , stdout);

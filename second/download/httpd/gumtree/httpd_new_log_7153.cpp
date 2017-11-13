@@ -1,2 +1,4 @@
-ap_rvputs(r, ap_escape_html(r->pool, ap_get_server_name(r)),
-                  "</h1>\n\n", NULL);
+ap_rvputs(r, "<a href=\"", ap_escape_uri(r->pool, r->uri), "?b=",
+                      balancer->s->name + sizeof(BALANCER_PREFIX) - 1,
+                      "&nonce=", balancer->s->nonce,
+                      "\">", NULL);

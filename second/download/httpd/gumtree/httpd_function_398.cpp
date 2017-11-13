@@ -1,25 +1,32 @@
-static int remove_entity(cache_handle_t *h) 
+static void register_hooks(apr_pool_t *p)
 {
-    cache_object_t *obj = h->cache_obj;
-
-    /* Remove the cache object from the cache under protection */
-    if (sconf->lock) {
-        apr_thread_mutex_lock(sconf->lock);
-    }
-    /* If the object is not already marked for cleanup, remove
-     * it from the cache and mark it for cleanup. Remember,
-     * an object marked for cleanup is by design not in the
-     * hash table.
+    /* cache initializer */
+    /* cache handler */
+    ap_hook_quick_handler(cache_url_handler, NULL, NULL, APR_HOOK_FIRST);
+    /* cache filters 
+     * XXX The cache filters need to run right after the handlers and before
+     * any other filters. Consider creating AP_FTYPE_CACHE for this purpose.
+     * Make them AP_FTYPE_CONTENT for now.
+     * XXX ianhH:they should run AFTER all the other content filters.
      */
-    if (!obj->cleanup) {
-        cache_remove(sconf->cache_cache, obj);
-        obj->cleanup = 1;
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, "gcing a cache entry");
-    }
-
-    if (sconf->lock) {
-        apr_thread_mutex_unlock(sconf->lock);
-    }
-
-    return OK;
+    cache_in_filter_handle = 
+        ap_register_output_filter("CACHE_IN", 
+                                  cache_in_filter, 
+                                  NULL,
+                                  AP_FTYPE_CONTENT_SET-1);
+    /* CACHE_OUT must go into the filter chain before SUBREQ_CORE to
+     * handle subrequsts. Decrementing filter type by 1 ensures this 
+     * happens.
+     */
+    cache_out_filter_handle = 
+        ap_register_output_filter("CACHE_OUT", 
+                                  cache_out_filter, 
+                                  NULL,
+                                  AP_FTYPE_CONTENT_SET-1);
+    cache_conditional_filter_handle =
+        ap_register_output_filter("CACHE_CONDITIONAL", 
+                                  cache_conditional_filter, 
+                                  NULL,
+                                  AP_FTYPE_CONTENT_SET);
+    ap_hook_post_config(cache_post_config, NULL, NULL, APR_HOOK_REALLY_FIRST);
 }

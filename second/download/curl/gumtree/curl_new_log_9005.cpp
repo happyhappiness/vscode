@@ -1,12 +1,8 @@
 fputs(
-"              (HTTP) Ignore the Content-Length header.  This  is  particularly\n"
-"              useful  for servers running Apache 1.x, which will report incor-\n"
-"              rect Content-Length for files larger than 2 gigabytes.\n"
-"\n"
-"       -i, --include\n"
-"              (HTTP) Include the HTTP-header in the  output.  The  HTTP-header\n"
-"              includes  things  like  server-name, date of the document, HTTP-\n"
-"              version and more...\n"
-"\n"
-"       -I, --head\n"
+"              (HTTP)  Extra header to include in the request when sending HTTP\n"
+"              to a server. You may specify any number of extra  headers.  Note\n"
+"              that if you should add a custom header that has the same name as\n"
+"              one of the internal ones curl would  use,  your  externally  set\n"
+"              header will be used instead of the internal one. This allows you\n"
+"              to make even trickier stuff than curl  would  normally  do.  You\n"
 , stdout);

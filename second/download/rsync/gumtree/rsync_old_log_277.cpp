@@ -1,0 +1,1 @@
+fprintf(FERROR,"mkdir %s : %s\n",fname,strerror(errno));

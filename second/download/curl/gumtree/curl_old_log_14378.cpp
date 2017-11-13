@@ -1,11 +1,10 @@
 fputs(
-"              To use a Metalink file in the local file system, use FILE proto-\n"
-"              col (file://):\n"
+"       --mail-rcpt <address>\n"
+"              (SMTP) Specify a single address, user name or mailing list name.\n"
+"              Repeat this option several times to send to multiple recipients.\n"
+"              When performing a mail transfer, the recipient should specify  a\n"
+"              valid email address to send the mail to.\n"
 "\n"
-"               curl --metalink file://example.metalink\n"
-"\n"
-"              Please  note  that if FILE protocol is disabled, there is no way\n"
-"              to use a local Metalink file at the time of this  writing.  Also\n"
-"              note  that  if  --metalink  and -i, --include are used together,\n"
-"              --include will be ignored. This is because including headers  in\n"
+"              When  performing  an  address  verification  (VRFY command), the\n"
+"              recipient should be specified as the user name or user name  and\n"
 , stdout);

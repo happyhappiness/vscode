@@ -1,2 +1,1 @@
-error(_("Commit %s does not have parent %d"),
-				oid_to_hex(&commit->object.oid), opts->mainline);
+error(_("Unknown subcommand: %s"), argv[0]);

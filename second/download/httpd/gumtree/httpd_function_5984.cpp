@@ -1,42 +1,27 @@
-apr_status_t h2_mplx_process(h2_mplx *m, struct h2_stream *stream, 
-                             h2_stream_pri_cmp *cmp, void *ctx)
+static apr_status_t pass_out(apr_bucket_brigade *bb, void *ctx) 
 {
+    pass_out_ctx *pctx = ctx;
+    conn_rec *c = pctx->c;
     apr_status_t status;
-    int do_registration = 0;
-    int acquired;
+    apr_off_t bblen;
     
-    AP_DEBUG_ASSERT(m);
-    if ((status = enter_mutex(m, &acquired)) == APR_SUCCESS) {
-        if (m->aborted) {
-            status = APR_ECONNABORTED;
-        }
-        else {
-            h2_ihash_add(m->streams, stream);
-            if (stream->response) {
-                /* already have a respone, schedule for submit */
-                h2_ihash_add(m->sready, stream);
-            }
-            else {
-                h2_beam_create(&stream->input, stream->pool, stream->id, 
-                               "input", 0);
-                if (!m->need_registration) {
-                    m->need_registration = h2_iq_empty(m->q);
-                }
-                if (m->workers_busy < m->workers_max) {
-                    do_registration = m->need_registration;
-                }
-                h2_iq_add(m->q, stream->id, cmp, ctx);
-                
-                ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, m->c,
-                              "h2_mplx(%ld-%d): process, body=%d", 
-                              m->c->id, stream->id, stream->request->body);
-            }
-        }
-        leave_mutex(m, acquired);
+    if (APR_BRIGADE_EMPTY(bb)) {
+        return APR_SUCCESS;
     }
-    if (do_registration) {
-        m->need_registration = 0;
-        h2_workers_register(m->workers, m);
+    
+    ap_update_child_status_from_conn(c->sbh, SERVER_BUSY_WRITE, c);
+    apr_brigade_length(bb, 0, &bblen);
+    h2_conn_io_bb_log(c, 0, APLOG_TRACE2, "master conn pass", bb);
+    status = ap_pass_brigade(c->output_filters, bb);
+    if (status == APR_SUCCESS && pctx->io) {
+        pctx->io->bytes_written += (apr_size_t)bblen;
+        pctx->io->last_write = apr_time_now();
     }
+    if (status != APR_SUCCESS) {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c, APLOGNO(03044)
+                      "h2_conn_io(%ld): pass_out brigade %ld bytes",
+                      c->id, (long)bblen);
+    }
+    apr_brigade_cleanup(bb);
     return status;
 }

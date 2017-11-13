@@ -1,5 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_EMERG, rv, s,
-                         APLOGNO(02297)
-                         "Cannot access directory '%s' for log file '%s' "
-                         "defined at %s:%d", dir, cls->fname,
-                         directive->filename, directive->line_num);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
+                      "%s: Alert: %s:%s:%s",
+                      MODSSL_LIBRARY_NAME, str,
+                      SSL_alert_type_string_long(rc),
+                      SSL_alert_desc_string_long(rc));

@@ -1,11 +1,9 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              If  the nickname contains \":\", it needs to be preceded by \"\\\" so\n"
+"              that it is not recognized as password delimiter.  If  the  nick-\n"
+"              name  contains \"\\\", it needs to be escaped as \"\\\\\" so that it is\n"
+"              not recognized as an escape character.\n"
 "\n"
-"       --cacert <CA certificate>\n"
-"              (SSL) Tells curl to use the specified certificate file to verify\n"
-"              the  peer.  The  file  may contain multiple CA certificates. The\n"
-"              certificate(s) must be in PEM format. Normally curl is built  to\n"
-"              use a default file for this, so this option is typically used to\n"
-"              alter that default file.\n"
-"\n"
+"              (iOS and Mac OS X only) If curl is built against  Secure  Trans-\n"
+"              port,  then  the  certificate string can either be the name of a\n"
 , stdout);

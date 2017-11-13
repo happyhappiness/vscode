@@ -1,9 +1,9 @@
 fputs(
-"              (POP3) When retrieving a specific email from POP3,  this  switch\n"
-"              forces  a  LIST command to be performed instead of RETR. This is\n"
-"              particularly useful if the user wants to see if a specific  mes-\n"
-"              sage id exists on the server and what size it is.\n"
+"              before  sending keepalive probes and the time between individual\n"
+"              keepalive probes. It is currently effective on operating systems\n"
+"              offering  the  TCP_KEEPIDLE  and  TCP_KEEPINTVL  socket  options\n"
+"              (meaning Linux, recent AIX, HP-UX and more). This option has  no\n"
+"              effect if --no-keepalive is used. (Added in 7.18.0)\n"
 "\n"
-"              Note:  When  combined  with -X, --request <command>, this option\n"
-"              can be used to send an UIDL command instead, so the user may use\n"
+"              If this option is used several times, the last one will be used.\n"
 , stdout);

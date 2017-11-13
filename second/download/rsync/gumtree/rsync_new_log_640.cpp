@@ -1,1 +1,1 @@
-io_printf(f_out, "@ERROR: invalid gid %s\n", p);
+out_of_memory("writefd");

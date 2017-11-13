@@ -1,32 +1,23 @@
-static void update_refs_stdin(void)
+static void parse_cmd_delete(const char *next)
 {
-	struct strbuf input = STRBUF_INIT;
-	const char *next;
+	struct strbuf ref = STRBUF_INIT;
+	struct strbuf oldvalue = STRBUF_INIT;
+	struct ref_update *update;
 
-	if (strbuf_read(&input, 0, 1000) < 0)
-		die_errno("could not read from stdin");
-	next = input.buf;
-	/* Read each line dispatch its command */
-	while (next < input.buf + input.len) {
-		if (*next == line_termination)
-			die("empty command in input");
-		else if (isspace(*next))
-			die("whitespace before command: %s", next);
-		else if (starts_with(next, "update "))
-			next = parse_cmd_update(&input, next + 7);
-		else if (starts_with(next, "create "))
-			next = parse_cmd_create(&input, next + 7);
-		else if (starts_with(next, "delete "))
-			next = parse_cmd_delete(&input, next + 7);
-		else if (starts_with(next, "verify "))
-			next = parse_cmd_verify(&input, next + 7);
-		else if (starts_with(next, "option "))
-			next = parse_cmd_option(&input, next + 7);
-		else
-			die("unknown command: %s", next);
+	update = update_alloc();
 
-		next++;
-	}
+	if ((next = parse_first_arg(next, &ref)) != NULL && ref.buf[0])
+		update_store_ref_name(update, ref.buf);
+	else
+		die("delete line missing <ref>");
 
-	strbuf_release(&input);
+	if ((next = parse_next_arg(next, &oldvalue)) != NULL)
+		update_store_old_sha1(update, oldvalue.buf);
+	else if(!line_termination)
+		die("delete %s missing [<oldvalue>] NUL", ref.buf);
+	if (update->have_old && is_null_sha1(update->old_sha1))
+		die("delete %s given zero old value", ref.buf);
+
+	if (next && *next)
+		die("delete %s has extra input: %s", ref.buf, next);
 }

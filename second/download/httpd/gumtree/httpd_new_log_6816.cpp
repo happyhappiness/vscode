@@ -1,4 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, ppcb_arg->s,
-                             APLOGNO(01965)
-                             "Init: Creating pass phrase dialog pipe child "
-                             "'%s'", sc->server->pphrase_dialog_path);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, 
+                      H2_SSSN_LOG(APLOGNO(03066), session, 
+                      "recv FRAME[%s], frames=%ld/%ld (r/s)"),
+                      buffer, (long)session->frames_received,
+                     (long)session->frames_sent);

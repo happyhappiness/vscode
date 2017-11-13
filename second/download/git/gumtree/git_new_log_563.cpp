@@ -1,1 +1,1 @@
-die("unable to read blob object %s", oid_to_hex(oid));
+die(_("Server does not support --deepen"));

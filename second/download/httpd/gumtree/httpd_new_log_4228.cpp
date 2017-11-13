@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02219)
-                      "access to %s failed, reason: %s",
-                      r->filename, "SSL connection required");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01168)
+                              "%s: Unlock failed for pre_request",
+                              (*balancer)->s->name);

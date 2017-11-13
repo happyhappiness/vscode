@@ -1,63 +1,31 @@
-static int pump_io_round(struct io_pump *slots, int nr, struct pollfd *pfd)
+static int show_local_info_item(struct string_list_item *item, void *cb_data)
 {
-	int pollsize = 0;
+	struct show_info *show_info = cb_data;
+	struct branch_info *branch_info = item->util;
+	struct string_list *merge = &branch_info->merge;
+	const char *also;
 	int i;
 
-	for (i = 0; i < nr; i++) {
-		struct io_pump *io = &slots[i];
-		if (io->fd < 0)
-			continue;
-		pfd[pollsize].fd = io->fd;
-		pfd[pollsize].events = io->type;
-		io->pfd = &pfd[pollsize++];
-	}
-
-	if (!pollsize)
+	if (branch_info->rebase && branch_info->merge.nr > 1) {
+		error(_("invalid branch.%s.merge; cannot rebase onto > 1 branch"),
+			item->string);
 		return 0;
-
-	if (poll(pfd, pollsize, -1) < 0) {
-		if (errno == EINTR)
-			return 1;
-		die_errno("poll failed");
 	}
 
-	for (i = 0; i < nr; i++) {
-		struct io_pump *io = &slots[i];
-
-		if (io->fd < 0)
-			continue;
-
-		if (!(io->pfd->revents & (POLLOUT|POLLIN|POLLHUP|POLLERR|POLLNVAL)))
-			continue;
-
-		if (io->type == POLLOUT) {
-			ssize_t len = xwrite(io->fd,
-					     io->u.out.buf, io->u.out.len);
-			if (len < 0) {
-				io->error = errno;
-				close(io->fd);
-				io->fd = -1;
-			} else {
-				io->u.out.buf += len;
-				io->u.out.len -= len;
-				if (!io->u.out.len) {
-					close(io->fd);
-					io->fd = -1;
-				}
-			}
-		}
-
-		if (io->type == POLLIN) {
-			ssize_t len = strbuf_read_once(io->u.in.buf,
-						       io->fd, io->u.in.hint);
-			if (len < 0)
-				io->error = errno;
-			if (len <= 0) {
-				close(io->fd);
-				io->fd = -1;
-			}
-		}
+	printf("    %-*s ", show_info->width, item->string);
+	if (branch_info->rebase) {
+		printf_ln(_("rebases onto remote %s"), merge->items[0].string);
+		return 0;
+	} else if (show_info->any_rebase) {
+		printf_ln(_(" merges with remote %s"), merge->items[0].string);
+		also = _("    and with remote");
+	} else {
+		printf_ln(_("merges with remote %s"), merge->items[0].string);
+		also = _("   and with remote");
 	}
+	for (i = 1; i < merge->nr; i++)
+		printf("    %-*s %s %s\n", show_info->width, "", also,
+		       merge->items[i].string);
 
-	return 1;
+	return 0;
 }

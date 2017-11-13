@@ -1,1 +1,0 @@
-rprintf(FINFO, "sum=%.8x k=%d\n", sum, k);

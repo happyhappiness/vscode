@@ -1,9 +1,12 @@
-static int path_failure(int f_out, const char *dir, BOOL was_chdir)
+static void set_delayed_bit(int ndx)
 {
-	if (was_chdir)
-		rsyserr(FLOG, errno, "chdir %s failed\n", dir);
-	else
-		rprintf(FLOG, "normalize_path(%s) failed\n", dir);
-	io_printf(f_out, "@ERROR: chdir failed\n");
-	return -1;
+	int slot = ndx / PER_SLOT_BITS;
+	ndx %= PER_SLOT_BITS;
+
+	if (!delayed_bits[slot]) {
+		if (!(delayed_bits[slot] = (uint32*)calloc(PER_SLOT_INTS, 4)))
+			out_of_memory("set_delayed_bit");
+	}
+
+	delayed_bits[slot][ndx/32] |= 1u << (ndx % 32);
 }

@@ -1,1 +1,1 @@
-error("external filter %s failed", cmd);
+die(_("unrecognized input"));

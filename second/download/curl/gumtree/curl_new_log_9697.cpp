@@ -1,10 +1,11 @@
 fputs(
-"    with a curl angle.\n"
+"  Curl supports Metalink (both version 3 and 4 (RFC 5854) are supported), a way\n"
+"  to list multiple URIs and hashes for a file. Curl will make use of the mirrors\n"
+"  listed within for failover if there are errors (such as the file or server not\n"
+"  being available). It will also verify the hash of the file after the download\n"
+"  completes. The Metalink file itself is downloaded and processed in memory and\n"
+"  not stored in the local file system.\n"
 "\n"
-"  curl-and-python\n"
+"  Example to use a remote Metalink file:\n"
 "\n"
-"    Python hackers using curl with or without the python binding pycurl.\n"
-"\n"
-"  Please direct curl questions, feature requests and trouble reports to one of\n"
-"  these mailing lists instead of mailing any individual.\n"
 , stdout);

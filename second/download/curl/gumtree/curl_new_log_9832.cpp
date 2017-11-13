@@ -1,8 +1,11 @@
 fputs(
-"              can tell curl the nickname of the certificate to use within  the\n"
-"              NSS  database defined by the environment variable SSL_DIR (or by\n"
-"              default /etc/pki/nssdb). If the NSS  PEM  PKCS#11  module  (lib-\n"
-"              nsspem.so)  is  available  then  PEM files may be loaded. If you\n"
-"              want to use a file from the current directory, please precede it\n"
-"              with  \"./\"  prefix, in order to avoid confusion with a nickname.\n"
+"              only such one.  (Added in 7.33.0)\n"
+"\n"
+"       --dns-servers <ip-address,ip-address>\n"
+"              Set the list of DNS servers to be used  instead  of  the  system\n"
+"              default.  The list of IP addresses should be separated with com-\n"
+"              mas. Port numbers may also optionally be given as :<port-number>\n"
+"              after each IP address.\n"
+"\n"
+"              This  option  requires  that  libcurl  was built with a resolver\n"
 , stdout);

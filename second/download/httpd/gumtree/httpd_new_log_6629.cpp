@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02397)
-                     "slotmem(%s) fgrab failed. Num %u/num_free %u",
-                     slot->name, slotmem_num_slots(slot),
-                     slotmem_num_free_slots(slot));
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, session->c,
+                      "h2-stream(%ld-%d): on_header, reset stream",
+                      session->id, stream->id);

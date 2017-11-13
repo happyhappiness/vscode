@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00129)
-                          "Attempt to serve directory: %s", r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
+                          "Content-Length set to %s", size);

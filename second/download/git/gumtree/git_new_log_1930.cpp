@@ -1,1 +1,1 @@
-parse_push_recurse_submodules_arg(opt->long_name, arg);
+die_errno(_("failed to get kernel name and information"));

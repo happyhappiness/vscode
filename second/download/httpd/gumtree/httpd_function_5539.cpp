@@ -1,46 +1,75 @@
-apr_status_t h2_stream_write_data(h2_stream *stream,
-                                  const char *data, size_t len)
+static void post_rotate(apr_pool_t *pool, struct logfile *newlog,
+                        rotate_config_t *config, rotate_status_t *status)
 {
-    apr_status_t status = APR_SUCCESS;
-    
-    AP_DEBUG_ASSERT(stream);
-    if (input_closed(stream) || !stream->request->eoh || !stream->bbin) {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, stream->session->c,
-                      "h2_stream(%ld-%d): writing denied, closed=%d, eoh=%d, bbin=%d", 
-                      stream->session->id, stream->id, input_closed(stream),
-                      stream->request->eoh, !!stream->bbin);
-        return APR_EINVAL;
+    apr_status_t rv;
+    char error[120];
+    apr_procattr_t *pattr;
+    const char *argv[4];
+    apr_proc_t proc;
+
+    /* Handle link file, if configured. */
+    if (config->linkfile) {
+        apr_file_remove(config->linkfile, newlog->pool);
+        if (config->verbose) {
+            fprintf(stderr,"Linking %s to %s\n", newlog->name, config->linkfile);
+        }
+        rv = apr_file_link(newlog->name, config->linkfile);
+        if (rv != APR_SUCCESS) {
+            char error[120];
+            apr_strerror(rv, error, sizeof error);
+            fprintf(stderr, "Error linking file %s to %s (%s)\n",
+                    newlog->name, config->linkfile, error);
+            exit(2);
+        }
     }
 
-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, stream->session->c,
-                  "h2_stream(%ld-%d): add %ld input bytes", 
-                  stream->session->id, stream->id, (long)len);
+    if (!config->postrotate_prog) {
+        /* Nothing more to do. */
+        return;
+    }
 
-    H2_STREAM_IN(APLOG_TRACE2, stream, "write_data_pre");
-    if (stream->request->chunked) {
-        /* if input may have a body and we have not seen any
-         * content-length header, we need to chunk the input data.
-         */
-        status = input_add_data(stream, data, len, 1);
+    /* Collect any zombies from a previous run, but don't wait. */
+    while (apr_proc_wait_all_procs(&proc, NULL, NULL, APR_NOWAIT, pool) == APR_CHILD_DONE)
+        /* noop */;
+
+    if ((rv = apr_procattr_create(&pattr, pool)) != APR_SUCCESS) {
+        fprintf(stderr,
+                "post_rotate: apr_procattr_create failed for '%s': %s\n",
+                config->postrotate_prog,
+                apr_strerror(rv, error, sizeof(error)));
+        return;
+    }
+
+    rv = apr_procattr_error_check_set(pattr, 1);
+    if (rv == APR_SUCCESS)
+        rv = apr_procattr_cmdtype_set(pattr, APR_PROGRAM_ENV);
+
+    if (rv != APR_SUCCESS) {
+        fprintf(stderr,
+                "post_rotate: could not set up process attributes for '%s': %s\n",
+                config->postrotate_prog,
+                apr_strerror(rv, error, sizeof(error)));
+        return;
+    }
+
+    argv[0] = config->postrotate_prog;
+    argv[1] = newlog->name;
+    if (status->current.name) {
+        argv[2] = status->current.name;
+        argv[3] = NULL;
     }
     else {
-        stream->input_remaining -= len;
-        if (stream->input_remaining < 0) {
-            ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, stream->session->c,
-                          APLOGNO(02961) 
-                          "h2_stream(%ld-%d): got %ld more content bytes than announced "
-                          "in content-length header: %ld", 
-                          stream->session->id, stream->id,
-                          (long)stream->request->content_length, 
-                          -(long)stream->input_remaining);
-            h2_stream_rst(stream, H2_ERR_PROTOCOL_ERROR);
-            return APR_ECONNABORTED;
-        }
-        status = input_add_data(stream, data, len, 0);
+        argv[2] = NULL;
     }
-    if (status == APR_SUCCESS) {
-        status = h2_stream_input_flush(stream);
+
+    if (config->verbose)
+        fprintf(stderr, "Calling post-rotate program: %s\n", argv[0]);
+
+    rv = apr_proc_create(&proc, argv[0], argv, NULL, pattr, pool);
+    if (rv != APR_SUCCESS) {
+        fprintf(stderr, "Could not spawn post-rotate process '%s': %s\n",
+                config->postrotate_prog,
+                apr_strerror(rv, error, sizeof(error)));
+        return;
     }
-    H2_STREAM_IN(APLOG_TRACE2, stream, "write_data_post");
-    return status;
 }

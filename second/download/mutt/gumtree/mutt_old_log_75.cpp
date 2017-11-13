@@ -1,1 +1,1 @@
-fprintf (fp, "Subject: %s\n", env->subject);
+fprintf(stderr, "Command line usage: %s [flags] -- prefix [recipients]\n", argv[0]);

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server,
-                     "Couldn't create unix domain socket");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "PRIV_ON failed restoring default user/group");

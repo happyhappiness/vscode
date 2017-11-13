@@ -1,270 +1,329 @@
-static void output_results(int sig)
+static int read_request_line(request_rec *r, apr_bucket_brigade *bb)
 {
-    double timetaken;
+    enum {
+        rrl_none, rrl_badmethod, rrl_badwhitespace, rrl_excesswhitespace,
+        rrl_missinguri, rrl_baduri, rrl_badprotocol, rrl_trailingtext,
+        rrl_badmethod09, rrl_reject09
+    } deferred_error = rrl_none;
+    char *ll;
+    char *uri;
+    apr_size_t len;
+    int num_blank_lines = DEFAULT_LIMIT_BLANK_LINES;
+    core_server_config *conf = ap_get_core_module_config(r->server->module_config);
+    int strict = (conf->http_conformance != AP_HTTP_CONFORMANCE_UNSAFE);
 
-    if (sig) {
-        lasttime = apr_time_now();  /* record final time if interrupted */
-    }
-    timetaken = (double) (lasttime - start) / APR_USEC_PER_SEC;
+    /* Read past empty lines until we get a real request line,
+     * a read error, the connection closes (EOF), or we timeout.
+     *
+     * We skip empty lines because browsers have to tack a CRLF on to the end
+     * of POSTs to support old CERN webservers.  But note that we may not
+     * have flushed any previous response completely to the client yet.
+     * We delay the flush as long as possible so that we can improve
+     * performance for clients that are pipelining requests.  If a request
+     * is pipelined then we won't block during the (implicit) read() below.
+     * If the requests aren't pipelined, then the client is still waiting
+     * for the final buffer flush from us, and we will block in the implicit
+     * read().  B_SAFEREAD ensures that the BUFF layer flushes if it will
+     * have to block during a read.
+     */
 
-    printf("\n\n");
-    printf("Server Software:        %s\n", servername);
-    printf("Server Hostname:        %s\n", hostname);
-    printf("Server Port:            %hu\n", port);
-#ifdef USE_SSL
-    if (is_ssl && ssl_info) {
-        printf("SSL/TLS Protocol:       %s\n", ssl_info);
-    }
-#endif
-    printf("\n");
-    printf("Document Path:          %s\n", path);
-    printf("Document Length:        %" APR_SIZE_T_FMT " bytes\n", doclen);
-    printf("\n");
-    printf("Concurrency Level:      %d\n", concurrency);
-    printf("Time taken for tests:   %.3f seconds\n", timetaken);
-    printf("Complete requests:      %d\n", done);
-    printf("Failed requests:        %d\n", bad);
-    if (bad)
-        printf("   (Connect: %d, Receive: %d, Length: %d, Exceptions: %d)\n",
-            err_conn, err_recv, err_length, err_except);
-    printf("Write errors:           %d\n", epipe);
-    if (err_response)
-        printf("Non-2xx responses:      %d\n", err_response);
-    if (keepalive)
-        printf("Keep-Alive requests:    %d\n", doneka);
-    printf("Total transferred:      %" APR_INT64_T_FMT " bytes\n", totalread);
-    if (send_body)
-        printf("Total body sent:        %" APR_INT64_T_FMT "\n",
-               totalposted);
-    printf("HTML transferred:       %" APR_INT64_T_FMT " bytes\n", totalbread);
+    do {
+        apr_status_t rv;
 
-    /* avoid divide by zero */
-    if (timetaken && done) {
-        printf("Requests per second:    %.2f [#/sec] (mean)\n",
-               (double) done / timetaken);
-        printf("Time per request:       %.3f [ms] (mean)\n",
-               (double) concurrency * timetaken * 1000 / done);
-        printf("Time per request:       %.3f [ms] (mean, across all concurrent requests)\n",
-               (double) timetaken * 1000 / done);
-        printf("Transfer rate:          %.2f [Kbytes/sec] received\n",
-               (double) totalread / 1024 / timetaken);
-        if (send_body) {
-            printf("                        %.2f kb/s sent\n",
-               (double) totalposted / timetaken / 1024);
-            printf("                        %.2f kb/s total\n",
-               (double) (totalread + totalposted) / timetaken / 1024);
-        }
-    }
-
-    if (done > 0) {
-        /* work out connection times */
-        int i;
-        apr_time_t totalcon = 0, total = 0, totald = 0, totalwait = 0;
-        apr_time_t meancon, meantot, meand, meanwait;
-        apr_interval_time_t mincon = AB_MAX, mintot = AB_MAX, mind = AB_MAX,
-                            minwait = AB_MAX;
-        apr_interval_time_t maxcon = 0, maxtot = 0, maxd = 0, maxwait = 0;
-        apr_interval_time_t mediancon = 0, mediantot = 0, mediand = 0, medianwait = 0;
-        double sdtot = 0, sdcon = 0, sdd = 0, sdwait = 0;
-
-        for (i = 0; i < done; i++) {
-            struct data *s = &stats[i];
-            mincon = ap_min(mincon, s->ctime);
-            mintot = ap_min(mintot, s->time);
-            mind = ap_min(mind, s->time - s->ctime);
-            minwait = ap_min(minwait, s->waittime);
-
-            maxcon = ap_max(maxcon, s->ctime);
-            maxtot = ap_max(maxtot, s->time);
-            maxd = ap_max(maxd, s->time - s->ctime);
-            maxwait = ap_max(maxwait, s->waittime);
-
-            totalcon += s->ctime;
-            total += s->time;
-            totald += s->time - s->ctime;
-            totalwait += s->waittime;
-        }
-        meancon = totalcon / done;
-        meantot = total / done;
-        meand = totald / done;
-        meanwait = totalwait / done;
-
-        /* calculating the sample variance: the sum of the squared deviations, divided by n-1 */
-        for (i = 0; i < done; i++) {
-            struct data *s = &stats[i];
-            double a;
-            a = ((double)s->time - meantot);
-            sdtot += a * a;
-            a = ((double)s->ctime - meancon);
-            sdcon += a * a;
-            a = ((double)s->time - (double)s->ctime - meand);
-            sdd += a * a;
-            a = ((double)s->waittime - meanwait);
-            sdwait += a * a;
-        }
-
-        sdtot = (done > 1) ? sqrt(sdtot / (done - 1)) : 0;
-        sdcon = (done > 1) ? sqrt(sdcon / (done - 1)) : 0;
-        sdd = (done > 1) ? sqrt(sdd / (done - 1)) : 0;
-        sdwait = (done > 1) ? sqrt(sdwait / (done - 1)) : 0;
-
-        /*
-         * XXX: what is better; this hideous cast of the compradre function; or
-         * the four warnings during compile ? dirkx just does not know and
-         * hates both/
+        /* ensure ap_rgetline allocates memory each time thru the loop
+         * if there are empty lines
          */
-        qsort(stats, done, sizeof(struct data),
-              (int (*) (const void *, const void *)) compradre);
-        if ((done > 1) && (done % 2))
-            mediancon = (stats[done / 2].ctime + stats[done / 2 + 1].ctime) / 2;
-        else
-            mediancon = stats[done / 2].ctime;
+        r->the_request = NULL;
+        rv = ap_rgetline(&(r->the_request), (apr_size_t)(r->server->limit_req_line + 2),
+                         &len, r, strict ? AP_GETLINE_CRLF : 0, bb);
 
-        qsort(stats, done, sizeof(struct data),
-              (int (*) (const void *, const void *)) compri);
-        if ((done > 1) && (done % 2))
-            mediand = (stats[done / 2].time + stats[done / 2 + 1].time \
-            -stats[done / 2].ctime - stats[done / 2 + 1].ctime) / 2;
-        else
-            mediand = stats[done / 2].time - stats[done / 2].ctime;
+        if (rv != APR_SUCCESS) {
+            r->request_time = apr_time_now();
 
-        qsort(stats, done, sizeof(struct data),
-              (int (*) (const void *, const void *)) compwait);
-        if ((done > 1) && (done % 2))
-            medianwait = (stats[done / 2].waittime + stats[done / 2 + 1].waittime) / 2;
-        else
-            medianwait = stats[done / 2].waittime;
+            /* ap_rgetline returns APR_ENOSPC if it fills up the
+             * buffer before finding the end-of-line.  This is only going to
+             * happen if it exceeds the configured limit for a request-line.
+             */
+            if (APR_STATUS_IS_ENOSPC(rv)) {
+                r->status = HTTP_REQUEST_URI_TOO_LARGE;
+            }
+            else if (APR_STATUS_IS_TIMEUP(rv)) {
+                r->status = HTTP_REQUEST_TIME_OUT;
+            }
+            else if (APR_STATUS_IS_EINVAL(rv)) {
+                r->status = HTTP_BAD_REQUEST;
+            }
+            r->proto_num = HTTP_VERSION(1,0);
+            r->protocol  = apr_pstrdup(r->pool, "HTTP/1.0");
+            return 0;
+        }
+    } while ((len <= 0) && (--num_blank_lines >= 0));
 
-        qsort(stats, done, sizeof(struct data),
-              (int (*) (const void *, const void *)) comprando);
-        if ((done > 1) && (done % 2))
-            mediantot = (stats[done / 2].time + stats[done / 2 + 1].time) / 2;
-        else
-            mediantot = stats[done / 2].time;
+    if (APLOGrtrace5(r)) {
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r,
+                      "Request received from client: %s",
+                      ap_escape_logitem(r->pool, r->the_request));
+    }
 
-        printf("\nConnection Times (ms)\n");
-        /*
-         * Reduce stats from apr time to milliseconds
+    r->request_time = apr_time_now();
+
+    r->method = r->the_request;
+
+    /* If there is whitespace before a method, skip it and mark in error */
+    if (apr_isspace(*r->method)) {
+        deferred_error = rrl_badwhitespace; 
+        for ( ; apr_isspace(*r->method); ++r->method)
+            ; 
+    }
+
+    /* Scan the method up to the next whitespace, ensure it contains only
+     * valid http-token characters, otherwise mark in error
+     */
+    if (strict) {
+        ll = (char*) ap_scan_http_token(r->method);
+    }
+    else {
+        ll = (char*) ap_scan_vchar_obstext(r->method);
+    }
+
+    if (((ll == r->method) || (*ll && !apr_isspace(*ll)))
+            && deferred_error == rrl_none) {
+        deferred_error = rrl_badmethod;
+        ll = strpbrk(ll, "\t\n\v\f\r ");
+    }
+
+    /* Verify method terminated with a single SP, or mark as specific error */
+    if (!ll) {
+        if (deferred_error == rrl_none)
+            deferred_error = rrl_missinguri;
+        r->protocol = uri = "";
+        len = 0;
+        goto rrl_done;
+    }
+    else if (strict && ll[0] && apr_isspace(ll[1])
+             && deferred_error == rrl_none) {
+        deferred_error = rrl_excesswhitespace; 
+    }
+
+    /* Advance uri pointer over leading whitespace, NUL terminate the method
+     * If non-SP whitespace is encountered, mark as specific error
+     */
+    for (uri = ll; apr_isspace(*uri); ++uri) 
+        if (*uri != ' ' && deferred_error == rrl_none)
+            deferred_error = rrl_badwhitespace; 
+    *ll = '\0';
+
+    if (!*uri && deferred_error == rrl_none)
+        deferred_error = rrl_missinguri;
+
+    /* Scan the URI up to the next whitespace, ensure it contains no raw
+     * control characters, otherwise mark in error
+     */
+    ll = (char*) ap_scan_vchar_obstext(uri);
+    if (ll == uri || (*ll && !apr_isspace(*ll))) {
+        deferred_error = rrl_baduri;
+        ll = strpbrk(ll, "\t\n\v\f\r ");
+    }
+
+    /* Verify URI terminated with a single SP, or mark as specific error */
+    if (!ll) {
+        r->protocol = "";
+        len = 0;
+        goto rrl_done;
+    }
+    else if (strict && ll[0] && apr_isspace(ll[1])
+             && deferred_error == rrl_none) {
+        deferred_error = rrl_excesswhitespace; 
+    }
+
+    /* Advance protocol pointer over leading whitespace, NUL terminate the uri
+     * If non-SP whitespace is encountered, mark as specific error
+     */
+    for (r->protocol = ll; apr_isspace(*r->protocol); ++r->protocol) 
+        if (*r->protocol != ' ' && deferred_error == rrl_none)
+            deferred_error = rrl_badwhitespace; 
+    *ll = '\0';
+
+    /* Scan the protocol up to the next whitespace, validation comes later */
+    if (!(ll = (char*) ap_scan_vchar_obstext(r->protocol))) {
+        len = strlen(r->protocol);
+        goto rrl_done;
+    }
+    len = ll - r->protocol;
+
+    /* Advance over trailing whitespace, if found mark in error,
+     * determine if trailing text is found, unconditionally mark in error,
+     * finally NUL terminate the protocol string
+     */
+    if (*ll && !apr_isspace(*ll)) {
+        deferred_error = rrl_badprotocol;
+    }
+    else if (strict && *ll) {
+        deferred_error = rrl_excesswhitespace;
+    }
+    else {
+        for ( ; apr_isspace(*ll); ++ll)
+            if (*ll != ' ' && deferred_error == rrl_none)
+                deferred_error = rrl_badwhitespace; 
+        if (*ll && deferred_error == rrl_none)
+            deferred_error = rrl_trailingtext;
+    }
+    *((char *)r->protocol + len) = '\0';
+
+rrl_done:
+    /* For internal integrety and palloc efficiency, reconstruct the_request
+     * in one palloc, using only single SP characters, per spec.
+     */
+    r->the_request = apr_pstrcat(r->pool, r->method, *uri ? " " : NULL, uri,
+                                 *r->protocol ? " " : NULL, r->protocol, NULL);
+
+    if (len == 8
+            && r->protocol[0] == 'H' && r->protocol[1] == 'T'
+            && r->protocol[2] == 'T' && r->protocol[3] == 'P'
+            && r->protocol[4] == '/' && apr_isdigit(r->protocol[5])
+            && r->protocol[6] == '.' && apr_isdigit(r->protocol[7])
+            && r->protocol[5] != '0') {
+        r->assbackwards = 0;
+        r->proto_num = HTTP_VERSION(r->protocol[5] - '0', r->protocol[7] - '0');
+    }
+    else if (len == 8
+                 && (r->protocol[0] == 'H' || r->protocol[0] == 'h')
+                 && (r->protocol[1] == 'T' || r->protocol[1] == 't')
+                 && (r->protocol[2] == 'T' || r->protocol[2] == 't')
+                 && (r->protocol[3] == 'P' || r->protocol[3] == 'p')
+                 && r->protocol[4] == '/' && apr_isdigit(r->protocol[5])
+                 && r->protocol[6] == '.' && apr_isdigit(r->protocol[7])
+                 && r->protocol[5] != '0') {
+        r->assbackwards = 0;
+        r->proto_num = HTTP_VERSION(r->protocol[5] - '0', r->protocol[7] - '0');
+        if (strict && deferred_error == rrl_none)
+            deferred_error = rrl_badprotocol;
+        else
+            memcpy((char*)r->protocol, "HTTP", 4);
+    }
+    else if (r->protocol[0]) {
+        r->proto_num = HTTP_VERSION(0, 9);
+        /* Defer setting the r->protocol string till error msg is composed */
+        if (deferred_error == rrl_none)
+            deferred_error = rrl_badprotocol;
+    }
+    else {
+        r->assbackwards = 1;
+        r->protocol  = apr_pstrdup(r->pool, "HTTP/0.9");
+        r->proto_num = HTTP_VERSION(0, 9);
+    }
+
+    /* Determine the method_number and parse the uri prior to invoking error
+     * handling, such that these fields are available for subsitution
+     */
+    r->method_number = ap_method_number_of(r->method);
+    if (r->method_number == M_GET && r->method[0] == 'H')
+        r->header_only = 1;
+
+    ap_parse_uri(r, uri);
+
+    /* With the request understood, we can consider HTTP/0.9 specific errors */
+    if (r->proto_num == HTTP_VERSION(0, 9) && deferred_error == rrl_none) {
+        if (conf->http09_enable == AP_HTTP09_DISABLE)
+            deferred_error = rrl_reject09;
+        else if (strict && (r->method_number != M_GET || r->header_only))
+            deferred_error = rrl_badmethod09;
+    }
+
+    /* Now that the method, uri and protocol are all processed,
+     * we can safely resume any deferred error reporting
+     */
+    if (deferred_error != rrl_none) {
+        if (deferred_error == rrl_badmethod)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03445)
+                          "HTTP Request Line; Invalid method token: '%.*s'",
+                          field_name_len(r->method), r->method);
+        else if (deferred_error == rrl_badmethod09)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03444)
+                          "HTTP Request Line; Invalid method token: '%.*s'"
+                          " (only GET is allowed for HTTP/0.9 requests)",
+                          field_name_len(r->method), r->method);
+        else if (deferred_error == rrl_missinguri)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03446)
+                          "HTTP Request Line; Missing URI");
+        else if (deferred_error == rrl_baduri)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03454)
+                          "HTTP Request Line; URI incorrectly encoded: '%.*s'",
+                          field_name_len(r->uri), r->uri);
+        else if (deferred_error == rrl_badwhitespace)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03447)
+                          "HTTP Request Line; Invalid whitespace");
+        else if (deferred_error == rrl_excesswhitespace)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03448)
+                          "HTTP Request Line; Excess whitespace "
+                          "(disallowed by HttpProtocolOptions Strict");
+        else if (deferred_error == rrl_trailingtext)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03449)
+                          "HTTP Request Line; Extraneous text found '%.*s' "
+                          "(perhaps whitespace was injected?)",
+                          field_name_len(ll), ll);
+        else if (deferred_error == rrl_reject09)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02401)
+                          "HTTP Request Line; Rejected HTTP/0.9 request");
+        else if (deferred_error == rrl_badprotocol)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02418)
+                          "HTTP Request Line; Unrecognized protocol '%.*s' "
+                          "(perhaps whitespace was injected?)",
+                          field_name_len(r->protocol), r->protocol);
+        r->status = HTTP_BAD_REQUEST;
+        goto rrl_failed;
+    }
+
+    if (conf->http_methods == AP_HTTP_METHODS_REGISTERED
+            && r->method_number == M_INVALID) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02423)
+                      "HTTP Request Line; Unrecognized HTTP method: '%.*s' "
+                      "(disallowed by RegisteredMethods)",
+                      field_name_len(r->method), r->method);
+        r->status = HTTP_NOT_IMPLEMENTED;
+        /* This can't happen in an HTTP/0.9 request, we verified GET above */
+        return 0;
+    }
+
+    if (r->status != HTTP_OK) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03450)
+                      "HTTP Request Line; Unable to parse URI: '%.*s'",
+                      field_name_len(r->uri), r->uri);
+        goto rrl_failed;
+    }
+
+    if (strict) {
+        if (r->parsed_uri.fragment) {
+            /* RFC3986 3.5: no fragment */
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02421)
+                          "HTTP Request Line; URI must not contain a fragment");
+            r->status = HTTP_BAD_REQUEST;
+            goto rrl_failed;
+        }
+        if (r->parsed_uri.user || r->parsed_uri.password) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02422)
+                          "HTTP Request Line; URI must not contain a "
+                          "username/password");
+            r->status = HTTP_BAD_REQUEST;
+            goto rrl_failed;
+        }
+    }
+
+    return 1;
+
+rrl_failed:
+    if (r->proto_num == HTTP_VERSION(0, 9)) {
+        /* Send all parsing and protocol error response with 1.x behavior,
+         * and reserve 505 errors for actual HTTP protocols presented.
+         * As called out in RFC7230 3.5, any errors parsing the protocol
+         * from the request line are nearly always misencoded HTTP/1.x
+         * requests. Only a valid 0.9 request with no parsing errors
+         * at all may be treated as a simple request, if allowed.
          */
-        mincon     = ap_round_ms(mincon);
-        mind       = ap_round_ms(mind);
-        minwait    = ap_round_ms(minwait);
-        mintot     = ap_round_ms(mintot);
-        meancon    = ap_round_ms(meancon);
-        meand      = ap_round_ms(meand);
-        meanwait   = ap_round_ms(meanwait);
-        meantot    = ap_round_ms(meantot);
-        mediancon  = ap_round_ms(mediancon);
-        mediand    = ap_round_ms(mediand);
-        medianwait = ap_round_ms(medianwait);
-        mediantot  = ap_round_ms(mediantot);
-        maxcon     = ap_round_ms(maxcon);
-        maxd       = ap_round_ms(maxd);
-        maxwait    = ap_round_ms(maxwait);
-        maxtot     = ap_round_ms(maxtot);
-        sdcon      = ap_double_ms(sdcon);
-        sdd        = ap_double_ms(sdd);
-        sdwait     = ap_double_ms(sdwait);
-        sdtot      = ap_double_ms(sdtot);
-
-        if (confidence) {
-#define CONF_FMT_STRING "%5" APR_TIME_T_FMT " %4" APR_TIME_T_FMT " %5.1f %6" APR_TIME_T_FMT " %7" APR_TIME_T_FMT "\n"
-            printf("              min  mean[+/-sd] median   max\n");
-            printf("Connect:    " CONF_FMT_STRING,
-                   mincon, meancon, sdcon, mediancon, maxcon);
-            printf("Processing: " CONF_FMT_STRING,
-                   mind, meand, sdd, mediand, maxd);
-            printf("Waiting:    " CONF_FMT_STRING,
-                   minwait, meanwait, sdwait, medianwait, maxwait);
-            printf("Total:      " CONF_FMT_STRING,
-                   mintot, meantot, sdtot, mediantot, maxtot);
-#undef CONF_FMT_STRING
-
-#define     SANE(what,mean,median,sd) \
-              { \
-                double d = (double)mean - median; \
-                if (d < 0) d = -d; \
-                if (d > 2 * sd ) \
-                    printf("ERROR: The median and mean for " what " are more than twice the standard\n" \
-                           "       deviation apart. These results are NOT reliable.\n"); \
-                else if (d > sd ) \
-                    printf("WARNING: The median and mean for " what " are not within a normal deviation\n" \
-                           "        These results are probably not that reliable.\n"); \
-            }
-            SANE("the initial connection time", meancon, mediancon, sdcon);
-            SANE("the processing time", meand, mediand, sdd);
-            SANE("the waiting time", meanwait, medianwait, sdwait);
-            SANE("the total time", meantot, mediantot, sdtot);
-        }
-        else {
-            printf("              min   avg   max\n");
-#define CONF_FMT_STRING "%5" APR_TIME_T_FMT " %5" APR_TIME_T_FMT "%5" APR_TIME_T_FMT "\n"
-            printf("Connect:    " CONF_FMT_STRING, mincon, meancon, maxcon);
-            printf("Processing: " CONF_FMT_STRING, mintot - mincon,
-                                                   meantot - meancon,
-                                                   maxtot - maxcon);
-            printf("Total:      " CONF_FMT_STRING, mintot, meantot, maxtot);
-#undef CONF_FMT_STRING
-        }
-
-
-        /* Sorted on total connect times */
-        if (percentile && (done > 1)) {
-            printf("\nPercentage of the requests served within a certain time (ms)\n");
-            for (i = 0; i < sizeof(percs) / sizeof(int); i++) {
-                if (percs[i] <= 0)
-                    printf(" 0%%  <0> (never)\n");
-                else if (percs[i] >= 100)
-                    printf(" 100%%  %5" APR_TIME_T_FMT " (longest request)\n",
-                           ap_round_ms(stats[done - 1].time));
-                else
-                    printf("  %d%%  %5" APR_TIME_T_FMT "\n", percs[i],
-                           ap_round_ms(stats[(int) (done * percs[i] / 100)].time));
-            }
-        }
-        if (csvperc) {
-            FILE *out = fopen(csvperc, "w");
-            if (!out) {
-                perror("Cannot open CSV output file");
-                exit(1);
-            }
-            fprintf(out, "" "Percentage served" "," "Time in ms" "\n");
-            for (i = 0; i < 100; i++) {
-                double t;
-                if (i == 0)
-                    t = ap_double_ms(stats[0].time);
-                else if (i == 100)
-                    t = ap_double_ms(stats[done - 1].time);
-                else
-                    t = ap_double_ms(stats[(int) (0.5 + done * i / 100.0)].time);
-                fprintf(out, "%d,%.3f\n", i, t);
-            }
-            fclose(out);
-        }
-        if (gnuplot) {
-            FILE *out = fopen(gnuplot, "w");
-            char tmstring[APR_CTIME_LEN];
-            if (!out) {
-                perror("Cannot open gnuplot output file");
-                exit(1);
-            }
-            fprintf(out, "starttime\tseconds\tctime\tdtime\tttime\twait\n");
-            for (i = 0; i < done; i++) {
-                (void) apr_ctime(tmstring, stats[i].starttime);
-                fprintf(out, "%s\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT
-                               "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT
-                               "\t%" APR_TIME_T_FMT "\n", tmstring,
-                        apr_time_sec(stats[i].starttime),
-                        ap_round_ms(stats[i].ctime),
-                        ap_round_ms(stats[i].time - stats[i].ctime),
-                        ap_round_ms(stats[i].time),
-                        ap_round_ms(stats[i].waittime));
-            }
-            fclose(out);
-        }
+        r->assbackwards = 0;
+        r->connection->keepalive = AP_CONN_CLOSE;
+        r->proto_num = HTTP_VERSION(1, 0);
+        r->protocol  = apr_pstrdup(r->pool, "HTTP/1.0");
     }
-
-    if (sig) {
-        exit(1);
-    }
+    return 0;
 }

@@ -1,11 +1,10 @@
 fputs(
-"              fer  ends  up  being larger than this given limit. This concerns\n"
-"              both FTP and HTTP transfers.\n"
+"              Set a preferred number or range of local port numbers to use for\n"
+"              the connection(s).  Note that  port  numbers  by  nature  are  a\n"
+"              scarce resource that will be busy at times so setting this range\n"
+"              to something too narrow might cause unnecessary connection setup\n"
+"              failures. (Added in 7.15.2)\n"
 "\n"
-"       --mail-rcpt <address>\n"
-"              (SMTP) Specify a single address, user name or mailing list name.\n"
-"              When performing a mail transfer, the recipient should specify  a\n"
-"              valid email address to send the mail to. (Added in 7.20.0)\n"
-"\n"
-"              When  performing  an  address  verification  (VRFY command), the\n"
+"       --location-trusted\n"
+"              (HTTP/HTTPS)  Like  -L,  --location,  but will allow sending the\n"
 , stdout);

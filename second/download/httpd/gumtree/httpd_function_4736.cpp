@@ -1,49 +1,138 @@
-void get_listeners_from_parent(server_rec *s)
+int ssl_hook_ReadReq(request_rec *r)
 {
-    WSAPROTOCOL_INFO WSAProtocolInfo;
-    ap_listen_rec *lr;
-    DWORD BytesRead;
-    int lcnt = 0;
-    SOCKET nsd;
-
-    /* Set up a default listener if necessary */
-    if (ap_listeners == NULL) {
-        ap_listen_rec *lr;
-        lr = apr_palloc(s->process->pool, sizeof(ap_listen_rec));
-        lr->sd = NULL;
-        lr->next = ap_listeners;
-        ap_listeners = lr;
+    SSLSrvConfigRec *sc = mySrvConfig(r->server);
+    SSLConnRec *sslconn;
+    const char *upgrade;
+#ifndef OPENSSL_NO_TLSEXT
+    const char *servername;
+#endif
+    SSL *ssl;
+    
+    /* Perform TLS upgrade here if "SSLEngine optional" is configured,
+     * SSL is not already set up for this connection, and the client
+     * has sent a suitable Upgrade header. */
+    if (sc->enabled == SSL_ENABLED_OPTIONAL && !myConnConfig(r->connection)
+        && (upgrade = apr_table_get(r->headers_in, "Upgrade")) != NULL
+        && ap_find_token(r->pool, upgrade, "TLS/1.0")) {
+        if (upgrade_connection(r)) {
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
     }
 
-    /* Open the pipe to the parent process to receive the inherited socket
-     * data. The sockets have been set to listening in the parent process.
-     *
-     * *** We now do this was back in winnt_rewrite_args
-     * pipe = GetStdHandle(STD_INPUT_HANDLE);
+    sslconn = myConnConfig(r->connection);
+    if (!sslconn) {
+        return DECLINED;
+    }
+
+    if (sslconn->non_ssl_request) {
+        const char *errmsg;
+        char *thisurl;
+        char *thisport = "";
+        int port = ap_get_server_port(r);
+
+        if (!ap_is_default_port(port, r)) {
+            thisport = apr_psprintf(r->pool, ":%u", port);
+        }
+
+        thisurl = ap_escape_html(r->pool,
+                                 apr_psprintf(r->pool, "https://%s%s/",
+                                              ap_get_server_name_for_url(r),
+                                              thisport));
+
+        errmsg = apr_psprintf(r->pool,
+                              "Reason: You're speaking plain HTTP "
+                              "to an SSL-enabled server port.<br />\n"
+                              "Instead use the HTTPS scheme to access "
+                              "this URL, please.<br />\n"
+                              "<blockquote>Hint: "
+                              "<a href=\"%s\"><b>%s</b></a></blockquote>",
+                              thisurl, thisurl);
+
+        apr_table_setn(r->notes, "error-notes", errmsg);
+
+        /* Now that we have caught this error, forget it. we are done
+         * with using SSL on this request.
+         */
+        sslconn->non_ssl_request = 0;
+
+
+        return HTTP_BAD_REQUEST;
+    }
+
+    /*
+     * Get the SSL connection structure and perform the
+     * delayed interlinking from SSL back to request_rec
      */
-    for (lr = ap_listeners; lr; lr = lr->next, ++lcnt) {
-        if (!ReadFile(pipe, &WSAProtocolInfo, sizeof(WSAPROTOCOL_INFO),
-                      &BytesRead, (LPOVERLAPPED) NULL)) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                         "setup_inherited_listeners: Unable to read socket data from parent");
-            exit(APEXIT_CHILDINIT);
-        }
+    ssl = sslconn->ssl;
+    if (!ssl) {
+        return DECLINED;
+    }
+#ifndef OPENSSL_NO_TLSEXT
+    if ((servername = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name))) {
+        char *host, *scope_id;
+        apr_port_t port;
+        apr_status_t rv;
 
-        nsd = WSASocket(FROM_PROTOCOL_INFO, FROM_PROTOCOL_INFO, FROM_PROTOCOL_INFO,
-                        &WSAProtocolInfo, 0, 0);
-        if (nsd == INVALID_SOCKET) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), ap_server_conf,
-                         "Child %d: setup_inherited_listeners(), WSASocket failed to open the inherited socket.", my_pid);
-            exit(APEXIT_CHILDINIT);
+        /*
+         * The SNI extension supplied a hostname. So don't accept requests
+         * with either no hostname or a different hostname.
+         */
+        if (!r->hostname) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                        "Hostname %s provided via SNI, but no hostname"
+                        " provided in HTTP request", servername);
+            return HTTP_BAD_REQUEST;
         }
+        rv = apr_parse_addr_port(&host, &scope_id, &port, r->hostname, r->pool);
+        if (rv != APR_SUCCESS || scope_id) {
+            return HTTP_BAD_REQUEST;
+        }
+        if (strcmp(host, servername)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                        "Hostname %s provided via SNI and hostname %s provided"
+                        " via HTTP are different", servername, host);
+            return HTTP_BAD_REQUEST;
+        }
+    }
+    else if (((sc->strict_sni_vhost_check == SSL_ENABLED_TRUE)
+             || (mySrvConfig(sslconn->server))->strict_sni_vhost_check
+                == SSL_ENABLED_TRUE)
+             && r->connection->vhost_lookup_data) {
+        /*
+         * We are using a name based configuration here, but no hostname was
+         * provided via SNI. Don't allow that if are requested to do strict
+         * checking. Check wether this strict checking was setup either in the
+         * server config we used for handshaking or in our current server.
+         * This should avoid insecure configuration by accident.
+         */
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "No hostname was provided via SNI for a name based"
+                     " virtual host");
+        return HTTP_FORBIDDEN;
+    }
+#endif
+    SSL_set_app_data2(ssl, r);
 
-        if (!SetHandleInformation((HANDLE)nsd, HANDLE_FLAG_INHERIT, 0)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), ap_server_conf,
-                         "set_listeners_noninheritable: SetHandleInformation failed.");
-        }
-        apr_os_sock_put(&lr->sd, &nsd, s->process->pool);
+    /*
+     * Log information about incoming HTTPS requests
+     */
+    if (APLOGrinfo(r) && ap_is_initial_req(r)) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                     "%s HTTPS request received for child %ld (server %s)",
+                     (r->connection->keepalives <= 0 ?
+                     "Initial (No.1)" :
+                     apr_psprintf(r->pool, "Subsequent (No.%d)",
+                                  r->connection->keepalives+1)),
+                     r->connection->id,
+                     ssl_util_vhostid(r->pool, r->server));
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                 "Child %d: retrieved %d listeners from parent", my_pid, lcnt);
+    /* SetEnvIf ssl-*-shutdown flags can only be per-server,
+     * so they won't change across keepalive requests
+     */
+    if (sslconn->shutdown_type == SSL_SHUTDOWN_TYPE_UNSET) {
+        ssl_configure_env(r, sslconn);
+    }
+
+    return DECLINED;
 }

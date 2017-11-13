@@ -1,11 +1,9 @@
 fputs(
-"                     This curl supports Metalink (both version 3  and  4  (RFC\n"
-"                     5854)),  which  describes  mirrors and hashes.  curl will\n"
-"                     use mirrors for failover if there are errors (such as the\n"
-"                     file or server not being available).\n"
+"              The user name and passwords are split up  on  the  first  colon,\n"
+"              which  makes  it impossible to use a colon in the user name with\n"
+"              this option. The password can, still.\n"
 "\n"
-"              PSL    PSL  is  short for Public Suffix List and means that this\n"
-"                     curl has been built with  knowledge  about  \"public  suf-\n"
-"                     fixes\".\n"
-"\n"
+"              When using Kerberos V5 with a Windows based  server  you  should\n"
+"              include  the  Windows domain name in the user name, in order for\n"
+"              the server to successfully obtain  a  Kerberos  Ticket.  If  you\n"
 , stdout);

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
-              "Ignoring deprecated use of DefaultType in line %d of %s.",
-                     cmd->directive->line_num, cmd->directive->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "Timeout while writing data for URI %s to the"
+                          " client", r->unparsed_uri);

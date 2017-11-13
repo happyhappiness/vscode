@@ -1,22 +1,29 @@
-static int chop_last_dir(char **remoteurl, int is_relative)
+static int resolve_relative_url(int argc, const char **argv, const char *prefix)
 {
-	char *rfind = find_last_dir_sep(*remoteurl);
-	if (rfind) {
-		*rfind = '\0';
-		return 0;
-	}
+	char *remoteurl = NULL;
+	char *remote = get_default_remote();
+	const char *up_path = NULL;
+	char *res;
+	const char *url;
+	struct strbuf sb = STRBUF_INIT;
 
-	rfind = strrchr(*remoteurl, ':');
-	if (rfind) {
-		*rfind = '\0';
-		return 1;
-	}
+	if (argc != 2 && argc != 3)
+		die("resolve-relative-url only accepts one or two arguments");
 
-	if (is_relative || !strcmp(".", *remoteurl))
-		die(_("cannot strip one component off url '%s'"),
-			*remoteurl);
+	url = argv[1];
+	strbuf_addf(&sb, "remote.%s.url", remote);
+	free(remote);
 
-	free(*remoteurl);
-	*remoteurl = xstrdup(".");
+	if (git_config_get_string(sb.buf, &remoteurl))
+		/* the repository is its own authoritative upstream */
+		remoteurl = xgetcwd();
+
+	if (argc == 3)
+		up_path = argv[2];
+
+	res = relative_url(remoteurl, url, up_path);
+	puts(res);
+	free(res);
+	free(remoteurl);
 	return 0;
 }

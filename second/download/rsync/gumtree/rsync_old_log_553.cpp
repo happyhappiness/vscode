@@ -1,1 +1,1 @@
-fprintf(FINFO,"redoing %s(%d)\n",fname,i);
+fprintf(FINFO,"%s is a hard link\n",f_name(file));

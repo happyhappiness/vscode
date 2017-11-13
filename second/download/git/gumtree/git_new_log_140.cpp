@@ -1,2 +1,1 @@
-error("unable to open object pack directory: %s: %s",
-			      path.buf, strerror(errno));
+die("BUG: stat option does not begin with --stat: %s", arg);

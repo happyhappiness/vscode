@@ -1,56 +1,78 @@
-static int scgi_handler(request_rec *r, proxy_worker *worker,
-                        proxy_server_conf *conf, char *url,
-                        const char *proxyname, apr_port_t proxyport)
+static int lua_handler(request_rec *r)
 {
-    int status;
-    proxy_conn_rec *backend = NULL;
-    apr_pool_t *p = r->pool;
-    apr_uri_t *uri = apr_palloc(r->pool, sizeof(*uri));
-    char dummy;
-
-    if (strncasecmp(url, SCHEME "://", sizeof(SCHEME) + 2)) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "proxy: " PROXY_FUNCTION ": declining URL %s", url);
+    ap_lua_dir_cfg *dcfg;
+    apr_pool_t *pool;
+    if (strcmp(r->handler, "lua-script")) {
         return DECLINED;
     }
+  
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01472) "handling [%s] in mod_lua",
+                  r->filename);
+    dcfg = ap_get_module_config(r->per_dir_config, &lua_module);
 
-    /* Create space for state information */
-    status = ap_proxy_acquire_connection(PROXY_FUNCTION, &backend, worker,
-                                         r->server);
-    if (status != OK) {
-        goto cleanup;
-    }
-    backend->is_ssl = 0;
+    if (!r->header_only) {
+        lua_State *L;
+        const ap_lua_dir_cfg *cfg = ap_get_module_config(r->per_dir_config,
+                                                         &lua_module);
+        ap_lua_vm_spec *spec = NULL;
 
-    /* Step One: Determine Who To Connect To */
-    status = ap_proxy_determine_connection(p, r, conf, worker, backend,
-                                           uri, &url, proxyname, proxyport,
-                                           &dummy, 1);
-    if (status != OK) {
-        goto cleanup;
-    }
+        spec = apr_pcalloc(r->pool, sizeof(ap_lua_vm_spec));
+        spec->scope = dcfg->vm_scope;
+        spec->pool = r->pool;
+        spec->file = r->filename;
+        spec->package_paths = cfg->package_paths;
+        spec->package_cpaths = cfg->package_cpaths;
+        spec->cb = &lua_open_callback;
+        spec->cb_arg = NULL;
+      
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01473)
+                      "request details scope:%u, filename:%s, function:%s",
+                      spec->scope,
+                      spec->file,
+                      "handle");
 
-    /* Step Two: Make the Connection */
-    if (ap_proxy_connect_backend(PROXY_FUNCTION, backend, worker, r->server)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "proxy: " PROXY_FUNCTION ": failed to make connection "
-                     "to backend: %s:%u", backend->hostname, backend->port);
-        status = HTTP_SERVICE_UNAVAILABLE;
-        goto cleanup;
-    }
+        switch (spec->scope) {
+        case AP_LUA_SCOPE_ONCE:
+        case AP_LUA_SCOPE_UNSET:
+          apr_pool_create(&pool, r->pool);
+          break;
+        case AP_LUA_SCOPE_REQUEST:
+          pool = r->pool;
+          break;
+        case AP_LUA_SCOPE_CONN:
+          pool = r->connection->pool;
+          break;
+        case AP_LUA_SCOPE_THREAD:
+          #if APR_HAS_THREADS
+          pool = apr_thread_pool_get(r->connection->current_thread);
+          break;
+          #endif
+        default:
+          ap_assert(0);
+        }
 
-    /* Step Three: Process the Request */
-    if (   ((status = ap_setup_client_block(r, REQUEST_CHUNKED_ERROR)) != OK)
-        || ((status = send_headers(r, backend)) != OK)
-        || ((status = send_request_body(r, backend)) != OK)
-        || ((status = pass_response(r, backend)) != OK)) {
-        goto cleanup;
+        L = ap_lua_get_lua_state(pool,
+                                 spec);
+        
+        if (!L) {
+            /* TODO annotate spec with failure reason */
+            r->status = HTTP_INTERNAL_SERVER_ERROR;
+            ap_rputs("Unable to compile VM, see logs", r);
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01474) "got a vm!");
+        lua_getglobal(L, "handle");
+        if (!lua_isfunction(L, -1)) {
+            ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01475)
+                          "lua: Unable to find function %s in %s",
+                          "handle",
+                          spec->file);
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+        ap_lua_run_lua_request(L, r);
+        if (lua_pcall(L, 1, 0, 0)) {
+            report_lua_error(L, r);
+        }
     }
-
-cleanup:
-    if (backend) {
-        backend->close = 1; /* always close the socket */
-        ap_proxy_release_connection(PROXY_FUNCTION, backend, r->server);
-    }
-    return status;
+    return OK;
 }

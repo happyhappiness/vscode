@@ -1,1 +1,1 @@
-fputs(env_hint, stderr);
+die("no email was given and auto-detection is disabled");

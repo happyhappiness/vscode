@@ -1,1 +1,1 @@
-printf("would prune %s", message);
+die("strange hostname '%s' blocked", host);

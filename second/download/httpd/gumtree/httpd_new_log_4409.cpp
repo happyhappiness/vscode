@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT,
-                     APR_EBADPATH, NULL, APLOGNO(00532) "Invalid config file path %s",
-                     filename);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r, "serving URL %s", url);

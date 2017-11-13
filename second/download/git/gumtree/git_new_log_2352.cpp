@@ -1,1 +1,1 @@
-error_errno("unable to stat %s", sha1_to_hex(sha1));
+printf("tagged %s %s", typename(tag->tagged->type), oid_to_hex(&tag->tagged->oid));

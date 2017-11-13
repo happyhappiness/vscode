@@ -1,1 +1,1 @@
-fprintf(f,"-S, --sparse             handle sparse files efficiently\n");
+fprintf(FINFO,"done\n");

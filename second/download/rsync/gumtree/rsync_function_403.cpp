@@ -1,77 +1,49 @@
-struct file_list *recv_file_list(int f)
+int local_child(int argc, char **argv,int *f_in,int *f_out)
 {
-  struct file_list *flist;
-  unsigned char flags;
+	int pid;
+	int to_child_pipe[2];
+	int from_child_pipe[2];
 
-  if (verbose && recurse && !am_server) {
-    fprintf(FINFO,"receiving file list ... ");
-    fflush(FINFO);
-  }
-
-  flist = (struct file_list *)malloc(sizeof(flist[0]));
-  if (!flist)
-    goto oom;
-
-  flist->count=0;
-  flist->malloced=1000;
-  flist->files = (struct file_struct **)malloc(sizeof(flist->files[0])*
-					       flist->malloced);
-  if (!flist->files)
-    goto oom;
+	if (pipe(to_child_pipe) < 0 ||
+	    pipe(from_child_pipe) < 0) {
+		fprintf(FERROR,"pipe: %s\n",strerror(errno));
+		exit_cleanup(1);
+	}
 
 
-  for (flags=read_byte(f); flags; flags=read_byte(f)) {
-    int i = flist->count;
+	pid = do_fork();
+	if (pid < 0) {
+		fprintf(FERROR,"fork: %s\n",strerror(errno));
+		exit_cleanup(1);
+	}
 
-    if (i >= flist->malloced) {
-	  if (flist->malloced < 1000)
-		  flist->malloced += 1000;
-	  else
-		  flist->malloced *= 2;
-	  flist->files =(struct file_struct **)realloc(flist->files,
-						       sizeof(flist->files[0])*
-						       flist->malloced);
-	  if (!flist->files)
-		  goto oom;
-    }
+	if (pid == 0) {
+		extern int am_sender;
+		extern int am_server;
 
-    receive_file_entry(&flist->files[i],flags,f);
+		am_sender = !am_sender;
+		am_server = 1;		
 
-    if (S_ISREG(flist->files[i]->mode))
-      total_size += flist->files[i]->length;
+		if (dup2(to_child_pipe[0], STDIN_FILENO) < 0 ||
+		    close(to_child_pipe[1]) < 0 ||
+		    close(from_child_pipe[0]) < 0 ||
+		    dup2(from_child_pipe[1], STDOUT_FILENO) < 0) {
+			fprintf(FERROR,"Failed to dup/close : %s\n",strerror(errno));
+			exit_cleanup(1);
+		}
+		if (to_child_pipe[0] != STDIN_FILENO) close(to_child_pipe[0]);
+		if (from_child_pipe[1] != STDOUT_FILENO) close(from_child_pipe[1]);
+		start_server(argc, argv);
+	}
 
-    flist->count++;
+	if (close(from_child_pipe[1]) < 0 ||
+	    close(to_child_pipe[0]) < 0) {
+		fprintf(FERROR,"Failed to close : %s\n",strerror(errno));   
+		exit_cleanup(1);
+	}
 
-    if (verbose > 2)
-      fprintf(FINFO,"recv_file_name(%s)\n",f_name(flist->files[i]));
-  }
-
-
-  if (verbose > 2)
-    fprintf(FINFO,"received %d names\n",flist->count);
-
-  clean_flist(flist);
-
-  if (verbose && recurse && !am_server) {
-    fprintf(FINFO,"done\n");
-  }
-
-  /* now recv the uid/gid list. This was introduced in protocol version 15 */
-  if (f != -1 && remote_version >= 15) {
-	  recv_uid_list(f, flist);
-  }
-
-  /* if protocol version is >= 17 then recv the io_error flag */
-  if (f != -1 && remote_version >= 17) {
-	  io_error |= read_int(f);
-  }
-
-  if (verbose > 2)
-    fprintf(FINFO,"recv_file_list done\n");
-
-  return flist;
-
-oom:
-    out_of_memory("recv_file_list");
-    return NULL; /* not reached */
+	*f_in = from_child_pipe[0];
+	*f_out = to_child_pipe[1];
+  
+	return pid;
 }

@@ -1,32 +1,39 @@
-static const char *find_author_by_nickname(const char *name)
+static int handle_file(const char *path, unsigned char *sha1, const char *output)
 {
-	struct rev_info revs;
-	struct commit *commit;
-	struct strbuf buf = STRBUF_INIT;
-	struct string_list mailmap = STRING_LIST_INIT_NODUP;
-	const char *av[20];
-	int ac = 0;
+	int hunk_no = 0;
+	struct rerere_io_file io;
+	int marker_size = ll_merge_marker_size(path);
 
-	init_revisions(&revs, NULL);
-	strbuf_addf(&buf, "--author=%s", name);
-	av[++ac] = "--all";
-	av[++ac] = "-i";
-	av[++ac] = buf.buf;
-	av[++ac] = NULL;
-	setup_revisions(ac, av, &revs, NULL);
-	revs.mailmap = &mailmap;
-	read_mailmap(revs.mailmap, NULL);
+	memset(&io, 0, sizeof(io));
+	io.io.getline = rerere_file_getline;
+	io.input = fopen(path, "r");
+	io.io.wrerror = 0;
+	if (!io.input)
+		return error("Could not open %s", path);
 
-	if (prepare_revision_walk(&revs))
-		die(_("revision walk setup failed"));
-	commit = get_revision(&revs);
-	if (commit) {
-		struct pretty_print_context ctx = {0};
-		ctx.date_mode = DATE_NORMAL;
-		strbuf_release(&buf);
-		format_commit_message(commit, "%aN <%aE>", &buf, &ctx);
-		clear_mailmap(&mailmap);
-		return strbuf_detach(&buf, NULL);
+	if (output) {
+		io.io.output = fopen(output, "w");
+		if (!io.io.output) {
+			fclose(io.input);
+			return error("Could not write %s", output);
+		}
 	}
-	die(_("No existing author found with '%s'"), name);
+
+	hunk_no = handle_path(sha1, (struct rerere_io *)&io, marker_size);
+
+	fclose(io.input);
+	if (io.io.wrerror)
+		error("There were errors while writing %s (%s)",
+		      path, strerror(io.io.wrerror));
+	if (io.io.output && fclose(io.io.output))
+		io.io.wrerror = error_errno("Failed to flush %s", path);
+
+	if (hunk_no < 0) {
+		if (output)
+			unlink_or_warn(output);
+		return error("Could not parse conflict hunks in %s", path);
+	}
+	if (io.io.wrerror)
+		return -1;
+	return hunk_no;
 }

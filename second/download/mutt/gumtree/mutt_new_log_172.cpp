@@ -1,1 +1,2 @@
-state_puts (_("PKA verified signer's address is: "), s);
+state_puts (_("Warning: At least one certification key "
+                             "has expired\n"), s);

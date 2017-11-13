@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
-                                 "winnt_accept: Too many failures grabbing a "
-                                 "connection ctx.  Aborting.");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "%s server certificate is a CA certificate "
+                         "(BasicConstraints: CA == TRUE !?)",
+                         ssl_asn1_keystr(type));

@@ -1,10 +1,12 @@
 fputs(
-"              stdin you write \"@-\".\n"
+"              select the user name and password from your environment by spec-\n"
+"              ifying a single colon with this option: \"-U :\".\n"
 "\n"
-"              The  variables  present in the output format will be substituted\n"
-"              by the value or text that curl thinks fit, as  described  below.\n"
-"              All  variables are specified as %{variable_name} and to output a\n"
-"              normal % you just write them as %%. You can output a newline  by\n"
-"              using \\n, a carriage return with \\r and a tab space with \\t.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
+"       --url <URL>\n"
+"              Specify a URL to fetch. This option is  mostly  handy  when  you\n"
+"              want to specify URL(s) in a config file.\n"
+"\n"
+"              This  option  may  be used any number of times. To control where\n"
 , stdout);

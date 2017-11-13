@@ -1,2 +1,1 @@
-status_printf_ln(s, color,
-					 _("No commands remaining."));
+die("BUG: config_buf can only ungetc the same character");

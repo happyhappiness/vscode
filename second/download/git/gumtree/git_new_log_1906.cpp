@@ -1,3 +1,2 @@
-die(_("object %s: expected type %s, found %s"),
-			    oid_to_hex(&obj->oid),
-			    typename(obj->type), typename(type));
+fprintf_ln(stderr, _("directory stat info does not change "
+				     "after adding a new directory"));

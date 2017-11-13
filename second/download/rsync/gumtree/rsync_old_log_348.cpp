@@ -1,1 +1,1 @@
-fprintf(FERROR,"recv mapped %s of size %d\n",fname,(int)st.st_size);
+fprintf(FERROR,"done hash search\n");

@@ -1,11 +1,11 @@
 fputs(
-"              from this certificate and if it does not exactly match the  pub-\n"
-"              lic  key provided to this option, curl will abort the connection\n"
-"              before sending or receiving any data.\n"
+"              is in. PEM, DER and ENG are recognized types.  If not specified,\n"
+"              PEM is assumed.\n"
 "\n"
-"              Added in 7.39.0 for OpenSSL, GnuTLS and GSKit. Added  in  7.43.0\n"
-"              for  NSS  and wolfSSL/CyaSSL. sha256 support added in 7.44.0 for\n"
-"              OpenSSL, GnuTLS, NSS and wolfSSL/CyaSSL. Other SSL backends  not\n"
-"              supported.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
+"       --cacert <CA certificate>\n"
+"              (SSL) Tells curl to use the specified certificate file to verify\n"
+"              the peer. The file may contain  multiple  CA  certificates.  The\n"
+"              certificate(s)  must be in PEM format. Normally curl is built to\n"
 , stdout);

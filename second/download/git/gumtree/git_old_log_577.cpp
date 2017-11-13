@@ -1,1 +1,1 @@
-fprintf(stderr, "%s\n\n", msg);
+fputs(env_hint, stderr);

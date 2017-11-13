@@ -1,1 +1,1 @@
-error(_("failed to finalize '%s'."), filename);
+error(_("failed to delete ref NOTES_MERGE_REF"));

@@ -1,1 +1,1 @@
-printf("tagged %s %s", typename(tag->tagged->type), oid_to_hex(&tag->tagged->oid));
+printf(" (%s) in %s\n", tag->tag, oid_to_hex(&tag->object.oid));

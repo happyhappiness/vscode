@@ -1,11 +1,9 @@
 fputs(
-"              Specify  a  URL  to  fetch. This option is mostly handy when you\n"
-"              want to specify URL(s) in a config file.\n"
+"              This is done by first doing a request and checking the response-\n"
+"              headers, thus possibly inducing  an  extra  network  round-trip.\n"
+"              This  is  used  instead  of  setting  a  specific authentication\n"
+"              method, which you can do with  --basic,  --digest,  --ntlm,  and\n"
+"              --negotiate.\n"
 "\n"
-"              This option may be used any number of times.  To  control  where\n"
-"              this  URL  is written, use the -o, --output or the -O, --remote-\n"
-"              name options.\n"
-"       -v, --verbose\n"
-"              Makes the fetching more  verbose/talkative.  Mostly  useful  for\n"
-"              debugging.  A line starting with '>' means \"header data\" sent by\n"
+"              Note  that  using --anyauth is not recommended if you do uploads\n"
 , stdout);

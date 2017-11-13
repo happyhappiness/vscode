@@ -1,1 +1,1 @@
-warning(_("the signature will be removed in the replacement commit!"));
+die("unable to get object type for %s", sha1_to_hex(old));

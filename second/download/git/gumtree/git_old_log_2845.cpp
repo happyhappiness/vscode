@@ -1,2 +1,1 @@
-error(_("could not write branch description template: %s"),
-			     strerror(errno));
+error(_("cannot open %s: %s\n"), filename, strerror(errno));

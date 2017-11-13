@@ -1,34 +1,82 @@
-static int privileges_postconf(apr_pool_t *pconf, apr_pool_t *plog,
-                               apr_pool_t *ptemp, server_rec *s)
+static proxy_worker *find_best_bybusyness(proxy_balancer *balancer,
+                                request_rec *r)
 {
-    priv_cfg *cfg;
-    server_rec *sp;
 
-    /* if we have dtrace enabled, merge it into everything */
-    if (dtrace_enabled) {
-        for (sp = s; sp != NULL; sp = sp->next) {
-            cfg = ap_get_module_config(sp->module_config, &privileges_module);
-            CR_CHECK(priv_addset(cfg->priv, PRIV_DTRACE_KERNEL));
-            CR_CHECK(priv_addset(cfg->priv, PRIV_DTRACE_PROC));
-            CR_CHECK(priv_addset(cfg->priv, PRIV_DTRACE_USER));
-            CR_CHECK(priv_addset(cfg->child_priv, PRIV_DTRACE_KERNEL));
-            CR_CHECK(priv_addset(cfg->child_priv, PRIV_DTRACE_PROC));
-            CR_CHECK(priv_addset(cfg->child_priv, PRIV_DTRACE_USER));
+    int i;
+    proxy_worker *worker;
+    proxy_worker *mycandidate = NULL;
+    int cur_lbset = 0;
+    int max_lbset = 0;
+    int checking_standby;
+    int checked_standby;
+
+    int total_factor = 0;
+    
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: Entering bybusyness for BALANCER (%s)",
+                 balancer->name);
+
+    /* First try to see if we have available candidate */
+    do {
+
+        checking_standby = checked_standby = 0;
+        while (!mycandidate && !checked_standby) {
+
+            worker = (proxy_worker *)balancer->workers->elts;
+            for (i = 0; i < balancer->workers->nelts; i++, worker++) {
+                if  (!checking_standby) {    /* first time through */
+                    if (worker->s->lbset > max_lbset)
+                        max_lbset = worker->s->lbset;
+                }
+
+                if (worker->s->lbset > cur_lbset)
+                    continue;
+
+                if ( (checking_standby ? !PROXY_WORKER_IS_STANDBY(worker) : PROXY_WORKER_IS_STANDBY(worker)) )
+                    continue;
+
+                /* If the worker is in error state run
+                 * retry on that worker. It will be marked as
+                 * operational if the retry timeout is elapsed.
+                 * The worker might still be unusable, but we try
+                 * anyway.
+                 */
+                if (!PROXY_WORKER_IS_USABLE(worker))
+                    ap_proxy_retry_worker("BALANCER", worker, r->server);
+
+                /* Take into calculation only the workers that are
+                 * not in error state or not disabled.
+                 */
+                if (PROXY_WORKER_IS_USABLE(worker)) {
+
+                    worker->s->lbstatus += worker->s->lbfactor;
+                    total_factor += worker->s->lbfactor;
+                    
+                    if (!mycandidate
+                        || worker->s->busy < mycandidate->s->busy
+                        || (worker->s->busy == mycandidate->s->busy && worker->s->lbstatus > mycandidate->s->lbstatus))
+                        mycandidate = worker;
+
+                }
+
+            }
+
+            checked_standby = checking_standby++;
+
         }
-        CR_CHECK(priv_addset(priv_default, PRIV_DTRACE_KERNEL));
-        CR_CHECK(priv_addset(priv_default, PRIV_DTRACE_PROC));
-        CR_CHECK(priv_addset(priv_default, PRIV_DTRACE_USER));
+
+        cur_lbset++;
+
+    } while (cur_lbset <= max_lbset && !mycandidate);
+
+    if (mycandidate) {
+        mycandidate->s->lbstatus -= total_factor;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: bybusyness selected worker \"%s\" : busy %" APR_SIZE_T_FMT " : lbstatus %d",
+                     mycandidate->name, mycandidate->s->busy, mycandidate->s->lbstatus);
+
     }
 
-    /* set up priv_setid for per-request use */
-    priv_setid = priv_allocset();
-    apr_pool_cleanup_register(pconf, NULL, privileges_term,
-                              apr_pool_cleanup_null);
-    priv_emptyset(priv_setid);
-    if (priv_addset(priv_setid, PRIV_PROC_SETID) == -1) {
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, errno, ptemp,
-                      "priv_addset");
-        return !OK;
-    }
-    return OK;
+    return mycandidate;
+
 }

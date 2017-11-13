@@ -1,488 +1,173 @@
-int cmd_merge(int argc, const char **argv, const char *prefix)
+static int do_pick_commit(struct commit *commit, struct replay_opts *opts)
 {
-	unsigned char result_tree[20];
-	unsigned char stash[20];
-	unsigned char head_sha1[20];
-	struct commit *head_commit;
-	struct strbuf buf = STRBUF_INIT;
-	const char *head_arg;
-	int i, ret = 0, head_subsumed;
-	int best_cnt = -1, merge_was_ok = 0, automerge_was_ok = 0;
-	struct commit_list *common = NULL;
-	const char *best_strategy = NULL, *wt_strategy = NULL;
-	struct commit_list *remoteheads, *p;
-	void *branch_to_free;
-	int orig_argc = argc;
+	unsigned char head[20];
+	struct commit *base, *next, *parent;
+	const char *base_label, *next_label;
+	struct commit_message msg = { NULL, NULL, NULL, NULL };
+	struct strbuf msgbuf = STRBUF_INIT;
+	int res, unborn = 0, allow;
 
-	if (argc == 2 && !strcmp(argv[1], "-h"))
-		usage_with_options(builtin_merge_usage, builtin_merge_options);
-
-	/*
-	 * Check if we are _not_ on a detached HEAD, i.e. if there is a
-	 * current branch.
-	 */
-	branch = branch_to_free = resolve_refdup("HEAD", 0, head_sha1, NULL);
-	if (branch && starts_with(branch, "refs/heads/"))
-		branch += 11;
-	if (!branch || is_null_sha1(head_sha1))
-		head_commit = NULL;
-	else
-		head_commit = lookup_commit_or_die(head_sha1, "HEAD");
-
-	init_diff_ui_defaults();
-	git_config(git_merge_config, NULL);
-
-	if (branch_mergeoptions)
-		parse_branch_merge_options(branch_mergeoptions);
-	argc = parse_options(argc, argv, prefix, builtin_merge_options,
-			builtin_merge_usage, 0);
-	if (shortlog_len < 0)
-		shortlog_len = (merge_log_config > 0) ? merge_log_config : 0;
-
-	if (verbosity < 0 && show_progress == -1)
-		show_progress = 0;
-
-	if (abort_current_merge) {
-		int nargc = 2;
-		const char *nargv[] = {"reset", "--merge", NULL};
-
-		if (orig_argc != 2)
-			usage_msg_opt(_("--abort expects no arguments"),
-			      builtin_merge_usage, builtin_merge_options);
-
-		if (!file_exists(git_path_merge_head()))
-			die(_("There is no merge to abort (MERGE_HEAD missing)."));
-
-		/* Invoke 'git reset --merge' */
-		ret = cmd_reset(nargc, nargv, prefix);
-		goto done;
-	}
-
-	if (continue_current_merge) {
-		int nargc = 1;
-		const char *nargv[] = {"commit", NULL};
-
-		if (orig_argc != 2)
-			usage_msg_opt(_("--continue expects no arguments"),
-			      builtin_merge_usage, builtin_merge_options);
-
-		if (!file_exists(git_path_merge_head()))
-			die(_("There is no merge in progress (MERGE_HEAD missing)."));
-
-		/* Invoke 'git commit' */
-		ret = cmd_commit(nargc, nargv, prefix);
-		goto done;
-	}
-
-	if (read_cache_unmerged())
-		die_resolve_conflict("merge");
-
-	if (file_exists(git_path_merge_head())) {
+	if (opts->no_commit) {
 		/*
-		 * There is no unmerged entry, don't advise 'git
-		 * add/rm <file>', just 'git commit'.
+		 * We do not intend to commit immediately.  We just want to
+		 * merge the differences in, so let's compute the tree
+		 * that represents the "current" state for merge-recursive
+		 * to work on.
 		 */
-		if (advice_resolve_conflict)
-			die(_("You have not concluded your merge (MERGE_HEAD exists).\n"
-				  "Please, commit your changes before you merge."));
-		else
-			die(_("You have not concluded your merge (MERGE_HEAD exists)."));
-	}
-	if (file_exists(git_path_cherry_pick_head())) {
-		if (advice_resolve_conflict)
-			die(_("You have not concluded your cherry-pick (CHERRY_PICK_HEAD exists).\n"
-			    "Please, commit your changes before you merge."));
-		else
-			die(_("You have not concluded your cherry-pick (CHERRY_PICK_HEAD exists)."));
-	}
-	resolve_undo_clear();
-
-	if (verbosity < 0)
-		show_diffstat = 0;
-
-	if (squash) {
-		if (fast_forward == FF_NO)
-			die(_("You cannot combine --squash with --no-ff."));
-		option_commit = 0;
-	}
-
-	if (!argc) {
-		if (default_to_upstream)
-			argc = setup_with_upstream(&argv);
-		else
-			die(_("No commit specified and merge.defaultToUpstream not set."));
-	} else if (argc == 1 && !strcmp(argv[0], "-")) {
-		argv[0] = "@{-1}";
-	}
-
-	if (!argc)
-		usage_with_options(builtin_merge_usage,
-			builtin_merge_options);
-
-	if (!head_commit) {
-		/*
-		 * If the merged head is a valid one there is no reason
-		 * to forbid "git merge" into a branch yet to be born.
-		 * We do the same for "git pull".
-		 */
-		unsigned char *remote_head_sha1;
-		if (squash)
-			die(_("Squash commit into empty head not supported yet"));
-		if (fast_forward == FF_NO)
-			die(_("Non-fast-forward commit does not make sense into "
-			    "an empty head"));
-		remoteheads = collect_parents(head_commit, &head_subsumed,
-					      argc, argv, NULL);
-		if (!remoteheads)
-			die(_("%s - not something we can merge"), argv[0]);
-		if (remoteheads->next)
-			die(_("Can merge only exactly one commit into empty head"));
-		remote_head_sha1 = remoteheads->item->object.oid.hash;
-		read_empty(remote_head_sha1, 0);
-		update_ref("initial pull", "HEAD", remote_head_sha1,
-			   NULL, 0, UPDATE_REFS_DIE_ON_ERR);
-		goto done;
-	}
-
-	/*
-	 * This could be traditional "merge <msg> HEAD <commit>..."  and
-	 * the way we can tell it is to see if the second token is HEAD,
-	 * but some people might have misused the interface and used a
-	 * commit-ish that is the same as HEAD there instead.
-	 * Traditional format never would have "-m" so it is an
-	 * additional safety measure to check for it.
-	 */
-	if (!have_message &&
-	    is_old_style_invocation(argc, argv, head_commit->object.oid.hash)) {
-		warning("old-style 'git merge <msg> HEAD <commit>' is deprecated.");
-		strbuf_addstr(&merge_msg, argv[0]);
-		head_arg = argv[1];
-		argv += 2;
-		argc -= 2;
-		remoteheads = collect_parents(head_commit, &head_subsumed,
-					      argc, argv, NULL);
+		if (write_cache_as_tree(head, 0, NULL))
+			die (_("Your index file is unmerged."));
 	} else {
-		/* We are invoked directly as the first-class UI. */
-		head_arg = "HEAD";
-
-		/*
-		 * All the rest are the commits being merged; prepare
-		 * the standard merge summary message to be appended
-		 * to the given message.
-		 */
-		remoteheads = collect_parents(head_commit, &head_subsumed,
-					      argc, argv, &merge_msg);
+		unborn = get_sha1("HEAD", head);
+		if (unborn)
+			hashcpy(head, EMPTY_TREE_SHA1_BIN);
+		if (index_differs_from(unborn ? EMPTY_TREE_SHA1_HEX : "HEAD", 0))
+			return error_dirty_index(opts);
 	}
+	discard_cache();
 
-	if (!head_commit || !argc)
-		usage_with_options(builtin_merge_usage,
-			builtin_merge_options);
+	if (!commit->parents) {
+		parent = NULL;
+	}
+	else if (commit->parents->next) {
+		/* Reverting or cherry-picking a merge commit */
+		int cnt;
+		struct commit_list *p;
 
-	if (verify_signatures) {
-		for (p = remoteheads; p; p = p->next) {
-			struct commit *commit = p->item;
-			char hex[GIT_SHA1_HEXSZ + 1];
-			struct signature_check signature_check;
-			memset(&signature_check, 0, sizeof(signature_check));
+		if (!opts->mainline)
+			return error(_("Commit %s is a merge but no -m option was given."),
+				oid_to_hex(&commit->object.oid));
 
-			check_commit_signature(commit, &signature_check);
+		for (cnt = 1, p = commit->parents;
+		     cnt != opts->mainline && p;
+		     cnt++)
+			p = p->next;
+		if (cnt != opts->mainline || !p)
+			return error(_("Commit %s does not have parent %d"),
+				oid_to_hex(&commit->object.oid), opts->mainline);
+		parent = p->item;
+	} else if (0 < opts->mainline)
+		return error(_("Mainline was specified but commit %s is not a merge."),
+			oid_to_hex(&commit->object.oid));
+	else
+		parent = commit->parents->item;
 
-			find_unique_abbrev_r(hex, commit->object.oid.hash, DEFAULT_ABBREV);
-			switch (signature_check.result) {
-			case 'G':
-				break;
-			case 'U':
-				die(_("Commit %s has an untrusted GPG signature, "
-				      "allegedly by %s."), hex, signature_check.signer);
-			case 'B':
-				die(_("Commit %s has a bad GPG signature "
-				      "allegedly by %s."), hex, signature_check.signer);
-			default: /* 'N' */
-				die(_("Commit %s does not have a GPG signature."), hex);
-			}
-			if (verbosity >= 0 && signature_check.result == 'G')
-				printf(_("Commit %s has a good GPG signature by %s\n"),
-				       hex, signature_check.signer);
+	if (opts->allow_ff &&
+	    ((parent && !hashcmp(parent->object.oid.hash, head)) ||
+	     (!parent && unborn)))
+		return fast_forward_to(commit->object.oid.hash, head, unborn, opts);
 
-			signature_check_clear(&signature_check);
+	if (parent && parse_commit(parent) < 0)
+		/* TRANSLATORS: The first %s will be "revert" or
+		   "cherry-pick", the second %s a SHA1 */
+		return error(_("%s: cannot parse parent commit %s"),
+			action_name(opts), oid_to_hex(&parent->object.oid));
+
+	if (get_message(commit, &msg) != 0)
+		return error(_("Cannot get commit message for %s"),
+			oid_to_hex(&commit->object.oid));
+
+	/*
+	 * "commit" is an existing commit.  We would want to apply
+	 * the difference it introduces since its first parent "prev"
+	 * on top of the current HEAD if we are cherry-pick.  Or the
+	 * reverse of it if we are revert.
+	 */
+
+	if (opts->action == REPLAY_REVERT) {
+		base = commit;
+		base_label = msg.label;
+		next = parent;
+		next_label = msg.parent_label;
+		strbuf_addstr(&msgbuf, "Revert \"");
+		strbuf_addstr(&msgbuf, msg.subject);
+		strbuf_addstr(&msgbuf, "\"\n\nThis reverts commit ");
+		strbuf_addstr(&msgbuf, oid_to_hex(&commit->object.oid));
+
+		if (commit->parents && commit->parents->next) {
+			strbuf_addstr(&msgbuf, ", reversing\nchanges made to ");
+			strbuf_addstr(&msgbuf, oid_to_hex(&parent->object.oid));
 		}
-	}
-
-	strbuf_addstr(&buf, "merge");
-	for (p = remoteheads; p; p = p->next)
-		strbuf_addf(&buf, " %s", merge_remote_util(p->item)->name);
-	setenv("GIT_REFLOG_ACTION", buf.buf, 0);
-	strbuf_reset(&buf);
-
-	for (p = remoteheads; p; p = p->next) {
-		struct commit *commit = p->item;
-		strbuf_addf(&buf, "GITHEAD_%s",
-			    oid_to_hex(&commit->object.oid));
-		setenv(buf.buf, merge_remote_util(commit)->name, 1);
-		strbuf_reset(&buf);
-		if (fast_forward != FF_ONLY &&
-		    merge_remote_util(commit) &&
-		    merge_remote_util(commit)->obj &&
-		    merge_remote_util(commit)->obj->type == OBJ_TAG)
-			fast_forward = FF_NO;
-	}
-
-	if (option_edit < 0)
-		option_edit = default_edit_option();
-
-	if (!use_strategies) {
-		if (!remoteheads)
-			; /* already up-to-date */
-		else if (!remoteheads->next)
-			add_strategies(pull_twohead, DEFAULT_TWOHEAD);
-		else
-			add_strategies(pull_octopus, DEFAULT_OCTOPUS);
-	}
-
-	for (i = 0; i < use_strategies_nr; i++) {
-		if (use_strategies[i]->attr & NO_FAST_FORWARD)
-			fast_forward = FF_NO;
-		if (use_strategies[i]->attr & NO_TRIVIAL)
-			allow_trivial = 0;
-	}
-
-	if (!remoteheads)
-		; /* already up-to-date */
-	else if (!remoteheads->next)
-		common = get_merge_bases(head_commit, remoteheads->item);
-	else {
-		struct commit_list *list = remoteheads;
-		commit_list_insert(head_commit, &list);
-		common = get_octopus_merge_bases(list);
-		free(list);
-	}
-
-	update_ref("updating ORIG_HEAD", "ORIG_HEAD", head_commit->object.oid.hash,
-		   NULL, 0, UPDATE_REFS_DIE_ON_ERR);
-
-	if (remoteheads && !common) {
-		/* No common ancestors found. */
-		if (!allow_unrelated_histories)
-			die(_("refusing to merge unrelated histories"));
-		/* otherwise, we need a real merge. */
-	} else if (!remoteheads ||
-		 (!remoteheads->next && !common->next &&
-		  common->item == remoteheads->item)) {
-		/*
-		 * If head can reach all the merge then we are up to date.
-		 * but first the most common case of merging one remote.
-		 */
-		finish_up_to_date(_("Already up-to-date."));
-		goto done;
-	} else if (fast_forward != FF_NO && !remoteheads->next &&
-			!common->next &&
-			!oidcmp(&common->item->object.oid, &head_commit->object.oid)) {
-		/* Again the most common case of merging one remote. */
-		struct strbuf msg = STRBUF_INIT;
-		struct commit *commit;
-
-		if (verbosity >= 0) {
-			printf(_("Updating %s..%s\n"),
-			       find_unique_abbrev(head_commit->object.oid.hash,
-						  DEFAULT_ABBREV),
-			       find_unique_abbrev(remoteheads->item->object.oid.hash,
-						  DEFAULT_ABBREV));
-		}
-		strbuf_addstr(&msg, "Fast-forward");
-		if (have_message)
-			strbuf_addstr(&msg,
-				" (no commit created; -m option ignored)");
-		commit = remoteheads->item;
-		if (!commit) {
-			ret = 1;
-			goto done;
-		}
-
-		if (checkout_fast_forward(head_commit->object.oid.hash,
-					  commit->object.oid.hash,
-					  overwrite_ignore)) {
-			ret = 1;
-			goto done;
-		}
-
-		finish(head_commit, remoteheads, commit->object.oid.hash, msg.buf);
-		drop_save();
-		goto done;
-	} else if (!remoteheads->next && common->next)
-		;
-		/*
-		 * We are not doing octopus and not fast-forward.  Need
-		 * a real merge.
-		 */
-	else if (!remoteheads->next && !common->next && option_commit) {
-		/*
-		 * We are not doing octopus, not fast-forward, and have
-		 * only one common.
-		 */
-		refresh_cache(REFRESH_QUIET);
-		if (allow_trivial && fast_forward != FF_ONLY) {
-			/* See if it is really trivial. */
-			git_committer_info(IDENT_STRICT);
-			printf(_("Trying really trivial in-index merge...\n"));
-			if (!read_tree_trivial(common->item->object.oid.hash,
-					       head_commit->object.oid.hash,
-					       remoteheads->item->object.oid.hash)) {
-				ret = merge_trivial(head_commit, remoteheads);
-				goto done;
-			}
-			printf(_("Nope.\n"));
-		}
+		strbuf_addstr(&msgbuf, ".\n");
 	} else {
+		const char *p;
+
+		base = parent;
+		base_label = msg.parent_label;
+		next = commit;
+		next_label = msg.label;
+
 		/*
-		 * An octopus.  If we can reach all the remote we are up
-		 * to date.
+		 * Append the commit log message to msgbuf; it starts
+		 * after the tree, parent, author, committer
+		 * information followed by "\n\n".
 		 */
-		int up_to_date = 1;
-		struct commit_list *j;
+		p = strstr(msg.message, "\n\n");
+		if (p)
+			strbuf_addstr(&msgbuf, skip_blank_lines(p + 2));
 
-		for (j = remoteheads; j; j = j->next) {
-			struct commit_list *common_one;
-
-			/*
-			 * Here we *have* to calculate the individual
-			 * merge_bases again, otherwise "git merge HEAD^
-			 * HEAD^^" would be missed.
-			 */
-			common_one = get_merge_bases(head_commit, j->item);
-			if (oidcmp(&common_one->item->object.oid, &j->item->object.oid)) {
-				up_to_date = 0;
-				break;
-			}
-		}
-		if (up_to_date) {
-			finish_up_to_date(_("Already up-to-date. Yeeah!"));
-			goto done;
+		if (opts->record_origin) {
+			if (!has_conforming_footer(&msgbuf, NULL, 0))
+				strbuf_addch(&msgbuf, '\n');
+			strbuf_addstr(&msgbuf, cherry_picked_prefix);
+			strbuf_addstr(&msgbuf, oid_to_hex(&commit->object.oid));
+			strbuf_addstr(&msgbuf, ")\n");
 		}
 	}
 
-	if (fast_forward == FF_ONLY)
-		die(_("Not possible to fast-forward, aborting."));
+	if (!opts->strategy || !strcmp(opts->strategy, "recursive") || opts->action == REPLAY_REVERT) {
+		res = do_recursive_merge(base, next, base_label, next_label,
+					 head, &msgbuf, opts);
+		if (res < 0)
+			return res;
+		write_message(&msgbuf, git_path_merge_msg());
+	} else {
+		struct commit_list *common = NULL;
+		struct commit_list *remotes = NULL;
 
-	/* We are going to make a new commit. */
-	git_committer_info(IDENT_STRICT);
+		write_message(&msgbuf, git_path_merge_msg());
 
-	/*
-	 * At this point, we need a real merge.  No matter what strategy
-	 * we use, it would operate on the index, possibly affecting the
-	 * working tree, and when resolved cleanly, have the desired
-	 * tree in the index -- this means that the index must be in
-	 * sync with the head commit.  The strategies are responsible
-	 * to ensure this.
-	 */
-	if (use_strategies_nr == 1 ||
-	    /*
-	     * Stash away the local changes so that we can try more than one.
-	     */
-	    save_state(stash))
-		hashclr(stash);
-
-	for (i = 0; i < use_strategies_nr; i++) {
-		int ret;
-		if (i) {
-			printf(_("Rewinding the tree to pristine...\n"));
-			restore_state(head_commit->object.oid.hash, stash);
-		}
-		if (use_strategies_nr != 1)
-			printf(_("Trying merge strategy %s...\n"),
-				use_strategies[i]->name);
-		/*
-		 * Remember which strategy left the state in the working
-		 * tree.
-		 */
-		wt_strategy = use_strategies[i]->name;
-
-		ret = try_merge_strategy(use_strategies[i]->name,
-					 common, remoteheads,
-					 head_commit, head_arg);
-		if (!option_commit && !ret) {
-			merge_was_ok = 1;
-			/*
-			 * This is necessary here just to avoid writing
-			 * the tree, but later we will *not* exit with
-			 * status code 1 because merge_was_ok is set.
-			 */
-			ret = 1;
-		}
-
-		if (ret) {
-			/*
-			 * The backend exits with 1 when conflicts are
-			 * left to be resolved, with 2 when it does not
-			 * handle the given merge at all.
-			 */
-			if (ret == 1) {
-				int cnt = evaluate_result();
-
-				if (best_cnt <= 0 || cnt <= best_cnt) {
-					best_strategy = use_strategies[i]->name;
-					best_cnt = cnt;
-				}
-			}
-			if (merge_was_ok)
-				break;
-			else
-				continue;
-		}
-
-		/* Automerge succeeded. */
-		write_tree_trivial(result_tree);
-		automerge_was_ok = 1;
-		break;
+		commit_list_insert(base, &common);
+		commit_list_insert(next, &remotes);
+		res = try_merge_command(opts->strategy, opts->xopts_nr, opts->xopts,
+					common, sha1_to_hex(head), remotes);
+		free_commit_list(common);
+		free_commit_list(remotes);
 	}
 
 	/*
-	 * If we have a resulting tree, that means the strategy module
-	 * auto resolved the merge cleanly.
+	 * If the merge was clean or if it failed due to conflict, we write
+	 * CHERRY_PICK_HEAD for the subsequent invocation of commit to use.
+	 * However, if the merge did not even start, then we don't want to
+	 * write it at all.
 	 */
-	if (automerge_was_ok) {
-		ret = finish_automerge(head_commit, head_subsumed,
-				       common, remoteheads,
-				       result_tree, wt_strategy);
-		goto done;
+	if (opts->action == REPLAY_PICK && !opts->no_commit && (res == 0 || res == 1))
+		update_ref(NULL, "CHERRY_PICK_HEAD", commit->object.oid.hash, NULL,
+			   REF_NODEREF, UPDATE_REFS_DIE_ON_ERR);
+	if (opts->action == REPLAY_REVERT && ((opts->no_commit && res == 0) || res == 1))
+		update_ref(NULL, "REVERT_HEAD", commit->object.oid.hash, NULL,
+			   REF_NODEREF, UPDATE_REFS_DIE_ON_ERR);
+
+	if (res) {
+		error(opts->action == REPLAY_REVERT
+		      ? _("could not revert %s... %s")
+		      : _("could not apply %s... %s"),
+		      find_unique_abbrev(commit->object.oid.hash, DEFAULT_ABBREV),
+		      msg.subject);
+		print_advice(res == 1, opts);
+		rerere(opts->allow_rerere_auto);
+		goto leave;
 	}
 
-	/*
-	 * Pick the result from the best strategy and have the user fix
-	 * it up.
-	 */
-	if (!best_strategy) {
-		restore_state(head_commit->object.oid.hash, stash);
-		if (use_strategies_nr > 1)
-			fprintf(stderr,
-				_("No merge strategy handled the merge.\n"));
-		else
-			fprintf(stderr, _("Merge with strategy %s failed.\n"),
-				use_strategies[0]->name);
-		ret = 2;
-		goto done;
-	} else if (best_strategy == wt_strategy)
-		; /* We already have its result in the working tree. */
-	else {
-		printf(_("Rewinding the tree to pristine...\n"));
-		restore_state(head_commit->object.oid.hash, stash);
-		printf(_("Using the %s to prepare resolving by hand.\n"),
-			best_strategy);
-		try_merge_strategy(best_strategy, common, remoteheads,
-				   head_commit, head_arg);
+	allow = allow_empty(opts, commit);
+	if (allow < 0) {
+		res = allow;
+		goto leave;
 	}
+	if (!opts->no_commit)
+		res = run_git_commit(git_path_merge_msg(), opts, allow);
 
-	if (squash)
-		finish(head_commit, remoteheads, NULL, NULL);
-	else
-		write_merge_state(remoteheads);
+leave:
+	free_message(commit, &msg);
 
-	if (merge_was_ok)
-		fprintf(stderr, _("Automatic merge went well; "
-			"stopped before committing as requested\n"));
-	else
-		ret = suggest_conflicts();
-
-done:
-	free(branch_to_free);
-	return ret;
+	return res;
 }

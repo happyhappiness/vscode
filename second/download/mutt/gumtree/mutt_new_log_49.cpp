@@ -1,1 +1,1 @@
-printf ("%s\n", alias_queries->data);
+puts (_(Obtaining));

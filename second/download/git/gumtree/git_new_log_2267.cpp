@@ -1,1 +1,1 @@
-die(_("base commit shouldn't be in revision list"));
+die("unable to generate checkdiff for %s", one->path);

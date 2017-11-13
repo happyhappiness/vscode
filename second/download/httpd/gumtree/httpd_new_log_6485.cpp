@@ -1,2 +1,1 @@
-ap_rvputs(r, "value=\"", ap_escape_html(r->pool, wsel->s->route),
-                      NULL);
+ap_rvputs(r, "<td><label for='", name, "1'>On</label> <input name='", name, "' id='", name, "1' value='1' type=radio", NULL);

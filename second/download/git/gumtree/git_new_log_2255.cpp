@@ -1,1 +1,2 @@
-error_errno(_("cannot open %s"), filename);
+status_printf_ln(s, color,
+					 _("No commands remaining."));

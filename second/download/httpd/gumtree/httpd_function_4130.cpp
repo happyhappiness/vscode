@@ -1,27 +1,36 @@
-void ssl_hook_ConfigTest(apr_pool_t *pconf, server_rec *s)
+apr_status_t ajp_read_header(apr_socket_t *sock,
+                             request_rec  *r,
+                             apr_size_t buffsize,
+                             ajp_msg_t **msg)
 {
-    apr_file_t *out = NULL;
-    if (!ap_exists_config_define("DUMP_CERTS")) {
-        return;
-    }
-    apr_file_open_stdout(&out, pconf);
-    apr_file_printf(out, "Server certificates:\n");
+    apr_byte_t result;
+    apr_status_t rc;
 
-    /* Dump the filenames of all configured server certificates to
-     * stdout. */
-    while (s) {
-        SSLSrvConfigRec *sc = mySrvConfig(s);
-
-        if (sc && sc->server && sc->server->pks) {
-            modssl_pk_server_t *const pks = sc->server->pks;
-            int i;
-
-            for (i = 0; (i < SSL_AIDX_MAX) && pks->cert_files[i]; i++) {
-                apr_file_printf(out, "  %s\n", pks->cert_files[i]);
-            }
+    if (*msg) {
+        rc = ajp_msg_reuse(*msg);
+        if (rc != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                   "ajp_read_header: ajp_msg_reuse failed");
+            return rc;
         }
-
-        s = s->next;
     }
-
+    else {
+        rc = ajp_msg_create(r->pool, buffsize, msg);
+        if (rc != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                   "ajp_read_header: ajp_msg_create failed");
+            return rc;
+        }
+    }
+    ajp_msg_reset(*msg);
+    rc = ajp_ilink_receive(sock, *msg);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_read_header: ajp_ilink_receive failed");
+        return rc;
+    }
+    rc = ajp_msg_peek_uint8(*msg, &result);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+               "ajp_read_header: ajp_ilink_received %02x", result);
+    return APR_SUCCESS;
 }

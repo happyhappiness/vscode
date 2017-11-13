@@ -1,1 +1,1 @@
-error_errno("unable to open mailmap at %s", filename);
+fprintf(stderr, "Checking %s\n", oid_to_hex(&obj->oid));

@@ -1,1 +1,1 @@
-io_printf(fd,"@ERROR: max connections (%d) reached - try again later\n", lp_max_connections());
+fprintf(FERROR,"pipe: %s\n",strerror(errno));

@@ -1,11 +1,10 @@
 fputs(
-"              See    this    online    resource    for    further     details:\n"
-"              http://curl.haxx.se/docs/sslcerts.html\n"
+"              (HTTP/FTP/FILE) Fetch the HTTP-header only! HTTP-servers feature\n"
+"              the command HEAD which this uses to get nothing but  the  header\n"
+"              of  a  document. When used on an FTP or FILE file, curl displays\n"
+"              the file size and last modification time only.\n"
 "\n"
-"       -K, --config <config file>\n"
-"              Specify  which config file to read curl arguments from. The con-\n"
-"              fig file is a text file in which command line arguments  can  be\n"
-"              written  which  then will be used as if they were written on the\n"
-"              actual command line.\n"
-"\n"
+"       --interface <name>\n"
+"              Perform an operation using a specified interface. You can  enter\n"
+"              interface  name,  IP address or host name. An example could look\n"
 , stdout);

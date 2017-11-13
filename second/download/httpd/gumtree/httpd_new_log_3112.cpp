@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, err->aprerr, ap_server_conf,
-                         APLOGNO(00577) "Error writing propdb: %s", err->desc);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01763)
+                 "Set shmem-size: %" APR_SIZE_T_FMT ", num-buckets: %ld",
+                 shmem_size, num_buckets);

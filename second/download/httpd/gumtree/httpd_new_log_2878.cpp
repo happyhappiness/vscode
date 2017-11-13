@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL, APLOGNO(02167)
-                         "Can't chdir to new root");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "leaving ssl_scache_shmcb_retrieve successfully");

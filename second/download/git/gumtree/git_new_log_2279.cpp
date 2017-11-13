@@ -1,1 +1,1 @@
-error_errno("failed to redirect stderr to /dev/null");
+warning("symbolic ref is dangling: %s", path);

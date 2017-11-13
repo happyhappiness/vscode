@@ -1,12 +1,11 @@
 fputs(
-"              such a case curl first connects to the SOCKS proxy and then con-\n"
-"              nects (through SOCKS) to the HTTP or HTTPS proxy.\n"
-"\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"              Added in 7.18.0.\n"
+"              Added in 7.12.3.\n"
 "\n"
-"       --socks5-gssapi-nec\n"
-"              As part of the GSS-API negotiation a protection mode is  negoti-\n"
-"              ated.  RFC  1961 says in section 4.3/4.4 it should be protected,\n"
+"       --retry-max-time <seconds>\n"
+"              The retry timer is reset  before  the  first  transfer  attempt.\n"
+"              Retries will be done as usual (see --retry) as long as the timer\n"
+"              hasn't reached this given limit. Notice that if the timer hasn't\n"
+"              reached  the  limit, the request will be made and while perform-\n"
 , stdout);

@@ -1,11 +1,8 @@
 fputs(
-"       --data-urlencode <data>\n"
-"              (HTTP) This posts data, similar to the other -d, --data  options\n"
-"              with the exception that this performs URL-encoding.\n"
-"\n"
-"              To  be  CGI-compliant,  the <data> part should begin with a name\n"
-"              followed by a separator and a content specification. The  <data>\n"
-"              part can be passed to curl using one of the following syntaxes:\n"
-"\n"
-"              content\n"
+"              transfers may occur.  If you use the NAME1=VALUE1; format, or in\n"
+"              a  file  use  the  Set-Cookie format and don't specify a domain,\n"
+"              then the cookie is sent for any domain (even after redirects are\n"
+"              followed)  and cannot be modified by a server-set cookie. If the\n"
+"              cookie engine is enabled and a server sets a cookie of the  same\n"
+"              name then both will be sent on a future transfer to that server,\n"
 , stdout);

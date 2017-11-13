@@ -1,22 +1,31 @@
-static int worker_open_logs(apr_pool_t *p, apr_pool_t *plog, apr_pool_t *ptemp, server_rec *s)
+static void ssl_init_server_check(server_rec *s,
+                                  apr_pool_t *p,
+                                  apr_pool_t *ptemp,
+                                  modssl_ctx_t *mctx)
 {
-    apr_status_t rv;
-
-    pconf = p;
-    ap_server_conf = s;
-
-    if ((num_listensocks = ap_setup_listeners(ap_server_conf)) < 1) {
-        ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_STARTUP, 0,
-                     NULL, "no listening sockets available, shutting down");
-        return DONE;
+    /*
+     * check for important parameters and the
+     * possibility that the user forgot to set them.
+     */
+    if (!mctx->pks->cert_files[0]) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                "No SSL Certificate set [hint: SSLCertificateFile]");
+        ssl_die();
     }
 
-    if (!one_process) {
-        if ((rv = ap_mpm_pod_open(pconf, &pod))) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT|APLOG_STARTUP, rv, NULL,
-                    "Could not open pipe-of-death.");
-            return DONE;
-        }
+    /*
+     *  Check for problematic re-initializations
+     */
+    if (mctx->pks->certs[SSL_AIDX_RSA] ||
+        mctx->pks->certs[SSL_AIDX_DSA]
+#ifndef OPENSSL_NO_EC
+      || mctx->pks->certs[SSL_AIDX_ECC]
+#endif
+        )
+    {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                "Illegal attempt to re-initialise SSL for server "
+                "(SSLEngine On should go in the VirtualHost, not in global scope.)");
+        ssl_die();
     }
-    return OK;
 }

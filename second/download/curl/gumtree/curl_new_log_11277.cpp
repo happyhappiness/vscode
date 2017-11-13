@@ -1,9 +1,11 @@
 fputs(
-"              The file specified with -b, --cookie is only used as  input.  No\n"
-"              cookies  will  be written to the file. To store cookies, use the\n"
-"              -c, --cookie-jar option.\n"
+"              WARNING: this option loosens the SSL security, and by using this\n"
+"              flag you ask for exactly that.  (Added in 7.25.0)\n"
 "\n"
-"              Exercise caution if you  are  using  this  option  and  multiple\n"
-"              transfers may occur.  If you use the NAME1=VALUE1; format, or in\n"
-"              a file use the Set-Cookie format and  don't  specify  a  domain,\n"
+"       --ssl-no-revoke\n"
+"              (WinSSL)  This  option tells curl to disable certificate revoca-\n"
+"              tion checks.  WARNING: this option loosens the SSL security, and\n"
+"              by using this flag you ask for exactly that.  (Added in 7.44.0)\n"
+"\n"
+"       --socks4 <host[:port]>\n"
 , stdout);

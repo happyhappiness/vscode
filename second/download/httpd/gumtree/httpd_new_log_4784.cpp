@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_STARTUP, 0,
-                     NULL, APLOGNO(00451) "no listening sockets available, shutting down");
+ap_log_rerror(file, line, APLOG_MODULE_INDEX, level, rv, r, "%s", buf);

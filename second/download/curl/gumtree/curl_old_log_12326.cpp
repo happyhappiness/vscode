@@ -1,11 +1,9 @@
 fputs(
-"              only such one.  (Added in 7.33.0)\n"
+"              should  be used in this session if they match. Using this method\n"
+"              also activates the cookie engine which  will  make  curl  record\n"
+"              incoming cookies too, which may be handy if you're using this in\n"
+"              combination with the -L, --location option. The file  format  of\n"
+"              the  file  to  read cookies from should be plain HTTP headers or\n"
+"              the Netscape/Mozilla cookie file format.\n"
 "\n"
-"       --dns-servers <ip-address,ip-address>\n"
-"              Set the list of DNS servers to be used  instead  of  the  system\n"
-"              default.  The list of IP addresses should be separated with com-\n"
-"              mas. Port numbers may also optionally be given as :<port-number>\n"
-"              after each IP address.\n"
-"\n"
-"              This  option  requires  that  libcurl  was built with a resolver\n"
 , stdout);

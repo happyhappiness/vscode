@@ -1,62 +1,37 @@
-static int action_handler(request_rec *r)
+static apr_status_t socache_shmcb_store(ap_socache_instance_t *ctx, 
+                                        server_rec *s, const unsigned char *id, 
+                                        unsigned int idlen, apr_time_t expiry, 
+                                        unsigned char *encoded,
+                                        unsigned int len_encoded,
+                                        apr_pool_t *p)
 {
-    action_dir_config *conf = (action_dir_config *)
-        ap_get_module_config(r->per_dir_config, &actions_module);
-    const char *t, *action;
-    const char *script;
-    int i;
+    SHMCBHeader *header = ctx->header;
+    SHMCBSubcache *subcache = SHMCB_MASK(header, id);
+    int tryreplace;
 
-    if (!conf->configured) {
-        return DECLINED;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "socache_shmcb_store (0x%02x -> subcache %d)",
+                 SHMCB_MASK_DBG(header, id));
+    /* XXX: Says who?  Why shouldn't this be acceptable, or padded if not? */
+    if (idlen < 4) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, "unusably short id provided "
+                "(%u bytes)", idlen);
+        return APR_EINVAL;
     }
-
-    /* Note that this handler handles _all_ types, so handler is unchecked */
-
-    /* Set allowed stuff */
-    for (i = 0; i < METHODS; ++i) {
-        if (conf->scripted[i])
-            r->allowed |= (AP_METHOD_BIT << i);
+    tryreplace = shmcb_subcache_remove(s, header, subcache, id, idlen);
+    if (shmcb_subcache_store(s, header, subcache, encoded,
+                             len_encoded, id, idlen, expiry)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "can't store an socache entry!");
+        return APR_ENOSPC;
     }
-
-    /* First, check for the method-handling scripts */
-    if (r->method_number == M_GET) {
-        if (r->args)
-            script = conf->scripted[M_GET];
-        else
-            script = NULL;
+    if (tryreplace == 0) {
+        header->stat_replaced++;
     }
     else {
-        script = conf->scripted[r->method_number];
+        header->stat_stores++;
     }
-
-    /* Check for looping, which can happen if the CGI script isn't */
-    if (script && r->prev && r->prev->prev)
-        return DECLINED;
-
-    /* Second, check for actions (which override the method scripts) */
-    action = r->handler ? r->handler :
-        ap_field_noparam(r->pool, r->content_type);
-
-    if (action && (t = apr_table_get(conf->action_types, action))) {
-        if (*t++ == '0' && r->finfo.filetype == APR_NOFILE) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "File does not exist: %s", r->filename);
-            return HTTP_NOT_FOUND;
-        }
-
-        script = t;
-        /* propagate the handler name to the script
-         * (will be REDIRECT_HANDLER there)
-         */
-        apr_table_setn(r->subprocess_env, "HANDLER", action);
-    }
-
-    if (script == NULL)
-        return DECLINED;
-
-    ap_internal_redirect_handler(apr_pstrcat(r->pool, script,
-                                             ap_escape_uri(r->pool, r->uri),
-                                             r->args ? "?" : NULL,
-                                             r->args, NULL), r);
-    return OK;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "leaving socache_shmcb_store successfully");
+    return APR_SUCCESS;
 }

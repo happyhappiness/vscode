@@ -1,1 +1,1 @@
-fprintf(stderr, "databaseName [%s]\n", databaseName);
+printf("    %s", OP_names[*code]);

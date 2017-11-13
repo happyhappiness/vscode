@@ -1,9 +1,10 @@
 fputs(
-"              Continue/Resume  a  previous  file transfer at the given offset.\n"
-"              The given offset is the exact  number  of  bytes  that  will  be\n"
-"              skipped,  counting  from the beginning of the source file before\n"
-"              it is transferred to the destination.  If used with uploads, the\n"
-"              FTP server command SIZE will not be used by curl.\n"
+"              (FTP/LDAP)  Enable  ASCII  transfer.  For  FTP, this can also be\n"
+"              enforced by using an URL that ends with \";type=A\".  This  option\n"
+"              causes data sent to stdout to be in text mode for win32 systems.\n"
 "\n"
-"              Use  \"-C  -\" to tell curl to automatically find out where/how to\n"
+"       --basic\n"
+"              (HTTP)  Tells  curl  to  use  HTTP Basic authentication with the\n"
+"              remote host. This is the default  and  this  option  is  usually\n"
+"              pointless, unless you use it to override a previously set option\n"
 , stdout);

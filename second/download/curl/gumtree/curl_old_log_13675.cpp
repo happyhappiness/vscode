@@ -1,10 +1,10 @@
 fputs(
-"       --http2-prior-knowledge\n"
-"              (HTTP)  Tells  curl  to  issue  its  non-TLS HTTP requests using\n"
-"              HTTP/2 without HTTP/1.1 Upgrade.  It  requires  prior  knowledge\n"
-"              that  the  server  supports HTTP/2 straight away. HTTPS requests\n"
-"              will still do HTTP/2 the standard way with  negotiated  protocol\n"
-"              version in the TLS handshake.\n"
+"              include  the  Windows domain name in the user name, in order for\n"
+"              the server to successfully obtain  a  Kerberos  Ticket.  If  you\n"
+"              don't then the initial authentication handshake may fail.\n"
 "\n"
-"              HTTP/2  support  in  general  also  requires that the underlying\n"
+"              When  using  NTLM,  the user name can be specified simply as the\n"
+"              user name, without the domain, if there is a single  domain  and\n"
+"              forest in your setup for example.\n"
+"\n"
 , stdout);

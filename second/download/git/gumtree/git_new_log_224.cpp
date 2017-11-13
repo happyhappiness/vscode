@@ -1,2 +1,1 @@
-die("--batch-all-objects cannot be combined with "
-			    "--textconv nor with --filters");
+fprintf(fp, "%s ", oid_to_hex(&state->orig_commit));

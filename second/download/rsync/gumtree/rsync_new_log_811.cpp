@@ -1,1 +1,1 @@
-fprintf(F," -L, --link-owner            display the owner+group on a symlink\n");
+fprintf(f, "\\#%03o", *(uchar*)s);

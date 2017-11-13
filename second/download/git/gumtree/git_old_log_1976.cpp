@@ -1,1 +1,1 @@
-die_errno(_("failed to unlink '%s'"), path);
+die("transport '%s' not allowed", type);

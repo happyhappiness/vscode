@@ -1,1 +1,1 @@
-error("file/directory conflict: %s, %s", name1, name2);
+die_errno(_("Failed to write ref"));

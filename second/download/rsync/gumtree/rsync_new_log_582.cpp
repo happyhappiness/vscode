@@ -1,1 +1,1 @@
-rprintf(FERROR,"Failed to close : %s\n",strerror(errno));
+rprintf(FERROR,"open %s : %s\n",fnametmp,strerror(errno));

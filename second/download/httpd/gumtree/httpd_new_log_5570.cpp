@@ -1,2 +1,5 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                      "h2_task_input(%s): eos", input->task->id);
+ap_log_error(APLOG_MARK, APLOG_WARNING,
+                                 0, NULL, APLOGNO(02793)
+                                 "bad (negative) nesting on line %d of %s",
+                                 config_file->line_number - line_number_start,
+                                 where);

@@ -1,2 +1,1 @@
-warnf(config->global, "Error setting extended attributes: %s\n",
-                  strerror(errno));
+warnf(config->global, "bad output glob!\n");

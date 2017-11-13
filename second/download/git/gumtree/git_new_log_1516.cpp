@@ -1,1 +1,2 @@
-error(FAILED_RUN, prune_worktrees.argv[0]);
+die(_("You have not concluded your merge (MERGE_HEAD exists).\n"
+				  "Please, commit your changes before you merge."));

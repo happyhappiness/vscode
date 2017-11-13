@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "%s: could not determine temp dir\n",
-                        argv[0]);
+printf ("\rRestart pending. Waiting for %d thread(s) to terminate...",
+                    worker_thread_count);

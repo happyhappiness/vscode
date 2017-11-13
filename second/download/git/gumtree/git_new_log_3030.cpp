@@ -1,0 +1,1 @@
+xwrite(2, outbuf.buf, outbuf.len);

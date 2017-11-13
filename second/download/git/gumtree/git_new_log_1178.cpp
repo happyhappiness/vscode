@@ -1,2 +1,1 @@
-die_errno("Invalid symlink '%s'",
-						  sb.buf);
+child_die(CHILD_ERR_SILENT);

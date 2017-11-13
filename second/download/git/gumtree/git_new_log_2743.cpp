@@ -1,1 +1,1 @@
-die_errno("poll");
+die_errno("read");

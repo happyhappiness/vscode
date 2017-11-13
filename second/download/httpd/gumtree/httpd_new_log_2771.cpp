@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01745)
-                              "auth_ldap authorize: require ldap-filter: "
-                              "authorization successful");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, main_server,
+                     "Couldn't set permissions on unix domain socket %s",
+                     sockname);

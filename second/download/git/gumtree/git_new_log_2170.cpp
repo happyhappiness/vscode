@@ -1,1 +1,1 @@
-fputs(pp->buffered_output.buf, stderr);
+die("could not read ref '%s'", pseudoref);

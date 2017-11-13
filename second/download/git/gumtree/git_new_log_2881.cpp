@@ -1,1 +1,1 @@
-warning_errno(_("failed to stat '%s'"), ce->name);
+die(_("No such ref: %s"), "HEAD");

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MinSpareThreads of %d not allowed, "
-                         "increasing to 1", min_spare_threads);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "proxy: %s: connection complete to %pI (%s)",
+                 proxy_function, backend_addr, conn->hostname);

@@ -1,1 +1,1 @@
-out_of_memory("fix_basis_dirs");
+fprintf(fp,"  %-*s   ", maxLeftCol, left);

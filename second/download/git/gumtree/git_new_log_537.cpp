@@ -1,1 +1,1 @@
-die("git upload-pack: deepen and deepen-since (or deepen-not) cannot be used together");
+die(_("no shallow found: %s"), line);

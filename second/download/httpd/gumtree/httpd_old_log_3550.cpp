@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                    "internal error: bad expires code: %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
+                   "Heartmonitor: Unable to flush file: %s", path);

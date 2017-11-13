@@ -1,4 +1,3 @@
-error(command == TODO_REVERT
-		      ? _("could not revert %s... %s")
-		      : _("could not apply %s... %s"),
-		      short_commit_name(commit), msg.subject);
+printf("%06o #%d %s %.8s\n",
+		       ce->ce_mode, ce_stage(ce), ce->name,
+		       oid_to_hex(&ce->oid));

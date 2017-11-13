@@ -1,3 +1,2 @@
-error(_("unexpected 1st line of squash message:"
-				       "\n\n\t%.*s"),
-				     (int)(eol - buf.buf), buf.buf);
+error(_("malformed options sheet: '%s'"),
+			git_path_opts_file());

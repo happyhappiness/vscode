@@ -1,1 +1,1 @@
-warning("%s unexpectedly said: '%s'", data->name, buf->buf);
+die(_("option '%s' requires a value"), option_name);

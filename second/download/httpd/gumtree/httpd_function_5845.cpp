@@ -1,23 +1,8 @@
-static apr_status_t stream_pool_cleanup(void *ctx)
+static void *session_realloc(void *p, size_t size, void *ctx)
 {
-    h2_stream *stream = ctx;
-    apr_status_t status;
-    
-    if (stream->input) {
-        h2_beam_destroy(stream->input);
-        stream->input = NULL;
-    }
-    if (stream->files) {
-        apr_file_t *file;
-        int i;
-        for (i = 0; i < stream->files->nelts; ++i) {
-            file = APR_ARRAY_IDX(stream->files, i, apr_file_t*);
-            status = apr_file_close(file);
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE3, status, stream->session->c, 
-                          "h2_stream(%ld-%d): destroy, closed file %d", 
-                          stream->session->id, stream->id, i);
-        }
-        stream->files = NULL;
-    }
-    return APR_SUCCESS;
+    h2_session *session = ctx;
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE6, 0, session->c,
+                  "h2_session(%ld): realloc(%ld)",
+                  session->id, (long)size);
+    return realloc(p, size);
 }

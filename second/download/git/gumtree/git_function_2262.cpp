@@ -1,71 +1,66 @@
-static struct commit *get_base_commit(const char *base_commit,
-				      struct commit **list,
-				      int total)
+int cmd_rerere(int argc, const char **argv, const char *prefix)
 {
-	struct commit *base = NULL;
-	struct commit **rev;
-	int i = 0, rev_nr = 0;
+	struct string_list merge_rr = STRING_LIST_INIT_DUP;
+	int i, autoupdate = -1, flags = 0;
 
-	if (base_commit && strcmp(base_commit, "auto")) {
-		base = lookup_commit_reference_by_name(base_commit);
-		if (!base)
-			die(_("Unknown commit %s"), base_commit);
-	} else if ((base_commit && !strcmp(base_commit, "auto")) || base_auto) {
-		struct branch *curr_branch = branch_get(NULL);
-		const char *upstream = branch_get_upstream(curr_branch, NULL);
-		if (upstream) {
-			struct commit_list *base_list;
-			struct commit *commit;
-			unsigned char sha1[20];
+	struct option options[] = {
+		OPT_SET_INT(0, "rerere-autoupdate", &autoupdate,
+			N_("register clean resolutions in index"), 1),
+		OPT_END(),
+	};
 
-			if (get_sha1(upstream, sha1))
-				die(_("Failed to resolve '%s' as a valid ref."), upstream);
-			commit = lookup_commit_or_die(sha1, "upstream base");
-			base_list = get_merge_bases_many(commit, total, list);
-			/* There should be one and only one merge base. */
-			if (!base_list || base_list->next)
-				die(_("Could not find exact merge base."));
-			base = base_list->item;
-			free_commit_list(base_list);
-		} else {
-			die(_("Failed to get upstream, if you want to record base commit automatically,\n"
-			      "please use git branch --set-upstream-to to track a remote branch.\n"
-			      "Or you could specify base commit by --base=<base-commit-id> manually."));
+	argc = parse_options(argc, argv, prefix, options, rerere_usage, 0);
+
+	git_config(git_xmerge_config, NULL);
+
+	if (autoupdate == 1)
+		flags = RERERE_AUTOUPDATE;
+	if (autoupdate == 0)
+		flags = RERERE_NOAUTOUPDATE;
+
+	if (argc < 1)
+		return rerere(flags);
+
+	if (!strcmp(argv[0], "forget")) {
+		struct pathspec pathspec;
+		if (argc < 2)
+			warning("'git rerere forget' without paths is deprecated");
+		parse_pathspec(&pathspec, 0, PATHSPEC_PREFER_CWD,
+			       prefix, argv + 1);
+		return rerere_forget(&pathspec);
+	}
+
+	if (!strcmp(argv[0], "clear")) {
+		rerere_clear(&merge_rr);
+	} else if (!strcmp(argv[0], "gc"))
+		rerere_gc(&merge_rr);
+	else if (!strcmp(argv[0], "status")) {
+		if (setup_rerere(&merge_rr, flags | RERERE_READONLY) < 0)
+			return 0;
+		for (i = 0; i < merge_rr.nr; i++)
+			printf("%s\n", merge_rr.items[i].string);
+	} else if (!strcmp(argv[0], "remaining")) {
+		rerere_remaining(&merge_rr);
+		for (i = 0; i < merge_rr.nr; i++) {
+			if (merge_rr.items[i].util != RERERE_RESOLVED)
+				printf("%s\n", merge_rr.items[i].string);
+			else
+				/* prepare for later call to
+				 * string_list_clear() */
+				merge_rr.items[i].util = NULL;
 		}
-	}
-
-	ALLOC_ARRAY(rev, total);
-	for (i = 0; i < total; i++)
-		rev[i] = list[i];
-
-	rev_nr = total;
-	/*
-	 * Get merge base through pair-wise computations
-	 * and store it in rev[0].
-	 */
-	while (rev_nr > 1) {
-		for (i = 0; i < rev_nr / 2; i++) {
-			struct commit_list *merge_base;
-			merge_base = get_merge_bases(rev[2 * i], rev[2 * i + 1]);
-			if (!merge_base || merge_base->next)
-				die(_("Failed to find exact merge base"));
-
-			rev[i] = merge_base->item;
+	} else if (!strcmp(argv[0], "diff")) {
+		if (setup_rerere(&merge_rr, flags | RERERE_READONLY) < 0)
+			return 0;
+		for (i = 0; i < merge_rr.nr; i++) {
+			const char *path = merge_rr.items[i].string;
+			const char *name = (const char *)merge_rr.items[i].util;
+			if (diff_two(rerere_path(name, "preimage"), path, path, path))
+				die("unable to generate diff for %s", name);
 		}
+	} else
+		usage_with_options(rerere_usage, options);
 
-		if (rev_nr % 2)
-			rev[i] = rev[2 * i];
-		rev_nr = (rev_nr + 1) / 2;
-	}
-
-	if (!in_merge_bases(base, rev[0]))
-		die(_("base commit should be the ancestor of revision list"));
-
-	for (i = 0; i < total; i++) {
-		if (base == list[i])
-			die(_("base commit shouldn't be in revision list"));
-	}
-
-	free(rev);
-	return base;
+	string_list_clear(&merge_rr, 1);
+	return 0;
 }

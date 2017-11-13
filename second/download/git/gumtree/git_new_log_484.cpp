@@ -1,3 +1,1 @@
-error("object directory %s does not exist; "
-		      "check .git/objects/info/alternates.",
-		      path->buf);
+printf(" %s ", diff_aligned_abbrev(&p->oid, opt->abbrev));

@@ -1,1 +1,1 @@
-printf("%s\n", find_unique_abbrev(sha1, DEFAULT_ABBREV));
+die("unable to generate checkdiff for %s", one->path);

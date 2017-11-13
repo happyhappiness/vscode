@@ -1,11 +1,10 @@
 fputs(
-"              Since 7.21.7, this option is superfluous since you can specify a\n"
-"              socks5 hostname proxy with -x, --proxy using a socks5h:// proto-\n"
-"              col prefix.\n"
+"              of  using  the  path as provided in the URL. Particularly useful\n"
+"              when wanting to issue HTTP requests  without  leading  slash  or\n"
+"              other  data  that  doesn't  follow the regular URL pattern, like\n"
+"              \"OPTIONS *\".\n"
 "\n"
-"              Since 7.52.0, --preproxy can be used to specify a SOCKS proxy at\n"
-"              the  same  time -x, --proxy is used with an HTTP/HTTPS proxy. In\n"
-"              such a case curl first connects to the SOCKS proxy and then con-\n"
-"              nects (through SOCKS) to the HTTP or HTTPS proxy.\n"
-"\n"
+"       -X, --request <command>\n"
+"              (HTTP) Specifies a custom request method to use when communicat-\n"
+"              ing  with the HTTP server.  The specified request method will be\n"
 , stdout);

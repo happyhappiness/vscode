@@ -1,2 +1,2 @@
-printf("Server loaded:  APR %s, APR-Util %s\n",
-           apr_version_string(), apu_version_string());
+fprintf(stderr,
+		"apr_table_overlay: base's pool is not an ancestor of p\n");

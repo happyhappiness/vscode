@@ -1,10 +1,11 @@
 fputs(
-"              if  specify  -x,  --proxy  option. That is NO_PROXY=direct.exam-\n"
-"              ple.com  curl  -x  http://proxy.example.com  http://direct.exam-\n"
-"              ple.com     accesses    the    target    URL    directly,    and\n"
-"              NO_PROXY=direct.example.com  curl  -x   http://proxy.example.com\n"
-"              http://somewhere.example.com  accesses  the  target  URL through\n"
-"              proxy.\n"
+"                             The  result of the SSL peer certificate verifica-\n"
+"                             tion that was requested. 0 means the verification\n"
+"                             was successful. (Added in 7.19.0)\n"
 "\n"
-"PROXY PROTOCOL PREFIXES\n"
+"              time_appconnect\n"
+"                             The  time,  in  seconds,  it  took from the start\n"
+"                             until the SSL/SSH/etc  connect/handshake  to  the\n"
+"                             remote host was completed. (Added in 7.19.0)\n"
+"\n"
 , stdout);

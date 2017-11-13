@@ -1,4 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, 
-                                    "Inflated content ratio is larger than the "
-                                    "configured limit %i by %i time(s)",
-                                    dc->ratio_limit, dc->ratio_burst);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, status, r->server,
+                     "Attempt to obtain a cache lock for stale "
+                     "cached URL failed, revalidating entry anyway: %s",
+                     r->unparsed_uri);

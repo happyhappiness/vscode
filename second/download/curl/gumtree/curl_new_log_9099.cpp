@@ -1,10 +1,9 @@
 fputs(
-"              in a future version.\n"
+"              Retries will be done as usual (see --retry) as long as the timer\n"
+"              hasn't reached this given limit. Notice that if the timer hasn't\n"
+"              reached  the  limit, the request will be made and while perform-\n"
+"              ing, it may take longer than this given time period. To limit  a\n"
+"              single  request's  maximum  time,  use -m, --max-time.  Set this\n"
+"              option to zero to not timeout retries. (Added in 7.12.3)\n"
 "\n"
-"       --ssl-allow-beast\n"
-"              (SSL) This option tells curl to not work around a security  flaw\n"
-"              in the SSL3 and TLS1.0 protocols known as BEAST.  If this option\n"
-"              isn't used, the SSL layer may use  workarounds  known  to  cause\n"
-"              interoperability  problems  with some older SSL implementations.\n"
-"              WARNING: this option loosens the SSL security, and by using this\n"
 , stdout);

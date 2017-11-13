@@ -1,1 +1,0 @@
-fprintf(FINFO,"recv_file_list done\n");

@@ -1,2 +1,1 @@
-error("unknown value after ws-error-highlight=%.*s",
-		      -1 - val, arg);
+die("no such commit %s", oid_to_hex(oid));

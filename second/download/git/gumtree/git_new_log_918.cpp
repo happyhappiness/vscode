@@ -1,1 +1,1 @@
-die("could not reset submodule index");
+die(_("--no-index or --untracked cannot be used with revs"));

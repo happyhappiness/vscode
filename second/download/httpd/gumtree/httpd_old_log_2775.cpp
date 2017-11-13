@@ -1,3 +1,7 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "Module mod_ldap missing. Mod_ldap (aka. util_ldap) "
-                     "must be loaded in order for mod_authnz_ldap to function properly");
+ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                     "proxy: pass request body failed to %pI (%s)"
+                     " from %s (%s)",
+                     p_conn->addr,
+                     p_conn->hostname ? p_conn->hostname: "",
+                     c->remote_ip,
+                     c->remote_host ? c->remote_host: "");

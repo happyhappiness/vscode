@@ -1,6 +1,13 @@
-puts(" -o/--output <file> Write output to <file> instead of stdout\n"
-       " -O/--remote-name   Write output to a file named as the remote file\n"
-       " -p/--proxytunnel   Perform non-HTTP services through a HTTP proxy\n"
-       " -P/--ftpport <address> Use PORT with address instead of PASV when ftping (F)\n"
-       " -q                 When used as the first parameter disables .curlrc\n"
-       " -Q/--quote <cmd>   Send QUOTE command to FTP before file transfer (F)");
+puts(
+"  strings, transactions with that node will not be proxied.\n"
+"\n"
+"\n"
+"  The usage of the -x/--proxy flag overrides the environment variables.\n"
+"\n"
+"NETRC\n"
+"\n"
+"  Unix introduced the .netrc concept a long time ago. It is a way for a user\n"
+"  to specify name and password for commonly visited ftp sites in a file so\n"
+"  that you don't have to type them in each time you visit those sites. You\n"
+"  realize this is a big security risk if someone else gets hold of your\n"
+);

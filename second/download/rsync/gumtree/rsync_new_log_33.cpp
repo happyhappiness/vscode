@@ -1,1 +1,1 @@
-fprintf(stderr,"mkdir %s : %s\n",name,strerror(errno));
+fprintf(stderr,"ERROR: destination must be a diirectory when copying more than 1 file\n");

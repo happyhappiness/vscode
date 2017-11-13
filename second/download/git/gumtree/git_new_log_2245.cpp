@@ -1,1 +1,1 @@
-die_errno("could not read file '%s'", filename);
+die_errno(_("could not open '%s' for reading and writing"), path);

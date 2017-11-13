@@ -1,1 +1,2 @@
-error(_("cannot amend non-existing commit"));
+print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+				 "non-fast-forward", porcelain, summary_width);

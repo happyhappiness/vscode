@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Failed to evaluate expression - ignoring");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
+                   "Heartmonitor: Unable to close file: %s", path);

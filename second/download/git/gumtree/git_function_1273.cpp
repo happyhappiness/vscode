@@ -1,16 +1,20 @@
-void convert_to_git_filter_fd(const char *path, int fd, struct strbuf *dst,
-			      enum safe_crlf checksafe)
+static int suggest_conflicts(void)
 {
-	struct conv_attrs ca;
-	convert_attrs(&ca, path);
+	const char *filename;
+	FILE *fp;
+	struct strbuf msgbuf = STRBUF_INIT;
 
-	assert(ca.drv);
-	assert(ca.drv->clean);
+	filename = git_path_merge_msg();
+	fp = fopen(filename, "a");
+	if (!fp)
+		die_errno(_("Could not open '%s' for writing"), filename);
 
-	if (!apply_filter(path, NULL, 0, fd, dst, ca.drv->clean))
-		die("%s: clean filter '%s' failed", path, ca.drv->name);
-
-	ca.crlf_action = input_crlf_action(ca.crlf_action, ca.eol_attr);
-	crlf_to_git(path, dst->buf, dst->len, dst, ca.crlf_action, checksafe);
-	ident_to_git(path, dst->buf, dst->len, dst, ca.ident);
+	append_conflicts_hint(&msgbuf);
+	fputs(msgbuf.buf, fp);
+	strbuf_release(&msgbuf);
+	fclose(fp);
+	rerere(allow_rerere_auto);
+	printf(_("Automatic merge failed; "
+			"fix conflicts and then commit the result.\n"));
+	return 1;
 }

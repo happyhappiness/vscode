@@ -1,3 +1,2 @@
-fprintf(stderr, "MOVE %s failed, aborting (%d/%ld)\n",
-				oid_to_hex(&request->obj->oid),
-				request->curl_result, request->http_code);
+strbuf_addf(err, "unable to resolve reference %s: %s",
+				    orig_refname, strerror(last_errno));

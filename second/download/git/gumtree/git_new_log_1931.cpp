@@ -1,1 +1,1 @@
-die(_("No such remote '%s'"), remotename);
+warning(_("Untracked cache is disabled on this system."));

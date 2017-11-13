@@ -1,2 +1,1 @@
-warning("cannot read /etc/mailname: %s",
-				strerror(errno));
+warning("cannot get host name: %s", strerror(errno));

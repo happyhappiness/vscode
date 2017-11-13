@@ -1,1 +1,4 @@
-packet_write(1, "ERR %s: %s", msg, dir);
+warning(Q_("squelched %d whitespace error",
+				   "squelched %d whitespace errors",
+				   squelched),
+				squelched);

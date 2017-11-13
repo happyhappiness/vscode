@@ -1,2 +1,1 @@
-error("unable to open object pack directory: %s: %s",
-			      path.buf, strerror(errno));
+fprintf(fout, "%s: %.*s\n", hdr, len, sp);

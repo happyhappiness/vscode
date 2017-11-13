@@ -1,63 +1,54 @@
-int ap_open_logs(apr_pool_t *pconf, apr_pool_t *p /* plog */, 
-                 apr_pool_t *ptemp, server_rec *s_main)
+static apr_status_t dummy_connection(ap_pod_t *pod)
 {
-    apr_status_t rc = APR_SUCCESS;
-    server_rec *virt, *q;
-    int replace_stderr;
-    apr_file_t *errfile = NULL;
+    apr_status_t rv;
+    apr_socket_t *sock;
+    apr_pool_t *p;
 
-    apr_pool_cleanup_register(p, NULL, clear_handle_list,
-                              apr_pool_cleanup_null);
-    if (open_error_log(s_main, p) != OK) {
-        return DONE;
+    /* create a temporary pool for the socket.  pconf stays around too long */
+    rv = apr_pool_create(&p, pod->p);
+    if (rv != APR_SUCCESS) {
+        return rv;
     }
 
-    replace_stderr = 1;
-    if (s_main->error_log) {
-        /* replace stderr with this new log */
-        apr_file_flush(s_main->error_log);
-        if ((rc = apr_file_open_stderr(&errfile, p)) == APR_SUCCESS) {
-            rc = apr_file_dup2(errfile, s_main->error_log, p);
-        }
-        if (rc != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, rc, s_main,
-                         "unable to replace stderr with error_log");
-        }
-        else {
-            replace_stderr = 0;
-        }
+    rv = apr_socket_create(&sock, pod->sa->family, SOCK_STREAM, p);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf,
+                     "get socket to connect to listener");
+        return rv;
     }
-    /* note that stderr may still need to be replaced with something
-     * because it points to the old error log, or back to the tty
-     * of the submitter.
-     * XXX: This is BS - /dev/null is non-portable
+
+    /* on some platforms (e.g., FreeBSD), the kernel won't accept many
+     * queued connections before it starts blocking local connects...
+     * we need to keep from blocking too long and instead return an error,
+     * because the MPM won't want to hold up a graceful restart for a
+     * long time
      */
-    if (replace_stderr && freopen("/dev/null", "w", stderr) == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, errno, s_main,
-                     "unable to replace stderr with /dev/null");
+    rv = apr_socket_timeout_set(sock, apr_time_from_sec(3));
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf,
+                     "set timeout on socket to connect to listener");
+        apr_socket_close(sock);
+        return rv;
     }
 
-    for (virt = s_main->next; virt; virt = virt->next) {
-        if (virt->error_fname) {
-            for (q=s_main; q != virt; q = q->next) {
-                if (q->error_fname != NULL
-                    && strcmp(q->error_fname, virt->error_fname) == 0) {
-                    break;
-                }
-            }
+    rv = apr_connect(sock, pod->sa);
+    if (rv != APR_SUCCESS) {
+        int log_level = APLOG_WARNING;
 
-            if (q == virt) {
-                if (open_error_log(virt, p) != OK) {
-                    return DONE;
-                }
-            }
-            else {
-                virt->error_log = q->error_log;
-            }
+        if (APR_STATUS_IS_TIMEUP(rv)) {
+            /* probably some server processes bailed out already and there
+             * is nobody around to call accept and clear out the kernel
+             * connection queue; usually this is not worth logging
+             */
+            log_level = APLOG_DEBUG;
         }
-        else {
-            virt->error_log = s_main->error_log;
-        }
+
+        ap_log_error(APLOG_MARK, log_level, rv, ap_server_conf,
+                     "connect to listener");
     }
-    return OK;
+
+    apr_socket_close(sock);
+    apr_pool_destroy(p);
+
+    return rv;
 }

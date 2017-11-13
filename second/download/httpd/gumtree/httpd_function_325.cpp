@@ -1,65 +1,115 @@
-static int nwssl_post_config(apr_pool_t *pconf, apr_pool_t *plog,
-                          apr_pool_t *ptemp, server_rec *s)
+static void set_signals(void)
 {
-    seclisten_rec* sl;
-    ap_listen_rec* lr;
-    apr_socket_t*  sd;
-    apr_status_t status;
-    seclistenup_rec *slu;
-    int found;
+#ifndef NO_USE_SIGACTION
+    struct sigaction sa;
 
-    for (sl = ap_seclisteners; sl != NULL; sl = sl->next) {
-        sl->fd = find_secure_listener(sl);
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
 
-        if (sl->fd < 0)
-            sl->fd = make_secure_socket(pconf, &sl->local_addr, sl->key, sl->mutual, s);            
-            
-        if (sl->fd >= 0) {
-            apr_os_sock_info_t sock_info;
+    if (!one_process) {
+        sa.sa_handler = sig_coredump;
+#if defined(SA_ONESHOT)
+        sa.sa_flags = SA_ONESHOT;
+#elif defined(SA_RESETHAND)
+        sa.sa_flags = SA_RESETHAND;
+#endif
+        if (sigaction(SIGSEGV, &sa, NULL) < 0)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                         "sigaction(SIGSEGV)");
+#ifdef SIGBUS
+        if (sigaction(SIGBUS, &sa, NULL) < 0)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                         "sigaction(SIGBUS)");
+#endif
+#ifdef SIGABORT
+        if (sigaction(SIGABORT, &sa, NULL) < 0)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                         "sigaction(SIGABORT)");
+#endif
+#ifdef SIGABRT
+        if (sigaction(SIGABRT, &sa, NULL) < 0)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                         "sigaction(SIGABRT)");
+#endif
+#ifdef SIGILL
+        if (sigaction(SIGILL, &sa, NULL) < 0)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                         "sigaction(SIGILL)");
+#endif
+        sa.sa_flags = 0;
+    }
+    sa.sa_handler = sig_term;
+    if (sigaction(SIGTERM, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                     "sigaction(SIGTERM)");
+#ifdef SIGINT
+    if (sigaction(SIGINT, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                     "sigaction(SIGINT)");
+#endif
+#ifdef SIGXCPU
+    sa.sa_handler = SIG_DFL;
+    if (sigaction(SIGXCPU, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                     "sigaction(SIGXCPU)");
+#endif
+#ifdef SIGXFSZ
+    sa.sa_handler = SIG_DFL;
+    if (sigaction(SIGXFSZ, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                     "sigaction(SIGXFSZ)");
+#endif
+#ifdef SIGPIPE
+    sa.sa_handler = SIG_IGN;
+    if (sigaction(SIGPIPE, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                     "sigaction(SIGPIPE)");
+#endif
 
-            sock_info.os_sock = &(sl->fd);
-            sock_info.local = (struct sockaddr*)&(sl->local_addr);
-            sock_info.remote = NULL;
-            sock_info.family = APR_INET;
-            sock_info.type = SOCK_STREAM;
+    /* we want to ignore HUPs and AP_SIG_GRACEFUL while we're busy 
+     * processing one */
+    sigaddset(&sa.sa_mask, SIGHUP);
+    sigaddset(&sa.sa_mask, AP_SIG_GRACEFUL);
+    sa.sa_handler = restart;
+    if (sigaction(SIGHUP, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                     "sigaction(SIGHUP)");
+    if (sigaction(AP_SIG_GRACEFUL, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                     "sigaction(" AP_SIG_GRACEFUL_STRING ")");
+#else
+    if (!one_process) {
+        apr_signal(SIGSEGV, sig_coredump);
+#ifdef SIGBUS
+        apr_signal(SIGBUS, sig_coredump);
+#endif /* SIGBUS */
+#ifdef SIGABORT
+        apr_signal(SIGABORT, sig_coredump);
+#endif /* SIGABORT */
+#ifdef SIGABRT
+        apr_signal(SIGABRT, sig_coredump);
+#endif /* SIGABRT */
+#ifdef SIGILL
+        apr_signal(SIGILL, sig_coredump);
+#endif /* SIGILL */
+#ifdef SIGXCPU
+        apr_signal(SIGXCPU, SIG_DFL);
+#endif /* SIGXCPU */
+#ifdef SIGXFSZ
+        apr_signal(SIGXFSZ, SIG_DFL);
+#endif /* SIGXFSZ */
+    }
 
-            apr_os_sock_make(&sd, &sock_info, pconf);
+    apr_signal(SIGTERM, sig_term);
+#ifdef SIGHUP
+    apr_signal(SIGHUP, restart);
+#endif /* SIGHUP */
+#ifdef AP_SIG_GRACEFUL
+    apr_signal(AP_SIG_GRACEFUL, restart);
+#endif /* AP_SIG_GRACEFUL */
+#ifdef SIGPIPE
+    apr_signal(SIGPIPE, SIG_IGN);
+#endif /* SIGPIPE */
 
-            lr = apr_pcalloc(pconf, sizeof(ap_listen_rec));
-        
-            if (lr) {
-				lr->sd = sd;
-                if ((status = apr_sockaddr_info_get(&lr->bind_addr, sl->addr, APR_UNSPEC, sl->port, 0, 
-                                              pconf)) != APR_SUCCESS) {
-                    ap_log_perror(APLOG_MARK, APLOG_CRIT, status, pconf,
-                                 "alloc_listener: failed to set up sockaddr for %s:%d", sl->addr, sl->port);
-                    return HTTP_INTERNAL_SERVER_ERROR;
-                }
-                lr->next = ap_listeners;
-                ap_listeners = lr;
-                apr_pool_cleanup_register(pconf, lr, nwssl_socket_cleanup, apr_pool_cleanup_null);
-            }
-        } else {
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
-    } 
-
-    for (slu = ap_seclistenersup; slu; slu = slu->next) {
-        /* Check the listener list for a matching upgradeable listener */
-        found = 0;
-        for (lr = ap_listeners; lr; lr = lr->next) {
-            if (slu->port == lr->bind_addr->port) {
-                found = 1;
-                break;
-            }
-        }
-        if (!found) {
-            ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, plog,
-                         "No Listen directive found for upgradeable listener %s:%d", slu->addr, slu->port);
-        }
-    }    
-
-    build_cert_list(pconf);
-
-    return OK;
+#endif
 }

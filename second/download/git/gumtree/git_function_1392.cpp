@@ -1,80 +1,165 @@
-static int add(int argc, const char **argv, const char *prefix)
+static void populate_value(struct ref_array_item *ref)
 {
-	int retval = 0, force = 0;
-	const char *object_ref;
-	struct notes_tree *t;
-	unsigned char object[20], new_note[20];
-	char logmsg[100];
-	const unsigned char *note;
-	struct msg_arg msg = { 0, 0, STRBUF_INIT };
-	struct option options[] = {
-		{ OPTION_CALLBACK, 'm', "message", &msg, N_("message"),
-			N_("note contents as a string"), PARSE_OPT_NONEG,
-			parse_msg_arg},
-		{ OPTION_CALLBACK, 'F', "file", &msg, N_("file"),
-			N_("note contents in a file"), PARSE_OPT_NONEG,
-			parse_file_arg},
-		{ OPTION_CALLBACK, 'c', "reedit-message", &msg, N_("object"),
-			N_("reuse and edit specified note object"), PARSE_OPT_NONEG,
-			parse_reedit_arg},
-		{ OPTION_CALLBACK, 'C', "reuse-message", &msg, N_("object"),
-			N_("reuse specified note object"), PARSE_OPT_NONEG,
-			parse_reuse_arg},
-		OPT__FORCE(&force, N_("replace existing notes")),
-		OPT_END()
-	};
+	void *buf;
+	struct object *obj;
+	int eaten, i;
+	unsigned long size;
+	const unsigned char *tagged;
 
-	argc = parse_options(argc, argv, prefix, options, git_notes_add_usage,
-			     PARSE_OPT_KEEP_ARGV0);
+	ref->value = xcalloc(used_atom_cnt, sizeof(struct atom_value));
 
-	if (2 < argc) {
-		error(_("too many parameters"));
-		usage_with_options(git_notes_add_usage, options);
+	if (need_symref && (ref->flag & REF_ISSYMREF) && !ref->symref) {
+		struct object_id unused1;
+		ref->symref = resolve_refdup(ref->refname, RESOLVE_REF_READING,
+					     unused1.hash, NULL);
+		if (!ref->symref)
+			ref->symref = "";
 	}
 
-	object_ref = argc > 1 ? argv[1] : "HEAD";
+	/* Fill in specials first */
+	for (i = 0; i < used_atom_cnt; i++) {
+		struct used_atom *atom = &used_atom[i];
+		const char *name = used_atom[i].name;
+		struct atom_value *v = &ref->value[i];
+		int deref = 0;
+		const char *refname;
+		struct branch *branch = NULL;
 
-	if (get_sha1(object_ref, object))
-		die(_("Failed to resolve '%s' as a valid ref."), object_ref);
+		v->handler = append_atom;
+		v->atom = atom;
 
-	t = init_notes_check("add");
-	note = get_note(t, object);
-
-	if (note) {
-		if (!force) {
-			if (!msg.given) {
-				/*
-				 * Redirect to "edit" subcommand.
-				 *
-				 * We only end up here if none of -m/-F/-c/-C
-				 * or -f are given. The original args are
-				 * therefore still in argv[0-1].
-				 */
-				argv[0] = "edit";
-				free_notes(t);
-				return append_edit(argc, argv, prefix);
-			}
-			retval = error(_("Cannot add notes. Found existing notes "
-				       "for object %s. Use '-f' to overwrite "
-				       "existing notes"), sha1_to_hex(object));
-			goto out;
+		if (*name == '*') {
+			deref = 1;
+			name++;
 		}
-		fprintf(stderr, _("Overwriting existing notes for object %s\n"),
-			sha1_to_hex(object));
+
+		if (starts_with(name, "refname"))
+			refname = get_refname(atom, ref);
+		else if (starts_with(name, "symref"))
+			refname = get_symref(atom, ref);
+		else if (starts_with(name, "upstream")) {
+			const char *branch_name;
+			/* only local branches may have an upstream */
+			if (!skip_prefix(ref->refname, "refs/heads/",
+					 &branch_name))
+				continue;
+			branch = branch_get(branch_name);
+
+			refname = branch_get_upstream(branch, NULL);
+			if (refname)
+				fill_remote_ref_details(atom, refname, branch, &v->s);
+			continue;
+		} else if (starts_with(name, "push")) {
+			const char *branch_name;
+			if (!skip_prefix(ref->refname, "refs/heads/",
+					 &branch_name))
+				continue;
+			branch = branch_get(branch_name);
+
+			refname = branch_get_push(branch, NULL);
+			if (!refname)
+				continue;
+			fill_remote_ref_details(atom, refname, branch, &v->s);
+			continue;
+		} else if (starts_with(name, "color:")) {
+			v->s = atom->u.color;
+			continue;
+		} else if (!strcmp(name, "flag")) {
+			char buf[256], *cp = buf;
+			if (ref->flag & REF_ISSYMREF)
+				cp = copy_advance(cp, ",symref");
+			if (ref->flag & REF_ISPACKED)
+				cp = copy_advance(cp, ",packed");
+			if (cp == buf)
+				v->s = "";
+			else {
+				*cp = '\0';
+				v->s = xstrdup(buf + 1);
+			}
+			continue;
+		} else if (!deref && grab_objectname(name, ref->objectname, v, atom)) {
+			continue;
+		} else if (!strcmp(name, "HEAD")) {
+			if (atom->u.head && !strcmp(ref->refname, atom->u.head))
+				v->s = "*";
+			else
+				v->s = " ";
+			continue;
+		} else if (starts_with(name, "align")) {
+			v->handler = align_atom_handler;
+			continue;
+		} else if (!strcmp(name, "end")) {
+			v->handler = end_atom_handler;
+			continue;
+		} else if (starts_with(name, "if")) {
+			const char *s;
+
+			if (skip_prefix(name, "if:", &s))
+				v->s = xstrdup(s);
+			v->handler = if_atom_handler;
+			continue;
+		} else if (!strcmp(name, "then")) {
+			v->handler = then_atom_handler;
+			continue;
+		} else if (!strcmp(name, "else")) {
+			v->handler = else_atom_handler;
+			continue;
+		} else
+			continue;
+
+		if (!deref)
+			v->s = refname;
+		else
+			v->s = xstrfmt("%s^{}", refname);
 	}
 
-	create_note(object, &msg, 0, note, new_note);
+	for (i = 0; i < used_atom_cnt; i++) {
+		struct atom_value *v = &ref->value[i];
+		if (v->s == NULL)
+			goto need_obj;
+	}
+	return;
 
-	if (is_null_sha1(new_note))
-		remove_note(t, object);
-	else if (add_note(t, object, new_note, combine_notes_overwrite))
-		die("BUG: combine_notes_overwrite failed");
+ need_obj:
+	buf = get_obj(ref->objectname, &obj, &size, &eaten);
+	if (!buf)
+		die(_("missing object %s for %s"),
+		    sha1_to_hex(ref->objectname), ref->refname);
+	if (!obj)
+		die(_("parse_object_buffer failed on %s for %s"),
+		    sha1_to_hex(ref->objectname), ref->refname);
 
-	snprintf(logmsg, sizeof(logmsg), "Notes %s by 'git notes %s'",
-		 is_null_sha1(new_note) ? "removed" : "added", "add");
-	commit_notes(t, logmsg);
-out:
-	free_notes(t);
-	strbuf_release(&(msg.buf));
-	return retval;
+	grab_values(ref->value, 0, obj, buf, size);
+	if (!eaten)
+		free(buf);
+
+	/*
+	 * If there is no atom that wants to know about tagged
+	 * object, we are done.
+	 */
+	if (!need_tagged || (obj->type != OBJ_TAG))
+		return;
+
+	/*
+	 * If it is a tag object, see if we use a value that derefs
+	 * the object, and if we do grab the object it refers to.
+	 */
+	tagged = ((struct tag *)obj)->tagged->oid.hash;
+
+	/*
+	 * NEEDSWORK: This derefs tag only once, which
+	 * is good to deal with chains of trust, but
+	 * is not consistent with what deref_tag() does
+	 * which peels the onion to the core.
+	 */
+	buf = get_obj(tagged, &obj, &size, &eaten);
+	if (!buf)
+		die(_("missing object %s for %s"),
+		    sha1_to_hex(tagged), ref->refname);
+	if (!obj)
+		die(_("parse_object_buffer failed on %s for %s"),
+		    sha1_to_hex(tagged), ref->refname);
+	grab_values(ref->value, 1, obj, buf, size);
+	if (!eaten)
+		free(buf);
 }

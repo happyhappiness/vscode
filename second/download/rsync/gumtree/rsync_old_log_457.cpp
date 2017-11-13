@@ -1,1 +1,1 @@
-fprintf(f,"    --rsync-path PATH    specify path to rsync on the remote machine\n");
+fprintf(FERROR,"mkdir %s : %s (1)\n",name,strerror(errno));

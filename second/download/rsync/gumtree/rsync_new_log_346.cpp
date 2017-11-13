@@ -1,1 +1,2 @@
-fprintf(FINFO,"recv_files phase=%d\n",phase);
+fprintf(FINFO,"potential match at %d target=%d %d sum=%08x\n",
+					(int)offset,j,i,sum);

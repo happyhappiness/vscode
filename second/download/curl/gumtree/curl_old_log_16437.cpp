@@ -1,9 +1,12 @@
 fputs(
-"              transfer,  it  will retry this number of times before giving up.\n"
-"              Setting the number to 0 makes curl do no retries (which  is  the\n"
-"              default).  Transient  error  means either: a timeout, an FTP 4xx\n"
-"              response code or an HTTP 5xx response code.\n"
+"              You may use this option as many times as the number of URLs  you\n"
+"              have.\n"
 "\n"
-"              When curl is about to retry a transfer, it will first  wait  one\n"
-"              second  and  then for all forthcoming retries it will double the\n"
+"       -R, --remote-time\n"
+"              When  used,  this will make curl attempt to figure out the time-\n"
+"              stamp of the remote file, and if  that  is  available  make  the\n"
+"              local file get that same timestamp.\n"
+"\n"
+"       --request-target\n"
+"              (HTTP)  Tells curl to use an alternative \"target\" (path) instead\n"
 , stdout);

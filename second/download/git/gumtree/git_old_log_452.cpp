@@ -1,2 +1,1 @@
-error(_("Cannot get commit message for %s"),
-			oid_to_hex(&commit->object.oid));
+error(_("Cannot pull with rebase: Your index contains uncommitted changes."));

@@ -1,1 +1,1 @@
-die("no branches given, and HEAD is not valid");
+error_buf(err, _("HEAD does not point to a branch"));

@@ -1,1 +1,2 @@
-warnf(config, "Failed to open %s to write libcurl code!\n", o);
+warnf(config->global, "Header data size exceeds single call write "
+            "limit!\n");

@@ -1,1 +1,1 @@
-die("unable to generate checkdiff for %s", one->path);
+die("BUG: have_old is true but old_sha1 is NULL");

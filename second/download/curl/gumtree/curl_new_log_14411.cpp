@@ -1,11 +1,10 @@
 fputs(
-"              Tells  curl to limit what protocols it may use on redirect. Pro-\n"
-"              tocols denied by --proto are not overridden by this option.  See\n"
-"              --proto for how protocols are represented.\n"
+"              7.19.1.\n"
 "\n"
-"              Example, allow only HTTP and HTTPS on redirect:\n"
-"\n"
-"               curl --proto-redir -all,http,https http://example.com\n"
-"\n"
-"              By default curl will allow all protocols on redirect except sev-\n"
+"       --post303\n"
+"              (HTTP) Tells curl to respect RFC 7231/6.4.4 and not convert POST\n"
+"              requests into GET requests when following a 303 redirection. The\n"
+"              non-RFC behaviour is ubiquitous in web browsers,  so  curl  does\n"
+"              the  conversion  by  default to maintain consistency. However, a\n"
+"              server may require a POST to remain a POST after  such  a  redi-\n"
 , stdout);

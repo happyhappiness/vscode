@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s, APLOGNO(01844)
-                    "warning: crypto for '%s' was already initialised, "
-                    "using existing configuration", conf->library);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00968)
+               "ajp_marshal_into_msgb: "
+               "Error appending the message begining");

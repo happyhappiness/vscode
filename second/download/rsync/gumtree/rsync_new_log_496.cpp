@@ -1,1 +1,0 @@
-rprintf(FINFO,"deleting %s\n", buf);

@@ -1,1 +1,2 @@
-printf("%s%s+++ b/%s%s\n", prefix, c_meta, pair->two->path, c_reset);
+die("unable to parse commit %s",
+			    sha1_to_hex(c->object.sha1));

@@ -1,149 +1,109 @@
-int main (int argc, const char * const argv[])
+static void usage(process_rec *process)
 {
-    char buf[BUFSIZE];
-    apr_size_t nRead, nWrite;
-    apr_file_t *f_stdin;
-    apr_getopt_t *opt;
-    apr_status_t rv;
-    char c;
-    const char *optarg;
-    const char *err = NULL;
+    const char *bin = process->argv[0];
+    int pad_len = strlen(bin);
 
-    apr_app_initialize(&argc, &argv, NULL);
-    atexit(apr_terminate);
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "Usage: %s [-D name] [-d directory] [-f file]", bin);
 
-    config.sRotation = 0;
-    config.tRotation = 0;
-    config.utc_offset = 0;
-    config.use_localtime = 0;
-    config.use_strftime = 0;
-    config.force_open = 0;
-    config.verbose = 0;
-    status.pool = NULL;
-    status.pfile = NULL;
-    status.pfile_prev = NULL;
-    status.nLogFD = NULL;
-    status.nLogFDprev = NULL;
-    status.tLogEnd = 0;
-    status.rotateReason = ROTATE_NONE;
-    status.nMessCount = 0;
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %*s [-C \"directive\"] [-c \"directive\"]", pad_len, " ");
 
-    apr_pool_create(&status.pool, NULL);
-    apr_getopt_init(&opt, status.pool, argc, argv);
-    while ((rv = apr_getopt(opt, "lL:ftv", &c, &optarg)) == APR_SUCCESS) {
-        switch (c) {
-        case 'l':
-            config.use_localtime = 1;
-            break;
-        case 'L':
-            config.linkfile = optarg;
-            break;
-        case 'f':
-            config.force_open = 1;
-            break;
-        case 't':
-            config.truncate = 1;
-            break;
-        case 'v':
-            config.verbose = 1;
-            break;
-        }
-    }
+#ifdef WIN32
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %*s [-w] [-k start|restart|stop|shutdown] [-n service_name]",
+                 pad_len, " ");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %*s [-k install|config|uninstall] [-n service_name]",
+                 pad_len, " ");
+#else
+/* XXX not all MPMs support signalling the server in general or graceful-stop
+ * in particular
+ */
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %*s [-k start|restart|graceful|graceful-stop|stop]",
+                 pad_len, " ");
+#endif
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %*s [-v] [-V] [-h] [-l] [-L] [-t] [-T] [-S] [-X]",
+                 pad_len, " ");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "Options:");
 
-    if (rv != APR_EOF) {
-        usage(argv[0], NULL /* specific error message already issued */ );
-    }
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -D name            : define a name for use in "
+                 "<IfDefine name> directives");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -d directory       : specify an alternate initial "
+                 "ServerRoot");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -f file            : specify an alternate ServerConfigFile");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -C \"directive\"     : process directive before reading "
+                 "config files");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -c \"directive\"     : process directive after reading "
+                 "config files");
 
-    /*
-     * After the initial flags we need 2 to 4 arguments,
-     * the file name, either the rotation interval time or size
-     * or both of them, and optionally the UTC offset.
-     */
-    if ((argc - opt->ind < 2) || (argc - opt->ind > 4) ) {
-        usage(argv[0], "Incorrect number of arguments");
-    }
+#ifdef NETWARE
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -n name            : set screen name");
+#endif
+#ifdef WIN32
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -n name            : set service name and use its "
+                 "ServerConfigFile and ServerRoot");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k start           : tell Apache to start");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k restart         : tell running Apache to do a graceful "
+                 "restart");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k stop|shutdown   : tell running Apache to shutdown");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k install         : install an Apache service");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k config          : change startup Options of an Apache "
+                 "service");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k uninstall       : uninstall an Apache service");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -w                 : hold open the console window on error");
+#endif
 
-    config.szLogRoot = argv[opt->ind++];
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -e level           : show startup errors of level "
+                 "(see LogLevel)");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -E file            : log startup errors to file");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -v                 : show version number");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -V                 : show compile settings");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -h                 : list available command line options "
+                 "(this page)");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -l                 : list compiled in modules");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -L                 : list available configuration "
+                 "directives");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t -D DUMP_VHOSTS  : show parsed vhost settings");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t -D DUMP_RUN_CFG : show parsed run settings");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -S                 : a synonym for -t -D DUMP_VHOSTS -D DUMP_RUN_CFG");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t -D DUMP_MODULES : show all loaded modules ");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -M                 : a synonym for -t -D DUMP_MODULES");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t                 : run syntax check for config files");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -T                 : start without DocumentRoot(s) check");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -X                 : debug mode (only one worker, do not detach)");
 
-    /* Read in the remaining flags, namely time, size and UTC offset. */
-    for(; opt->ind < argc; opt->ind++) {
-        if ((err = get_time_or_size(&config, argv[opt->ind],
-                                    opt->ind < argc - 1 ? 0 : 1)) != NULL) {
-            usage(argv[0], err);
-        }
-    }
-
-    config.use_strftime = (strchr(config.szLogRoot, '%') != NULL);
-
-    if (apr_file_open_stdin(&f_stdin, status.pool) != APR_SUCCESS) {
-        fprintf(stderr, "Unable to open stdin\n");
-        exit(1);
-    }
-
-    /*
-     * Write out result of config parsing if verbose is set.
-     */
-    if (config.verbose) {
-        dumpConfig(&config);
-    }
-
-    /*
-     * Immediately open the logfile as we start, if we were forced
-     * to do so via '-f'.
-     */
-    if (config.force_open) {
-        doRotate(&config, &status);
-    }
-
-    for (;;) {
-        nRead = sizeof(buf);
-        rv = apr_file_read(f_stdin, buf, &nRead);
-        if (rv != APR_SUCCESS) {
-            exit(3);
-        }
-        checkRotate(&config, &status);
-        if (status.rotateReason != ROTATE_NONE) {
-            doRotate(&config, &status);
-        }
-
-        nWrite = nRead;
-        rv = apr_file_write(status.nLogFD, buf, &nWrite);
-        if (rv == APR_SUCCESS && nWrite != nRead) {
-            /* buffer partially written, which for rotatelogs means we encountered
-             * an error such as out of space or quota or some other limit reached;
-             * try to write the rest so we get the real error code
-             */
-            apr_size_t nWritten = nWrite;
-
-            nRead  = nRead - nWritten;
-            nWrite = nRead;
-            rv = apr_file_write(status.nLogFD, buf + nWritten, &nWrite);
-        }
-        if (nWrite != nRead) {
-            char strerrbuf[120];
-            apr_off_t cur_offset;
-
-            cur_offset = 0;
-            if (apr_file_seek(status.nLogFD, APR_CUR, &cur_offset) != APR_SUCCESS) {
-                cur_offset = -1;
-            }
-            apr_strerror(rv, strerrbuf, sizeof strerrbuf);
-            status.nMessCount++;
-            apr_snprintf(status.errbuf, sizeof status.errbuf,
-                         "Error %d writing to log file at offset %" APR_OFF_T_FMT ". "
-                         "%10d messages lost (%s)\n",
-                         rv, cur_offset, status.nMessCount, strerrbuf);
-            nWrite = strlen(status.errbuf);
-            apr_file_trunc(status.nLogFD, 0);
-            if (apr_file_write(status.nLogFD, status.errbuf, &nWrite) != APR_SUCCESS) {
-                fprintf(stderr, "Error writing to the file %s\n", status.filename);
-                exit(2);
-            }
-        }
-        else {
-            status.nMessCount++;
-        }
-    }
-    /* Of course we never, but prevent compiler warnings */
-    return 0;
+    destroy_and_exit_process(process, 1);
 }

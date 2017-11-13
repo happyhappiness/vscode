@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
-                        "Adding CACHE_REMOVE_URL filter for %s",
-                        r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                              "Zlib error %d inflating data (%s)", zRC,
+                              ctx->stream.msg);

@@ -1,1 +1,0 @@
-die("bad default revision '%s'", revs->def);

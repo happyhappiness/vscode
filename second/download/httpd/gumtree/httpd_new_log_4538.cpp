@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf, APLOGNO(00484)
-                                 "server reached MaxRequestWorkers setting, "
-                                 "consider raising the MaxRequestWorkers "
-                                 "setting");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00941)
+                     "%s: failed to acquire connection for (%s)",
+                     proxy_function, worker->s->hostname);

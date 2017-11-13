@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
-                        "Websocket: Writing raw message to client");
+ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, srvr,
+                "| %04ld - <SPACES/NULS>", len + trunc);

@@ -1,2 +1,1 @@
-fprintf(FERROR,"count=%d rem=%d n=%d flength=%d\n",
-	    s->count,s->remainder,s->n,(int)s->flength);
+fprintf(FERROR,"server_recv(%d) starting pid=%d\n",argc,(int)getpid());

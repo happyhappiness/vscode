@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "Request "
-                  "header exceeds LimitRequestFieldSize after merging: %.*s",
-                  field_name_len(key), key);
+ap_log_error(APLOG_MARK,APLOG_DEBUG, rc, ap_server_conf,
+                             "Child %lu: GetQueuedComplationStatus returned %d", my_pid, rc);

@@ -1,9 +1,11 @@
 fputs(
-"              When  curl is used to do multiple transfers on the command line,\n"
-"              it will attempt to operate on each given URL,  one  by  one.  By\n"
-"              default,  it will ignore errors if there are more URLs given and\n"
-"              the last URL's  success  will  determine  the  error  code  curl\n"
-"              returns.  So  early failures will be \"hidden\" by subsequent suc-\n"
-"              cessful transfers.\n"
+"              requires that the underlying libcurl was  built  to  support  c-\n"
+"              ares. Added in 7.33.0.\n"
+"\n"
+"       --dns-servers <addresses>\n"
+"              Set  the  list  of  DNS servers to be used instead of the system\n"
+"              default.  The list of IP addresses should be separated with com-\n"
+"              mas. Port numbers may also optionally be given as :<port-number>\n"
+"              after each IP address.\n"
 "\n"
 , stdout);

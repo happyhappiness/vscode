@@ -1,10 +1,10 @@
 fputs(
-"              server  may  require  a POST to remain a POST after such a redi-\n"
-"              rection. This option is meaningful only when using  -L,  --loca-\n"
-"              tion (Added in 7.17.1)\n"
+"              non-HTTP  protocols  to  attempt  to  tunnel  through  the proxy\n"
+"              instead of merely using it to do HTTP-like operations. The  tun-\n"
+"              nel  approach  is  made  with the HTTP proxy CONNECT request and\n"
+"              requires that the proxy allows direct connect to the remote port\n"
+"              number curl wants to tunnel through to.\n"
 "\n"
-"       --post302\n"
-"              (HTTP) Tells curl to respect RFC 7230/6.4.3 and not convert POST\n"
-"              requests into GET requests when following a 302 redirection. The\n"
-"              non-RFC  behaviour  is  ubiquitous in web browsers, so curl does\n"
+"       -P, --ftp-port <address>\n"
+"              (FTP)  Reverses  the  default initiator/listener roles when con-\n"
 , stdout);

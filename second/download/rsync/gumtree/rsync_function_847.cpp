@@ -1,144 +1,75 @@
-static int readfd_unbuffered(int fd, char *buf, size_t len)
+static void send_implied_dirs(int f, struct file_list *flist, char *fname,
+			      char *start, char *limit, int flags, char name_type)
 {
-	size_t msg_bytes;
-	int tag, cnt = 0;
-	char line[BIGPATHBUFLEN];
+	struct file_struct *file;
+	item_list *relname_list;
+	relnamecache **rnpp;
+	char *slash;
+	int len, need_new_dir;
+	struct filter_list_struct save_filter_list = filter_list;
 
-	if (!iobuf_in || fd != iobuf_f_in)
-		return read_timeout(fd, buf, len);
+	flags = (flags | FLAG_IMPLIED_DIR) & ~(FLAG_TOP_DIR | FLAG_CONTENT_DIR);
+	filter_list.head = filter_list.tail = NULL; /* Don't filter implied dirs. */
 
-	if (!io_multiplexing_in && iobuf_in_remaining == 0) {
-		iobuf_in_remaining = read_timeout(fd, iobuf_in, iobuf_in_siz);
-		iobuf_in_ndx = 0;
-	}
+	if (inc_recurse) {
+		if (lastpath_struct && F_PATHNAME(lastpath_struct) == pathname
+		 && lastpath_len == limit - fname
+		 && strncmp(lastpath, fname, lastpath_len) == 0)
+			need_new_dir = 0;
+		else
+			need_new_dir = 1;
+	} else
+		need_new_dir = 1;
 
-	while (cnt == 0) {
-		if (iobuf_in_remaining) {
-			len = MIN(len, iobuf_in_remaining);
-			memcpy(buf, iobuf_in + iobuf_in_ndx, len);
-			iobuf_in_ndx += len;
-			iobuf_in_remaining -= len;
-			cnt = len;
-			break;
+	if (need_new_dir) {
+		int save_copy_links = copy_links;
+		int save_xfer_dirs = xfer_dirs;
+
+		copy_links = xfer_dirs = 1;
+
+		*limit = '\0';
+
+		for (slash = start; (slash = strchr(slash+1, '/')) != NULL; ) {
+			*slash = '\0';
+			send_file_name(f, flist, fname, NULL, flags, ALL_FILTERS);
+			*slash = '/';
 		}
 
-		read_loop(fd, line, 4);
-		tag = IVAL(line, 0);
-
-		msg_bytes = tag & 0xFFFFFF;
-		tag = (tag >> 24) - MPLEX_BASE;
-
-		switch (tag) {
-		case MSG_DATA:
-			if (msg_bytes > iobuf_in_siz) {
-				if (!(iobuf_in = realloc_array(iobuf_in, char,
-							       msg_bytes)))
-					out_of_memory("readfd_unbuffered");
-				iobuf_in_siz = msg_bytes;
-			}
-			read_loop(fd, iobuf_in, msg_bytes);
-			iobuf_in_remaining = msg_bytes;
-			iobuf_in_ndx = 0;
-			break;
-		case MSG_NOOP:
-			if (msg_bytes != 0)
-				goto invalid_msg;
-			if (am_sender)
-				maybe_send_keepalive();
-			break;
-		case MSG_IO_ERROR:
-			if (msg_bytes != 4)
-				goto invalid_msg;
-			read_loop(fd, line, msg_bytes);
-			send_msg_int(MSG_IO_ERROR, IVAL(line, 0));
-			io_error |= IVAL(line, 0);
-			break;
-		case MSG_DELETED:
-			if (msg_bytes >= sizeof line)
-				goto overflow;
-#ifdef ICONV_OPTION
-			if (ic_recv != (iconv_t)-1) {
-				xbuf outbuf, inbuf;
-				char ibuf[512];
-				int add_null = 0;
-
-				INIT_CONST_XBUF(outbuf, line);
-				INIT_XBUF(inbuf, ibuf, 0, -1);
-
-				while (msg_bytes) {
-					inbuf.len = msg_bytes > sizeof ibuf
-						  ? sizeof ibuf : msg_bytes;
-					read_loop(fd, inbuf.buf, inbuf.len);
-					if (!(msg_bytes -= inbuf.len)
-					 && !ibuf[inbuf.len-1])
-						inbuf.len--, add_null = 1;
-					if (iconvbufs(ic_send, &inbuf, &outbuf,
-					    ICB_INCLUDE_BAD | ICB_INCLUDE_INCOMPLETE) < 0)
-						goto overflow;
-				}
-				if (add_null) {
-					if (outbuf.len == outbuf.size)
-						goto overflow;
-					outbuf.buf[outbuf.len++] = '\0';
-				}
-				msg_bytes = outbuf.len;
-			} else
-#endif
-				read_loop(fd, line, msg_bytes);
-			/* A directory name was sent with the trailing null */
-			if (msg_bytes > 0 && !line[msg_bytes-1])
-				log_delete(line, S_IFDIR);
-			else {
-				line[msg_bytes] = '\0';
-				log_delete(line, S_IFREG);
-			}
-			break;
-		case MSG_SUCCESS:
-			if (msg_bytes != 4) {
-			  invalid_msg:
-				rprintf(FERROR, "invalid multi-message %d:%ld [%s]\n",
-					tag, (long)msg_bytes, who_am_i());
-				exit_cleanup(RERR_STREAMIO);
-			}
-			read_loop(fd, line, msg_bytes);
-			successful_send(IVAL(line, 0));
-			break;
-		case MSG_NO_SEND:
-			if (msg_bytes != 4)
-				goto invalid_msg;
-			read_loop(fd, line, msg_bytes);
-			send_msg_int(MSG_NO_SEND, IVAL(line, 0));
-			break;
-		case MSG_INFO:
-		case MSG_ERROR:
-		case MSG_ERROR_XFER:
-		case MSG_WARNING:
-			if (msg_bytes >= sizeof line) {
-			    overflow:
-				rprintf(FERROR,
-					"multiplexing overflow %d:%ld [%s]\n",
-					tag, (long)msg_bytes, who_am_i());
-				exit_cleanup(RERR_STREAMIO);
-			}
-			read_loop(fd, line, msg_bytes);
-			rwrite((enum logcode)tag, line, msg_bytes, 1);
-			if (first_message) {
-				if (list_only && !am_sender && tag == 1) {
-					line[msg_bytes] = '\0';
-					check_for_d_option_error(line);
-				}
-				first_message = 0;
-			}
-			break;
-		default:
-			rprintf(FERROR, "unexpected tag %d [%s]\n",
-				tag, who_am_i());
-			exit_cleanup(RERR_STREAMIO);
+		file = send_file_name(f, flist, fname, NULL, flags, ALL_FILTERS);
+		if (inc_recurse) {
+			if (file && !S_ISDIR(file->mode))
+				file = NULL;
+			lastpath_struct = file;
 		}
+
+		strlcpy(lastpath, fname, sizeof lastpath);
+		lastpath_len = limit - fname;
+
+		*limit = '/';
+
+		copy_links = save_copy_links;
+		xfer_dirs = save_xfer_dirs;
+
+		if (!inc_recurse)
+			goto done;
 	}
 
-	if (iobuf_in_remaining == 0)
-		io_flush(NORMAL_FLUSH);
+	if (!lastpath_struct)
+		goto done; /* dir must have vanished */
 
-	return cnt;
+	len = strlen(limit+1);
+	memcpy(&relname_list, F_DIR_RELNAMES_P(lastpath_struct), sizeof relname_list);
+	if (!relname_list) {
+		if (!(relname_list = new0(item_list)))
+			out_of_memory("send_implied_dirs");
+		memcpy(F_DIR_RELNAMES_P(lastpath_struct), &relname_list, sizeof relname_list);
+	}
+	rnpp = EXPAND_ITEM_LIST(relname_list, relnamecache *, 32);
+	if (!(*rnpp = (relnamecache*)new_array(char, sizeof (relnamecache) + len)))
+		out_of_memory("send_implied_dirs");
+	(*rnpp)->name_type = name_type;
+	strlcpy((*rnpp)->fname, limit+1, len + 1);
+
+done:
+	filter_list = save_filter_list;
 }

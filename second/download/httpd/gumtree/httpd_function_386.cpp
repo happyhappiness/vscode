@@ -1,138 +1,251 @@
-static
-apr_status_t ap_proxy_http_create_connection(apr_pool_t *p, request_rec *r,
-                                             proxy_http_conn_t *p_conn,
-                                             conn_rec *c, conn_rec **origin,
-                                             proxy_conn_rec *backend,
-                                             proxy_server_conf *conf,
-                                             const char *proxyname) {
-    int failed=0, new=0;
-    apr_socket_t *client_socket = NULL;
+static int cache_url_handler(request_rec *r, int lookup)
+{
+    apr_status_t rv;
+    const char *cc_in, *pragma, *auth;
+    apr_uri_t uri = r->parsed_uri;
+    char *url = r->unparsed_uri;
+    apr_size_t urllen;
+    char *path = uri.path;
+    const char *types;
+    cache_info *info = NULL;
+    cache_request_rec *cache;
+    cache_server_conf *conf;
 
-    /* We have determined who to connect to. Now make the connection, supporting
-     * a KeepAlive connection.
-     */
+    conf = (cache_server_conf *) ap_get_module_config(r->server->module_config,
+                                                      &cache_module);
 
-    /* get all the possible IP addresses for the destname and loop through them
-     * until we get a successful connection
-     */
-
-    /* if a keepalive socket is already open, check whether it must stay
-     * open, or whether it should be closed and a new socket created.
-     */
-    /* see memory note above */
-    if (backend->connection) {
-        client_socket = ap_get_module_config(backend->connection->conn_config, &core_module);
-        if ((backend->connection->id == c->id) &&
-            (backend->port == p_conn->port) &&
-            (backend->hostname) &&
-            (!apr_strnatcasecmp(backend->hostname, p_conn->name))) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "proxy: keepalive address match (keep original socket)");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "proxy: keepalive address mismatch / connection has"
-                         " changed (close old socket (%s/%s, %d/%d))", 
-                         p_conn->name, backend->hostname, p_conn->port,
-                         backend->port);
-            apr_socket_close(client_socket);
-            backend->connection = NULL;
-        }
+    /* we don't handle anything but GET */
+    if (r->method_number != M_GET) {
+        return DECLINED;
     }
 
-    /* get a socket - either a keepalive one, or a new one */
-    new = 1;
-    if ((backend->connection) && (backend->connection->id == c->id)) {
-        apr_size_t buffer_len = 1;
-        char test_buffer[1]; 
-        apr_status_t socket_status;
-        apr_interval_time_t current_timeout;
-
-        /* use previous keepalive socket */
-        *origin = backend->connection;
-        p_conn->sock = client_socket;
-        new = 0;
-
-        /* save timeout */
-        apr_socket_timeout_get(p_conn->sock, &current_timeout);
-        /* set no timeout */
-        apr_socket_timeout_set(p_conn->sock, 0);
-        socket_status = apr_recv(p_conn->sock, test_buffer, &buffer_len);
-        /* put back old timeout */
-        apr_socket_timeout_set(p_conn->sock, current_timeout);
-        if ( APR_STATUS_IS_EOF(socket_status) ) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
-                         "proxy: HTTP: previous connection is closed");
-            new = 1;
-        }
+    /*
+     * Which cache module (if any) should handle this request?
+     */
+    if (!(types = ap_cache_get_cachetype(r, conf, path))) {
+        return DECLINED;
     }
-    if (new) {
 
-        /* create a new socket */
-        backend->connection = NULL;
-
-        /*
-         * At this point we have a list of one or more IP addresses of
-         * the machine to connect to. If configured, reorder this
-         * list so that the "best candidate" is first try. "best
-         * candidate" could mean the least loaded server, the fastest
-         * responding server, whatever.
-         *
-         * For now we do nothing, ie we get DNS round robin.
-         * XXX FIXME
-         */
-        failed = ap_proxy_connect_to_backend(&p_conn->sock, "HTTP",
-                                             p_conn->addr, p_conn->name,
-                                             conf, r->server, c->pool);
-
-        /* handle a permanent error on the connect */
-        if (failed) {
-            if (proxyname) {
-                return DECLINED;
-            } else {
-                return HTTP_BAD_GATEWAY;
-            }
-        }
-
+    urllen = strlen(url);
+    if (urllen > MAX_URL_LENGTH) {
         ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: socket is connected");
+                     "cache: URL exceeds length threshold: %s", url);
+        return DECLINED;
+    }
+    /* DECLINE urls ending in / ??? EGP: why? */
+    if (url[urllen-1] == '/') {
+        return DECLINED;
+    }
 
-        /* the socket is now open, create a new backend server connection */
-        *origin = ap_run_create_connection(c->pool, r->server, p_conn->sock,
-                                           r->connection->id,
-                                           r->connection->sbh, c->bucket_alloc);
-        if (!*origin) {
-        /* the peer reset the connection already; ap_run_create_connection() 
-         * closed the socket
-         */
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
-                         r->server, "proxy: an error occurred creating a "
-                         "new connection to %pI (%s)", p_conn->addr,
-                         p_conn->name);
-            apr_socket_close(p_conn->sock);
-            return HTTP_INTERNAL_SERVER_ERROR;
+    /* make space for the per request config */
+    cache = (cache_request_rec *) ap_get_module_config(r->request_config, 
+                                                       &cache_module);
+    if (!cache) {
+        cache = apr_pcalloc(r->pool, sizeof(cache_request_rec));
+        ap_set_module_config(r->request_config, &cache_module, cache);
+    }
+
+    /* save away the type */
+    cache->types = types;
+
+    /*
+     * Are we allowed to serve cached info at all?
+     */
+
+    /* find certain cache controlling headers */
+    cc_in = apr_table_get(r->headers_in, "Cache-Control");
+    pragma = apr_table_get(r->headers_in, "Pragma");
+    auth = apr_table_get(r->headers_in, "Authorization");
+
+    /* first things first - does the request allow us to return
+     * cached information at all? If not, just decline the request.
+     *
+     * Note that there is a big difference between not being allowed
+     * to cache a request (no-store) and not being allowed to return
+     * a cached request without revalidation (max-age=0).
+     *
+     * Caching is forbidden under the following circumstances:
+     *
+     * - RFC2616 14.9.2 Cache-Control: no-store
+     * - Pragma: no-cache
+     * - Any requests requiring authorization.
+     */
+    if (conf->ignorecachecontrol == 1 && auth == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "incoming request is asking for a uncached version of "
+                     "%s, but we know better and are ignoring it", url);
+    }
+    else {
+        if (ap_cache_liststr(NULL, cc_in, "no-store", NULL) ||
+            ap_cache_liststr(NULL, pragma, "no-cache", NULL) || (auth != NULL)) {
+            /* delete the previously cached file */
+            cache_remove_url(r, cache->types, url);
+
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache: no-store forbids caching of %s", url);
+            return DECLINED;
         }
-        backend->connection = *origin;
-        backend->hostname = apr_pstrdup(c->pool, p_conn->name);
-        backend->port = p_conn->port;
+    }
 
-        if (backend->is_ssl) {
-            if (!ap_proxy_ssl_enable(backend->connection)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0,
-                             r->server, "proxy: failed to enable ssl support "
-                             "for %pI (%s)", p_conn->addr, p_conn->name);
-                return HTTP_INTERNAL_SERVER_ERROR;
+    /*
+     * Try to serve this request from the cache.
+     *
+     * If no existing cache file
+     *   add cache_in filter
+     * If stale cache file
+     *   If conditional request
+     *     add cache_in filter
+     *   If non-conditional request
+     *     fudge response into a conditional
+     *     add cache_conditional filter
+     * If fresh cache file
+     *   clear filter stack
+     *   add cache_out filter
+     */
+
+    rv = cache_select_url(r, cache->types, url);
+    if (DECLINED == rv) {
+        if (!lookup) {
+            /* no existing cache file */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache: no cache - add cache_in filter and DECLINE");
+            /* add cache_in filter to cache this request */
+            ap_add_output_filter_handle(cache_in_filter_handle, NULL, r,
+                                        r->connection);
+        }
+        return DECLINED;
+    }
+    else if (OK == rv) {
+        /* RFC2616 13.2 - Check cache object expiration */
+        cache->fresh = ap_cache_check_freshness(cache, r);
+        if (cache->fresh) {
+            /* fresh data available */
+            apr_bucket_brigade *out;
+            conn_rec *c = r->connection;
+
+            if (lookup) {
+                return OK;
             }
+            rv = ap_meets_conditions(r);
+            if (rv != OK) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                             "cache: fresh cache - returning status %d", rv);
+                return rv;
+            }
+
+            /*
+             * Not a conditionl request. Serve up the content 
+             */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache: fresh cache - add cache_out filter and "
+                         "handle request");
+
+            /* We are in the quick handler hook, which means that no output
+             * filters have been set. So lets run the insert_filter hook.
+             */
+            ap_run_insert_filter(r);
+            ap_add_output_filter_handle(cache_out_filter_handle, NULL,
+                                        r, r->connection);
+
+            /* kick off the filter stack */
+            out = apr_brigade_create(r->pool, c->bucket_alloc);
+            if (APR_SUCCESS
+                != (rv = ap_pass_brigade(r->output_filters, out))) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                             "cache: error returned while trying to return %s "
+                             "cached data", 
+                             cache->type);
+                return rv;
+            }
+            return OK;
         }
         else {
-            ap_proxy_ssl_disable(backend->connection);
+            if (!r->err_headers_out) {
+                r->err_headers_out = apr_table_make(r->pool, 3);
+            }
+            /* stale data available */
+            if (lookup) {
+                return DECLINED;
+            }
+
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache: stale cache - test conditional");
+            /* if conditional request */
+            if (ap_cache_request_is_conditional(r)) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                             r->server,
+                             "cache: conditional - add cache_in filter and "
+                             "DECLINE");
+                /* Why not add CACHE_CONDITIONAL? */
+                ap_add_output_filter_handle(cache_in_filter_handle, NULL,
+                                            r, r->connection);
+
+                return DECLINED;
+            }
+            /* else if non-conditional request */
+            else {
+                /* Temporarily hack this to work the way it had been. Its broken,
+                 * but its broken the way it was before. I'm working on figuring
+                 * out why the filter add in the conditional filter doesn't work. pjr
+                 *
+                 * info = &(cache->handle->cache_obj->info);
+                 *
+                 * Uncomment the above when the code in cache_conditional_filter_handle
+                 * is properly fixed...  pjr
+                 */
+                
+                /* fudge response into a conditional */
+                if (info && info->etag) {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                                 r->server,
+                                 "cache: nonconditional - fudge conditional "
+                                 "by etag");
+                    /* if we have a cached etag */
+                    apr_table_set(r->headers_in, "If-None-Match", info->etag);
+                }
+                else if (info && info->lastmods) {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                                 r->server,
+                                 "cache: nonconditional - fudge conditional "
+                                 "by lastmod");
+                    /* if we have a cached IMS */
+                    apr_table_set(r->headers_in, 
+                                  "If-Modified-Since", 
+                                  info->lastmods);
+                }
+                else {
+                    /* something else - pretend there was no cache */
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                                 r->server,
+                                 "cache: nonconditional - no cached "
+                                 "etag/lastmods - add cache_in and DECLINE");
+
+                    ap_add_output_filter_handle(cache_in_filter_handle, NULL,
+                                                r, r->connection);
+
+                    return DECLINED;
+                }
+                /* add cache_conditional filter */
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                             r->server,
+                             "cache: nonconditional - add cache_conditional "
+                             "and DECLINE");
+                ap_add_output_filter_handle(cache_conditional_filter_handle,
+                                            NULL, 
+                                            r, 
+                                            r->connection);
+
+                return DECLINED;
+            }
         }
-
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: connection complete to %pI (%s)",
-                     p_conn->addr, p_conn->name);
-
-        /* set up the connection filters */
-        ap_run_pre_connection(*origin, p_conn->sock);
     }
-    return OK;
+    else {
+        /* error */
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, 
+                     r->server,
+                     "cache: error returned while checking for cached file by "
+                     "%s cache", 
+                     cache->type);
+        return DECLINED;
+    }
 }

@@ -1,11 +1,9 @@
 fputs(
-"              A  quick  and  very  simple  example of how to setup a .netrc to\n"
-"              allow curl to FTP to the machine host.domain.com with user  name\n"
-"              'myself' and password 'secret' should look similar to:\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              machine host.domain.com login myself password secret\n"
-"\n"
-"       -:, --next\n"
-"              Tells curl to use a separate operation for the following URL and\n"
-"              associated  options.  This  allows  you  to  send  several   URL\n"
+"       -m, --max-time <time>\n"
+"              Maximum time in seconds that you allow the  whole  operation  to\n"
+"              take.   This is useful for preventing your batch jobs from hang-\n"
+"              ing for hours due to slow networks or links going  down.   Since\n"
+"              7.32.0, this option accepts decimal values, but the actual time-\n"
 , stdout);

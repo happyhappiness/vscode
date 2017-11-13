@@ -1,9 +1,10 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              all has been used, you must  use  \"-o  -\"  or  --no-remote-name.\n"
+"              (Added in 7.19.0)\n"
 "\n"
-"       --retry-delay <seconds>\n"
-"              Make  curl  sleep  this  amount of time before each retry when a\n"
-"              transfer has failed with  a  transient  error  (it  changes  the\n"
-"              default  backoff time algorithm between retries). This option is\n"
-"              only interesting if --retry is also used. Setting this delay  to\n"
+"       --resolve <host:port:address>\n"
+"              Provide  a  custom  address  for  a specific host and port pair.\n"
+"              Using this, you can make the curl requests(s)  use  a  specified\n"
+"              address  and  prevent the otherwise normally resolved address to\n"
+"              be used. Consider it a sort of /etc/hosts  alternative  provided\n"
 , stdout);

@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, cmd->server, "FOO!");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
+                         "socache: Failed to Parse memcache Server: '%s'", split);

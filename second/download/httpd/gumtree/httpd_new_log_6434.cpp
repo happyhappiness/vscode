@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02342)
-                          "Can't evaluate login required expression: %s", err);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
+                                  "h2_session: wait for data, %ld micros", 
+                                  (long)session->wait_us);

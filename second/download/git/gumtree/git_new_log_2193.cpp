@@ -1,1 +1,1 @@
-die("--resolve-git-dir requires an argument");
+die("BUG: initial ref transaction with old_sha1 set");

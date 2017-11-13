@@ -1,1 +1,1 @@
-rprintf(FERROR,"Failed to dup/close : %s\n",strerror(errno));
+rprintf(FERROR,"rename %s %s : %s\n",fname,fnamebak,strerror(errno));

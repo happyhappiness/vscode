@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(01206)
-                             "Failed to init balancer %s in child",
-                             balancer->s->name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01274) "unknown parameter "
+                          "\"%s\" to tag exec in %s", tag, file);

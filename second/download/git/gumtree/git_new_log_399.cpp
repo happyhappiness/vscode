@@ -1,1 +1,1 @@
-die(_("git fetch-pack: fetch failed."));
+die("failed to set up refs db: %s", err.buf);

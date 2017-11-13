@@ -1,1 +1,2 @@
-printf(" -D APACHE_MPM_DIR=\"%s\"\n", APACHE_MPM_DIR);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                 "Init: Initializing %s library", SSL_LIBRARY_NAME);

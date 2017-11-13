@@ -1,335 +1,62 @@
-int main(int argc,char *argv[])
+void receive_file_entry_v10(struct file_struct *file,
+			    unsigned char flags,int f)
 {
-    int pid, status = 0, status2 = 0;
-    int opt;
-    int option_index;
-    char *shell_cmd = NULL;
-    char *shell_machine = NULL;
-    char *shell_path = NULL;
-    char *shell_user = NULL;
-    char *p;
-    int f_in,f_out;
-    struct file_list *flist;
-    char *local_name = NULL;
+  static mode_t last_mode=0;
+  static dev_t last_rdev=0;
+  static uid_t last_uid=0;
+  static gid_t last_gid=0;
+  static char lastdir[MAXPATHLEN]="";
+  char *p=NULL;
+  int l1,l2;
 
-#ifdef SETPGRP_VOID
-    setpgrp();
-#else
-    setpgrp(0,0);
-#endif
-    signal(SIGUSR1, sigusr1_handler);
+  if (flags & SAME_DIR) {
+    l1 = read_byte(f);
+    l2 = strlen(lastdir);
+  } else {
+    l1 = read_int(f);
+    l2 = 0;
+  }
 
-    starttime = time(NULL);
-    am_root = (getuid() == 0);
+  file->name = (char *)malloc(l1+l2+1);
+  if (!file->name) out_of_memory("receive_file_entry");
 
-    /* we set a 0 umask so that correct file permissions can be
-       carried across */
-    orig_umask = umask(0);
+  strncpy(file->name,lastdir,l2);
+  read_buf(f,file->name+l2,l1);
+  file->name[l1+l2] = 0;
 
-    while ((opt = getopt_long(argc, argv, 
-			      short_options, long_options, &option_index)) 
-	   != -1) {
-      switch (opt) 
-	{
-	case OPT_VERSION:
-	  printf("rsync version %s  protocol version %d\n",
-		 VERSION,PROTOCOL_VERSION);
-	  exit_cleanup(0);
+  file->modtime = (time_t)read_int(f);
+  file->length = (off_t)read_int(f);
+  file->mode = (flags & SAME_MODE) ? last_mode : (mode_t)read_int(f);
+  if (preserve_uid)
+    file->uid = (flags & SAME_UID) ? last_uid : (uid_t)read_int(f);
+  if (preserve_gid)
+    file->gid = (flags & SAME_GID) ? last_gid : (gid_t)read_int(f);
+  if (preserve_devices && IS_DEVICE(file->mode))
+    file->rdev = (flags & SAME_RDEV) ? last_rdev : (dev_t)read_int(f);
 
-	case OPT_SUFFIX:
-	  backup_suffix = optarg;
-	  break;
-
-	case OPT_RSYNC_PATH:
-	  rsync_path = optarg;
-	  break;
-
-	case 'I':
-	  ignore_times = 1;
-	  break;
-
-	case 'x':
-	  one_file_system=1;
-	  break;
-
-	case OPT_DELETE:
-	  delete_mode = 1;
-	  break;
-
-	case OPT_NUMERIC_IDS:
-	  numeric_ids = 1;
-	  break;
-
-	case OPT_EXCLUDE:
-	  add_exclude(optarg);
-	  break;
-
-	case OPT_EXCLUDE_FROM:
-	  add_exclude_file(optarg,1);
-	  break;
-
-	case 'h':
-	  usage(FINFO);
-	  exit_cleanup(0);
-
-	case 'b':
-	  make_backups=1;
-	  break;
-
-	case 'n':
-	  dry_run=1;
-	  break;
-
-	case 'S':
-	  sparse_files=1;
-	  break;
-
-	case 'C':
-	  cvs_exclude=1;
-	  break;
-
-	case 'u':
-	  update_only=1;
-	  break;
-
-	case 'l':
-	  preserve_links=1;
-	  break;
-
-	case 'L':
-	  copy_links=1;
-	  break;
-
-	case 'W':
-	  whole_file=1;
-	  break;
-
-	case 'H':
-#if SUPPORT_HARD_LINKS
-	  preserve_hard_links=1;
-#else 
-	  fprintf(FERROR,"ERROR: hard links not supported on this platform\n");
-	  exit_cleanup(1);
-#endif
-	  break;
-
-	case 'p':
-	  preserve_perms=1;
-	  break;
-
-	case 'o':
-	  preserve_uid=1;
-	  break;
-
-	case 'g':
-	  preserve_gid=1;
-	  break;
-
-	case 'D':
-	  preserve_devices=1;
-	  break;
-
-	case 't':
-	  preserve_times=1;
-	  break;
-
-	case 'c':
-	  always_checksum=1;
-	  break;
-
-	case 'v':
-	  verbose++;
-	  break;
-
-	case 'a':
-	  recurse=1;
 #if SUPPORT_LINKS
-	  preserve_links=1;
+  if (preserve_links && S_ISLNK(file->mode)) {
+    int l = read_int(f);
+    file->link = (char *)malloc(l+1);
+    if (!file->link) out_of_memory("receive_file_entry");
+    read_buf(f,file->link,l);
+    file->link[l] = 0;
+  }
 #endif
-	  preserve_perms=1;
-	  preserve_times=1;
-	  preserve_gid=1;
-	  if (am_root) {
-	    preserve_devices=1;
-	    preserve_uid=1;
-	  }
-	  break;
-
-	case OPT_SERVER:
-	  am_server = 1;
-	  break;
-
-	case OPT_SENDER:
-	  if (!am_server) {
-	    usage(FERROR);
-	    exit_cleanup(1);
-	  }
-	  sender = 1;
-	  break;
-
-	case 'r':
-	  recurse = 1;
-	  break;
-
-	case 'R':
-	  relative_paths = 1;
-	  break;
-
-	case 'e':
-	  shell_cmd = optarg;
-	  break;
-
-	case 'B':
-	  block_size = atoi(optarg);
-	  break;
-
-	case 'T':
-		tmpdir = optarg;
-		break;
-
-        case 'z':
-	  do_compression = 1;
-	  break;
-
-	default:
-	  /* fprintf(FERROR,"bad option -%c\n",opt); */
-	  exit_cleanup(1);
-	}
-    }
-
-    while (optind--) {
-      argc--;
-      argv++;
-    }
-
-    signal(SIGCHLD,SIG_IGN);
-    signal(SIGINT,SIGNAL_CAST sig_int);
-    signal(SIGPIPE,SIGNAL_CAST sig_int);
-    signal(SIGHUP,SIGNAL_CAST sig_int);
-
-    if (dry_run)
-      verbose = MAX(verbose,1);
-
-#ifndef SUPPORT_LINKS
-    if (!am_server && preserve_links) {
-	    fprintf(FERROR,"ERROR: symbolic links not supported\n");
-	    exit_cleanup(1);
-    }
-#endif
-
-    if (am_server) {
-      setup_protocol(STDOUT_FILENO,STDIN_FILENO);
-	
-      if (sender) {
-	recv_exclude_list(STDIN_FILENO);
-	if (cvs_exclude)
-	  add_cvs_excludes();
-	do_server_sender(argc,argv);
-      } else {
-	do_server_recv(argc,argv);
-      }
-      exit_cleanup(0);
-    }
-
-    if (argc < 2) {
-      usage(FERROR);
-      exit_cleanup(1);
-    }
-
-    p = strchr(argv[0],':');
-
-    if (p) {
-      sender = 0;
-      *p = 0;
-      shell_machine = argv[0];
-      shell_path = p+1;
-      argc--;
-      argv++;
-    } else {
-      sender = 1;
-
-      p = strchr(argv[argc-1],':');
-      if (!p) {
-	local_server = 1;
-      }
-
-      if (local_server) {
-	shell_machine = NULL;
-	shell_path = argv[argc-1];
-      } else {
-	*p = 0;
-	shell_machine = argv[argc-1];
-	shell_path = p+1;
-      }
-      argc--;
-    }
-
-    if (shell_machine) {
-      p = strchr(shell_machine,'@');
-      if (p) {
-	*p = 0;
-	shell_user = shell_machine;
-	shell_machine = p+1;
-      }
-    }
-
-    if (verbose > 3) {
-      fprintf(FERROR,"cmd=%s machine=%s user=%s path=%s\n",
-	      shell_cmd?shell_cmd:"",
-	      shell_machine?shell_machine:"",
-	      shell_user?shell_user:"",
-	      shell_path?shell_path:"");
-    }
-    
-    if (!sender && argc != 1) {
-      usage(FERROR);
-      exit_cleanup(1);
-    }
-
-    pid = do_cmd(shell_cmd,shell_machine,shell_user,shell_path,&f_in,&f_out);
-
-    setup_protocol(f_out,f_in);
-
-#if HAVE_SETLINEBUF
-    setlinebuf(FINFO);
-    setlinebuf(FERROR);
-#endif
-
-    if (verbose > 3) 
-      fprintf(FERROR,"parent=%d child=%d sender=%d recurse=%d\n",
-	      (int)getpid(),pid,sender,recurse);
-
-    if (sender) {
-      if (cvs_exclude)
-	add_cvs_excludes();
-      if (delete_mode) 
-	send_exclude_list(f_out);
-      flist = send_file_list(f_out,argc,argv);
-      if (verbose > 3) 
-	fprintf(FERROR,"file list sent\n");
-      send_files(flist,f_out,f_in);
-      if (verbose > 3)
-	fprintf(FERROR,"waiting on %d\n",pid);
-      waitpid(pid, &status, 0);
-      report(-1);
-      exit_cleanup(status);
-    }
-
-    send_exclude_list(f_out);
-
-    flist = recv_file_list(f_in);
-    if (!flist || flist->count == 0) {
-      fprintf(FERROR,"nothing to do\n");
-      exit_cleanup(0);
-    }
-
-    local_name = get_local_name(flist,argv[0]);
-
-    status2 = do_recv(f_in,f_out,flist,local_name);
-
-    report(f_in);
-
-    waitpid(pid, &status, 0);
-
-    return status | status2;
+  
+  if (always_checksum)
+    read_buf(f,file->sum,csum_length);
+  
+  last_mode = file->mode;
+  last_rdev = file->rdev;
+  last_uid = file->uid;
+  last_gid = file->gid;
+  p = strrchr(file->name,'/');
+  if (p) {
+    int l = (int)(p - file->name) + 1;
+    strncpy(lastdir,file->name,l);
+    lastdir[l] = 0;
+  } else {
+    strcpy(lastdir,"");
+  }
 }

@@ -1,68 +1,35 @@
-const char *fmt_ident(const char *name, const char *email,
-		      const char *date_str, int flag)
+static void git_pack_config(void)
 {
-	static struct strbuf ident = STRBUF_INIT;
-	int strict = (flag & IDENT_STRICT);
-	int want_date = !(flag & IDENT_NO_DATE);
-	int want_name = !(flag & IDENT_NO_NAME);
+	int indexversion_value;
+	int limit;
+	unsigned long packsizelimit_value;
 
-	if (want_name) {
-		int using_default = 0;
-		if (!name) {
-			if (strict && ident_use_config_only
-			    && !(ident_config_given & IDENT_NAME_GIVEN)) {
-				fputs(_(env_hint), stderr);
-				die("no name was given and auto-detection is disabled");
-			}
-			name = ident_default_name();
-			using_default = 1;
-			if (strict && default_name_is_bogus) {
-				fputs(_(env_hint), stderr);
-				die("unable to auto-detect name (got '%s')", name);
-			}
-		}
-		if (!*name) {
-			struct passwd *pw;
-			if (strict) {
-				if (using_default)
-					fputs(_(env_hint), stderr);
-				die("empty ident name (for <%s>) not allowed", email);
-			}
-			pw = xgetpwuid_self(NULL);
-			name = pw->pw_name;
-		}
+	if (!git_config_get_ulong("pack.depth", &max_depth)) {
+		if (max_depth > MAX_DEPTH)
+			max_depth = MAX_DEPTH;
 	}
+	if (!git_config_get_int("pack.compression", &pack_compression_level)) {
+		if (pack_compression_level == -1)
+			pack_compression_level = Z_DEFAULT_COMPRESSION;
+		else if (pack_compression_level < 0 ||
+			 pack_compression_level > Z_BEST_COMPRESSION)
+			git_die_config("pack.compression",
+					"bad pack compression level %d", pack_compression_level);
+		pack_compression_seen = 1;
+	}
+	if (!git_config_get_int("pack.indexversion", &indexversion_value)) {
+		pack_idx_opts.version = indexversion_value;
+		if (pack_idx_opts.version > 2)
+			git_die_config("pack.indexversion",
+					"bad pack.indexversion=%"PRIu32, pack_idx_opts.version);
+	}
+	if (!git_config_get_ulong("pack.packsizelimit", &packsizelimit_value))
+		max_packsize = packsizelimit_value;
 
-	if (!email) {
-		if (strict && ident_use_config_only
-		    && !(ident_config_given & IDENT_MAIL_GIVEN)) {
-			fputs(_(env_hint), stderr);
-			die("no email was given and auto-detection is disabled");
-		}
-		email = ident_default_email();
-		if (strict && default_email_is_bogus) {
-			fputs(_(env_hint), stderr);
-			die("unable to auto-detect email address (got '%s')", email);
-		}
-	}
+	if (!git_config_get_int("fastimport.unpacklimit", &limit))
+		unpack_limit = limit;
+	else if (!git_config_get_int("transfer.unpacklimit", &limit))
+		unpack_limit = limit;
 
-	strbuf_reset(&ident);
-	if (want_name) {
-		strbuf_addstr_without_crud(&ident, name);
-		strbuf_addstr(&ident, " <");
-	}
-	strbuf_addstr_without_crud(&ident, email);
-	if (want_name)
-			strbuf_addch(&ident, '>');
-	if (want_date) {
-		strbuf_addch(&ident, ' ');
-		if (date_str && date_str[0]) {
-			if (parse_date(date_str, &ident) < 0)
-				die("invalid date format: %s", date_str);
-		}
-		else
-			strbuf_addstr(&ident, ident_default_date());
-	}
-
-	return ident.buf;
+	git_config(git_default_config, NULL);
 }

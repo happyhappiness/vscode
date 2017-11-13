@@ -1,11 +1,11 @@
 fputs(
-"              Unrecognized and unsupported  proxy  protocols  cause  an  error\n"
-"              since  7.52.0.   Prior  versions may ignore the protocol and use\n"
-"              http:// instead.\n"
+"              eral  disabled  for  security reasons: Since 7.19.4 FILE and SCP\n"
+"              are disabled, and since 7.40.0 SMB and SMBS are  also  disabled.\n"
+"              Specifying  all  or  +all  enables  all  protocols  on redirect,\n"
+"              including those disabled for security.\n"
 "\n"
-"              If the port number is not specified in the proxy string,  it  is\n"
-"              assumed to be 1080.\n"
+"              Added in 7.20.2.\n"
 "\n"
-"              This  option  overrides  existing environment variables that set\n"
-"              the proxy to use. If there's an environment variable  setting  a\n"
+"       --proto <protocols>\n"
+"              Tells curl to limit what protocols it may use in  the  transfer.\n"
 , stdout);

@@ -1,0 +1,1 @@
+error(_("no such remote ref %s"), sought[i]->name);

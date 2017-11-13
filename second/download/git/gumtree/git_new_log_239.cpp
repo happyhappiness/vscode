@@ -1,1 +1,0 @@
-die(_("pack exceeds maximum allowed size"));

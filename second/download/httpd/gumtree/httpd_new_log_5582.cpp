@@ -1,1 +1,1 @@
-h2_mplx_task_done(task->mplx, task, &task);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "mod_example_hooks: %s", note);

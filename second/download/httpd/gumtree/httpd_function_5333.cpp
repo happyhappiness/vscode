@@ -1,43 +1,20 @@
-apr_status_t h2_stream_read_to(h2_stream *stream, apr_bucket_brigade *bb, 
-                               apr_off_t *plen, int *peos)
+static void worker_note_child_lost_slot(int slot, pid_t newpid)
 {
-    apr_status_t status = APR_SUCCESS;
-    apr_table_t *trailers = NULL;
-
-    H2_STREAM_OUT(APLOG_TRACE2, stream, "h2_stream read_to_pre");
-    if (stream->rst_error) {
-        return APR_ECONNRESET;
-    }
-    
-    if (APR_BRIGADE_EMPTY(stream->bbout)) {
-        apr_off_t tlen = *plen;
-        int eos;
-        status = h2_mplx_out_read_to(stream->session->mplx, stream->id, 
-                                     stream->bbout, &tlen, &eos, &trailers);
-    }
-    
-    if (status == APR_SUCCESS && !APR_BRIGADE_EMPTY(stream->bbout)) {
-        status = h2_transfer_brigade(bb, stream->bbout, stream->pool, 
-                                     plen, peos);
-    }
-    else {
-        *plen = 0;
-        *peos = 0;
-    }
-
-    if (trailers && stream->response) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, stream->session->c,
-                      "h2_stream(%ld-%d): read_to, saving trailers",
-                      stream->session->id, stream->id);
-        h2_response_set_trailers(stream->response, trailers);
-    }
-    
-    if (status == APR_SUCCESS && !*peos && !*plen) {
-        status = APR_EAGAIN;
-    }
-    H2_STREAM_OUT(APLOG_TRACE2, stream, "h2_stream read_to_post");
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, stream->session->c,
-                  "h2_stream(%ld-%d): read_to, len=%ld eos=%d",
-                  stream->session->id, stream->id, (long)*plen, *peos);
-    return status;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(00263)
+                 "pid %" APR_PID_T_FMT " taking over scoreboard slot from "
+                 "%" APR_PID_T_FMT "%s",
+                 newpid,
+                 ap_scoreboard_image->parent[slot].pid,
+                 ap_scoreboard_image->parent[slot].quiescing ?
+                 " (quiescing)" : "");
+    ap_run_child_status(ap_server_conf,
+                        ap_scoreboard_image->parent[slot].pid,
+                        ap_scoreboard_image->parent[slot].generation,
+                        slot, MPM_CHILD_LOST_SLOT);
+    /* Don't forget about this exiting child process, or we
+     * won't be able to kill it if it doesn't exit by the
+     * time the server is shut down.
+     */
+    ap_register_extra_mpm_process(ap_scoreboard_image->parent[slot].pid,
+                                  ap_scoreboard_image->parent[slot].generation);
 }

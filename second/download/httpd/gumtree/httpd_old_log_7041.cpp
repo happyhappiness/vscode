@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, sts, s, APLOGNO(01761)
-                     "Failed to find temporary directory");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01656)
+                      "Query execution error looking up '%s' "
+                      "in database", user);

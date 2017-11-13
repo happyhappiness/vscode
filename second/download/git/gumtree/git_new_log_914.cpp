@@ -1,2 +1,1 @@
-die("BUG: invalid status --porcelain=2 line %s",
-				    buf.buf);
+packet_buf_write(&preamble, "%s\n", specs[i]);

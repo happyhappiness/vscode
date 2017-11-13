@@ -1,42 +1,22 @@
-int report_path_error(const char *ps_matched,
-		      const struct pathspec *pathspec,
-		      const char *prefix)
+const char *absolute_path(const char *path)
 {
-	/*
-	 * Make sure all pathspec matched; otherwise it is an error.
-	 */
-	struct strbuf sb = STRBUF_INIT;
-	int num, errors = 0;
-	for (num = 0; num < pathspec->nr; num++) {
-		int other, found_dup;
+	static char buf[PATH_MAX + 1];
 
-		if (ps_matched[num])
-			continue;
-		/*
-		 * The caller might have fed identical pathspec
-		 * twice.  Do not barf on such a mistake.
-		 * FIXME: parse_pathspec should have eliminated
-		 * duplicate pathspec.
-		 */
-		for (found_dup = other = 0;
-		     !found_dup && other < pathspec->nr;
-		     other++) {
-			if (other == num || !ps_matched[other])
-				continue;
-			if (!strcmp(pathspec->items[other].original,
-				    pathspec->items[num].original))
-				/*
-				 * Ok, we have a match already.
-				 */
-				found_dup = 1;
-		}
-		if (found_dup)
-			continue;
-
-		error("pathspec '%s' did not match any file(s) known to git.",
-		      pathspec->items[num].original);
-		errors++;
+	if (!*path) {
+		die("The empty string is not a valid path");
+	} else if (is_absolute_path(path)) {
+		if (strlcpy(buf, path, PATH_MAX) >= PATH_MAX)
+			die("Too long path: %.*s", 60, path);
+	} else {
+		size_t len;
+		const char *fmt;
+		const char *cwd = get_pwd_cwd();
+		if (!cwd)
+			die_errno("Cannot determine the current working directory");
+		len = strlen(cwd);
+		fmt = (len > 0 && is_dir_sep(cwd[len - 1])) ? "%s%s" : "%s/%s";
+		if (snprintf(buf, PATH_MAX, fmt, cwd, path) >= PATH_MAX)
+			die("Too long path: %.*s", 60, path);
 	}
-	strbuf_release(&sb);
-	return errors;
+	return buf;
 }

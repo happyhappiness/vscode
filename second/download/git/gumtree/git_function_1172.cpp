@@ -1,35 +1,34 @@
-static int handshake_capabilities(struct child_process *process,
-				  struct subprocess_capability *capabilities,
-				  unsigned int *supported_capabilities)
+static void prepare_cmd(struct argv_array *out, const struct child_process *cmd)
 {
-	int i;
-	char *line;
+	if (!cmd->argv[0])
+		die("BUG: command is empty");
 
-	for (i = 0; capabilities[i].name; i++) {
-		if (packet_write_fmt_gently(process->in, "capability=%s\n",
-					    capabilities[i].name))
-			return error("Could not write requested capability");
+	/*
+	 * Add SHELL_PATH so in the event exec fails with ENOEXEC we can
+	 * attempt to interpret the command with 'sh'.
+	 */
+	argv_array_push(out, SHELL_PATH);
+
+	if (cmd->git_cmd) {
+		argv_array_push(out, "git");
+		argv_array_pushv(out, cmd->argv);
+	} else if (cmd->use_shell) {
+		prepare_shell_cmd(out, cmd->argv);
+	} else {
+		argv_array_pushv(out, cmd->argv);
 	}
-	if (packet_flush_gently(process->in))
-		return error("Could not write flush packet");
 
-	while ((line = packet_read_line(process->out, NULL))) {
-		const char *p;
-		if (!skip_prefix(line, "capability=", &p))
-			continue;
-
-		for (i = 0;
-		     capabilities[i].name && strcmp(p, capabilities[i].name);
-		     i++)
-			;
-		if (capabilities[i].name) {
-			if (supported_capabilities)
-				*supported_capabilities |= capabilities[i].flag;
-		} else {
-			warning("subprocess '%s' requested unsupported capability '%s'",
-				process->argv[0], p);
+	/*
+	 * If there are no '/' characters in the command then perform a path
+	 * lookup and use the resolved path as the command to exec.  If there
+	 * are no '/' characters or if the command wasn't found in the path,
+	 * have exec attempt to invoke the command directly.
+	 */
+	if (!strchr(out->argv[1], '/')) {
+		char *program = locate_in_PATH(out->argv[1]);
+		if (program) {
+			free((char *)out->argv[1]);
+			out->argv[1] = program;
 		}
 	}
-
-	return 0;
 }

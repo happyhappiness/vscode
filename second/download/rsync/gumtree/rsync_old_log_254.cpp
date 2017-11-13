@@ -1,1 +1,1 @@
-out_of_memory("receive_file_entry");
+fprintf(stderr,"write_int failed : %s\n",strerror(errno));

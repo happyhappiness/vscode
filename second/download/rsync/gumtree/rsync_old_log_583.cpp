@@ -1,1 +1,1 @@
-fprintf(FERROR,"pipe: %s\n",strerror(errno));
+fprintf(FINFO,"renaming %s to %s\n",fnametmp,fname);

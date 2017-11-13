@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "auth_ldap authorize: require group: testing for group "
-                  "membership in \"%s\"",
-                  t);
+apr_file_printf(errfile, "Removed: %s" APR_EOL_STR,
+                            argv[o->ind]);

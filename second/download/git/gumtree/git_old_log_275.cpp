@@ -1,2 +1,1 @@
-error(_("No note found for object %s."),
-			       sha1_to_hex(object));
+error(_("reading from '%s' beyond a symbolic link"), name);

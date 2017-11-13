@@ -1,3 +1,6 @@
-ap_log_perror(APLOG_MARK, APLOG_STARTUP | APLOG_WARNING, 0, a,
-                         "%s: apr_sockaddr_info_get() failed for %s",
-                         ap_server_argv0, str);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Request exceeded the limit of %d internal "
+                              "redirects due to probable configuration error. "
+                              "Use 'LimitInternalRecursion' to increase the "
+                              "limit if necessary. Use 'LogLevel debug' to get "
+                              "a backtrace.", rlimit);

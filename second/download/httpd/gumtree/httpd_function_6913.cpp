@@ -1,12 +1,18 @@
-void h2_stream_rst(h2_stream *stream, int error_code)
+apr_status_t h2_stream_set_request_rec(h2_stream *stream, request_rec *r)
 {
-    stream->rst_error = error_code;
-    close_input(stream);
-    close_output(stream);
-    if (stream->out_buffer) {
-        apr_brigade_cleanup(stream->out_buffer);
+    h2_request *req;
+    apr_status_t status;
+
+    ap_assert(stream->request == NULL);
+    ap_assert(stream->rtmp == NULL);
+    if (stream->rst_error) {
+        return APR_ECONNRESET;
     }
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
-                  "h2_stream(%ld-%d): reset, error=%d", 
-                  stream->session->id, stream->id, error_code);
+    status = h2_request_rcreate(&req, stream->pool, r);
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r, APLOGNO(03058)
+                  "h2_request(%d): set_request_rec %s host=%s://%s%s",
+                  stream->id, req->method, req->scheme, req->authority, 
+                  req->path);
+    stream->rtmp = req;
+    return status;
 }

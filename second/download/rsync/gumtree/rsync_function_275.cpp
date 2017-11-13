@@ -1,30 +1,40 @@
-void add_exclude_list(char *pattern,char ***list)
+void do_server_recv(int argc,char *argv[])
 {
-  int len=0;
-  if (list && *list)
-    for (; (*list)[len]; len++) ;
-
-  if (strcmp(pattern,"!") == 0) {
-    if (verbose > 2)
-      fprintf(FERROR,"clearing exclude list\n");
-    while ((len)--) 
-      free((*list)[len]);
-    free((*list));
-    *list = NULL;
-    return;
-  }
-
-  if (!*list) {
-    *list = (char **)malloc(sizeof(char *)*2);
-  } else {
-    *list = (char **)realloc(*list,sizeof(char *)*(len+2));
-  }
-
-  if (!*list || !((*list)[len] = strdup(pattern)))
-    out_of_memory("add_exclude");
-
-  if (verbose > 2)
-    fprintf(FERROR,"add_exclude(%s)\n",pattern);
+  int status;
+  char *dir = NULL;
+  struct file_list *flist;
+  char *local_name=NULL;
   
-  (*list)[len+1] = NULL;
+  if (verbose > 2)
+    fprintf(FERROR,"server_recv(%d) starting pid=%d\n",argc,(int)getpid());
+
+  if (argc > 0) {
+    dir = argv[0];
+    argc--;
+    argv++;
+    if (chdir(dir) != 0) {
+      fprintf(FERROR,"chdir %s : %s\n",dir,strerror(errno));
+      exit_cleanup(1);
+    }    
+  }
+
+  if (delete_mode)
+    recv_exclude_list(STDIN_FILENO);
+
+  flist = recv_file_list(STDIN_FILENO);
+  if (!flist || flist->count == 0) {
+    fprintf(FERROR,"nothing to do\n");
+    exit_cleanup(1);
+  }
+
+  if (argc > 0) {    
+    if (strcmp(dir,".")) {
+      argv[0] += strlen(dir);
+      if (argv[0][0] == '/') argv[0]++;
+    }
+    local_name = get_local_name(flist,argv[0]);
+  }
+
+  status = do_recv(STDIN_FILENO,STDOUT_FILENO,flist,local_name);
+  exit_cleanup(status);
 }

@@ -1,53 +1,20 @@
-static int authenticate_basic_fake(request_rec *r)
+static int h2_h2_late_fixups(request_rec *r)
 {
-    const char *auth_line, *user, *pass, *err;
-    auth_basic_config_rec *conf = ap_get_module_config(r->per_dir_config,
-                                                       &auth_basic_module);
-
-    if (!conf->fakeuser) {
-        return DECLINED;
+    /* slave connection? */
+    if (r->connection->master) {
+        h2_ctx *ctx = h2_ctx_rget(r);
+        struct h2_task *task = h2_ctx_get_task(ctx);
+        if (task) {
+            /* check if we copy vs. setaside files in this location */
+            task->output.copy_files = h2_config_geti(h2_config_rget(r), 
+                                                     H2_CONF_COPY_FILES);
+            if (task->output.copy_files) {
+                ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c,
+                              "h2_slave_out(%s): copy_files on", task->id);
+                h2_beam_on_file_beam(task->output.beam, h2_beam_no_files, NULL);
+            }
+            check_push(r, "late_fixup");
+        }
     }
-
-    user = ap_expr_str_exec(r, conf->fakeuser, &err);
-    if (err) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02455)
-                      "AuthBasicFake: could not evaluate user expression for URI '%s': %s", r->uri, err);
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-    if (!user || !*user) {
-        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02458)
-                      "AuthBasicFake: empty username expression for URI '%s', ignoring", r->uri);
-
-        apr_table_unset(r->headers_in, "Authorization");
-
-        return DECLINED;
-    }
-
-    pass = ap_expr_str_exec(r, conf->fakepass, &err);
-    if (err) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02456)
-                      "AuthBasicFake: could not evaluate password expression for URI '%s': %s", r->uri, err);
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-    if (!pass || !*pass) {
-        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02459)
-                      "AuthBasicFake: empty password expression for URI '%s', ignoring", r->uri);
-
-        apr_table_unset(r->headers_in, "Authorization");
-
-        return DECLINED;
-    }
-
-    auth_line = apr_pstrcat(r->pool, "Basic ",
-                            ap_pbase64encode(r->pool,
-                                             apr_pstrcat(r->pool, user,
-                                                         ":", pass, NULL)),
-                            NULL);
-    apr_table_setn(r->headers_in, "Authorization", auth_line);
-
-    ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02457)
-                  "AuthBasicFake: \"Authorization: %s\"",
-                  auth_line);
-
-    return OK;
+    return DECLINED;
 }

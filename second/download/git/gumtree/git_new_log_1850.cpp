@@ -1,1 +1,1 @@
-die("could not open input");
+noindex_filespec(NULL, 0);

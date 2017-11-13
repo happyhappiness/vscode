@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
-                                  "h2_stream(%ld-%d): HEADER, eos=%d", 
-                                  session->id, frame->hd.stream_id, eos);
+ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, APLOGNO(00431)
+                             "Parent: Forcing termination of child process %pp",
+                             event_handles[CHILD_HANDLE]);

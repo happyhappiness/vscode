@@ -1,1 +1,1 @@
-fprintf(stdout, "%s\n", ce->name);
+die("BUG: interned attributes shouldn't be deleted");

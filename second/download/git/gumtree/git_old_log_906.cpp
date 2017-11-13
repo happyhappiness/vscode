@@ -1,1 +1,0 @@
-die_errno(_("Cannot change to '%s/..'"), cwd.buf);

@@ -1,178 +1,117 @@
-void recv_generator(char *fname,struct file_list *flist,int i,int f_out)
-{  
+off_t send_files(struct file_list *flist,int f_out,int f_in)
+{ 
   int fd;
-  struct stat st;
-  struct map_struct *buf;
   struct sum_struct *s;
-  char sum[MD4_SUM_LENGTH];
-  int statret;
-  struct file_struct *file = &flist->files[i];
+  struct map_struct *buf;
+  struct stat st;
+  char fname[MAXPATHLEN];  
+  off_t total=0;
+  int i;
+  struct file_struct *file;
+  int phase = 0;
 
   if (verbose > 2)
-    fprintf(FERROR,"recv_generator(%s,%d)\n",fname,i);
+    fprintf(FERROR,"send_files starting\n");
 
-  statret = lstat(fname,&st);
+  setup_nonblocking(f_in,f_out);
 
-  if (S_ISDIR(file->mode)) {
-    if (dry_run) return;
-    if (statret == 0 && !S_ISDIR(st.st_mode)) {
-      if (unlink(fname) != 0) {
-	fprintf(FERROR,"unlink %s : %s\n",fname,strerror(errno));
-	return;
-      }
-      statret = -1;
-    }
-    if (statret != 0 && mkdir(fname,file->mode) != 0 && errno != EEXIST)
-      fprintf(FERROR,"mkdir %s : %s\n",fname,strerror(errno));
-    if (set_perms(fname,file,NULL,0) && verbose) 
-      fprintf(FINFO,"%s/\n",fname);
-    return;
-  }
-
-#if SUPPORT_LINKS
-  if (preserve_links && S_ISLNK(file->mode)) {
-    char lnk[MAXPATHLEN];
-    int l;
-    if (statret == 0) {
-      l = readlink(fname,lnk,MAXPATHLEN-1);
-      if (l > 0) {
-	lnk[l] = 0;
-	if (strcmp(lnk,file->link) == 0) {
-	  set_perms(fname,file,&st,1);
-	  return;
+  while (1) 
+    {
+      i = read_int(f_in);
+      if (i == -1) {
+	if (phase==0 && remote_version >= 13) {
+	  phase++;
+	  csum_length = SUM_LENGTH;
+	  write_int(f_out,-1);
+	  write_flush(f_out);
+	  if (verbose > 2)
+	    fprintf(FERROR,"send_files phase=%d\n",phase);
+	  continue;
 	}
+	break;
       }
-    }
-    if (!dry_run) unlink(fname);
-    if (!dry_run && symlink(file->link,fname) != 0) {
-      fprintf(FERROR,"link %s -> %s : %s\n",
-	      fname,file->link,strerror(errno));
-    } else {
-      set_perms(fname,file,NULL,0);
-      if (verbose) 
-	fprintf(FINFO,"%s -> %s\n",
-		fname,file->link);
-    }
-    return;
-  }
-#endif
 
-#ifdef HAVE_MKNOD
-  if (am_root && preserve_devices && IS_DEVICE(file->mode)) {
-    if (statret != 0 || 
-	st.st_mode != file->mode ||
-	st.st_rdev != file->rdev) {	
-      if (!dry_run) unlink(fname);
-      if (verbose > 2)
-	fprintf(FERROR,"mknod(%s,0%o,0x%x)\n",
-		fname,(int)file->mode,(int)file->rdev);
-      if (!dry_run && 
-	  mknod(fname,file->mode,file->rdev) != 0) {
-	fprintf(FERROR,"mknod %s : %s\n",fname,strerror(errno));
+      file = &flist->files[i];
+
+      fname[0] = 0;
+      if (file->dir) {
+	strcpy(fname,file->dir);
+	strcat(fname,"/");
+      }
+      strcat(fname,file->name);
+
+      if (verbose > 2) 
+	fprintf(FERROR,"send_files(%d,%s)\n",i,fname);
+
+      if (dry_run) {	
+	if (!am_server && verbose)
+	  printf("%s\n",fname);
+	write_int(f_out,i);
+	continue;
+      }
+
+      s = receive_sums(f_in);
+      if (!s) {
+	fprintf(FERROR,"receive_sums failed\n");
+	return -1;
+      }
+
+      fd = open(fname,O_RDONLY);
+      if (fd == -1) {
+	fprintf(FERROR,"send_files failed to open %s: %s\n",
+		fname,strerror(errno));
+	continue;
+      }
+  
+      /* map the local file */
+      if (fstat(fd,&st) != 0) {
+	fprintf(FERROR,"fstat failed : %s\n",strerror(errno));
+	return -1;
+      }
+      
+      if (st.st_size > 0) {
+	buf = map_file(fd,st.st_size);
       } else {
-	set_perms(fname,file,NULL,0);
-	if (verbose)
-	  fprintf(FINFO,"%s\n",fname);
+	buf = NULL;
       }
-    } else {
-      set_perms(fname,file,&st,1);
-    }
-    return;
-  }
-#endif
 
-  if (preserve_hard_links && check_hard_link(file)) {
-    if (verbose > 1)
-      fprintf(FINFO,"%s is a hard link\n",file->name);
-    return;
-  }
+      if (verbose > 2)
+	fprintf(FERROR,"send_files mapped %s of size %d\n",
+		fname,(int)st.st_size);
 
-  if (!S_ISREG(file->mode)) {
-    fprintf(FERROR,"skipping non-regular file %s\n",fname);
-    return;
-  }
-
-  if (statret == -1) {
-    if (errno == ENOENT) {
       write_int(f_out,i);
-      if (!dry_run) send_sums(NULL,f_out);
-    } else {
-      if (verbose > 1)
-	fprintf(FERROR,"recv_generator failed to open %s\n",fname);
+
+      write_int(f_out,s->count);
+      write_int(f_out,s->n);
+      write_int(f_out,s->remainder);
+
+      if (verbose > 2)
+	fprintf(FERROR,"calling match_sums %s\n",fname);
+
+      if (!am_server && verbose)
+	printf("%s\n",fname);
+      
+      match_sums(f_out,s,buf,st.st_size);
+      write_flush(f_out);
+      
+      if (buf) unmap_file(buf);
+      close(fd);
+
+      free_sums(s);
+
+      if (verbose > 2)
+	fprintf(FERROR,"sender finished %s\n",fname);
+
+      total += st.st_size;
     }
-    return;
-  }
-
-  if (!S_ISREG(st.st_mode)) {
-    /* its not a regular file on the receiving end, but it is on the
-       sending end. If its a directory then skip it (too dangerous to
-       do a recursive deletion??) otherwise try to unlink it */
-    if (S_ISDIR(st.st_mode)) {
-      fprintf(FERROR,"ERROR: %s is a directory\n",fname);
-      return;
-    }
-    if (unlink(fname) != 0) {
-      fprintf(FERROR,"%s : not a regular file (generator)\n",fname);
-      return;
-    }
-
-    /* now pretend the file didn't exist */
-    write_int(f_out,i);
-    if (!dry_run) send_sums(NULL,f_out);    
-    return;
-  }
-
-  if (update_only && st.st_mtime >= file->modtime) {
-    if (verbose > 1)
-      fprintf(FERROR,"%s is newer\n",fname);
-    return;
-  }
-
-  if (always_checksum && S_ISREG(st.st_mode)) {
-    file_checksum(fname,sum,st.st_size);
-  }
-
-  if (st.st_size == file->length &&
-      ((!ignore_times && st.st_mtime == file->modtime) ||
-       (always_checksum && S_ISREG(st.st_mode) && 	  
-	memcmp(sum,file->sum,csum_length) == 0))) {
-    set_perms(fname,file,&st,1);
-    return;
-  }
-
-  if (dry_run) {
-    write_int(f_out,i);
-    return;
-  }
-
-  /* open the file */  
-  fd = open(fname,O_RDONLY);
-
-  if (fd == -1) {
-    fprintf(FERROR,"failed to open %s : %s\n",fname,strerror(errno));
-    return;
-  }
-
-  if (st.st_size > 0) {
-    buf = map_file(fd,st.st_size);
-  } else {
-    buf = NULL;
-  }
-
-  if (verbose > 3)
-    fprintf(FERROR,"gen mapped %s of size %d\n",fname,(int)st.st_size);
-
-  s = generate_sums(buf,st.st_size,block_size);
 
   if (verbose > 2)
-    fprintf(FERROR,"sending sums for %d\n",i);
+    fprintf(FERROR,"send files finished\n");
 
-  write_int(f_out,i);
-  send_sums(s,f_out);
+  match_report();
+
+  write_int(f_out,-1);
   write_flush(f_out);
 
-  close(fd);
-  if (buf) unmap_file(buf);
-
-  free_sums(s);
+  return total;
 }

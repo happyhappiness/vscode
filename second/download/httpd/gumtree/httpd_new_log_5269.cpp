@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r,
-                  "h2_request(%d): rwrite %s host=%s://%s%s",
-                  req->id, req->method, req->scheme, req->authority, req->path);
+ap_log_error(APLOG_MARK, APLOG_CRIT, ERROR_BAD_PATHNAME, ap_server_conf, APLOGNO(00413)
+                         "Parent: Failed to get full path of %s",
+                         ap_server_conf->process->argv[0]);

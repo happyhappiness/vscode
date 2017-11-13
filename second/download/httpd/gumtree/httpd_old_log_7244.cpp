@@ -1,1 +1,1 @@
-apr_file_printf(errfile, "\thtpasswd [-cmdpsD] passwordfile username" NL);
+apr_file_printf(errfile, "\thtpasswd -n[mdps] username" NL);

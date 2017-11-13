@@ -1,9 +1,10 @@
 fputs(
-"                             until  the file transfer was just about to begin.\n"
-"                             This includes all pre-transfer commands and nego-\n"
-"                             tiations that are specific to the particular pro-\n"
-"                             tocol(s) involved.\n"
+"                             with  the -J, --remote-header-name option. (Added\n"
+"                             in 7.26.0)\n"
 "\n"
-"              time_redirect  The time, in seconds, it took for all redirection\n"
-"                             steps  include  name lookup, connect, pretransfer\n"
+"              ftp_entry_path The initial path curl ended up in when logging on\n"
+"                             to the remote FTP server. (Added in 7.15.4)\n"
+"\n"
+"              http_code      The numerical response code that was found in the\n"
+"                             last retrieved HTTP(S)  or  FTP(s)  transfer.  In\n"
 , stdout);

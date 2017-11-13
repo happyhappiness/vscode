@@ -1,2 +1,1 @@
-packet_write(stdin_fd, "%s %s%chost=%s%c", serv, repo, 0,
-			     vhost, 0);
+error(_("%s: wrong type"), old_name);

@@ -1,2 +1,4 @@
-error(_("Failed to copy notes from '%s' to '%s'"),
-			      split[0]->buf, split[1]->buf);
+error("cannot reverse-apply a binary patch "
+				     "without the reverse hunk to '%s'",
+				     patch->new_name
+				     ? patch->new_name : patch->old_name);

@@ -1,1 +1,1 @@
-error(_("read of %s failed"), name);
+fprintf(stderr, "\n  from %s\n  to   %s\n", old_hex, new_hex);

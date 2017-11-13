@@ -1,10 +1,11 @@
 fputs(
-"              the URL is stored in the xdg.origin.url attribute and, for HTTP,\n"
-"              the content type is stored in the mime_type  attribute.  If  the\n"
-"              file  system  does not support extended attributes, a warning is\n"
-"              issued.\n"
+"              and the embedded user + password.\n"
 "\n"
-"       -y, --speed-time <time>\n"
-"              If a download is slower than speed-limit bytes per second during\n"
-"              a speed-time period, the download gets aborted. If speed-time is\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -X, --request <command>\n"
+"              (HTTP) Specifies a custom request method to use when communicat-\n"
+"              ing  with  the  HTTP server.  The specified request will be used\n"
+"              instead of the method otherwise used (which  defaults  to  GET).\n"
+"              Read  the  HTTP  1.1 specification for details and explanations.\n"
 , stdout);

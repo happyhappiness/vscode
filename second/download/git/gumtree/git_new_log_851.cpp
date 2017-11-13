@@ -1,1 +1,1 @@
-die("object size is too enormous to format");
+error(_("cannot store %s"), stash_sha1.buf);

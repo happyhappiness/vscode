@@ -1,1 +1,1 @@
-fprintf(FERROR,"hash search b=%d len=%d\n",s->n,(int)len);
+fprintf(FERROR,"excluding file %s\n",fname);

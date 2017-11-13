@@ -1,1 +1,1 @@
-printf("root %s\n", describe_object(&commit->object));
+die(_("positive value expected contents:lines=%s"), valp);

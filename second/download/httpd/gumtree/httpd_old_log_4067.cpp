@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "proxy: %s: pre_connection setup failed (%d)",
-                     proxy_function, rc);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                        MODNAME ": match line=%d cont=%d type=%d %s",
+                        m->lineno, m->cont_level, m->type,
+                        (m->type == STRING) ? m->value.s : "");

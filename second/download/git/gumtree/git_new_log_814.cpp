@@ -1,1 +1,2 @@
-opterror(opt, "expects a number greater than zero", 0);
+die(_("Missing ')' at the end of pathspec magic in '%s'"),
+		    elem);

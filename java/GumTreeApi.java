@@ -40,6 +40,7 @@ public class GumTreeApi {
 	private int oldLoc, newLoc;
 	private ITree oldLogNode, newLogNode;
 	private List<ITree> oldLogs, newLogs, mappedOldLogs, ddgNodes;
+	private boolean ddgFlag;
 //	have not modify this log
 	final int IS_LOG = 1;
 	final int IS_LOGS = 2;
@@ -146,17 +147,24 @@ public class GumTreeApi {
 		
 		
 		GumTreeApi g = new GumTreeApi();
-		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/old.cpp";
-		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/new.cpp";
-		g.setOldAndNewFile(oldFile, newFile);
-		g.addOldLogNode(2);
-//		g.addNewLogNode(2);
-		g.setOldLoc(2);
-		System.out.println(g.getOldLog());
-		System.out.println(g.getNewLog());	
-		System.out.println(g.getActionType());
-		System.out.println(g.isOldLogEdited());
-		System.out.println(g.isLogCheckDeleted());
+		String fileName = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.44/modules/proxy/proxy_util.cpp";
+		g.setFile(fileName);
+		if(g.setLoc(482))
+		{
+			System.out.println(g.getLog());
+			System.out.println(g.getFunction());
+		}
+//		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/old.cpp";
+//		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/new.cpp";
+//		g.setOldAndNewFile(oldFile, newFile);
+//		g.addOldLogNode(2);
+////		g.addNewLogNode(2);
+//		g.setOldLoc(2);
+//		System.out.println(g.getOldLog());
+//		System.out.println(g.getNewLog());	
+//		System.out.println(g.getActionType());
+//		System.out.println(g.isOldLogEdited());
+//		System.out.println(g.isLogCheckDeleted());
 //		Set<String> edits = g.getLogEditType();
 //		// show result
 //		g.printSpliter();
@@ -268,19 +276,82 @@ public class GumTreeApi {
 		}
 	}
 	
-	protected void addDDGNode(int line) {
-		ITree ddgNode = this.getDDGNodeOfLine(line, this.oldTree, this.oldTreeContext, this.oldFile);
+	public void setDDGFlag(boolean isNewHunk)
+	{
+		// true if is in new hunk
+		this.ddgFlag = isNewHunk;
+	}
+
+	public void addDDGNode(int line) {
+		ITree ddgNode;
+		if(this.ddgFlag)
+		{
+			ddgNode = this.getDDGNodeOfLine(line, this.newTree, this.newTreeContext, this.newFile);
+		}
+		else
+		{
+			ddgNode = this.getDDGNodeOfLine(line, this.oldTree, this.oldTreeContext, this.oldFile);
+		}
 		if (ddgNode != null)
 			this.ddgNodes.add(ddgNode);
+	}
+	
+	// judge edition type based on ddg locations
+	public boolean isDDGModified() {
+		// no need to check for null ddgs
+		if(this.ddgNodes.size() == 0)
+			return false;
+		
+		Iterator<Action> actionIter = actions.iterator();
+		Action action;
+		ITree tempNode;
+		while (actionIter.hasNext()) {
+			action = actionIter.next();
+			// do not deal with comment modification
+			if(this.isActionOfComment(action))
+			{
+				continue;
+			}
+			// do not analyze move
+			String actionType = action.getName();
+			if(actionType.equals("MOV"))
+			{
+				continue;
+			}
+		 	// judge if leaf edition is edition of logs
+			tempNode = actionType.equals("INS") ? ((Insert)action).getParent() : action.getNode();
+			// decide whether is edition on ddgs in(old file[new function]) delete/update
+			Iterator<ITree> ddgIter = this.ddgNodes.iterator();
+			while (ddgIter.hasNext()) {
+				// edited part is children of ddgNodes
+				if (isChildrenOf(tempNode, ddgIter.next())) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 	
 	// decide whether check of old log is modified
 	public boolean isLogCheckDeleted()
 	{
 		// get check of old log
-		ITree controlNode = this.getControl();
+		ITree controlNode = this.getControl(this.oldLogNode, this.oldTreeContext);
 		// tell whether check is deleted
 		if(controlNode != null && this.isNodeDelete(controlNode))
+		{
+			return true;
+		}
+		return false;
+	}
+	
+	// decide whether check of new log is modified
+	public boolean isLogCheckInserted()
+	{
+		// get check of old log
+		ITree conditionNode = this.getCondition(this.newLogNode, this.newTreeContext);
+		// tell whether check is deleted
+		if(conditionNode != null && this.isNodeInsert(conditionNode))
 		{
 			return true;
 		}
@@ -365,33 +436,6 @@ public class GumTreeApi {
 		
 		return (isLogs + isFeature);
 	}
-	
-	// judge edition type based on ddg locations
-	protected boolean isDDGModified() {
-		
-		Iterator<Action> actionIter = actions.iterator();
-		Action action;
-		ITree tempNode;
-		while (actionIter.hasNext()) {
-			action = actionIter.next();
-			// do not deal with comment modification
-			if(this.isActionOfComment(action))
-			{
-				continue;
-			}
-//	 		judge if leaf edition is edition of logs
-			tempNode = action.getName().equals("INS") ? ((Insert)action).getParent() : action.getNode();
-//			decide whether is edition on ddgs in(old file[new function]) delete/update
-			Iterator<ITree> ddgIter = this.ddgNodes.iterator();
-			while (ddgIter.hasNext()) {
-//				edited part is children of ddgNodes
-				if (isChildrenOf(tempNode, ddgIter.next())) {
-					return true;
-				}
-			}
-		}
-		return false;
-	}
 
 
 	public void setFile(String filename) {
@@ -444,14 +488,14 @@ public class GumTreeApi {
 		return "";
 	}
 	
-	// get check of old log node
-	protected ITree getControl(){
+	// get check of givne node
+	protected ITree getControl(ITree node, TreeContext treeContext){
 		// first parent that contains block type
-		ITree parentNode = this.oldLogNode.getParent();
+		ITree parentNode = node.getParent();
 		ITree controlNode = null;
 		while(parentNode != null)
 		{
-			if(this.isControl(parentNode, this.oldTreeContext))
+			if(this.isControl(parentNode, treeContext))
 			{
 				controlNode = parentNode;
 				break;
@@ -459,6 +503,12 @@ public class GumTreeApi {
 			parentNode = parentNode.getParent();
 		}
 		return controlNode;
+	}
+	
+	// get condition of given node( first child of control node)
+	protected ITree getCondition(ITree node, TreeContext treeContext){
+		ITree controlNode = getControl(node, treeContext);
+		return controlNode.getChild(0);
 	}
 	
 	public String getFunction(){
@@ -835,6 +885,20 @@ public class GumTreeApi {
 		return false;
 	}
 	
+	private boolean isNodeInsert(ITree node)
+	{
+		Iterator<Action> actionIter = actions.iterator();
+		while(actionIter.hasNext())
+		{
+			Action action = actionIter.next();
+			// delete of given node
+			if(action.getName().equals("INS") && action.getNode().equals(node))
+				return true;
+		}
+		
+		return false;
+	}
+	
 	private boolean isAcceptableAction(Action action)
 	{
 		if(!isActionOfComment(action))
@@ -955,7 +1019,9 @@ public class GumTreeApi {
 	
 	// one line to src node, may be parameter
 	private ITree getDDGNodeOfLine(int line, ITree rootNode, TreeContext treeContext, String filename) {
-		// ITree topNode = isOld ? oldTree : newTree;
+		// start from 0
+		if(line <= 0)
+			return null;
 		line = line + 1;
 //		Iterator<ITree> allNodesIter = rootNode.getDescendants().iterator();
 		// bread first, so the first one from this line is top one from this line
@@ -1106,6 +1172,12 @@ public class GumTreeApi {
 		return type.equals("if") || type.equals("switch") ;
 	}
 	
+	private boolean isCondition(ITree node, TreeContext treeContext)
+	{		
+		String type = getType(node, treeContext);
+		return type.equals("condition");
+	}
+	
 	private boolean isFunction(ITree node, TreeContext treeContext, String filename)
 	{
 		String function = filename.endsWith(".cpp") ? "function" : "Definition";
@@ -1155,10 +1227,8 @@ public class GumTreeApi {
 	
 	private boolean isDDG(ITree node, TreeContext treeContext, String filename)
 	{
-		String statement = filename.endsWith(".cpp") ? "stmt" : "Statement";
-		String parameter = "parameter";
 		String type = getType(node, treeContext);
-		if(type.endsWith(statement) || type.equals("expr") || type.equals(parameter))
+		if(type.equals("type") || type.equals("call"))
 			return true;
 		else
 			return false;

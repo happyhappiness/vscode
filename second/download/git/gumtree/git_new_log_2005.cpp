@@ -1,2 +1,2 @@
-fputs(find_unique_abbrev(commit->object.oid.hash, abbrev_commit),
-		      stdout);
+error("unable to mmap '%s': %s",
+			      config_filename, strerror(errno));

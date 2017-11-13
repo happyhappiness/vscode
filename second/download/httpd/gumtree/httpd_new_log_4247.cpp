@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02227)
-                          "Failed to set r->user to '%s'", dc->szUserName);
+ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01183) "Cannot share balancer");

@@ -1,21 +1,16 @@
-static int write_one_ref(const char *name, const unsigned char *sha1,
-		int flags, void *data)
+static void dump_tags(void)
 {
-	struct strbuf *buf = data;
-	int len = buf->len;
-	FILE *f;
+	static const char *msg = "fast-import";
+	struct tag *t;
+	struct ref_lock *lock;
+	struct strbuf ref_name = STRBUF_INIT;
 
-	/* when called via for_each_ref(), flags is non-zero */
-	if (flags && !starts_with(name, "refs/heads/") &&
-			!starts_with(name, "refs/tags/"))
-		return 0;
-
-	strbuf_addstr(buf, name);
-	if (safe_create_leading_directories(buf->buf) ||
-			!(f = fopen(buf->buf, "w")) ||
-			fprintf(f, "%s\n", sha1_to_hex(sha1)) < 0 ||
-			fclose(f))
-		return error("problems writing temporary file %s", buf->buf);
-	strbuf_setlen(buf, len);
-	return 0;
+	for (t = first_tag; t; t = t->next_tag) {
+		strbuf_reset(&ref_name);
+		strbuf_addf(&ref_name, "tags/%s", t->name);
+		lock = lock_ref_sha1(ref_name.buf, NULL);
+		if (!lock || write_ref_sha1(lock, t->sha1, msg) < 0)
+			failure |= error("Unable to update %s", ref_name.buf);
+	}
+	strbuf_release(&ref_name);
 }

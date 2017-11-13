@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, s, APLOGNO(00422)
-                     "Parent: Received shutdown signal -- Shutting down the server.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02262)
+                              "Re-negotiation handshake failed: "
+                              "Client verification failed");

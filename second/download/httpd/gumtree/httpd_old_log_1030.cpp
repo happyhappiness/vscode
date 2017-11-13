@@ -1,1 +1,2 @@
-apr_file_printf(errfile, "%s: filename too long\n", argv[0]);
+ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
+                     "Couldn't create accept lock");

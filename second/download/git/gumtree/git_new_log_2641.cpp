@@ -1,1 +1,1 @@
-err(o, msg, path, "");
+die("BUG: fill_textconv called with non-textconv driver");

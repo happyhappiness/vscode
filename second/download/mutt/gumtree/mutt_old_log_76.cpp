@@ -1,1 +1,1 @@
-fputs ("Mime-Version: 1.0\n", fp);
+(mutt_yesorno (buff, 0);

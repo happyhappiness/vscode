@@ -1,1 +1,0 @@
-die("submodule %s doesn't exist", argv[1]);

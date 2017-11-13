@@ -1,47 +1,16 @@
-static void export_blob(const unsigned char *sha1)
+static int fsck_loose(const unsigned char *sha1, const char *path, void *data)
 {
-	unsigned long size;
-	enum object_type type;
-	char *buf;
-	struct object *object;
-	int eaten;
+	struct object *obj = parse_loose_object(sha1, path);
 
-	if (no_data)
-		return;
-
-	if (is_null_sha1(sha1))
-		return;
-
-	object = lookup_object(sha1);
-	if (object && object->flags & SHOWN)
-		return;
-
-	if (anonymize) {
-		buf = anonymize_blob(&size);
-		object = (struct object *)lookup_blob(sha1);
-		eaten = 0;
-	} else {
-		buf = read_sha1_file(sha1, &type, &size);
-		if (!buf)
-			die ("Could not read blob %s", sha1_to_hex(sha1));
-		if (check_sha1_signature(sha1, buf, size, typename(type)) < 0)
-			die("sha1 mismatch in blob %s", sha1_to_hex(sha1));
-		object = parse_object_buffer(sha1, type, size, buf, &eaten);
+	if (!obj) {
+		errors_found |= ERROR_OBJECT;
+		error("%s: object corrupt or missing: %s",
+		      sha1_to_hex(sha1), path);
+		return 0; /* keep checking other objects */
 	}
 
-	if (!object)
-		die("Could not read blob %s", sha1_to_hex(sha1));
-
-	mark_next_object(object);
-
-	printf("blob\nmark :%"PRIu32"\ndata %lu\n", last_idnum, size);
-	if (size && fwrite(buf, size, 1, stdout) != 1)
-		die_errno ("Could not write blob '%s'", sha1_to_hex(sha1));
-	printf("\n");
-
-	show_progress();
-
-	object->flags |= SHOWN;
-	if (!eaten)
-		free(buf);
+	obj->flags = HAS_OBJ;
+	if (fsck_obj(obj))
+		errors_found |= ERROR_OBJECT;
+	return 0;
 }

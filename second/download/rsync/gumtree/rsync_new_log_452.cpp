@@ -1,1 +1,1 @@
-setlinebuf(stdout);
+rprintf(FINFO,"cmd=");

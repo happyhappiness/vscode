@@ -1,2 +1,3 @@
-fprintf(stderr,
-                "Warning: SuexecUserGroup directive requires SUEXEC wrapper.\n");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                          "ISAPI: ap_pass_brigade failed to "
+                          "complete the response: %s ", r->filename);

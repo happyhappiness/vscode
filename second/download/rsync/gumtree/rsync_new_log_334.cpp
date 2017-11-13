@@ -1,1 +1,1 @@
-fprintf(FINFO,"%s is newer\n",fname);
+fprintf(f,"    --force              force deletion of directories even if not empty\n");

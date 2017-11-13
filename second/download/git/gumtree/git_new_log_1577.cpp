@@ -1,2 +1,2 @@
-error_buf(err,
-						 _("cannot resolve 'simple' push to a single destination"));
+error("chmod on %s failed: %s",
+				lock->filename.buf, strerror(errno));

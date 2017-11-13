@@ -1,9 +1,9 @@
 fputs(
-"              want the file saved in a  different  directory,  make  sure  you\n"
-"              change  the  current working directory before invoking curl with\n"
-"              this option.\n"
+"              string,  meaning  \"use  the request's original host/port\".  This\n"
+"              option can be used many times to add many connect rules.  (Added\n"
+"              in 7.49.0).\n"
 "\n"
-"              The remote file name to use for saving  is  extracted  from  the\n"
-"              given  URL,  nothing  else,  and if it already exists it will be\n"
-"              overwritten. If you want the server to be  able  to  choose  the\n"
+"       --ntlm (HTTP)  Enables  NTLM  authentication.  The  NTLM authentication\n"
+"              method was designed by Microsoft and is used by IIS web servers.\n"
+"              It  is a proprietary protocol, reverse-engineered by clever peo-\n"
 , stdout);

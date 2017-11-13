@@ -1,83 +1,70 @@
-int explode_static_lib(command_t *cmd_data, const char *lib)
+static int make_child(server_rec *s, int slot)
 {
-    count_chars tmpdir_cc, libname_cc;
-    const char *tmpdir, *libname;
-    char savewd[PATH_MAX];
-    const char *name;
-    DIR *dir;
-    struct dirent *entry;
-    const char *lib_args[4];
+    int pid;
 
-    /* Bah! */
-    if (cmd_data->options.dry_run) {
-        return 0;
+    if (slot + 1 > ap_max_daemons_limit) {
+        ap_max_daemons_limit = slot + 1;
     }
 
-    name = jlibtool_basename(lib);
-
-    init_count_chars(&tmpdir_cc);
-    push_count_chars(&tmpdir_cc, ".libs/");
-    push_count_chars(&tmpdir_cc, name);
-    push_count_chars(&tmpdir_cc, ".exploded/");
-    tmpdir = flatten_count_chars(&tmpdir_cc, 0);
-
-    if (!cmd_data->options.silent) {
-        printf("Making: %s\n", tmpdir);
-    }
-    safe_mkdir(tmpdir);
-
-    push_count_chars(cmd_data->tmp_dirs, tmpdir);
-
-    getcwd(savewd, sizeof(savewd));
-
-    if (chdir(tmpdir) != 0) {
-        if (!cmd_data->options.silent) {
-            printf("Warning: could not explode %s\n", lib);
-        }
-        return 1;
+    if (one_process) {
+        set_signals();
+        ap_scoreboard_image->parent[slot].pid = getpid();
+        child_main(slot);
     }
 
-    if (lib[0] == '/') {
-        libname = lib;
-    }
-    else {
-        init_count_chars(&libname_cc);
-        push_count_chars(&libname_cc, "../../");
-        push_count_chars(&libname_cc, lib);
-        libname = flatten_count_chars(&libname_cc, 0);
-    }
+    if ((pid = fork()) == -1) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, errno, s,
+                     "fork: Unable to fork new process");
 
-    lib_args[0] = LIBRARIAN;
-    lib_args[1] = "x";
-    lib_args[2] = libname;
-    lib_args[3] = NULL;
-
-    external_spawn(cmd_data, LIBRARIAN, lib_args);
-
-    chdir(savewd);
-    dir = opendir(tmpdir);
-
-    while ((entry = readdir(dir)) != NULL) {
-#if defined(__APPLE__) && defined(RANLIB)
-        /* Apple inserts __.SYMDEF which isn't needed.
-         * Leopard (10.5+) can also add '__.SYMDEF SORTED' which isn't
-         * much fun either.  Just skip them.
+        /* fork didn't succeed. Fix the scoreboard or else
+         * it will say SERVER_STARTING forever and ever
          */
-        if (strstr(entry->d_name, "__.SYMDEF") != NULL) {
-            continue;
-        }
-#endif
-        if (entry->d_name[0] != '.') {
-            push_count_chars(&tmpdir_cc, entry->d_name);
-            name = flatten_count_chars(&tmpdir_cc, 0);
-            if (!cmd_data->options.silent) {
-                printf("Adding: %s\n", name);
-            }
-            push_count_chars(cmd_data->obj_files, name);
-            pop_count_chars(&tmpdir_cc);
-        }
+        ap_update_child_status_from_indexes(slot, 0, SERVER_DEAD, NULL);
+
+        /* In case system resources are maxxed out, we don't want
+           Apache running away with the CPU trying to fork over and
+           over and over again. */
+        apr_sleep(apr_time_from_sec(10));
+
+        return -1;
     }
 
-    closedir(dir);
+    if (!pid) {
+#ifdef HAVE_BINDPROCESSOR
+        /* By default, AIX binds to a single processor.  This bit unbinds
+         * children which will then bind to another CPU.
+         */
+        int status = bindprocessor(BINDPROCESS, (int)getpid(),
+                               PROCESSOR_CLASS_ANY);
+        if (status != OK)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno,
+                         ap_server_conf,
+                         "processor unbind failed %d", status);
+#endif
+        RAISE_SIGSTOP(MAKE_CHILD);
+
+        apr_signal(SIGTERM, just_die);
+        child_main(slot);
+
+        clean_child_exit(0);
+    }
+    /* else */
+    if (ap_scoreboard_image->parent[slot].pid != 0) {
+        /* This new child process is squatting on the scoreboard
+         * entry owned by an exiting child process, which cannot
+         * exit until all active requests complete.
+         * Don't forget about this exiting child process, or we
+         * won't be able to kill it if it doesn't exit by the
+         * time the server is shut down.
+         */
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                     "taking over scoreboard slot from %" APR_PID_T_FMT "%s",
+                     ap_scoreboard_image->parent[slot].pid,
+                     ap_scoreboard_image->parent[slot].quiescing ?
+                         " (quiescing)" : "");
+        ap_register_extra_mpm_process(ap_scoreboard_image->parent[slot].pid);
+    }
+    ap_scoreboard_image->parent[slot].quiescing = 0;
+    ap_scoreboard_image->parent[slot].pid = pid;
     return 0;
 }

@@ -1,10 +1,11 @@
 fputs(
-"              with the proper end-of-line marker, you should thus not add that\n"
-"              as a part of the header content: do not add newlines or carriage\n"
-"              returns, they will only mess things up for you.\n"
+"  A comma-separated list of host names that shouldn't go through any proxy is\n"
+"  set in (only an asterisk, '*' matches all hosts)\n"
 "\n"
-"              Starting in 7.55.0, this option can take an argument  in  @file-\n"
-"              name  style, which then adds a header for each line in the input\n"
-"              file. Using @- will make curl read the header file from stdin.\n"
+"        NO_PROXY\n"
 "\n"
+"  If the host name matches one of these strings, or the host is within the\n"
+"  domain of one of these strings, transactions with that node will not be\n"
+"  proxied. When a domain is used, it needs to start with a period. A user can\n"
+"  specify that both www.example.com and foo.example.com should not uses a\n"
 , stdout);

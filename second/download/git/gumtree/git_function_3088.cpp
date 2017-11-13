@@ -1,46 +1,68 @@
-static int parse_binary(char *buffer, unsigned long size, struct patch *patch)
+static int parse_chunk(char *buffer, unsigned long size, struct patch *patch)
 {
-	/*
-	 * We have read "GIT binary patch\n"; what follows is a line
-	 * that says the patch method (currently, either "literal" or
-	 * "delta") and the length of data before deflating; a
-	 * sequence of 'length-byte' followed by base-85 encoded data
-	 * follows.
-	 *
-	 * When a binary patch is reversible, there is another binary
-	 * hunk in the same format, starting with patch method (either
-	 * "literal" or "delta") with the length of data, and a sequence
-	 * of length-byte + base-85 encoded data, terminated with another
-	 * empty line.  This data, when applied to the postimage, produces
-	 * the preimage.
-	 */
-	struct fragment *forward;
-	struct fragment *reverse;
-	int status;
-	int used, used_1;
+	int hdrsize, patchsize;
+	int offset = find_header(buffer, size, &hdrsize, patch);
 
-	forward = parse_binary_hunk(&buffer, &size, &status, &used);
-	if (!forward && !status)
-		/* there has to be one hunk (forward hunk) */
-		return error(_("unrecognized binary patch at line %d"), linenr-1);
-	if (status)
-		/* otherwise we already gave an error message */
-		return status;
+	if (offset < 0)
+		return offset;
 
-	reverse = parse_binary_hunk(&buffer, &size, &status, &used_1);
-	if (reverse)
-		used += used_1;
-	else if (status) {
-		/*
-		 * Not having reverse hunk is not an error, but having
-		 * a corrupt reverse hunk is.
+	prefix_patch(patch);
+
+	if (!use_patch(patch))
+		patch->ws_rule = 0;
+	else
+		patch->ws_rule = whitespace_rule(patch->new_name
+						 ? patch->new_name
+						 : patch->old_name);
+
+	patchsize = parse_single_patch(buffer + offset + hdrsize,
+				       size - offset - hdrsize, patch);
+
+	if (!patchsize) {
+		static const char git_binary[] = "GIT binary patch\n";
+		int hd = hdrsize + offset;
+		unsigned long llen = linelen(buffer + hd, size - hd);
+
+		if (llen == sizeof(git_binary) - 1 &&
+		    !memcmp(git_binary, buffer + hd, llen)) {
+			int used;
+			linenr++;
+			used = parse_binary(buffer + hd + llen,
+					    size - hd - llen, patch);
+			if (used < 0)
+				return -1;
+			if (used)
+				patchsize = used + llen;
+			else
+				patchsize = 0;
+		}
+		else if (!memcmp(" differ\n", buffer + hd + llen - 8, 8)) {
+			static const char *binhdr[] = {
+				"Binary files ",
+				"Files ",
+				NULL,
+			};
+			int i;
+			for (i = 0; binhdr[i]; i++) {
+				int len = strlen(binhdr[i]);
+				if (len < size - hd &&
+				    !memcmp(binhdr[i], buffer + hd, len)) {
+					linenr++;
+					patch->is_binary = 1;
+					patchsize = llen;
+					break;
+				}
+			}
+		}
+
+		/* Empty patch cannot be applied if it is a text patch
+		 * without metadata change.  A binary patch appears
+		 * empty to us here.
 		 */
-		free((void*) forward->patch);
-		free(forward);
-		return status;
+		if ((apply || check) &&
+		    (!patch->is_binary && !metadata_changes(patch)))
+			die(_("patch with only garbage at line %d"), linenr);
 	}
-	forward->next = reverse;
-	patch->fragments = forward;
-	patch->is_binary = 1;
-	return used;
+
+	return offset + hdrsize + patchsize;
 }

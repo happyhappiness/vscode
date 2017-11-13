@@ -1,1 +1,1 @@
-apr_file_printf(errfile, "%s: %s" NL, argv[0], ctx->errstr);
+ap_add_output_filter("H2_TRAILERS_OUT", task, r, r->connection);

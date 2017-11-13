@@ -1,1 +1,1 @@
-die("Invalid gitfile format: %s", path);
+die("unable to generate diff for %s", pair->one->path);

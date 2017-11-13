@@ -1,2 +1,1 @@
-error(_("your local changes would be overwritten by %s."),
-		_(action_name(opts)));
+die(_("failed to read ref NOTES_MERGE_PARTIAL"));

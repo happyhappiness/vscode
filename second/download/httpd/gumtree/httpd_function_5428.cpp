@@ -1,45 +1,65 @@
-apr_status_t h2_conn_io_write(h2_conn_io *io, 
-                              const char *buf, size_t length)
+apr_status_t ap_fatal_signal_setup(server_rec *s, apr_pool_t *in_pconf)
 {
-    apr_status_t status = APR_SUCCESS;
-    
-    io->unflushed = 1;
-    if (io->bufsize > 0) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, io->connection,
-                      "h2_conn_io: buffering %ld bytes", (long)length);
-                      
-        if (!APR_BRIGADE_EMPTY(io->output)) {
-            status = h2_conn_io_pass(io);
-            io->unflushed = 1;
-        }
-        
-        while (length > 0 && (status == APR_SUCCESS)) {
-            apr_size_t avail = io->bufsize - io->buflen;
-            if (avail <= 0) {
-                bucketeer_buffer(io);
-                status = pass_out(io->output, io);
-                io->buflen = 0;
-            }
-            else if (length > avail) {
-                memcpy(io->buffer + io->buflen, buf, avail);
-                io->buflen += avail;
-                length -= avail;
-                buf += avail;
-            }
-            else {
-                memcpy(io->buffer + io->buflen, buf, length);
-                io->buflen += length;
-                length = 0;
-                break;
-            }
-        }
-        
-    }
-    else {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, io->connection,
-                      "h2_conn_io: writing %ld bytes to brigade", (long)length);
-        status = apr_brigade_write(io->output, pass_out, io, buf, length);
-    }
-    
-    return status;
+#ifndef NO_USE_SIGACTION
+    struct sigaction sa;
+
+    sigemptyset(&sa.sa_mask);
+
+#if defined(SA_ONESHOT)
+    sa.sa_flags = SA_ONESHOT;
+#elif defined(SA_RESETHAND)
+    sa.sa_flags = SA_RESETHAND;
+#else
+    sa.sa_flags = 0;
+#endif
+
+    sa.sa_handler = sig_coredump;
+    if (sigaction(SIGSEGV, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGSEGV)");
+#ifdef SIGBUS
+    if (sigaction(SIGBUS, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGBUS)");
+#endif
+#ifdef SIGABORT
+    if (sigaction(SIGABORT, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGABORT)");
+#endif
+#ifdef SIGABRT
+    if (sigaction(SIGABRT, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGABRT)");
+#endif
+#ifdef SIGILL
+    if (sigaction(SIGILL, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGILL)");
+#endif
+#ifdef SIGFPE
+    if (sigaction(SIGFPE, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGFPE)");
+#endif
+
+#else /* NO_USE_SIGACTION */
+
+    apr_signal(SIGSEGV, sig_coredump);
+#ifdef SIGBUS
+    apr_signal(SIGBUS, sig_coredump);
+#endif /* SIGBUS */
+#ifdef SIGABORT
+    apr_signal(SIGABORT, sig_coredump);
+#endif /* SIGABORT */
+#ifdef SIGABRT
+    apr_signal(SIGABRT, sig_coredump);
+#endif /* SIGABRT */
+#ifdef SIGILL
+    apr_signal(SIGILL, sig_coredump);
+#endif /* SIGILL */
+#ifdef SIGFPE
+    apr_signal(SIGFPE, sig_coredump);
+#endif /* SIGFPE */
+
+#endif /* NO_USE_SIGACTION */
+
+    pconf = in_pconf;
+    parent_pid = my_pid = getpid();
+
+    return APR_SUCCESS;
 }

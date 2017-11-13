@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02239)
-                    "Copying DSA parameters from private key to certificate");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, APLOGNO(01211)
+                 "proxy: Entering bybusyness for BALANCER (%s)",
+                 balancer->s->name);

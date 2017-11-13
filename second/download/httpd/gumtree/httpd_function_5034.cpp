@@ -1,54 +1,64 @@
-static const char *check_macro_arguments(apr_pool_t * pool,
-                                         const ap_macro_t * macro)
+static apr_status_t init_pollset(apr_pool_t *p)
 {
-    char **tab = (char **) macro->arguments->elts;
-    int nelts = macro->arguments->nelts;
-    int i;
+#if HAVE_SERF
+    s_baton_t *baton = NULL;
+#endif
+    apr_status_t rv;
+    ap_listen_rec *lr;
+    listener_poll_type *pt;
 
-    for (i = 0; i < nelts; i++) {
-        size_t ltabi = strlen(tab[i]);
-        int j;
-
-        if (ltabi == 0) {
-            return apr_psprintf(pool,
-                                "macro '%s' (%s): empty argument #%d name",
-                                macro->name, macro->location, i + 1);
-        }
-        else if (!looks_like_an_argument(tab[i])) {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_WARNING, 0, NULL,
-                         "macro '%s' (%s) "
-                         "argument name '%s' (#%d) without expected prefix, "
-                         "better prefix argument names with one of '%s'.",
-                         macro->name, macro->location,
-                         tab[i], i + 1, ARG_PREFIX);
-        }
-
-        for (j = i + 1; j < nelts; j++) {
-            size_t ltabj = strlen(tab[j]);
-
-            /* must not use the same argument name twice */
-            if (!strcmp(tab[i], tab[j])) {
-                return apr_psprintf(pool,
-                                   "argument name conflict in macro '%s' (%s): "
-                                    "argument '%s': #%d and #%d, "
-                                    "change argument names!",
-                                    macro->name, macro->location,
-                                    tab[i], i + 1, j + 1);
-            }
-
-            /* warn about common prefix, but only if non empty names */
-            if (ltabi && ltabj &&
-                !strncmp(tab[i], tab[j], ltabi < ltabj ? ltabi : ltabj)) {
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_WARNING,
-                             0, NULL,
-                             "macro '%s' (%s): "
-                            "argument name prefix conflict (%s #%d and %s #%d),"
-                             " be careful about your macro definition!",
-                             macro->name, macro->location,
-                             tab[i], i + 1, tab[j], j + 1);
-            }
-        }
+    rv = apr_thread_mutex_create(&timeout_mutex, APR_THREAD_MUTEX_DEFAULT, p);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                     "creation of the timeout mutex failed.");
+        return rv;
     }
 
-    return NULL;
+    APR_RING_INIT(&timeout_head, conn_state_t, timeout_list);
+    APR_RING_INIT(&keepalive_timeout_head, conn_state_t, timeout_list);
+
+    /* Create the main pollset */
+    rv = apr_pollset_create(&event_pollset,
+                            threads_per_child,
+                            p, APR_POLLSET_THREADSAFE | APR_POLLSET_NOCOPY);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                     "apr_pollset_create with Thread Safety failed.");
+        return rv;
+    }
+
+    for (lr = ap_listeners; lr != NULL; lr = lr->next) {
+        apr_pollfd_t *pfd = apr_palloc(p, sizeof(*pfd));
+        pt = apr_pcalloc(p, sizeof(*pt));
+        pfd->desc_type = APR_POLL_SOCKET;
+        pfd->desc.s = lr->sd;
+        pfd->reqevents = APR_POLLIN;
+
+        pt->type = PT_ACCEPT;
+        pt->baton = lr;
+
+        pfd->client_data = pt;
+
+        apr_socket_opt_set(pfd->desc.s, APR_SO_NONBLOCK, 1);
+        apr_pollset_add(event_pollset, pfd);
+
+        lr->accept_func = ap_unixd_accept;
+    }
+
+#if HAVE_SERF
+    baton = apr_pcalloc(p, sizeof(*baton));
+    baton->pollset = event_pollset;
+    /* TODO: subpools, threads, reuse, etc.  -- currently use malloc() inside :( */
+    baton->pool = p;
+
+    g_serf = serf_context_create_ex(baton,
+                                    s_socket_add,
+                                    s_socket_remove, p);
+
+    ap_register_provider(p, "mpm_serf",
+                         "instance", "0", g_serf);
+
+#endif
+
+    return APR_SUCCESS;
 }

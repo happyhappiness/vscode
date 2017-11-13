@@ -1,1 +1,1 @@
-error("cannot write delta postimage: %s", strerror(errno));
+die("unable to generate diff for %s", name);

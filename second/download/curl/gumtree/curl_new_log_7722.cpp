@@ -1,9 +1,11 @@
 fputs(
-"              The proxy host can be specified the exact same way as the  proxy\n"
-"              environment  variables,  including the protocol prefix (http://)\n"
-"              and the embedded user + password.\n"
+"              parently  be  converted  to HTTP. It means that certain protocol\n"
+"              specific operations might not be available. This is not the case\n"
+"              if you can tunnel through the proxy, as one with the -p, --prox-\n"
+"              ytunnel option.\n"
 "\n"
-"              From 7.21.7, the proxy string may be  specified  with  a  proto-\n"
-"              col://  prefix  to  specify  alternative  proxy  protocols.  Use\n"
-"              socks4://, socks4a://, socks5:// or socks5h://  to  request  the\n"
+"              User and password that might be provided in the proxy string are\n"
+"              URL  decoded by curl. This allows you to pass in special charac-\n"
+"              ters such as @ by using %40 or pass in a colon with %3a.\n"
+"\n"
 , stdout);

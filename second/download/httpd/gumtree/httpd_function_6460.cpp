@@ -1,205 +1,174 @@
-static int balancer_post_config(apr_pool_t *pconf, apr_pool_t *plog,
-                         apr_pool_t *ptemp, server_rec *s)
+static apr_status_t input_read(h2_task *task, ap_filter_t* f,
+                               apr_bucket_brigade* bb, ap_input_mode_t mode,
+                               apr_read_type_e block, apr_off_t readbytes)
 {
-    apr_status_t rv;
-    proxy_server_conf *conf;
-    ap_slotmem_instance_t *new = NULL;
-    apr_time_t tstamp;
-
-    /* balancer_post_config() will be called twice during startup.  So, don't
-     * set up the static data the 1st time through. */
-    if (ap_state_query(AP_SQ_MAIN_STATE) == AP_SQ_MS_CREATE_PRE_CONFIG) {
-        return OK;
+    apr_status_t status = APR_SUCCESS;
+    apr_bucket *b, *next, *first_data;
+    apr_off_t bblen = 0;
+    
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                  "h2_task(%s): read, mode=%d, block=%d, readbytes=%ld", 
+                  task->id, mode, block, (long)readbytes);
+    
+    if (mode == AP_MODE_INIT) {
+        return ap_get_brigade(f->c->input_filters, bb, mode, block, readbytes);
     }
-
-    if (!ap_proxy_retry_worker_fn) {
-        ap_proxy_retry_worker_fn =
-                APR_RETRIEVE_OPTIONAL_FN(ap_proxy_retry_worker);
-        if (!ap_proxy_retry_worker_fn) {
-            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02230)
-                         "mod_proxy must be loaded for mod_proxy_balancer");
-            return !OK;
-        }
+    
+    if (f->c->aborted || !task->request) {
+        return APR_ECONNABORTED;
     }
-
-    /*
-     * Get slotmem setups
-     */
-    storage = ap_lookup_provider(AP_SLOTMEM_PROVIDER_GROUP, "shm",
-                                 AP_SLOTMEM_PROVIDER_VERSION);
-    if (!storage) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01177)
-                     "Failed to lookup provider 'shm' for '%s': is "
-                     "mod_slotmem_shm loaded??",
-                     AP_SLOTMEM_PROVIDER_GROUP);
-        return !OK;
+    
+    if (!task->input.bb) {
+        if (!task->input.eos_written) {
+            input_append_eos(task, f->r);
+            return APR_SUCCESS;
+        }
+        return APR_EOF;
     }
-
-    tstamp = apr_time_now();
-    /*
-     * Go thru each Vhost and create the shared mem slotmem for
-     * each balancer's workers
-     */
-    while (s) {
-        int i,j;
-        char *id;
-        proxy_balancer *balancer;
-        ap_slotmem_type_t type;
-        void *sconf = s->module_config;
-        conf = (proxy_server_conf *)ap_get_module_config(sconf, &proxy_module);
-        /*
-         * During create_proxy_config() we created a dummy id. Now that
-         * we have identifying info, we can create the real id
-         */
-        id = apr_psprintf(pconf, "%s.%s.%d.%s.%s.%u.%s",
-                          (s->server_scheme ? s->server_scheme : "????"),
-                          (s->server_hostname ? s->server_hostname : "???"),
-                          (int)s->port,
-                          (s->server_admin ? s->server_admin : "??"),
-                          (s->defn_name ? s->defn_name : "?"),
-                          s->defn_line_number,
-                          (s->error_fname ? s->error_fname : DEFAULT_ERRORLOG));
-        conf->id = apr_psprintf(pconf, "p%x",
-                                ap_proxy_hashfunc(id, PROXY_HASHFUNC_DEFAULT));
-        if (conf->bslot) {
-            /* Shared memory already created for this proxy_server_conf.
-             */
-            s = s->next;
-            continue;
+    
+    /* Cleanup brigades from those nasty 0 length non-meta buckets
+     * that apr_brigade_split_line() sometimes produces. */
+    for (b = APR_BRIGADE_FIRST(task->input.bb);
+         b != APR_BRIGADE_SENTINEL(task->input.bb); b = next) {
+        next = APR_BUCKET_NEXT(b);
+        if (b->length == 0 && !APR_BUCKET_IS_METADATA(b)) {
+            apr_bucket_delete(b);
+        } 
+    }
+    
+    while (APR_BRIGADE_EMPTY(task->input.bb) && !task->input.eos) {
+        /* Get more input data for our request. */
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
+                      "h2_task(%s): get more data from mplx, block=%d, "
+                      "readbytes=%ld, queued=%ld",
+                      task->id, block, (long)readbytes, (long)bblen);
+        
+        /* Override the block mode we get called with depending on the input's
+         * setting. */
+        if (task->input.beam) {
+            status = h2_beam_receive(task->input.beam, task->input.bb, block, 
+                                     H2MIN(readbytes, 32*1024));
         }
-        if (conf->bal_persist) {
-            type = AP_SLOTMEM_TYPE_PREGRAB | AP_SLOTMEM_TYPE_PERSIST;
-        } else {
-            type = AP_SLOTMEM_TYPE_PREGRAB;
+        else {
+            status = APR_EOF;
         }
-        if (conf->balancers->nelts) {
-            conf->max_balancers = conf->balancers->nelts + conf->bgrowth;
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01178) "Doing balancers create: %d, %d (%d)",
-                         (int)ALIGNED_PROXY_BALANCER_SHARED_SIZE,
-                         (int)conf->balancers->nelts, conf->max_balancers);
-
-            rv = storage->create(&new, conf->id,
-                                 ALIGNED_PROXY_BALANCER_SHARED_SIZE,
-                                 conf->max_balancers, type, pconf);
-            if (rv != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01179) "balancer slotmem_create failed");
-                return !OK;
-            }
-            conf->bslot = new;
+        
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, f->c,
+                      "h2_task(%s): read returned", task->id);
+        if (APR_STATUS_IS_EAGAIN(status) 
+            && (mode == AP_MODE_GETLINE || block == APR_BLOCK_READ)) {
+            /* chunked input handling does not seem to like it if we
+             * return with APR_EAGAIN from a GETLINE read... 
+             * upload 100k test on test-ser.example.org hangs */
+            status = APR_SUCCESS;
         }
-        conf->storage = storage;
-
-        /* Initialize shared scoreboard data */
-        balancer = (proxy_balancer *)conf->balancers->elts;
-        for (i = 0; i < conf->balancers->nelts; i++, balancer++) {
-            proxy_worker **workers;
-            proxy_worker *worker;
-            proxy_balancer_shared *bshm;
-            const char *sname;
-            unsigned int index;
-
-            /* now that we have the right id, we need to redo the sname field */
-            ap_pstr2_alnum(pconf, balancer->s->name + sizeof(BALANCER_PREFIX) - 1,
-                           &sname);
-            sname = apr_pstrcat(pconf, conf->id, "_", sname, NULL);
-            PROXY_STRNCPY(balancer->s->sname, sname); /* We know this will succeed */
-
-            balancer->max_workers = balancer->workers->nelts + balancer->growth;
-
-            /* Create global mutex */
-            rv = ap_global_mutex_create(&(balancer->gmutex), NULL, balancer_mutex_type,
-                                        balancer->s->sname, s, pconf, 0);
-            if (rv != APR_SUCCESS || !balancer->gmutex) {
-                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01180)
-                             "mutex creation of %s : %s failed", balancer_mutex_type,
-                             balancer->s->sname);
-                return HTTP_INTERNAL_SERVER_ERROR;
-            }
-
-            apr_pool_cleanup_register(pconf, (void *)s, lock_remove,
-                                      apr_pool_cleanup_null);
-
-            /* setup shm for balancers */
-            bshm = ap_proxy_find_balancershm(storage, conf->bslot, balancer, &index);
-            if (bshm) {
-                if ((rv = storage->fgrab(conf->bslot, index)) != APR_SUCCESS) {
-                    ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(02408) "balancer slotmem_fgrab failed");
-                    return !OK;
+        else if (APR_STATUS_IS_EOF(status)) {
+            task->input.eos = 1;
+        }
+        else if (status != APR_SUCCESS) {
+            return status;
+        }
+        
+        /* Inspect the buckets received, detect EOS and apply
+         * chunked encoding if necessary */
+        h2_util_bb_log(f->c, task->stream_id, APLOG_TRACE2, 
+                       "input.beam recv raw", task->input.bb);
+        first_data = NULL;
+        bblen = 0;
+        for (b = APR_BRIGADE_FIRST(task->input.bb); 
+             b != APR_BRIGADE_SENTINEL(task->input.bb); b = next) {
+            next = APR_BUCKET_NEXT(b);
+            if (APR_BUCKET_IS_METADATA(b)) {
+                if (first_data && task->input.chunked) {
+                    make_chunk(task, task->input.bb, first_data, bblen, b);
+                    first_data = NULL;
+                    bblen = 0;
+                }
+                if (APR_BUCKET_IS_EOS(b)) {
+                    task->input.eos = 1;
+                    input_handle_eos(task, f->r, b);
+                    h2_util_bb_log(f->c, task->stream_id, APLOG_TRACE2, 
+                                   "input.bb after handle eos", 
+                                   task->input.bb);
                 }
             }
+            else if (b->length == 0) {
+                apr_bucket_delete(b);
+            } 
             else {
-                if ((rv = storage->grab(conf->bslot, &index)) != APR_SUCCESS) {
-                    ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01181) "balancer slotmem_grab failed");
-                    return !OK;
+                if (!first_data) {
+                    first_data = b;
                 }
-                if ((rv = storage->dptr(conf->bslot, index, (void *)&bshm)) != APR_SUCCESS) {
-                    ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01182) "balancer slotmem_dptr failed");
-                    return !OK;
-                }
-            }
-            if ((rv = ap_proxy_share_balancer(balancer, bshm, index)) != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01183) "Cannot share balancer");
-                return !OK;
-            }
-
-            /* create slotmem slots for workers */
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01184) "Doing workers create: %s (%s), %d, %d [%u]",
-                         balancer->s->name, balancer->s->sname,
-                         (int)ALIGNED_PROXY_WORKER_SHARED_SIZE,
-                         (int)balancer->max_workers, i);
-
-            rv = storage->create(&new, balancer->s->sname,
-                                 ALIGNED_PROXY_WORKER_SHARED_SIZE,
-                                 balancer->max_workers, type, pconf);
-            if (rv != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01185) "worker slotmem_create failed");
-                return !OK;
-            }
-            balancer->wslot = new;
-            balancer->storage = storage;
-
-            /* sync all timestamps */
-            balancer->wupdated = balancer->s->wupdated = tstamp;
-
-            /* now go thru each worker */
-            workers = (proxy_worker **)balancer->workers->elts;
-            for (j = 0; j < balancer->workers->nelts; j++, workers++) {
-                proxy_worker_shared *shm;
-
-                worker = *workers;
-
-                shm = ap_proxy_find_workershm(storage, balancer->wslot, worker, &index);
-                if (shm) {
-                    if ((rv = storage->fgrab(balancer->wslot, index)) != APR_SUCCESS) {
-                        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(02409) "worker slotmem_fgrab failed");
-                        return !OK;
-                    }
-                }
-                else {
-                    if ((rv = storage->grab(balancer->wslot, &index)) != APR_SUCCESS) {
-                        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01186) "worker slotmem_grab failed");
-                        return !OK;
-
-                    }
-                    if ((rv = storage->dptr(balancer->wslot, index, (void *)&shm)) != APR_SUCCESS) {
-                        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01187) "worker slotmem_dptr failed");
-                        return !OK;
-                    }
-                }
-                if ((rv = ap_proxy_share_worker(worker, shm, index)) != APR_SUCCESS) {
-                    ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01188) "Cannot share worker");
-                    return !OK;
-                }
-                worker->s->updated = tstamp;
-            }
-            if (conf->bal_persist) {
-                /* We could have just read-in a persisted config. Force a sync. */
-                balancer->wupdated--;
-                ap_proxy_sync_balancer(balancer, s, conf);
-            }
+                bblen += b->length;
+            }    
         }
-        s = s->next;
+        if (first_data && task->input.chunked) {
+            make_chunk(task, task->input.bb, first_data, bblen, NULL);
+        }            
+        
+        if (h2_task_logio_add_bytes_in) {
+            h2_task_logio_add_bytes_in(f->c, bblen);
+        }
+    }
+    
+    if (task->input.eos) {
+        if (!task->input.eos_written) {
+            input_append_eos(task, f->r);
+        }
+        if (APR_BRIGADE_EMPTY(task->input.bb)) {
+            return APR_EOF;
+        }
     }
 
-    return OK;
+    h2_util_bb_log(f->c, task->stream_id, APLOG_TRACE2, 
+                   "task_input.bb", task->input.bb);
+           
+    if (APR_BRIGADE_EMPTY(task->input.bb)) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                      "h2_task(%s): no data", task->id);
+        return (block == APR_NONBLOCK_READ)? APR_EAGAIN : APR_EOF;
+    }
+    
+    if (mode == AP_MODE_EXHAUSTIVE) {
+        /* return all we have */
+        APR_BRIGADE_CONCAT(bb, task->input.bb);
+    }
+    else if (mode == AP_MODE_READBYTES) {
+        status = h2_brigade_concat_length(bb, task->input.bb, readbytes);
+    }
+    else if (mode == AP_MODE_SPECULATIVE) {
+        status = h2_brigade_copy_length(bb, task->input.bb, readbytes);
+    }
+    else if (mode == AP_MODE_GETLINE) {
+        /* we are reading a single LF line, e.g. the HTTP headers. 
+         * this has the nasty side effect to split the bucket, even
+         * though it ends with CRLF and creates a 0 length bucket */
+        status = apr_brigade_split_line(bb, task->input.bb, block, 
+                                        HUGE_STRING_LEN);
+        if (APLOGctrace1(f->c)) {
+            char buffer[1024];
+            apr_size_t len = sizeof(buffer)-1;
+            apr_brigade_flatten(bb, buffer, &len);
+            buffer[len] = 0;
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
+                          "h2_task(%s): getline: %s",
+                          task->id, buffer);
+        }
+    }
+    else {
+        /* Hmm, well. There is mode AP_MODE_EATCRLF, but we chose not
+         * to support it. Seems to work. */
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOTIMPL, f->c,
+                      APLOGNO(02942) 
+                      "h2_task, unsupported READ mode %d", mode);
+        status = APR_ENOTIMPL;
+    }
+    
+    if (APLOGctrace1(f->c)) {
+        apr_brigade_length(bb, 0, &bblen);
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
+                      "h2_task(%s): return %ld data bytes",
+                      task->id, (long)bblen);
+    }
+    return status;
 }

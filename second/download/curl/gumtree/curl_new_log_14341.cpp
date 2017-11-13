@@ -1,9 +1,12 @@
 fputs(
-"              When  used,  this  option  will make all data specified with -d,\n"
-"              --data, --data-binary or --data-urlencode to be used in an  HTTP\n"
-"              GET  request instead of the POST request that otherwise would be\n"
-"              used. The data will be appended to the URL with a '?' separator.\n"
-"              If used in combination with  -I,  --head,  the  POST  data  will\n"
-"              instead be appended to the URL with a HEAD request.\n"
+"                     i.e \"192.168.10.1\" to specify the exact IP address\n"
 "\n"
+"              host name\n"
+"                     i.e \"my.host.domain\" to specify the machine\n"
+"\n"
+"              -      make  curl  pick the same IP address that is already used\n"
+"                     for the control connection\n"
+"\n"
+"       If this option is used several times, the last one will be  used.  Dis-\n"
+"       able  the  use  of PORT with --ftp-pasv. Disable the attempt to use the\n"
 , stdout);

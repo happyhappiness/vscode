@@ -1,1 +1,2 @@
-printf("%s", dirty);
+printf("              to %7s %s\n",
+				 typename(obj->type), describe_object(obj));

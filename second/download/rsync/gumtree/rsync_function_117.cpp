@@ -1,34 +1,36 @@
-void do_server_sender(int argc,char *argv[])
+static void send_directory(int f,struct file_list *flist,char *dir)
 {
-  int i;
-  char *dir = argv[0];
-  struct file_list *flist;
+  DIR *d;
+  struct dirent *di;
+  char fname[MAXPATHLEN];
+  int l;
+  char *p;
 
-  if (verbose > 2)
-    fprintf(stderr,"server_sender starting pid=%d\n",(int)getpid());
-  
-  if (chdir(dir) != 0) {
-    fprintf(stderr,"chdir %s: %s\n",dir,strerror(errno));
-    exit_cleanup(1);
-  }
-  argc--;
-  argv++;
-  
-  if (strcmp(dir,".")) {
-    int l = strlen(dir);
-    for (i=0;i<argc;i++)
-      argv[i] += l+1;
+  d = opendir(dir);
+  if (!d) {
+    fprintf(stderr,"%s: %s\n",
+	    dir,strerror(errno));
+    return;
   }
 
-  if (argc == 0 && recurse) {
-    argc=1;
-    argv--;
-    argv[0] = ".";
-  }
-    
+  strcpy(fname,dir);
+  l = strlen(fname);
+  if (fname[l-1] != '/')
+    strcat(fname,"/");
+  p = fname + strlen(fname);
 
-  flist = send_file_list(STDOUT_FILENO,recurse,argc,argv);
-  send_files(flist,STDOUT_FILENO,STDIN_FILENO);
-  report(STDOUT_FILENO);
-  exit_cleanup(0);
+  if (cvs_exclude) {
+    strcpy(p,".cvsignore");
+    local_exclude_list = make_exclude_list(fname,NULL,0);
+  }  
+
+  for (di=readdir(d); di; di=readdir(d)) {
+    if (strcmp(di->d_name,".")==0 ||
+	strcmp(di->d_name,"..")==0)
+      continue;
+    strcpy(p,di->d_name);
+    send_file_name(f,flist,1,fname);
+  }
+
+  closedir(d);
 }

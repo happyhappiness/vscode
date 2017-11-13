@@ -1,2 +1,2 @@
-fprintf(stderr, "crypt() failed: %s\n", 
-                        apr_strerror(errno, errbuf, sizeof errbuf));
+apr_file_printf(errfile, " -d  Force CRYPT encryption of the password"
+            " (8 chars max, insecure)." NL);

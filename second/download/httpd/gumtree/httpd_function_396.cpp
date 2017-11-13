@@ -1,245 +1,251 @@
-static void test(void)
+static int cache_url_handler(request_rec *r, int lookup)
 {
-    apr_time_t now;
-    apr_int16_t rv;
-    long i;
-    apr_status_t status;
-#ifdef NOT_ASCII
-    apr_size_t inbytes_left, outbytes_left;
-#endif
+    apr_status_t rv;
+    const char *cc_in, *pragma, *auth;
+    apr_uri_t uri = r->parsed_uri;
+    char *url = r->unparsed_uri;
+    apr_size_t urllen;
+    char *path = uri.path;
+    const char *types;
+    cache_info *info = NULL;
+    cache_request_rec *cache;
+    cache_server_conf *conf;
 
-    if (isproxy) {
-	connecthost = apr_pstrdup(cntxt, proxyhost);
-	connectport = proxyport;
+    conf = (cache_server_conf *) ap_get_module_config(r->server->module_config,
+                                                      &cache_module);
+
+    /* we don't handle anything but GET */
+    if (r->method_number != M_GET) {
+        return DECLINED;
     }
-    else {
-	connecthost = apr_pstrdup(cntxt, hostname);
-	connectport = port;
-    }
-
-    if (!use_html) {
-	printf("Benchmarking %s ", hostname);
-	if (isproxy)
-	    printf("[through %s:%d] ", proxyhost, proxyport);
-	printf("(be patient)%s",
-	       (heartbeatres ? "\n" : "..."));
-	fflush(stdout);
-    }
-
-    now = apr_time_now();
-
-    con = calloc(concurrency * sizeof(struct connection), 1);
-    
-    stats = calloc(requests * sizeof(struct data), 1);
-
-    if ((status = apr_pollset_create(&readbits, concurrency, cntxt, 0)) != APR_SUCCESS) {
-        apr_err("apr_pollset_create failed", status);
-    }
-
-    /* setup request */
-    if (posting <= 0) {
-	sprintf(request, "%s %s HTTP/1.0\r\n"
-		"User-Agent: ApacheBench/%s\r\n"
-		"%s" "%s" "%s"
-		"Host: %s%s\r\n"
-		"Accept: */*\r\n"
-		"%s" "\r\n",
-		(posting == 0) ? "GET" : "HEAD",
-		(isproxy) ? fullurl : path,
-		AP_AB_BASEREVISION,
-		keepalive ? "Connection: Keep-Alive\r\n" : "",
-		cookie, auth, host_field, colonhost, hdrs);
-    }
-    else {
-	sprintf(request, "POST %s HTTP/1.0\r\n"
-		"User-Agent: ApacheBench/%s\r\n"
-		"%s" "%s" "%s"
-		"Host: %s%s\r\n"
-		"Accept: */*\r\n"
-		"Content-length: %" APR_SIZE_T_FMT "\r\n"
-		"Content-type: %s\r\n"
-		"%s"
-		"\r\n",
-		(isproxy) ? fullurl : path,
-		AP_AB_BASEREVISION,
-		keepalive ? "Connection: Keep-Alive\r\n" : "",
-		cookie, auth,
-		host_field, colonhost, postlen,
-		(content_type[0]) ? content_type : "text/plain", hdrs);
-    }
-
-    if (verbosity >= 2)
-	printf("INFO: POST header == \n---\n%s\n---\n", request);
-
-    reqlen = strlen(request);
 
     /*
-     * Combine headers and (optional) post file into one contineous buffer
+     * Which cache module (if any) should handle this request?
      */
-    if (posting == 1) {
-	char *buff = malloc(postlen + reqlen + 1);
-        if (!buff) {
-            fprintf(stderr, "error creating request buffer: out of memory\n");
-            return;
+    if (!(types = ap_cache_get_cachetype(r, conf, path))) {
+        return DECLINED;
+    }
+
+    urllen = strlen(url);
+    if (urllen > MAX_URL_LENGTH) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "cache: URL exceeds length threshold: %s", url);
+        return DECLINED;
+    }
+    /* DECLINE urls ending in / ??? EGP: why? */
+    if (url[urllen-1] == '/') {
+        return DECLINED;
+    }
+
+    /* make space for the per request config */
+    cache = (cache_request_rec *) ap_get_module_config(r->request_config, 
+                                                       &cache_module);
+    if (!cache) {
+        cache = apr_pcalloc(r->pool, sizeof(cache_request_rec));
+        ap_set_module_config(r->request_config, &cache_module, cache);
+    }
+
+    /* save away the type */
+    cache->types = types;
+
+    /*
+     * Are we allowed to serve cached info at all?
+     */
+
+    /* find certain cache controlling headers */
+    cc_in = apr_table_get(r->headers_in, "Cache-Control");
+    pragma = apr_table_get(r->headers_in, "Pragma");
+    auth = apr_table_get(r->headers_in, "Authorization");
+
+    /* first things first - does the request allow us to return
+     * cached information at all? If not, just decline the request.
+     *
+     * Note that there is a big difference between not being allowed
+     * to cache a request (no-store) and not being allowed to return
+     * a cached request without revalidation (max-age=0).
+     *
+     * Caching is forbidden under the following circumstances:
+     *
+     * - RFC2616 14.9.2 Cache-Control: no-store
+     * - Pragma: no-cache
+     * - Any requests requiring authorization.
+     */
+    if (conf->ignorecachecontrol == 1 && auth == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "incoming request is asking for a uncached version of "
+                     "%s, but we know better and are ignoring it", url);
+    }
+    else {
+        if (ap_cache_liststr(NULL, cc_in, "no-store", NULL) ||
+            ap_cache_liststr(NULL, pragma, "no-cache", NULL) || (auth != NULL)) {
+            /* delete the previously cached file */
+            cache_remove_url(r, cache->types, url);
+
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache: no-store forbids caching of %s", url);
+            return DECLINED;
         }
-	strcpy(buff, request);
-	strcpy(buff + reqlen, postdata);
-	request = buff;
     }
 
-#ifdef NOT_ASCII
-    inbytes_left = outbytes_left = reqlen;
-    status = apr_xlate_conv_buffer(to_ascii, request, &inbytes_left,
-				   request, &outbytes_left);
-    if (status || inbytes_left || outbytes_left) {
-	fprintf(stderr, "only simple translation is supported (%d/%u/%u)\n",
-		status, inbytes_left, outbytes_left);
-	exit(1);
+    /*
+     * Try to serve this request from the cache.
+     *
+     * If no existing cache file
+     *   add cache_in filter
+     * If stale cache file
+     *   If conditional request
+     *     add cache_in filter
+     *   If non-conditional request
+     *     fudge response into a conditional
+     *     add cache_conditional filter
+     * If fresh cache file
+     *   clear filter stack
+     *   add cache_out filter
+     */
+
+    rv = cache_select_url(r, cache->types, url);
+    if (DECLINED == rv) {
+        if (!lookup) {
+            /* no existing cache file */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache: no cache - add cache_in filter and DECLINE");
+            /* add cache_in filter to cache this request */
+            ap_add_output_filter_handle(cache_in_filter_handle, NULL, r,
+                                        r->connection);
+        }
+        return DECLINED;
     }
-#endif				/* NOT_ASCII */
+    else if (OK == rv) {
+        /* RFC2616 13.2 - Check cache object expiration */
+        cache->fresh = ap_cache_check_freshness(cache, r);
+        if (cache->fresh) {
+            /* fresh data available */
+            apr_bucket_brigade *out;
+            conn_rec *c = r->connection;
 
-    /* This only needs to be done once */
-#ifdef USE_SSL
-    if (ssl != 1)
-#endif
-    if ((rv = apr_sockaddr_info_get(&destsa, connecthost, APR_UNSPEC, connectport, 0, cntxt))
-	!= APR_SUCCESS) {
-	char buf[120];
-	apr_snprintf(buf, sizeof(buf),
-		     "apr_sockaddr_info_get() for %s", connecthost);
-	apr_err(buf, rv);
-    }
-
-    /* ok - lets start */
-    start = apr_time_now();
-
-    /* initialise lots of requests */
-    for (i = 0; i < concurrency; i++) {
-	con[i].socknum = i;
-	start_connect(&con[i]);
-    }
-
-    while (done < requests) {
-	apr_int32_t n;
-	apr_int32_t timed;
-        const apr_pollfd_t *pollresults;
-
-	/* check for time limit expiry */
-	now = apr_time_now();
-	timed = (apr_int32_t)apr_time_sec(now - start);
-	if (tlimit && timed >= tlimit) {
-	    requests = done;	/* so stats are correct */
-	    break;		/* no need to do another round */
-	}
-
-	n = concurrency;
-#ifdef USE_SSL
-        if (ssl == 1)
-            status = APR_SUCCESS;
-        else
-#endif
-	status = apr_pollset_poll(readbits, aprtimeout, &n, &pollresults);
-	if (status != APR_SUCCESS)
-	    apr_err("apr_poll", status);
-
-	if (!n) {
-	    err("\nServer timed out\n\n");
-	}
-
-	for (i = 0; i < n; i++) {
-            const apr_pollfd_t *next_fd = &(pollresults[i]);
-            struct connection *c = next_fd->client_data;
-
-	    /*
-	     * If the connection isn't connected how can we check it?
-	     */
-	    if (c->state == STATE_UNCONNECTED)
-		continue;
-
-#ifdef USE_SSL
-            if (ssl == 1)
-                rv = APR_POLLIN;
-            else
-#endif
-            rv = next_fd->rtnevents;
-
-	    /*
-	     * Notes: APR_POLLHUP is set after FIN is received on some
-	     * systems, so treat that like APR_POLLIN so that we try to read
-	     * again.
-	     *
-	     * Some systems return APR_POLLERR with APR_POLLHUP.  We need to
-	     * call read_connection() for APR_POLLHUP, so check for
-	     * APR_POLLHUP first so that a closed connection isn't treated
-	     * like an I/O error.  If it is, we never figure out that the
-	     * connection is done and we loop here endlessly calling
-	     * apr_poll().
-	     */
-	    if ((rv & APR_POLLIN) || (rv & APR_POLLPRI) || (rv & APR_POLLHUP))
-		read_connection(c);
-	    if ((rv & APR_POLLERR) || (rv & APR_POLLNVAL)) {
-		bad++;
-		err_except++;
-		start_connect(c);
-		continue;
-	    }
-	    if (rv & APR_POLLOUT) {
-                if (c->state == STATE_CONNECTING) {
-                    apr_pollfd_t remove_pollfd;
-                    rv = apr_connect(c->aprsock, destsa);
-                    remove_pollfd.desc_type = APR_POLL_SOCKET;
-                    remove_pollfd.desc.s = c->aprsock;
-                    apr_pollset_remove(readbits, &remove_pollfd);
-                    if (rv != APR_SUCCESS) {
-                        apr_socket_close(c->aprsock);
-                        err_conn++;
-                        if (bad++ > 10) {
-                            fprintf(stderr,
-                                    "\nTest aborted after 10 failures\n\n");
-                            apr_err("apr_connect()", rv);
-                        }
-                        c->state = STATE_UNCONNECTED;
-                        start_connect(c);
-                        continue;
-                    }
-                    else {
-                        c->state = STATE_CONNECTED;
-                        write_request(c);
-                    }
-                }
-                else {
-                    write_request(c);
-                }
+            if (lookup) {
+                return OK;
+            }
+            rv = ap_meets_conditions(r);
+            if (rv != OK) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                             "cache: fresh cache - returning status %d", rv);
+                return rv;
             }
 
-	    /*
-	     * When using a select based poll every time we check the bits
-	     * are reset. In 1.3's ab we copied the FD_SET's each time
-	     * through, but here we're going to check the state and if the
-	     * connection is in STATE_READ or STATE_CONNECTING we'll add the
-	     * socket back in as APR_POLLIN.
-	     */
-#ifdef USE_SSL
-            if (ssl != 1)
-#endif
-                if (c->state == STATE_READ) {
-                    apr_pollfd_t new_pollfd;
-                    new_pollfd.desc_type = APR_POLL_SOCKET;
-                    new_pollfd.reqevents = APR_POLLIN;
-                    new_pollfd.desc.s = c->aprsock;
-                    new_pollfd.client_data = c;
-                    apr_pollset_add(readbits, &new_pollfd);
+            /*
+             * Not a conditionl request. Serve up the content 
+             */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache: fresh cache - add cache_out filter and "
+                         "handle request");
+
+            /* We are in the quick handler hook, which means that no output
+             * filters have been set. So lets run the insert_filter hook.
+             */
+            ap_run_insert_filter(r);
+            ap_add_output_filter_handle(cache_out_filter_handle, NULL,
+                                        r, r->connection);
+
+            /* kick off the filter stack */
+            out = apr_brigade_create(r->pool, c->bucket_alloc);
+            if (APR_SUCCESS
+                != (rv = ap_pass_brigade(r->output_filters, out))) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                             "cache: error returned while trying to return %s "
+                             "cached data", 
+                             cache->type);
+                return rv;
+            }
+            return OK;
+        }
+        else {
+            if (!r->err_headers_out) {
+                r->err_headers_out = apr_table_make(r->pool, 3);
+            }
+            /* stale data available */
+            if (lookup) {
+                return DECLINED;
+            }
+
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache: stale cache - test conditional");
+            /* if conditional request */
+            if (ap_cache_request_is_conditional(r)) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                             r->server,
+                             "cache: conditional - add cache_in filter and "
+                             "DECLINE");
+                /* Why not add CACHE_CONDITIONAL? */
+                ap_add_output_filter_handle(cache_in_filter_handle, NULL,
+                                            r, r->connection);
+
+                return DECLINED;
+            }
+            /* else if non-conditional request */
+            else {
+                /* Temporarily hack this to work the way it had been. Its broken,
+                 * but its broken the way it was before. I'm working on figuring
+                 * out why the filter add in the conditional filter doesn't work. pjr
+                 *
+                 * info = &(cache->handle->cache_obj->info);
+                 *
+                 * Uncomment the above when the code in cache_conditional_filter_handle
+                 * is properly fixed...  pjr
+                 */
+                
+                /* fudge response into a conditional */
+                if (info && info->etag) {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                                 r->server,
+                                 "cache: nonconditional - fudge conditional "
+                                 "by etag");
+                    /* if we have a cached etag */
+                    apr_table_set(r->headers_in, "If-None-Match", info->etag);
                 }
-	}
+                else if (info && info->lastmods) {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                                 r->server,
+                                 "cache: nonconditional - fudge conditional "
+                                 "by lastmod");
+                    /* if we have a cached IMS */
+                    apr_table_set(r->headers_in, 
+                                  "If-Modified-Since", 
+                                  info->lastmods);
+                }
+                else {
+                    /* something else - pretend there was no cache */
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                                 r->server,
+                                 "cache: nonconditional - no cached "
+                                 "etag/lastmods - add cache_in and DECLINE");
+
+                    ap_add_output_filter_handle(cache_in_filter_handle, NULL,
+                                                r, r->connection);
+
+                    return DECLINED;
+                }
+                /* add cache_conditional filter */
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                             r->server,
+                             "cache: nonconditional - add cache_conditional "
+                             "and DECLINE");
+                ap_add_output_filter_handle(cache_conditional_filter_handle,
+                                            NULL, 
+                                            r, 
+                                            r->connection);
+
+                return DECLINED;
+            }
+        }
     }
-
-    if (heartbeatres)
-	fprintf(stderr, "Finished %ld requests\n", done);
-    else
-	printf("..done\n");
-
-    if (use_html)
-	output_html_results();
-    else
-	output_results();
+    else {
+        /* error */
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, 
+                     r->server,
+                     "cache: error returned while checking for cached file by "
+                     "%s cache", 
+                     cache->type);
+        return DECLINED;
+    }
 }

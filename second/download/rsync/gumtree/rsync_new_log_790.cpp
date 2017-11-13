@@ -1,1 +1,1 @@
-fprintf(F,"usage: " PROGRAM " [OPTIONS] FILE ...\n");
+out_of_memory("set_delayed_bit");

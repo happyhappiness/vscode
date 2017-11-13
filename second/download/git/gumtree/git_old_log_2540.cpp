@@ -1,1 +1,1 @@
-printf_ln(_("  HEAD branch: %s"), "(unknown)");
+error("unable to delete old %s", oldrefname);

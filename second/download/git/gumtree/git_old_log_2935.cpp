@@ -1,2 +1,1 @@
-error("unable to unlink old '%s' (%s)",
-				     path.buf, strerror(errno));
+error("can't write crash report %s: %s", loc, strerror(errno));

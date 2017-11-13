@@ -1,18 +1,32 @@
-int fsck_walk(struct object *obj, void *data, struct fsck_options *options)
+static void mark_tree_contents_uninteresting(struct tree *tree)
 {
-	if (!obj)
-		return -1;
-	switch (obj->type) {
-	case OBJ_BLOB:
-		return 0;
-	case OBJ_TREE:
-		return fsck_walk_tree((struct tree *)obj, data, options);
-	case OBJ_COMMIT:
-		return fsck_walk_commit((struct commit *)obj, data, options);
-	case OBJ_TAG:
-		return fsck_walk_tag((struct tag *)obj, data, options);
-	default:
-		error("Unknown object type for %s", oid_to_hex(&obj->oid));
-		return -1;
+	struct tree_desc desc;
+	struct name_entry entry;
+	struct object *obj = &tree->object;
+
+	if (!has_sha1_file(obj->sha1))
+		return;
+	if (parse_tree(tree) < 0)
+		die("bad tree %s", sha1_to_hex(obj->sha1));
+
+	init_tree_desc(&desc, tree->buffer, tree->size);
+	while (tree_entry(&desc, &entry)) {
+		switch (object_type(entry.mode)) {
+		case OBJ_TREE:
+			mark_tree_uninteresting(lookup_tree(entry.sha1));
+			break;
+		case OBJ_BLOB:
+			mark_blob_uninteresting(lookup_blob(entry.sha1));
+			break;
+		default:
+			/* Subproject commit - not in this repository */
+			break;
+		}
 	}
+
+	/*
+	 * We don't care about the tree any more
+	 * after it has been marked uninteresting.
+	 */
+	free_tree_buffer(tree);
 }

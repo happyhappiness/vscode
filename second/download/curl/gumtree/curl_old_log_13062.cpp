@@ -1,11 +1,11 @@
 fputs(
-"              \"Mozilla/4.0\". To encode blanks  in  the  string,  surround  the\n"
-"              string  with  single  quote marks. This can also be set with the\n"
-"              -H, --header option of course.\n"
+"              HTTP/2 without HTTP/1.1 Upgrade.  It  requires  prior  knowledge\n"
+"              that  the  server  supports HTTP/2 straight away. HTTPS requests\n"
+"              will still do HTTP/2 the standard way with  negotiated  protocol\n"
+"              version in the TLS handshake.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              HTTP/2  support  in  general  also  requires that the underlying\n"
+"              libcurl was built to support it. (Added in 7.49.0)\n"
 "\n"
-"       --anyauth\n"
-"              (HTTP) Tells curl to figure out authentication method by itself,\n"
-"              and  use  the most secure one the remote site claims to support.\n"
+"       --no-npn\n"
 , stdout);

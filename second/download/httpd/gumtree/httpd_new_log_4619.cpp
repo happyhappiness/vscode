@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00228)
-                         "WARNING: MaxThreads of %d exceeds compile-time "
-                         "limit of", ap_threads_limit);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01853)
+                      "no SessionDBDselectlabel has been specified");

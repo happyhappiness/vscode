@@ -1,11 +1,8 @@
 fputs(
-"              False  start  is  a  mode  where a TLS client will start sending\n"
-"              application data before verifying the server's Finished message,\n"
-"              thus saving a round trip when performing a full handshake.\n"
-"\n"
-"              This  is currently only implemented in the NSS and Secure Trans-\n"
-"              port (on iOS 7.0 or later, or OS  X  10.9  or  later)  backends.\n"
-"              (Added in 7.42.0)\n"
-"\n"
-"       -f, --fail\n"
+"              verify  the  peer.  Multiple paths can be provided by separating\n"
+"              them with \":\" (e.g.  \"path1:path2:path3\"). The certificates must\n"
+"              be  in  PEM  format,  and  if curl is built against OpenSSL, the\n"
+"              directory must have been processed using  the  c_rehash  utility\n"
+"              supplied  with OpenSSL. Using --capath can allow OpenSSL-powered\n"
+"              curl to make SSL-connections much more  efficiently  than  using\n"
 , stdout);

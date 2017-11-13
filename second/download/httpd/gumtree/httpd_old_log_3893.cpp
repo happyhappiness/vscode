@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-                     "proxy: FCGI: Failed writing Environment to %s:",
-                     server_portstr);
+ap_log_error(APLOG_MARK, APLOG_ERR, status, s,
+                     "could not open mime types config file %s.",
+                     types_confname);

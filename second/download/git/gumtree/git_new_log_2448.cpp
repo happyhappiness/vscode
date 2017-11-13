@@ -1,1 +1,1 @@
-die_errno(_("Could not open file '%s'"), filename);
+error("bad parents in commit %s", oid_to_hex(&item->object.oid));

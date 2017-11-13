@@ -1,1 +1,1 @@
-die("Can't load object %s", oid_to_hex(oid));
+die("cannot use '%c' for value matching", *src);

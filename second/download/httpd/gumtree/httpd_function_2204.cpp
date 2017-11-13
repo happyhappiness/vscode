@@ -1,306 +1,121 @@
-int main(int argc, const char * const argv[])
+static int prefork_check_config(apr_pool_t *p, apr_pool_t *plog,
+                                apr_pool_t *ptemp, server_rec *s)
 {
-    char c;
-    int configtestonly = 0;
-    const char *confname = SERVER_CONFIG_FILE;
-    const char *def_server_root = HTTPD_ROOT;
-    const char *temp_error_log = NULL;
-    const char *error;
-    process_rec *process;
-    server_rec *server_conf;
-    apr_pool_t *pglobal;
-    apr_pool_t *pconf;
-    apr_pool_t *plog; /* Pool of log streams, reset _after_ each read of conf */
-    apr_pool_t *ptemp; /* Pool for temporary config stuff, reset often */
-    apr_pool_t *pcommands; /* Pool for -D, -C and -c switches */
-    apr_getopt_t *opt;
-    apr_status_t rv;
-    module **mod;
-    const char *optarg;
-    APR_OPTIONAL_FN_TYPE(ap_signal_server) *signal_server;
+    int startup = 0;
 
-    AP_MONCONTROL(0); /* turn off profiling of startup */
-
-    apr_app_initialize(&argc, &argv, NULL);
-
-    process = create_process(argc, argv);
-    pglobal = process->pool;
-    pconf = process->pconf;
-    ap_server_argv0 = process->short_name;
-
-#if APR_CHARSET_EBCDIC
-    if (ap_init_ebcdic(pglobal) != APR_SUCCESS) {
-        destroy_and_exit_process(process, 1);
-    }
-#endif
-
-    apr_pool_create(&pcommands, pglobal);
-    apr_pool_tag(pcommands, "pcommands");
-    ap_server_pre_read_config  = apr_array_make(pcommands, 1, sizeof(char *));
-    ap_server_post_read_config = apr_array_make(pcommands, 1, sizeof(char *));
-    ap_server_config_defines   = apr_array_make(pcommands, 1, sizeof(char *));
-
-    error = ap_setup_prelinked_modules(process);
-    if (error) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_EMERG, 0, NULL, "%s: %s",
-                     ap_server_argv0, error);
-        destroy_and_exit_process(process, 1);
+    /* the reverse of pre_config, we want this only the first time around */
+    if (retained->module_loads == 1) {
+        startup = 1;
     }
 
-    ap_run_rewrite_args(process);
+    if (server_limit > MAX_SERVER_LIMIT) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ServerLimit of %d exceeds compile-time "
+                         "limit of", server_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d servers, decreasing to %d.",
+                         MAX_SERVER_LIMIT, MAX_SERVER_LIMIT);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ServerLimit of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         server_limit, MAX_SERVER_LIMIT);
+        }
+        server_limit = MAX_SERVER_LIMIT;
+    }
+    else if (server_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ServerLimit of %d not allowed, "
+                         "increasing to 1.", server_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ServerLimit of %d not allowed, increasing to 1",
+                         server_limit);
+        }
+        server_limit = 1;
+    }
 
-    /* Maintain AP_SERVER_BASEARGS list in http_main.h to allow the MPM
-     * to safely pass on our args from its rewrite_args() handler.
+    /* you cannot change ServerLimit across a restart; ignore
+     * any such attempts
      */
-    apr_getopt_init(&opt, pcommands, process->argc, process->argv);
+    if (!retained->first_server_limit) {
+        retained->first_server_limit = server_limit;
+    }
+    else if (server_limit != retained->first_server_limit) {
+        /* don't need a startup console version here */
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     "changing ServerLimit to %d from original value of %d "
+                     "not allowed during restart",
+                     server_limit, retained->first_server_limit);
+        server_limit = retained->first_server_limit;
+    }
 
-    while ((rv = apr_getopt(opt, AP_SERVER_BASEARGS, &c, &optarg))
-            == APR_SUCCESS) {
-        char **new;
-
-        switch (c) {
-        case 'c':
-            new = (char **)apr_array_push(ap_server_post_read_config);
-            *new = apr_pstrdup(pcommands, optarg);
-            break;
-
-        case 'C':
-            new = (char **)apr_array_push(ap_server_pre_read_config);
-            *new = apr_pstrdup(pcommands, optarg);
-            break;
-
-        case 'd':
-            def_server_root = optarg;
-            break;
-
-        case 'D':
-            new = (char **)apr_array_push(ap_server_config_defines);
-            *new = apr_pstrdup(pcommands, optarg);
-            /* Setting -D DUMP_VHOSTS is equivalent to setting -S */
-            if (strcmp(optarg, "DUMP_VHOSTS") == 0)
-                configtestonly = 1;
-            /* Setting -D DUMP_MODULES is equivalent to setting -M */
-            if (strcmp(optarg, "DUMP_MODULES") == 0)
-                configtestonly = 1;
-            break;
-
-        case 'e':
-            if (strcasecmp(optarg, "emerg") == 0) {
-                ap_default_loglevel = APLOG_EMERG;
-            }
-            else if (strcasecmp(optarg, "alert") == 0) {
-                ap_default_loglevel = APLOG_ALERT;
-            }
-            else if (strcasecmp(optarg, "crit") == 0) {
-                ap_default_loglevel = APLOG_CRIT;
-            }
-            else if (strncasecmp(optarg, "err", 3) == 0) {
-                ap_default_loglevel = APLOG_ERR;
-            }
-            else if (strncasecmp(optarg, "warn", 4) == 0) {
-                ap_default_loglevel = APLOG_WARNING;
-            }
-            else if (strcasecmp(optarg, "notice") == 0) {
-                ap_default_loglevel = APLOG_NOTICE;
-            }
-            else if (strcasecmp(optarg, "info") == 0) {
-                ap_default_loglevel = APLOG_INFO;
-            }
-            else if (strcasecmp(optarg, "debug") == 0) {
-                ap_default_loglevel = APLOG_DEBUG;
-            }
-            else {
-                usage(process);
-            }
-            break;
-
-        case 'E':
-            temp_error_log = apr_pstrdup(process->pool, optarg);
-            break;
-
-        case 'X':
-            new = (char **)apr_array_push(ap_server_config_defines);
-            *new = "DEBUG";
-            break;
-
-        case 'f':
-            confname = optarg;
-            break;
-
-        case 'v':
-            printf("Server version: %s\n", ap_get_server_version());
-            printf("Server built:   %s\n", ap_get_server_built());
-            destroy_and_exit_process(process, 0);
-
-        case 'V':
-            show_compile_settings();
-            destroy_and_exit_process(process, 0);
-
-        case 'l':
-            ap_show_modules();
-            destroy_and_exit_process(process, 0);
-
-        case 'L':
-            ap_show_directives();
-            destroy_and_exit_process(process, 0);
-
-        case 't':
-            configtestonly = 1;
-            break;
-
-        case 'S':
-            configtestonly = 1;
-            new = (char **)apr_array_push(ap_server_config_defines);
-            *new = "DUMP_VHOSTS";
-            break;
-
-        case 'M':
-            configtestonly = 1;
-            new = (char **)apr_array_push(ap_server_config_defines);
-            *new = "DUMP_MODULES";
-            break;
-
-        case 'h':
-        case '?':
-            usage(process);
+    if (ap_daemons_limit > server_limit) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxClients of %d exceeds ServerLimit "
+                         "value of", ap_daemons_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d servers, decreasing MaxClients to %d.",
+                         server_limit, server_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " To increase, please see the ServerLimit "
+                         "directive.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxClients of %d exceeds ServerLimit value "
+                         "of %d, decreasing to match",
+                         ap_daemons_limit, server_limit);
         }
+        ap_daemons_limit = server_limit;
     }
-
-    /* bad cmdline option?  then we die */
-    if (rv != APR_EOF || opt->ind < opt->argc) {
-        usage(process);
-    }
-
-    apr_pool_create(&plog, pglobal);
-    apr_pool_tag(plog, "plog");
-    apr_pool_create(&ptemp, pconf);
-    apr_pool_tag(ptemp, "ptemp");
-
-    /* Note that we preflight the config file once
-     * before reading it _again_ in the main loop.
-     * This allows things, log files configuration
-     * for example, to settle down.
-     */
-
-    ap_server_root = def_server_root;
-    if (temp_error_log) {
-        ap_replace_stderr_log(process->pool, temp_error_log);
-    }
-    server_conf = ap_read_config(process, ptemp, confname, &ap_conftree);
-    if (!server_conf) {
-        destroy_and_exit_process(process, 1);
-    }
-
-    if (ap_run_pre_config(pconf, plog, ptemp) != OK) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
-                     NULL, "Pre-configuration failed");
-        destroy_and_exit_process(process, 1);
-    }
-
-    rv = ap_process_config_tree(server_conf, ap_conftree,
-                                process->pconf, ptemp);
-    if (rv == OK) {
-        ap_fixup_virtual_hosts(pconf, server_conf);
-        ap_fini_vhost_config(pconf, server_conf);
-        apr_hook_sort_all();
-
-        if (configtestonly) {
-            ap_run_test_config(pconf, server_conf);
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, "Syntax OK");
-            destroy_and_exit_process(process, 0);
+    else if (ap_daemons_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxClients of %d not allowed, "
+                         "increasing to 1.", ap_daemons_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxClients of %d not allowed, increasing to 1",
+                         ap_daemons_limit);
         }
+        ap_daemons_limit = 1;
     }
 
-    signal_server = APR_RETRIEVE_OPTIONAL_FN(ap_signal_server);
-    if (signal_server) {
-        int exit_status;
-
-        if (signal_server(&exit_status, pconf) != 0) {
-            destroy_and_exit_process(process, exit_status);
+    /* ap_daemons_to_start > ap_daemons_limit checked in prefork_run() */
+    if (ap_daemons_to_start < 0) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: StartServers of %d not allowed, "
+                         "increasing to 1.", ap_daemons_to_start);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "StartServers of %d not allowed, increasing to 1",
+                         ap_daemons_to_start);
         }
+        ap_daemons_to_start = 1;
     }
 
-    /* If our config failed, deal with that here. */
-    if (rv != OK) {
-        destroy_and_exit_process(process, 1);
+    if (ap_daemons_min_free < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MinSpareServers of %d not allowed, "
+                         "increasing to 1", ap_daemons_min_free);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " to avoid almost certain server failure.");
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " Please read the documentation.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MinSpareServers of %d not allowed, increasing to 1",
+                         ap_daemons_min_free);
+        }
+        ap_daemons_min_free = 1;
     }
 
-    apr_pool_clear(plog);
+    /* ap_daemons_max_free < ap_daemons_min_free + 1 checked in prefork_run() */
 
-    if ( ap_run_open_logs(pconf, plog, ptemp, server_conf) != OK) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
-                     0, NULL, "Unable to open logs");
-        destroy_and_exit_process(process, 1);
-    }
-
-    if ( ap_run_post_config(pconf, plog, ptemp, server_conf) != OK) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
-                     NULL, "Configuration Failed");
-        destroy_and_exit_process(process, 1);
-    }
-
-    apr_pool_destroy(ptemp);
-
-    for (;;) {
-        apr_hook_deregister_all();
-        apr_pool_clear(pconf);
-
-        for (mod = ap_prelinked_modules; *mod != NULL; mod++) {
-            ap_register_hooks(*mod, pconf);
-        }
-
-        /* This is a hack until we finish the code so that it only reads
-         * the config file once and just operates on the tree already in
-         * memory.  rbb
-         */
-        ap_conftree = NULL;
-        apr_pool_create(&ptemp, pconf);
-        apr_pool_tag(ptemp, "ptemp");
-        ap_server_root = def_server_root;
-        server_conf = ap_read_config(process, ptemp, confname, &ap_conftree);
-        if (!server_conf) {
-            destroy_and_exit_process(process, 1);
-        }
-
-        if (ap_run_pre_config(pconf, plog, ptemp) != OK) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
-                         0, NULL, "Pre-configuration failed");
-            destroy_and_exit_process(process, 1);
-        }
-
-        if (ap_process_config_tree(server_conf, ap_conftree, process->pconf,
-                                   ptemp) != OK) {
-            destroy_and_exit_process(process, 1);
-        }
-        ap_fixup_virtual_hosts(pconf, server_conf);
-        ap_fini_vhost_config(pconf, server_conf);
-        apr_hook_sort_all();
-        apr_pool_clear(plog);
-        if (ap_run_open_logs(pconf, plog, ptemp, server_conf) != OK) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
-                         0, NULL, "Unable to open logs");
-            destroy_and_exit_process(process, 1);
-        }
-
-        if (ap_run_post_config(pconf, plog, ptemp, server_conf) != OK) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
-                         0, NULL, "Configuration Failed");
-            destroy_and_exit_process(process, 1);
-        }
-
-        apr_pool_destroy(ptemp);
-        apr_pool_lock(pconf, 1);
-
-        ap_run_optional_fn_retrieve();
-
-        if (ap_mpm_run(pconf, plog, server_conf))
-            break;
-
-        apr_pool_lock(pconf, 0);
-    }
-
-    apr_pool_lock(pconf, 0);
-    destroy_and_exit_process(process, 0);
-
-    return 0; /* Termination 'ok' */
+    return OK;
 }

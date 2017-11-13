@@ -1,1 +1,1 @@
-die("Reference has invalid name: '%s'", refname);
+die("Timestamp before Unix epoch: %"PRItime" %04d", time, tz);

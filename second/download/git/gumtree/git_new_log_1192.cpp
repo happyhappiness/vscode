@@ -1,1 +1,1 @@
-die(_("revision walk setup failed"));
+fprintf(stderr, _("Applied autostash.\n"));

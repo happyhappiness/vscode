@@ -1,1 +1,1 @@
-fprintf(stderr, "cannot chmod '%s'", ce->name);
+die("impossibly large verbosity value");

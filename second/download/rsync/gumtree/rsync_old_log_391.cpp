@@ -1,1 +1,2 @@
-fprintf(FINFO,"building file list ... ");
+fprintf(FERROR,"send_files mapped %s of size %d\n",
+		fname,(int)st.st_size);

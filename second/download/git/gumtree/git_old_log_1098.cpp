@@ -1,1 +1,0 @@
-error("sha1 mismatch %s", sha1_to_hex(repl));

@@ -1,1 +1,2 @@
-error(_("bad config line %d in %s %s"), cf->linenr, cf->origin_type, cf->name);
+error("chmod on %s failed: %s",
+			      get_lock_file_path(lock), strerror(errno));

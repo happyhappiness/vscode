@@ -1,10 +1,9 @@
 fputs(
-"              take.  This is useful for preventing your batch jobs from  hang-\n"
-"              ing  for  hours due to slow networks or links going down.  Since\n"
-"              7.32.0, this option accepts decimal values, but the actual time-\n"
-"              out will decrease in accuracy as the specified timeout increases\n"
-"              in decimal precision.  See also the --connect-timeout option.\n"
+"              (for example POST or PUT), it will do the following request with\n"
+"              a GET if the HTTP response was 301, 302, or 303. If the response\n"
+"              code  was  any  other  3xx code, curl will re-send the following\n"
+"              request using the same unmodified method.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
+"              You can tell curl to not change the non-GET  request  method  to\n"
+"              GET  after  a  30x  response  by using the dedicated options for\n"
 , stdout);

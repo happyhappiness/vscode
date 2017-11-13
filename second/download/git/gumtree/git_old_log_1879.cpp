@@ -1,2 +1,1 @@
-warning ("Exporting signed tag %s",
-					 sha1_to_hex(tag->object.sha1));
+die(_("Could not create git link %s"), git_link);

@@ -1,2 +1,1 @@
-die(_("packfile name '%s' does not end with '.pack'"),
-		    pack_name);
+die("BUG: commit called for transaction that is not open");

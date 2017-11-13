@@ -1,10 +1,9 @@
 fputs(
-"              SFTP  is  a  binary protocol. Unlike for FTP, libcurl interprets\n"
-"              SFTP quote commands itself before sending them  to  the  server.\n"
-"              File  names may be quoted shell-style to embed spaces or special\n"
-"              characters.  Following is the list of all supported  SFTP  quote\n"
-"              commands:\n"
+"              supported for FTP). You may specify any number of  commands.  If\n"
+"              the  server  returns failure for one of the commands, the entire\n"
+"              operation will be aborted. You must send  syntactically  correct\n"
+"              FTP  commands  as  RFC 959 defines to FTP servers, or one of the\n"
+"              commands listed below to SFTP servers.  This option can be  used\n"
+"              multiple times.\n"
 "\n"
-"              chgrp group file\n"
-"                     The  chgrp command sets the group ID of the file named by\n"
 , stdout);

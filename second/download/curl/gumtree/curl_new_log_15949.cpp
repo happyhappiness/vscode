@@ -1,11 +1,11 @@
 fputs(
-"              requests  -  even  after  redirects are followed, like when told\n"
-"              with -L, --location. This can lead to the header being  sent  to\n"
-"              other  hosts than the original host, so sensitive headers should\n"
-"              be used with caution combined with following redirects.\n"
+"              reply to the shutdown from the server. The active mode initiates\n"
+"              the shutdown and waits for a reply from the server.\n"
 "\n"
-"              This option can be used  multiple  times  to  add/replace/remove\n"
-"              multiple headers.\n"
+"              See also --ftp-ssl-ccc. Added in 7.16.2.\n"
 "\n"
-"       -h, --help\n"
+"       --ftp-ssl-ccc\n"
+"              (FTP) Use CCC (Clear Command Channel)  Shuts  down  the  SSL/TLS\n"
+"              layer after authenticating. The rest of the control channel com-\n"
+"              munication will be unencrypted. This allows NAT routers to  fol-\n"
 , stdout);

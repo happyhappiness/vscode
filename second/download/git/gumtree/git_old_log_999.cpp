@@ -1,1 +1,1 @@
-printf("  mtime: %d:%d\n", sd->sd_mtime.sec, sd->sd_mtime.nsec);
+git_die_config(key, _("Invalid %s: '%s'"), key, *output);

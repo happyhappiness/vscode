@@ -1,108 +1,78 @@
-void diff_setup_done(struct diff_options *options)
+static int rm(int argc, const char **argv)
 {
-	int count = 0;
+	struct option options[] = {
+		OPT_END()
+	};
+	struct remote *remote;
+	struct strbuf buf = STRBUF_INIT;
+	struct known_remotes known_remotes = { NULL, NULL };
+	struct string_list branches = STRING_LIST_INIT_DUP;
+	struct string_list skipped = STRING_LIST_INIT_DUP;
+	struct branches_for_remote cb_data;
+	int i, result;
 
-	if (options->set_default)
-		options->set_default(options);
+	memset(&cb_data, 0, sizeof(cb_data));
+	cb_data.branches = &branches;
+	cb_data.skipped = &skipped;
+	cb_data.keep = &known_remotes;
 
-	if (options->output_format & DIFF_FORMAT_NAME)
-		count++;
-	if (options->output_format & DIFF_FORMAT_NAME_STATUS)
-		count++;
-	if (options->output_format & DIFF_FORMAT_CHECKDIFF)
-		count++;
-	if (options->output_format & DIFF_FORMAT_NO_OUTPUT)
-		count++;
-	if (count > 1)
-		die("--name-only, --name-status, --check and -s are mutually exclusive");
+	if (argc != 2)
+		usage_with_options(builtin_remote_rm_usage, options);
 
-	/*
-	 * Most of the time we can say "there are changes"
-	 * only by checking if there are changed paths, but
-	 * --ignore-whitespace* options force us to look
-	 * inside contents.
-	 */
+	remote = remote_get(argv[1]);
+	if (!remote)
+		die(_("No such remote: %s"), argv[1]);
 
-	if (DIFF_XDL_TST(options, IGNORE_WHITESPACE) ||
-	    DIFF_XDL_TST(options, IGNORE_WHITESPACE_CHANGE) ||
-	    DIFF_XDL_TST(options, IGNORE_WHITESPACE_AT_EOL))
-		DIFF_OPT_SET(options, DIFF_FROM_CONTENTS);
-	else
-		DIFF_OPT_CLR(options, DIFF_FROM_CONTENTS);
+	known_remotes.to_delete = remote;
+	for_each_remote(add_known_remote, &known_remotes);
 
-	if (DIFF_OPT_TST(options, FIND_COPIES_HARDER))
-		options->detect_rename = DIFF_DETECT_COPY;
+	strbuf_addf(&buf, "remote.%s", remote->name);
+	if (git_config_rename_section(buf.buf, NULL) < 1)
+		return error(_("Could not remove config section '%s'"), buf.buf);
 
-	if (!DIFF_OPT_TST(options, RELATIVE_NAME))
-		options->prefix = NULL;
-	if (options->prefix)
-		options->prefix_length = strlen(options->prefix);
-	else
-		options->prefix_length = 0;
-
-	if (options->output_format & (DIFF_FORMAT_NAME |
-				      DIFF_FORMAT_NAME_STATUS |
-				      DIFF_FORMAT_CHECKDIFF |
-				      DIFF_FORMAT_NO_OUTPUT))
-		options->output_format &= ~(DIFF_FORMAT_RAW |
-					    DIFF_FORMAT_NUMSTAT |
-					    DIFF_FORMAT_DIFFSTAT |
-					    DIFF_FORMAT_SHORTSTAT |
-					    DIFF_FORMAT_DIRSTAT |
-					    DIFF_FORMAT_SUMMARY |
-					    DIFF_FORMAT_PATCH);
-
-	/*
-	 * These cases always need recursive; we do not drop caller-supplied
-	 * recursive bits for other formats here.
-	 */
-	if (options->output_format & (DIFF_FORMAT_PATCH |
-				      DIFF_FORMAT_NUMSTAT |
-				      DIFF_FORMAT_DIFFSTAT |
-				      DIFF_FORMAT_SHORTSTAT |
-				      DIFF_FORMAT_DIRSTAT |
-				      DIFF_FORMAT_SUMMARY |
-				      DIFF_FORMAT_CHECKDIFF))
-		DIFF_OPT_SET(options, RECURSIVE);
-	/*
-	 * Also pickaxe would not work very well if you do not say recursive
-	 */
-	if (options->pickaxe)
-		DIFF_OPT_SET(options, RECURSIVE);
-	/*
-	 * When patches are generated, submodules diffed against the work tree
-	 * must be checked for dirtiness too so it can be shown in the output
-	 */
-	if (options->output_format & DIFF_FORMAT_PATCH)
-		DIFF_OPT_SET(options, DIRTY_SUBMODULES);
-
-	if (options->detect_rename && options->rename_limit < 0)
-		options->rename_limit = diff_rename_limit_default;
-	if (options->setup & DIFF_SETUP_USE_CACHE) {
-		if (!active_cache)
-			/* read-cache does not die even when it fails
-			 * so it is safe for us to do this here.  Also
-			 * it does not smudge active_cache or active_nr
-			 * when it fails, so we do not have to worry about
-			 * cleaning it up ourselves either.
-			 */
-			read_cache();
-	}
-	if (options->abbrev <= 0 || 40 < options->abbrev)
-		options->abbrev = 40; /* full */
-
-	/*
-	 * It does not make sense to show the first hit we happened
-	 * to have found.  It does not make sense not to return with
-	 * exit code in such a case either.
-	 */
-	if (DIFF_OPT_TST(options, QUICK)) {
-		options->output_format = DIFF_FORMAT_NO_OUTPUT;
-		DIFF_OPT_SET(options, EXIT_WITH_STATUS);
+	read_branches();
+	for (i = 0; i < branch_list.nr; i++) {
+		struct string_list_item *item = branch_list.items + i;
+		struct branch_info *info = item->util;
+		if (info->remote_name && !strcmp(info->remote_name, remote->name)) {
+			const char *keys[] = { "remote", "merge", NULL }, **k;
+			for (k = keys; *k; k++) {
+				strbuf_reset(&buf);
+				strbuf_addf(&buf, "branch.%s.%s",
+						item->string, *k);
+				if (git_config_set(buf.buf, NULL)) {
+					strbuf_release(&buf);
+					return -1;
+				}
+			}
+		}
 	}
 
-	options->diff_path_counter = 0;
+	/*
+	 * We cannot just pass a function to for_each_ref() which deletes
+	 * the branches one by one, since for_each_ref() relies on cached
+	 * refs, which are invalidated when deleting a branch.
+	 */
+	cb_data.remote = remote;
+	result = for_each_ref(add_branch_for_removal, &cb_data);
+	strbuf_release(&buf);
 
-	if (DIFF_OPT_TST(options, FOLLOW_RENAMES) && options->pathspec.nr != 1)
-		die(_("--follow requires exactly one pathspec"));
+	if (!result)
+		result = remove_branches(&branches);
+	string_list_clear(&branches, 1);
+
+	if (skipped.nr) {
+		fprintf_ln(stderr,
+			   Q_("Note: A branch outside the refs/remotes/ hierarchy was not removed;\n"
+			      "to delete it, use:",
+			      "Note: Some branches outside the refs/remotes/ hierarchy were not removed;\n"
+			      "to delete them, use:",
+			      skipped.nr));
+		for (i = 0; i < skipped.nr; i++)
+			fprintf(stderr, "  git branch -d %s\n",
+				skipped.items[i].string);
+	}
+	string_list_clear(&skipped, 0);
+
+	return result;
 }

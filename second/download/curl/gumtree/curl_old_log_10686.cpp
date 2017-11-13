@@ -1,9 +1,11 @@
 fputs(
-"              Use the file name \"-\" (a single dash) to use stdin instead of  a\n"
-"              given  file.   Alternately,  the file name \".\" (a single period)\n"
-"              may be specified instead of \"-\" to  use  stdin  in  non-blocking\n"
-"              mode  to  allow  reading  server  output  while  stdin  is being\n"
-"              uploaded.\n"
+"              Since 7.21.7, this option is superfluous since you can specify a\n"
+"              socks5 hostname proxy with -x, --proxy using a socks5h:// proto-\n"
+"              col prefix.\n"
 "\n"
-"              You can specify one -T for each URL on the command line. Each -T\n"
+"              If this option is used several times, the last one will be used.\n"
+"              (This  option  was  previously  wrongly  documented  and used as\n"
+"              --socks without the number appended.)\n"
+"\n"
+"       --socks5 <host[:port]>\n"
 , stdout);

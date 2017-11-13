@@ -1,9 +1,10 @@
 fputs(
-"              Only digit characters (0-9) are valid in the 'start' and  'stop'\n"
-"              fields  of the 'start-stop' range syntax. If a non-digit charac-\n"
-"              ter is given in the range, the server's response will be unspec-\n"
-"              ified, depending on the server's configuration.\n"
+"              ally not required. Note that this public key extraction requires\n"
+"              libcurl  to  be linked against a copy of libssh2 1.2.8 or higher\n"
+"              that is itself linked against OpenSSL.)\n"
 "\n"
-"              You  should also be aware that many HTTP/1.1 servers do not have\n"
-"              this feature enabled, so that when you attempt to get  a  range,\n"
+"       -Q, --quote\n"
+"              (FTP SFTP) Send an arbitrary command to the remote FTP  or  SFTP\n"
+"              server.  Quote commands are sent BEFORE the transfer takes place\n"
+"              (just after the initial PWD command in an FTP  transfer,  to  be\n"
 , stdout);

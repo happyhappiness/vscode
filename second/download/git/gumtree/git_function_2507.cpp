@@ -1,11 +1,25 @@
-static void show_tagger(char *buf, int len, struct rev_info *rev)
+static void print_value(struct atom_value *v, int quote_style)
 {
-	struct strbuf out = STRBUF_INIT;
-	struct pretty_print_context pp = {0};
-
-	pp.fmt = rev->commit_format;
-	pp.date_mode = rev->date_mode;
-	pp_user_info(&pp, "Tagger", &out, buf, get_log_output_encoding());
-	printf("%s", out.buf);
-	strbuf_release(&out);
+	struct strbuf sb = STRBUF_INIT;
+	switch (quote_style) {
+	case QUOTE_NONE:
+		fputs(v->s, stdout);
+		break;
+	case QUOTE_SHELL:
+		sq_quote_buf(&sb, v->s);
+		break;
+	case QUOTE_PERL:
+		perl_quote_buf(&sb, v->s);
+		break;
+	case QUOTE_PYTHON:
+		python_quote_buf(&sb, v->s);
+		break;
+	case QUOTE_TCL:
+		tcl_quote_buf(&sb, v->s);
+		break;
+	}
+	if (quote_style != QUOTE_NONE) {
+		fputs(sb.buf, stdout);
+		strbuf_release(&sb);
+	}
 }

@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv,
-                        r, APLOGNO(00760) "Cache locked for url, not caching "
-                        "response: %s", r->uri);
+ap_log_perror(file, line, APLOG_DEBUG, 0, l->pool, 
+                      "Acquiring mutex %s:%d", l->file, l->line);

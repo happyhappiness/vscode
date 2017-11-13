@@ -1,1 +1,1 @@
-fprintf(stderr, _("Aborting\n"));
+die("strange hostname '%s' blocked", host);

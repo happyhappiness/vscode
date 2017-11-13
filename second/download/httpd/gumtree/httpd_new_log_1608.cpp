@@ -1,1 +1,2 @@
-ap_rvputs(r, "   <tr class=\"", ( x & 0x1) ? "odd" : "even", "\">", NULL);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r,
+                      "Empty response header name, aborting request");

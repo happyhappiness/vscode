@@ -1,1 +1,1 @@
-argv_array_push(argv, sha1_to_hex(sha1));
+printf("Auto-merging notes for %s\n", oid_to_hex(&p->obj));

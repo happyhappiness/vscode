@@ -1,62 +1,16 @@
-static void show_filemodify(struct diff_queue_struct *q,
-			    struct diff_options *options, void *data)
+static void dos_time(timestamp_t *timestamp, int *dos_date, int *dos_time)
 {
-	int i;
+	time_t time;
+	struct tm *t;
 
-	/*
-	 * Handle files below a directory first, in case they are all deleted
-	 * and the directory changes to a file or symlink.
-	 */
-	qsort(q->queue, q->nr, sizeof(q->queue[0]), depth_first);
+	if (date_overflows(*timestamp))
+		die("timestamp too large for this system: %"PRItime,
+		    *timestamp);
+	time = (time_t)*timestamp;
+	t = localtime(&time);
+	*timestamp = time;
 
-	for (i = 0; i < q->nr; i++) {
-		struct diff_filespec *ospec = q->queue[i]->one;
-		struct diff_filespec *spec = q->queue[i]->two;
-
-		switch (q->queue[i]->status) {
-		case DIFF_STATUS_DELETED:
-			printf("D ");
-			print_path(spec->path);
-			putchar('\n');
-			break;
-
-		case DIFF_STATUS_COPIED:
-		case DIFF_STATUS_RENAMED:
-			printf("%c ", q->queue[i]->status);
-			print_path(ospec->path);
-			putchar(' ');
-			print_path(spec->path);
-			putchar('\n');
-
-			if (!hashcmp(ospec->sha1, spec->sha1) &&
-			    ospec->mode == spec->mode)
-				break;
-			/* fallthrough */
-
-		case DIFF_STATUS_TYPE_CHANGED:
-		case DIFF_STATUS_MODIFIED:
-		case DIFF_STATUS_ADDED:
-			/*
-			 * Links refer to objects in another repositories;
-			 * output the SHA-1 verbatim.
-			 */
-			if (no_data || S_ISGITLINK(spec->mode))
-				printf("M %06o %s ", spec->mode,
-				       sha1_to_hex(spec->sha1));
-			else {
-				struct object *object = lookup_object(spec->sha1);
-				printf("M %06o :%d ", spec->mode,
-				       get_object_mark(object));
-			}
-			print_path(spec->path);
-			putchar('\n');
-			break;
-
-		default:
-			die("Unexpected comparison status '%c' for %s, %s",
-				q->queue[i]->status,
-				ospec->path ? ospec->path : "none",
-				spec->path ? spec->path : "none");
-		}
-	}
+	*dos_date = t->tm_mday + (t->tm_mon + 1) * 32 +
+	            (t->tm_year + 1900 - 1980) * 512;
+	*dos_time = t->tm_sec / 2 + t->tm_min * 32 + t->tm_hour * 2048;
 }

@@ -1,3 +1,3 @@
-ap_rvputs(r, "          <httpd:route>",
-                          ap_escape_html(r->pool, worker->s->route),
-                          "</httpd:route>\n", NULL);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c,
+                          "h2_task(%s): serialize request %s %s", 
+                          task->id, task->request->method, task->request->path);

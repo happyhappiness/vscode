@@ -1,2 +1,2 @@
-error(_("The note contents have been left in %s"),
-				      path);
+die(_("missing object %s for %s"),
+		    sha1_to_hex(tagged), ref->refname);

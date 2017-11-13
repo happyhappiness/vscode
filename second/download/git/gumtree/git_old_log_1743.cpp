@@ -1,2 +1,1 @@
-error("There are still logs under '%s'",
-				      logfile);
+die(_("No existing author found with '%s'"), name);

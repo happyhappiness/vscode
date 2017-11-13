@@ -1,1 +1,2 @@
-fputs(pp->children[i].err.buf, stderr);
+die("cannot convert from %s to %s",
+		    charset, metainfo_charset);

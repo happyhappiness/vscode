@@ -1,1 +1,1 @@
-die_errno("Cannot come back to cwd");
+die("strange hostname '%s' blocked", host);

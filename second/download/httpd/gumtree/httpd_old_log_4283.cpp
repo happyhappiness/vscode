@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                        "failed to verify the OCSP response");
+ap_rputs("Ok", r);

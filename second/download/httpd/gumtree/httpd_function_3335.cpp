@@ -1,62 +1,133 @@
-static int cgid_init(apr_pool_t *p, apr_pool_t *plog, apr_pool_t *ptemp,
-                     server_rec *main_server)
+static int privileges_req(request_rec *r)
 {
-    apr_proc_t *procnew = NULL;
-    const char *userdata_key = "cgid_init";
-    module **m;
-    int ret = OK;
-    void *data;
+    /* secure mode: fork a process to handle the request */
+    apr_proc_t proc;
+    apr_status_t rv;
+    int exitcode;
+    apr_exit_why_e exitwhy;
+    int fork_req;
+    priv_cfg *cfg = ap_get_module_config(r->server->module_config,
+                                         &privileges_module);
 
-    root_server = main_server;
-    root_pool = p;
+    void *breadcrumb = ap_get_module_config(r->request_config,
+                                            &privileges_module);
 
-    apr_pool_userdata_get(&data, userdata_key, main_server->process->pool);
-    if (!data) {
-        procnew = apr_pcalloc(main_server->process->pool, sizeof(*procnew));
-        procnew->pid = -1;
-        procnew->err = procnew->in = procnew->out = NULL;
-        apr_pool_userdata_set((const void *)procnew, userdata_key,
-                     apr_pool_cleanup_null, main_server->process->pool);
+    if (!breadcrumb) {
+        /* first call: this is the vhost */
+        fork_req = (cfg->mode == PRIV_SECURE);
+
+        /* set breadcrumb */
+        ap_set_module_config(r->request_config, &privileges_module, &cfg->mode);
+
+        /* If we have per-dir config, defer doing anything */
+        if ((cfg->mode == PRIV_SELECTIVE)) {
+            /* Defer dropping privileges 'til we have a directory
+             * context that'll tell us whether to fork.
+             */
+            return DECLINED;
+        }
     }
     else {
-        procnew = data;
-    }
-
-    if (ap_state_query(AP_SQ_MAIN_STATE) != AP_SQ_MS_CREATE_PRE_CONFIG) {
-        char *tmp_sockname;
-        total_modules = 0;
-        for (m = ap_preloaded_modules; *m != NULL; m++)
-            total_modules++;
-
-        parent_pid = getpid();
-        tmp_sockname = ap_server_root_relative(p, sockname);
-        if (strlen(tmp_sockname) > sizeof(server_addr->sun_path) - 1) {
-            tmp_sockname[sizeof(server_addr->sun_path)] = '\0';
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, main_server, APLOGNO(01254)
-                        "The length of the ScriptSock path exceeds maximum, "
-                        "truncating to %s", tmp_sockname);
-        }
-        sockname = tmp_sockname;
-
-        server_addr_len = APR_OFFSETOF(struct sockaddr_un, sun_path) + strlen(sockname);
-        server_addr = (struct sockaddr_un *)apr_palloc(p, server_addr_len + 1);
-        server_addr->sun_family = AF_UNIX;
-        strcpy(server_addr->sun_path, sockname);
-
-        ret = cgid_start(p, main_server, procnew);
-        if (ret != OK ) {
-            return ret;
-        }
-        cgid_pfn_reg_with_ssi = APR_RETRIEVE_OPTIONAL_FN(ap_register_include_handler);
-        cgid_pfn_gtv          = APR_RETRIEVE_OPTIONAL_FN(ap_ssi_get_tag_and_value);
-        cgid_pfn_ps           = APR_RETRIEVE_OPTIONAL_FN(ap_ssi_parse_string);
-
-        if ((cgid_pfn_reg_with_ssi) && (cgid_pfn_gtv) && (cgid_pfn_ps)) {
-            /* Required by mod_include filter. This is how mod_cgid registers
-             *   with mod_include to provide processing of the exec directive.
+        /* second call is for per-directory. */
+        priv_dir_cfg *dcfg;
+        if ((cfg->mode != PRIV_SELECTIVE)) {
+            /* Our fate was already determined for the vhost -
+             * nothing to do per-directory
              */
-            cgid_pfn_reg_with_ssi("exec", handle_exec);
+            return DECLINED;
+        }
+        dcfg = ap_get_module_config(r->per_dir_config, &privileges_module);
+        fork_req = (dcfg->mode == PRIV_SECURE);
+    }
+
+    if (fork_req) {
+       rv = apr_proc_fork(&proc, r->pool);
+        switch (rv) {
+        case APR_INPARENT:
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "parent waiting for child");
+            /* FIXME - does the child need to run synchronously?
+             * esp. if we enable mod_privileges with threaded MPMs?
+             * We do need at least to ensure r outlives the child.
+             */
+            rv = apr_proc_wait(&proc, &exitcode, &exitwhy, APR_WAIT);
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "parent: child %s",
+                          (rv == APR_CHILD_DONE) ? "done" : "notdone");
+
+            /* The child has taken responsibility for reading all input
+             * and sending all output.  So we need to bow right out,
+             * and even abandon "normal" housekeeping.
+             */
+            r->eos_sent = 1;
+            apr_table_unset(r->headers_in, "Content-Type");
+            apr_table_unset(r->headers_in, "Content-Length");
+            /* Testing with ab and 100k requests reveals no nasties
+             * so I infer we're not leaking anything like memory
+             * or file descriptors.  That's nice!
+             */
+            return DONE;
+        case APR_INCHILD:
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "In child!");
+            break;  /* now we'll drop privileges in the child */
+        default:
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Failed to fork secure child process!");
+            return HTTP_INTERNAL_SERVER_ERROR;
         }
     }
-    return ret;
+
+    /* OK, now drop privileges. */
+
+    /* cleanup should happen even if something fails part-way through here */
+    apr_pool_cleanup_register(r->pool, r, privileges_end_req,
+                              apr_pool_cleanup_null);
+    /* set user and group if configured */
+    if (cfg->uid || cfg->gid) {
+        if (setppriv(PRIV_ON, PRIV_EFFECTIVE, priv_setid) == -1) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "No privilege to set user/group");
+        }
+        /* if we should be able to set these but can't, it could be
+         * a serious security issue.  Bail out rather than risk it!
+         */
+        if (cfg->uid && (setuid(cfg->uid) == -1)) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Error setting userid");
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+        if (cfg->gid && (setgid(cfg->gid) == -1)) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Error setting group");
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+    }
+    /* set vhost's privileges */
+    if (setppriv(PRIV_SET, PRIV_EFFECTIVE, cfg->priv) == -1) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, errno, r,
+                      "Error setting effective privileges");
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    /* ... including those of any subprocesses */
+    if (setppriv(PRIV_SET, PRIV_INHERITABLE, cfg->child_priv) == -1) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, errno, r,
+                      "Error setting inheritable privileges");
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+    if (setppriv(PRIV_SET, PRIV_LIMIT, cfg->child_priv) == -1) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, errno, r,
+                      "Error setting limit privileges");
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    /* If we're in a child process, drop down PPERM too */
+    if (fork_req) {
+        if (setppriv(PRIV_SET, PRIV_PERMITTED, cfg->priv) == -1) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, errno, r,
+                          "Error setting permitted privileges");
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+    }
+
+    return OK;
 }

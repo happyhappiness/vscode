@@ -1,59 +1,35 @@
-static int merge(const struct rerere_id *id, const char *path)
+static int grep_object(struct grep_opt *opt, const struct pathspec *pathspec,
+		       struct object *obj, const char *name, const char *path)
 {
-	FILE *f;
-	int ret;
-	mmfile_t cur = {NULL, 0}, base = {NULL, 0}, other = {NULL, 0};
-	mmbuffer_t result = {NULL, 0};
+	if (obj->type == OBJ_BLOB)
+		return grep_sha1(opt, obj->sha1, name, 0, path);
+	if (obj->type == OBJ_COMMIT || obj->type == OBJ_TREE) {
+		struct tree_desc tree;
+		void *data;
+		unsigned long size;
+		struct strbuf base;
+		int hit, len;
 
-	/*
-	 * Normalize the conflicts in path and write it out to
-	 * "thisimage" temporary file.
-	 */
-	if (handle_file(path, NULL, rerere_path(id, "thisimage")) < 0) {
-		ret = 1;
-		goto out;
+		grep_read_lock();
+		data = read_object_with_reference(obj->sha1, tree_type,
+						  &size, NULL);
+		grep_read_unlock();
+
+		if (!data)
+			die(_("unable to read tree (%s)"), sha1_to_hex(obj->sha1));
+
+		len = name ? strlen(name) : 0;
+		strbuf_init(&base, PATH_MAX + len + 1);
+		if (len) {
+			strbuf_add(&base, name, len);
+			strbuf_addch(&base, ':');
+		}
+		init_tree_desc(&tree, data, size);
+		hit = grep_tree(opt, pathspec, &tree, &base, base.len,
+				obj->type == OBJ_COMMIT);
+		strbuf_release(&base);
+		free(data);
+		return hit;
 	}
-
-	if (read_mmfile(&cur, rerere_path(id, "thisimage")) ||
-	    read_mmfile(&base, rerere_path(id, "preimage")) ||
-	    read_mmfile(&other, rerere_path(id, "postimage"))) {
-		ret = 1;
-		goto out;
-	}
-
-	/*
-	 * A three-way merge. Note that this honors user-customizable
-	 * low-level merge driver settings.
-	 */
-	ret = ll_merge(&result, path, &base, NULL, &cur, "", &other, "", NULL);
-	if (ret)
-		goto out;
-
-	/*
-	 * A successful replay of recorded resolution.
-	 * Mark that "postimage" was used to help gc.
-	 */
-	if (utime(rerere_path(id, "postimage"), NULL) < 0)
-		warning("failed utime() on %s: %s",
-			rerere_path(id, "postimage"),
-			strerror(errno));
-
-	/* Update "path" with the resolution */
-	f = fopen(path, "w");
-	if (!f)
-		return error("Could not open %s: %s", path,
-			     strerror(errno));
-	if (fwrite(result.ptr, result.size, 1, f) != 1)
-		error("Could not write %s: %s", path, strerror(errno));
-	if (fclose(f))
-		return error("Writing %s failed: %s", path,
-			     strerror(errno));
-
-out:
-	free(cur.ptr);
-	free(base.ptr);
-	free(other.ptr);
-	free(result.ptr);
-
-	return ret;
+	die(_("unable to grep from object of type %s"), typename(obj->type));
 }

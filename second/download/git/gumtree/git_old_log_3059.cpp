@@ -1,1 +1,2 @@
-die_errno("Could not open file '%s'", filename);
+die("Badly quoted content in file '%s': %s",
+			    filename, str.buf);

@@ -1,1 +1,1 @@
-path_failure(f_out, module_dir, False);
+out_of_memory("bitbag_create");

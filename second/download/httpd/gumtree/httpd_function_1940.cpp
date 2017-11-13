@@ -1,95 +1,255 @@
-PCOMP_CONTEXT mpm_get_completion_context(void)
+static int balancer_handler(request_rec *r)
 {
-    apr_status_t rv;
-    PCOMP_CONTEXT context = NULL;
+    void *sconf = r->server->module_config;
+    proxy_server_conf *conf = (proxy_server_conf *)
+        ap_get_module_config(sconf, &proxy_module);
+    proxy_balancer *balancer, *bsel = NULL;
+    proxy_worker *worker, *wsel = NULL;
+    apr_table_t *params = apr_table_make(r->pool, 10);
+    int access_status;
+    int i, n;
+    const char *name;
 
-    while (1) {
-        /* Grab a context off the queue */
-        apr_thread_mutex_lock(qlock);
-        if (qhead) {
-            context = qhead;
-            qhead = qhead->next;
-            if (!qhead)
-                qtail = NULL;
-        } else {
-            ResetEvent(qwait_event);
-        }
-        apr_thread_mutex_unlock(qlock);
+    /* is this for us? */
+    if (strcmp(r->handler, "balancer-manager"))
+        return DECLINED;
+    r->allowed = (AP_METHOD_BIT << M_GET);
+    if (r->method_number != M_GET)
+        return DECLINED;
 
-        if (!context) {
-            /* We failed to grab a context off the queue, consider allocating
-             * a new one out of the child pool. There may be up to
-             * (ap_threads_per_child + num_listeners) contexts in the system
-             * at once.
-             */
-            if (num_completion_contexts >= max_num_completion_contexts) {
-                /* All workers are busy, need to wait for one */
-                static int reported = 0;
-                if (!reported) {
-                    ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ap_server_conf,
-                                 "Server ran out of threads to serve requests. Consider "
-                                 "raising the ThreadsPerChild setting");
-                    reported = 1;
-                }
-
-                /* Wait for a worker to free a context. Once per second, give
-                 * the caller a chance to check for shutdown. If the wait
-                 * succeeds, get the context off the queue. It must be available,
-                 * since there's only one consumer.
+    if (r->args) {
+        char *args = apr_pstrdup(r->pool, r->args);
+        char *tok, *val;
+        while (args && *args) {
+            if ((val = ap_strchr(args, '='))) {
+                *val++ = '\0';
+                if ((tok = ap_strchr(val, '&')))
+                    *tok++ = '\0';
+                /*
+                 * Special case: workers are allowed path information
                  */
-                rv = WaitForSingleObject(qwait_event, 1000);
-                if (rv == WAIT_OBJECT_0)
-                    continue;
-                else /* Hopefully, WAIT_TIMEOUT */
-                    return NULL;
-            } else {
-                /* Allocate another context.
-                 * Note:
-                 * Multiple failures in the next two steps will cause the pchild pool
-                 * to 'leak' storage. I don't think this is worth fixing...
-                 */
-                apr_allocator_t *allocator;
-
-                apr_thread_mutex_lock(child_lock);
-                context = (PCOMP_CONTEXT) apr_pcalloc(pchild, sizeof(COMP_CONTEXT));
-
-                context->Overlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-                if (context->Overlapped.hEvent == NULL) {
-                    /* Hopefully this is a temporary condition ... */
-                    ap_log_error(APLOG_MARK,APLOG_WARNING, apr_get_os_error(), ap_server_conf,
-                                 "mpm_get_completion_context: CreateEvent failed.");
-
-                    apr_thread_mutex_unlock(child_lock);
-                    return NULL;
-                }
-
-                /* Create the tranaction pool */
-                apr_allocator_create(&allocator);
-                apr_allocator_max_free_set(allocator, ap_max_mem_free);
-                rv = apr_pool_create_ex(&context->ptrans, pchild, NULL, allocator);
-                if (rv != APR_SUCCESS) {
-                    ap_log_error(APLOG_MARK,APLOG_WARNING, rv, ap_server_conf,
-                                 "mpm_get_completion_context: Failed to create the transaction pool.");
-                    CloseHandle(context->Overlapped.hEvent);
-
-                    apr_thread_mutex_unlock(child_lock);
-                    return NULL;
-                }
-                apr_allocator_owner_set(allocator, context->ptrans);
-                apr_pool_tag(context->ptrans, "transaction");
-
-                context->accept_socket = INVALID_SOCKET;
-                context->ba = apr_bucket_alloc_create(context->ptrans);
-                apr_atomic_inc32(&num_completion_contexts);
-
-                apr_thread_mutex_unlock(child_lock);
-                break;
+                if ((access_status = ap_unescape_url(val)) != OK)
+                    if (strcmp(args, "w") || (access_status !=  HTTP_NOT_FOUND))
+                        return access_status;
+                apr_table_setn(params, args, val);
+                args = tok;
             }
-        } else {
-            /* Got a context from the queue */
-            break;
+            else
+                return HTTP_BAD_REQUEST;
         }
     }
+    
+    /* Check that the supplied nonce matches this server's nonce;
+     * otherwise ignore all parameters, to prevent a CSRF attack. */
+    if ((name = apr_table_get(params, "nonce")) == NULL 
+        || strcmp(balancer_nonce, name) != 0) {
+        apr_table_clear(params);
+    }
 
-    return context;
+    if ((name = apr_table_get(params, "b")))
+        bsel = ap_proxy_get_balancer(r->pool, conf,
+            apr_pstrcat(r->pool, "balancer://", name, NULL));
+    if ((name = apr_table_get(params, "w"))) {
+        proxy_worker *ws;
+
+        ws = ap_proxy_get_worker(r->pool, conf, name);
+        if (bsel && ws) {
+            worker = (proxy_worker *)bsel->workers->elts;
+            for (n = 0; n < bsel->workers->nelts; n++) {
+                if (strcasecmp(worker->name, ws->name) == 0) {
+                    wsel = worker;
+                    break;
+                }
+                ++worker;
+            }
+        }
+    }
+    /* First set the params */
+    /*
+     * Note that it is not possible set the proxy_balancer because it is not
+     * in shared memory.
+     */
+    if (wsel) {
+        const char *val;
+        if ((val = apr_table_get(params, "lf"))) {
+            int ival = atoi(val);
+            if (ival >= 1 && ival <= 100) {
+                wsel->s->lbfactor = ival;
+                if (bsel)
+                    recalc_factors(bsel);
+            }
+        }
+        if ((val = apr_table_get(params, "wr"))) {
+            if (strlen(val) && strlen(val) < PROXY_WORKER_MAX_ROUTE_SIZ)
+                strcpy(wsel->s->route, val);
+            else
+                *wsel->s->route = '\0';
+        }
+        if ((val = apr_table_get(params, "rr"))) {
+            if (strlen(val) && strlen(val) < PROXY_WORKER_MAX_ROUTE_SIZ)
+                strcpy(wsel->s->redirect, val);
+            else
+                *wsel->s->redirect = '\0';
+        }
+        if ((val = apr_table_get(params, "dw"))) {
+            if (!strcasecmp(val, "Disable"))
+                wsel->s->status |= PROXY_WORKER_DISABLED;
+            else if (!strcasecmp(val, "Enable"))
+                wsel->s->status &= ~PROXY_WORKER_DISABLED;
+        }
+        if ((val = apr_table_get(params, "ls"))) {
+            int ival = atoi(val);
+            if (ival >= 0 && ival <= 99) {
+                wsel->s->lbset = ival;
+             }
+        }
+
+    }
+    if (apr_table_get(params, "xml")) {
+        ap_set_content_type(r, "text/xml");
+        ap_rputs("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n", r);
+        ap_rputs("<httpd:manager xmlns:httpd=\"http://httpd.apache.org\">\n", r);
+        ap_rputs("  <httpd:balancers>\n", r);
+        balancer = (proxy_balancer *)conf->balancers->elts;
+        for (i = 0; i < conf->balancers->nelts; i++) {
+            ap_rputs("    <httpd:balancer>\n", r);
+            ap_rvputs(r, "      <httpd:name>", balancer->name, "</httpd:name>\n", NULL);
+            ap_rputs("      <httpd:workers>\n", r);
+            worker = (proxy_worker *)balancer->workers->elts;
+            for (n = 0; n < balancer->workers->nelts; n++) {
+                ap_rputs("        <httpd:worker>\n", r);
+                ap_rvputs(r, "          <httpd:scheme>", worker->scheme,
+                          "</httpd:scheme>\n", NULL);
+                ap_rvputs(r, "          <httpd:hostname>", worker->hostname,
+                          "</httpd:hostname>\n", NULL);
+               ap_rprintf(r, "          <httpd:loadfactor>%d</httpd:loadfactor>\n",
+                          worker->s->lbfactor);
+                ap_rputs("        </httpd:worker>\n", r);
+                ++worker;
+            }
+            ap_rputs("      </httpd:workers>\n", r);
+            ap_rputs("    </httpd:balancer>\n", r);
+            ++balancer;
+        }
+        ap_rputs("  </httpd:balancers>\n", r);
+        ap_rputs("</httpd:manager>", r);
+    }
+    else {
+        ap_set_content_type(r, "text/html; charset=ISO-8859-1");
+        ap_rputs(DOCTYPE_HTML_3_2
+                 "<html><head><title>Balancer Manager</title></head>\n", r);
+        ap_rputs("<body><h1>Load Balancer Manager for ", r);
+        ap_rvputs(r, ap_escape_html(r->pool, ap_get_server_name(r)),
+                  "</h1>\n\n", NULL);
+        ap_rvputs(r, "<dl><dt>Server Version: ",
+                  ap_get_server_description(), "</dt>\n", NULL);
+        ap_rvputs(r, "<dt>Server Built: ",
+                  ap_get_server_built(), "\n</dt></dl>\n", NULL);
+        balancer = (proxy_balancer *)conf->balancers->elts;
+        for (i = 0; i < conf->balancers->nelts; i++) {
+
+            ap_rputs("<hr />\n<h3>LoadBalancer Status for ", r);
+            ap_rvputs(r, balancer->name, "</h3>\n\n", NULL);
+            ap_rputs("\n\n<table border=\"0\" style=\"text-align: left;\"><tr>"
+                "<th>StickySession</th><th>Timeout</th><th>FailoverAttempts</th><th>Method</th>"
+                "</tr>\n<tr>", r);
+            if (balancer->sticky) {
+                ap_rvputs(r, "<td>", balancer->sticky, NULL);
+            }
+            else {
+                ap_rputs("<td> - ", r);
+            }
+            ap_rprintf(r, "</td><td>%" APR_TIME_T_FMT "</td>",
+                apr_time_sec(balancer->timeout));
+            ap_rprintf(r, "<td>%d</td>\n", balancer->max_attempts);
+            ap_rprintf(r, "<td>%s</td>\n",
+                       balancer->lbmethod->name);
+            ap_rputs("</table>\n<br />", r);
+            ap_rputs("\n\n<table border=\"0\" style=\"text-align: left;\"><tr>"
+                "<th>Worker URL</th>"
+                "<th>Route</th><th>RouteRedir</th>"
+                "<th>Factor</th><th>Set</th><th>Status</th>"
+                "<th>Elected</th><th>To</th><th>From</th>"
+                "</tr>\n", r);
+
+            worker = (proxy_worker *)balancer->workers->elts;
+            for (n = 0; n < balancer->workers->nelts; n++) {
+                char fbuf[50];
+                ap_rvputs(r, "<tr>\n<td><a href=\"",
+                          ap_escape_uri(r->pool, r->uri), "?b=",
+                          balancer->name + sizeof("balancer://") - 1, "&w=",
+                          ap_escape_uri(r->pool, worker->name),
+                          "&nonce=", balancer_nonce, 
+                          "\">", NULL);
+                ap_rvputs(r, worker->name, "</a></td>", NULL);
+                ap_rvputs(r, "<td>", ap_escape_html(r->pool, worker->s->route),
+                          NULL);
+                ap_rvputs(r, "</td><td>",
+                          ap_escape_html(r->pool, worker->s->redirect), NULL);
+                ap_rprintf(r, "</td><td>%d</td>", worker->s->lbfactor);
+                ap_rprintf(r, "<td>%d</td><td>", worker->s->lbset);
+                if (worker->s->status & PROXY_WORKER_DISABLED)
+                   ap_rputs("Dis ", r);
+                if (worker->s->status & PROXY_WORKER_IN_ERROR)
+                   ap_rputs("Err ", r);
+                if (worker->s->status & PROXY_WORKER_STOPPED)
+                   ap_rputs("Stop ", r);
+                if (worker->s->status & PROXY_WORKER_HOT_STANDBY)
+                   ap_rputs("Stby ", r);
+                if (PROXY_WORKER_IS_USABLE(worker))
+                    ap_rputs("Ok", r);
+                if (!PROXY_WORKER_IS_INITIALIZED(worker))
+                    ap_rputs("-", r);
+                ap_rputs("</td>", r);
+                ap_rprintf(r, "<td>%" APR_SIZE_T_FMT "</td><td>", worker->s->elected);
+                ap_rputs(apr_strfsize(worker->s->transferred, fbuf), r);
+                ap_rputs("</td><td>", r);
+                ap_rputs(apr_strfsize(worker->s->read, fbuf), r);
+                ap_rputs("</td></tr>\n", r);
+
+                ++worker;
+            }
+            ap_rputs("</table>\n", r);
+            ++balancer;
+        }
+        ap_rputs("<hr />\n", r);
+        if (wsel && bsel) {
+            ap_rputs("<h3>Edit worker settings for ", r);
+            ap_rvputs(r, wsel->name, "</h3>\n", NULL);
+            ap_rvputs(r, "<form method=\"GET\" action=\"", NULL);
+            ap_rvputs(r, ap_escape_uri(r->pool, r->uri), "\">\n<dl>", NULL);
+            ap_rputs("<table><tr><td>Load factor:</td><td><input name=\"lf\" type=text ", r);
+            ap_rprintf(r, "value=\"%d\"></td></tr>\n", wsel->s->lbfactor);
+            ap_rputs("<tr><td>LB Set:</td><td><input name=\"ls\" type=text ", r);
+            ap_rprintf(r, "value=\"%d\"></td></tr>\n", wsel->s->lbset);
+            ap_rputs("<tr><td>Route:</td><td><input name=\"wr\" type=text ", r);
+            ap_rvputs(r, "value=\"", ap_escape_html(r->pool, wsel->s->route),
+                      NULL);
+            ap_rputs("\"></td></tr>\n", r);
+            ap_rputs("<tr><td>Route Redirect:</td><td><input name=\"rr\" type=text ", r);
+            ap_rvputs(r, "value=\"", ap_escape_html(r->pool, wsel->s->redirect),
+                      NULL);
+            ap_rputs("\"></td></tr>\n", r);
+            ap_rputs("<tr><td>Status:</td><td>Disabled: <input name=\"dw\" value=\"Disable\" type=radio", r);
+            if (wsel->s->status & PROXY_WORKER_DISABLED)
+                ap_rputs(" checked", r);
+            ap_rputs("> | Enabled: <input name=\"dw\" value=\"Enable\" type=radio", r);
+            if (!(wsel->s->status & PROXY_WORKER_DISABLED))
+                ap_rputs(" checked", r);
+            ap_rputs("></td></tr>\n", r);
+            ap_rputs("<tr><td colspan=2><input type=submit value=\"Submit\"></td></tr>\n", r);
+            ap_rvputs(r, "</table>\n<input type=hidden name=\"w\" ",  NULL);
+            ap_rvputs(r, "value=\"", ap_escape_uri(r->pool, wsel->name), "\">\n", NULL);
+            ap_rvputs(r, "<input type=hidden name=\"b\" ", NULL);
+            ap_rvputs(r, "value=\"", bsel->name + sizeof("balancer://") - 1,
+                      "\">\n", NULL);
+            ap_rvputs(r, "<input type=hidden name=\"nonce\" value=\"", 
+                      balancer_nonce, "\">\n", NULL);
+            ap_rvputs(r, "</form>\n", NULL);
+            ap_rputs("<hr />\n", r);
+        }
+        ap_rputs(ap_psignature("",r), r);
+        ap_rputs("</body></html>\n", r);
+    }
+    return OK;
 }

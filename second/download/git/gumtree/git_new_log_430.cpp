@@ -1,1 +1,1 @@
-error("packet write failed");
+die(_("failed to resolve '%s' as a valid ref."), object_ref);

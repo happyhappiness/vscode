@@ -1,52 +1,40 @@
-static client_entry *add_client(unsigned long key, client_entry *info,
-                                server_rec *s)
+static int send_listeners_to_child(apr_pool_t *p, DWORD dwProcessId,
+                                   apr_file_t *child_in)
 {
-    int bucket;
-    client_entry *entry;
+    apr_status_t rv;
+    int lcnt = 0;
+    ap_listen_rec *lr;
+    LPWSAPROTOCOL_INFO  lpWSAProtocolInfo;
+    apr_size_t BytesWritten;
 
+    /* Run the chain of open sockets. For each socket, duplicate it
+     * for the target process then send the WSAPROTOCOL_INFO
+     * (returned by dup socket) to the child.
+     */
+    for (lr = ap_listeners; lr; lr = lr->next, ++lcnt) {
+        apr_os_sock_t nsd;
+        lpWSAProtocolInfo = apr_pcalloc(p, sizeof(WSAPROTOCOL_INFO));
+        apr_os_sock_get(&nsd,lr->sd);
+        ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, ap_server_conf,
+                     "Parent: Duplicating socket %d and sending it to child process %d",
+                     nsd, dwProcessId);
+        if (WSADuplicateSocket(nsd, dwProcessId,
+                               lpWSAProtocolInfo) == SOCKET_ERROR) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), ap_server_conf,
+                         "Parent: WSADuplicateSocket failed for socket %d. Check the FAQ.", lr->sd );
+            return -1;
+        }
 
-    if (!key || !client_shm) {
-        return NULL;
-    }
-
-    bucket = key % client_list->tbl_len;
-    entry  = client_list->table[bucket];
-
-    apr_global_mutex_lock(client_lock);
-
-    /* try to allocate a new entry */
-
-    entry = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(client_entry)));
-    if (!entry) {
-        long num_removed = gc();
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                     "Digest: gc'd %ld client entries. Total new clients: "
-                     "%ld; Total removed clients: %ld; Total renewed clients: "
-                     "%ld", num_removed,
-                     client_list->num_created - client_list->num_renewed,
-                     client_list->num_removed, client_list->num_renewed);
-        entry = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(client_entry)));
-        if (!entry) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                         "unable to allocate new auth_digest client");
-            apr_global_mutex_unlock(client_lock);
-            return NULL;       /* give up */
+        if ((rv = apr_file_write_full(child_in, lpWSAProtocolInfo,
+                                      sizeof(WSAPROTOCOL_INFO), &BytesWritten))
+                != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                         "Parent: Unable to write duplicated socket %d to the child.", lr->sd );
+            return -1;
         }
     }
 
-    /* now add the entry */
-
-    memcpy(entry, info, sizeof(client_entry));
-    entry->key  = key;
-    entry->next = client_list->table[bucket];
-    client_list->table[bucket] = entry;
-    client_list->num_created++;
-    client_list->num_entries++;
-
-    apr_global_mutex_unlock(client_lock);
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "allocated new client %lu", key);
-
-    return entry;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                 "Parent: Sent %d listeners to child %d", lcnt, dwProcessId);
+    return 0;
 }

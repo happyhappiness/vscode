@@ -1,27 +1,26 @@
-struct ref *fetch_pack(struct fetch_pack_args *args,
-		       int fd[], struct child_process *conn,
-		       const struct ref *ref,
-		       const char *dest,
-		       struct ref **sought, int nr_sought,
-		       struct sha1_array *shallow,
-		       char **pack_lockfile)
+int set_git_dir_init(const char *git_dir, const char *real_git_dir,
+		     int exist_ok)
 {
-	struct ref *ref_cpy;
-	struct shallow_info si;
+	if (real_git_dir) {
+		struct stat st;
 
-	fetch_pack_setup();
-	if (nr_sought)
-		nr_sought = remove_duplicates_in_refs(sought, nr_sought);
+		if (!exist_ok && !stat(git_dir, &st))
+			die(_("%s already exists"), git_dir);
 
-	if (!ref) {
-		packet_flush(fd[1]);
-		die("no matching remote head");
+		if (!exist_ok && !stat(real_git_dir, &st))
+			die(_("%s already exists"), real_git_dir);
+
+		/*
+		 * make sure symlinks are resolved because we'll be
+		 * moving the target repo later on in separate_git_dir()
+		 */
+		git_link = xstrdup(real_path(git_dir));
+		set_git_dir(real_path(real_git_dir));
 	}
-	prepare_shallow_info(&si, shallow);
-	ref_cpy = do_fetch_pack(args, fd, ref, sought, nr_sought,
-				&si, pack_lockfile);
-	reprepare_packed_git();
-	update_shallow(args, sought, nr_sought, &si);
-	clear_shallow_info(&si);
-	return ref_cpy;
+	else {
+		set_git_dir(real_path(git_dir));
+		git_link = NULL;
+	}
+	startup_info->have_repository = 1;
+	return 0;
 }

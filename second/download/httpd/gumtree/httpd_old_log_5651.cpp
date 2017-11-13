@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "stapling_cb: error checking for cached response "
-                         "after obtaining refresh mutex");
+ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf, APLOGNO(2404)
+                     "write pipe_of_death");

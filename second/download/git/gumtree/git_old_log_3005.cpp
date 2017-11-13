@@ -1,1 +1,1 @@
-error("seek error: %s", strerror(errno));
+error("cannot read delta preimage: %s", strerror(errno));

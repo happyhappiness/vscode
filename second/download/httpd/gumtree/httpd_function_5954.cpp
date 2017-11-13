@@ -1,33 +1,71 @@
-apr_status_t h2_response_trailers_filter(ap_filter_t *f, apr_bucket_brigade *bb)
+static int exipc_post_config(apr_pool_t *pconf, apr_pool_t *plog,
+                             apr_pool_t *ptemp, server_rec *s)
 {
-    h2_task *task = f->ctx;
-    h2_from_h1 *from_h1 = task->output.from_h1;
-    request_rec *r = f->r;
-    apr_bucket *b;
- 
-    if (from_h1 && from_h1->response) {
-        /* Detect the EOR bucket and forward any trailers that may have
-         * been set to our h2_response.
-         */
-        for (b = APR_BRIGADE_FIRST(bb);
-             b != APR_BRIGADE_SENTINEL(bb);
-             b = APR_BUCKET_NEXT(b))
-        {
-            if (AP_BUCKET_IS_EOR(b)) {
-                /* FIXME: need a better test case than this.
-                apr_table_setn(r->trailers_out, "X", "1"); */
-                if (r->trailers_out && !apr_is_empty_table(r->trailers_out)) {
-                    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c, APLOGNO(03049)
-                                  "h2_from_h1(%d): trailers filter, saving trailers",
-                                  from_h1->stream_id);
-                    h2_response_set_trailers(from_h1->response,
-                                             apr_table_clone(from_h1->pool, 
-                                                             r->trailers_out));
-                }
-                break;
-            }
-        }     
+    apr_status_t rs;
+    exipc_data *base;
+    const char *tempdir;
+
+
+    /*
+     * Do nothing if we are not creating the final configuration.
+     * The parent process gets initialized a couple of times as the
+     * server starts up, and we don't want to create any more mutexes
+     * and shared memory segments than we're actually going to use.
+     */
+    if (ap_state_query(AP_SQ_MAIN_STATE) == AP_SQ_MS_CREATE_PRE_CONFIG)
+        return OK;
+
+    /*
+     * The shared memory allocation routines take a file name.
+     * Depending on system-specific implementation of these
+     * routines, that file may or may not actually be created. We'd
+     * like to store those files in the operating system's designated
+     * temporary directory, which APR can point us to.
+     */
+    rs = apr_temp_dir_get(&tempdir, pconf);
+    if (APR_SUCCESS != rs) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rs, s,
+                     "Failed to find temporary directory");
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
-     
-    return ap_pass_brigade(f->next, bb);
+
+    /* Create the shared memory segment */
+
+    /*
+     * Create a unique filename using our pid. This information is
+     * stashed in the global variable so the children inherit it.
+     */
+    shmfilename = apr_psprintf(pconf, "%s/httpd_shm.%ld", tempdir,
+                               (long int)getpid());
+
+    /* Now create that segment */
+    rs = apr_shm_create(&exipc_shm, sizeof(exipc_data),
+                        (const char *) shmfilename, pconf);
+    if (APR_SUCCESS != rs) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rs, s,
+                     "Failed to create shared memory segment on file %s",
+                     shmfilename);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    /* Created it, now let's zero it out */
+    base = (exipc_data *)apr_shm_baseaddr_get(exipc_shm);
+    base->counter = 0;
+
+    /* Create global mutex */
+
+    rs = ap_global_mutex_create(&exipc_mutex, NULL, exipc_mutex_type, NULL,
+                                s, pconf, 0);
+    if (APR_SUCCESS != rs) {
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    /*
+     * Destroy the shm segment when the configuration pool gets destroyed. This
+     * happens on server restarts. The parent will then (above) allocate a new
+     * shm segment that the new children will bind to.
+     */
+    apr_pool_cleanup_register(pconf, NULL, shm_cleanup_wrapper,
+                              apr_pool_cleanup_null);
+    return OK;
 }

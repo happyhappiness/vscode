@@ -1,8 +1,10 @@
 fputs(
-"              If you start the data with the letter @, the rest  should  be  a\n"
-"              file  name  to read the data from, or - if you want curl to read\n"
-"              the data from stdin. Multiple files can also be specified. Post-\n"
-"              ing  data  from  a  file  named 'foobar' would thus be done with\n"
-"              --data @foobar. When --data is told to read  from  a  file  like\n"
-"              that, carriage returns and newlines will be stripped out. If you\n"
+"              (HTTP) Request a compressed response using one of the algorithms\n"
+"              curl supports, and save  the  uncompressed  document.   If  this\n"
+"              option  is  used  and  the server sends an unsupported encoding,\n"
+"              curl will report an error.\n"
+"\n"
+"       --connect-timeout <seconds>\n"
+"              Maximum time in seconds that  you  allow  curl's  connection  to\n"
+"              take.   This  only  limits the connection phase, so if curl con-\n"
 , stdout);

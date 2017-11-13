@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, APLOGNO(01208)
-                     "proxy: byrequests selected worker \"%s\" : busy %" APR_SIZE_T_FMT " : lbstatus %d",
-                     mycandidate->s->name, mycandidate->s->busy, mycandidate->s->lbstatus);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01406)
+                                 "inflate: extra field too big (not "
+                                 "supported)");

@@ -1,3 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE6, 0, r,
-               "ajp_parse_type: got %s (0x%02x)",
-               ajp_type_str(result), result);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
+                      "xlate output filter not added implicitly because %s",
+                      !reqinfo->output_ctx ?
+                      "no output configuration available" :
+                      "another module added the filter");

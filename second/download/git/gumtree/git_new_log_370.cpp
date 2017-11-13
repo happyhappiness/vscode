@@ -1,1 +1,1 @@
-die(_("no shallow found: %s"), line);
+die("object %s disappeared", oid_to_hex(oid));

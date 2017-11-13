@@ -1,1 +1,1 @@
-out_of_memory("glob_expand");
+fprintf(f,"  %-*s   ", maxLeftCol, left);

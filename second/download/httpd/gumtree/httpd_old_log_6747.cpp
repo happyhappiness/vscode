@@ -1,2 +1,1 @@
-ap_rvputs(r, "          <httpd:name>", worker->s->name,
-                          "</httpd:name>\n", NULL);
+ap_rputs(time_str, r);

@@ -1,1 +1,1 @@
-die("Could not parse commit from NOTES_MERGE_PARTIAL.");
+error(_("%s: %s"), name, strerror(errno));

@@ -1,11 +1,10 @@
 fputs(
-"              available at run-time.\n"
+"              See  also  -u,  --user  and  --proxy-digest  and --anyauth. This\n"
+"              option overrides --basic and --ntlm and --negotiate.\n"
 "\n"
-"       --expect100-timeout <seconds>\n"
-"              (HTTP) Maximum time in seconds that you allow curl to wait for a\n"
-"              100-continue  response  when curl emits an Expects: 100-continue\n"
-"              header in its request. By default curl  will  wait  one  second.\n"
-"              This  option accepts decimal values! When curl stops waiting, it\n"
-"              will continue as if the response has been received.\n"
-"\n"
+"       --disable-eprt\n"
+"              (FTP) Tell curl to disable the use of the EPRT and LPRT commands\n"
+"              when doing active FTP transfers. Curl will normally always first\n"
+"              attempt to use EPRT, then LPRT before using PORT, but with  this\n"
+"              option,  it  will  use PORT right away. EPRT and LPRT are exten-\n"
 , stdout);

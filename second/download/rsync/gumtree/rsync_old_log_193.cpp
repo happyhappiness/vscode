@@ -1,1 +1,1 @@
-fprintf(stderr,"sender finished %s\n",fname);
+fprintf(stderr,"data recv %d at %d\n",i,(int)offset);

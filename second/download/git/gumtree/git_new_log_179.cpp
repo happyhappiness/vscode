@@ -1,1 +1,2 @@
-die("unknown option passed through to git apply");
+error("unable to open object pack directory: %s: %s",
+			      path.buf, strerror(errno));

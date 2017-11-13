@@ -1,53 +1,73 @@
-static int merge_commit(struct notes_merge_options *o)
+static int try_threeway(struct apply_state *state,
+			struct image *image,
+			struct patch *patch,
+			struct stat *st,
+			const struct cache_entry *ce)
 {
-	struct strbuf msg = STRBUF_INIT;
-	unsigned char sha1[20], parent_sha1[20];
-	struct notes_tree *t;
-	struct commit *partial;
-	struct pretty_print_context pretty_ctx;
-	void *local_ref_to_free;
-	int ret;
+	unsigned char pre_sha1[20], post_sha1[20], our_sha1[20];
+	struct strbuf buf = STRBUF_INIT;
+	size_t len;
+	int status;
+	char *img;
+	struct image tmp_image;
 
-	/*
-	 * Read partial merge result from .git/NOTES_MERGE_PARTIAL,
-	 * and target notes ref from .git/NOTES_MERGE_REF.
-	 */
+	/* No point falling back to 3-way merge in these cases */
+	if (patch->is_delete ||
+	    S_ISGITLINK(patch->old_mode) || S_ISGITLINK(patch->new_mode))
+		return -1;
 
-	if (get_sha1("NOTES_MERGE_PARTIAL", sha1))
-		die("Failed to read ref NOTES_MERGE_PARTIAL");
-	else if (!(partial = lookup_commit_reference(sha1)))
-		die("Could not find commit from NOTES_MERGE_PARTIAL.");
-	else if (parse_commit(partial))
-		die("Could not parse commit from NOTES_MERGE_PARTIAL.");
+	/* Preimage the patch was prepared for */
+	if (patch->is_new)
+		write_sha1_file("", 0, blob_type, pre_sha1);
+	else if (get_sha1(patch->old_sha1_prefix, pre_sha1) ||
+		 read_blob_object(&buf, pre_sha1, patch->old_mode))
+		return error("repository lacks the necessary blob to fall back on 3-way merge.");
 
-	if (partial->parents)
-		hashcpy(parent_sha1, partial->parents->item->object.oid.hash);
-	else
-		hashclr(parent_sha1);
+	fprintf(stderr, "Falling back to three-way merge...\n");
 
-	t = xcalloc(1, sizeof(struct notes_tree));
-	init_notes(t, "NOTES_MERGE_PARTIAL", combine_notes_overwrite, 0);
+	img = strbuf_detach(&buf, &len);
+	prepare_image(&tmp_image, img, len, 1);
+	/* Apply the patch to get the post image */
+	if (apply_fragments(state, &tmp_image, patch) < 0) {
+		clear_image(&tmp_image);
+		return -1;
+	}
+	/* post_sha1[] is theirs */
+	write_sha1_file(tmp_image.buf, tmp_image.len, blob_type, post_sha1);
+	clear_image(&tmp_image);
 
-	o->local_ref = local_ref_to_free =
-		resolve_refdup("NOTES_MERGE_REF", 0, sha1, NULL);
-	if (!o->local_ref)
-		die("Failed to resolve NOTES_MERGE_REF");
+	/* our_sha1[] is ours */
+	if (patch->is_new) {
+		if (load_current(state, &tmp_image, patch))
+			return error("cannot read the current contents of '%s'",
+				     patch->new_name);
+	} else {
+		if (load_preimage(state, &tmp_image, patch, st, ce))
+			return error("cannot read the current contents of '%s'",
+				     patch->old_name);
+	}
+	write_sha1_file(tmp_image.buf, tmp_image.len, blob_type, our_sha1);
+	clear_image(&tmp_image);
 
-	if (notes_merge_commit(o, t, partial, sha1))
-		die("Failed to finalize notes merge");
+	/* in-core three-way merge between post and our using pre as base */
+	status = three_way_merge(image, patch->new_name,
+				 pre_sha1, our_sha1, post_sha1);
+	if (status < 0) {
+		fprintf(stderr, "Failed to fall back on three-way merge...\n");
+		return status;
+	}
 
-	/* Reuse existing commit message in reflog message */
-	memset(&pretty_ctx, 0, sizeof(pretty_ctx));
-	format_commit_message(partial, "%s", &msg, &pretty_ctx);
-	strbuf_trim(&msg);
-	strbuf_insert(&msg, 0, "notes: ", 7);
-	update_ref(msg.buf, o->local_ref, sha1,
-		   is_null_sha1(parent_sha1) ? NULL : parent_sha1,
-		   0, UPDATE_REFS_DIE_ON_ERR);
-
-	free_notes(t);
-	strbuf_release(&msg);
-	ret = merge_abort(o);
-	free(local_ref_to_free);
-	return ret;
+	if (status) {
+		patch->conflicted_threeway = 1;
+		if (patch->is_new)
+			oidclr(&patch->threeway_stage[0]);
+		else
+			hashcpy(patch->threeway_stage[0].hash, pre_sha1);
+		hashcpy(patch->threeway_stage[1].hash, our_sha1);
+		hashcpy(patch->threeway_stage[2].hash, post_sha1);
+		fprintf(stderr, "Applied patch to '%s' with conflicts.\n", patch->new_name);
+	} else {
+		fprintf(stderr, "Applied patch to '%s' cleanly.\n", patch->new_name);
+	}
+	return 0;
 }

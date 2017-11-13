@@ -1,301 +1,138 @@
-int mod_auth_ldap_auth_checker(request_rec *r)
-{
-    int result = 0;
-    mod_auth_ldap_request_t *req =
-        (mod_auth_ldap_request_t *)ap_get_module_config(r->request_config,
-        &auth_ldap_module);
-    mod_auth_ldap_config_t *sec =
-        (mod_auth_ldap_config_t *)ap_get_module_config(r->per_dir_config, 
-        &auth_ldap_module);
+static
+apr_status_t ap_proxy_http_create_connection(apr_pool_t *p, request_rec *r,
+                                             proxy_http_conn_t *p_conn,
+                                             conn_rec *c, conn_rec **origin,
+                                             proxy_conn_rec *backend,
+                                             proxy_server_conf *conf,
+                                             const char *proxyname) {
+    int failed=0, new=0;
+    apr_socket_t *client_socket = NULL;
 
-    util_ldap_connection_t *ldc = NULL;
-    int m = r->method_number;
-
-    const apr_array_header_t *reqs_arr = ap_requires(r);
-    require_line *reqs = reqs_arr ? (require_line *)reqs_arr->elts : NULL;
-
-    register int x;
-    const char *t;
-    char *w, *value;
-    int method_restricted = 0;
-
-    if (!sec->enabled) {
-        return DECLINED;
-    }
-
-    if (!sec->have_ldap_url) {
-        return DECLINED;
-    }
-
-    /*
-     * It is possible that we've skipped mod_auth_ldap's
-     * check_user_id hook, but still get here. In that
-     * case, the req request_config struct hasn't been initialized
-     * causing problems when we try to use req->dn and/or req->name
-     * below. So we simply create one.
-     *
-     * Unlike 2.2, we don't try to search or populate it.
+    /* We have determined who to connect to. Now make the connection, supporting
+     * a KeepAlive connection.
      */
-    if (!req) {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING|APLOG_NOERRNO, 0, r, 
-                      "[%d] auth_ldap authorise: "
-                      "no req struct - skipped mod_auth_ldap_check_user_id?",
-                      getpid());
 
-        req = (mod_auth_ldap_request_t *)apr_pcalloc(r->pool,
-                                                     sizeof(mod_auth_ldap_request_t));
-        ap_set_module_config(r->request_config, &auth_ldap_module, req);
-    }
-
-    if (sec->host) {
-        ldc = util_ldap_connection_find(r, sec->host, sec->port,
-                                       sec->binddn, sec->bindpw, sec->deref,
-                                       sec->secure);
-        apr_pool_cleanup_register(r->pool, ldc,
-                                  mod_auth_ldap_cleanup_connection_close,
-                                  apr_pool_cleanup_null);
-    }
-    else {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING|APLOG_NOERRNO, 0, r, 
-                      "[%d] auth_ldap authorise: no sec->host - weird...?", getpid());
-        return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
-    }
-
-    /* 
-     * If there are no elements in the group attribute array, the default should be
-     * member and uniquemember; populate the array now.
+    /* get all the possible IP addresses for the destname and loop through them
+     * until we get a successful connection
      */
-    if (sec->groupattr->nelts == 0) {
-        struct mod_auth_ldap_groupattr_entry_t *grp;
-#if APR_HAS_THREADS
-        apr_thread_mutex_lock(sec->lock);
-#endif
-        grp = apr_array_push(sec->groupattr);
-        grp->name = "member";
-        grp = apr_array_push(sec->groupattr);
-        grp->name = "uniquemember";
-#if APR_HAS_THREADS
-        apr_thread_mutex_unlock(sec->lock);
-#endif
-    }
 
-    if (!reqs_arr) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
-		      "[%d] auth_ldap authorise: no requirements array", getpid());
-        return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
-    }
-
-    /* Loop through the requirements array until there's no elements
-     * left, or something causes a return from inside the loop */
-    for(x=0; x < reqs_arr->nelts; x++) {
-        if (! (reqs[x].method_mask & (1 << m))) {
-            continue;
-        }
-        method_restricted = 1;
-	
-        t = reqs[x].requirement;
-        w = ap_getword_white(r->pool, &t);    
-
-        if (strcmp(w, "valid-user") == 0) {
-            /*
-             * Valid user will always be true if we authenticated with ldap,
-             * but when using front page, valid user should only be true if
-             * he exists in the frontpage password file. This hack will get
-             * auth_ldap to look up the user in the the pw file to really be
-             * sure that he's valid. Naturally, it requires mod_auth to be
-             * compiled in, but if mod_auth wasn't in there, then the need
-             * for this hack wouldn't exist anyway.
-             */
-            if (sec->frontpage_hack) {
-	        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
-			      "[%d] auth_ldap authorise: "
-			      "deferring authorisation to mod_auth (FP Hack)", 
-			      getpid());
-                return OK;
-            }
-            else {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
-                              "[%d] auth_ldap authorise: "
-                              "successful authorisation because user "
-                              "is valid-user", getpid());
-                return OK;
-            }
-        }
-        else if (strcmp(w, "user") == 0) {
-            if (req->dn == NULL || strlen(req->dn) == 0) {
-	        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
-                              "[%d] auth_ldap authorise: "
-                              "require user: user's DN has not been defined; failing authorisation", 
-                              getpid());
-                return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
-            }
-            /* 
-             * First do a whole-line compare, in case it's something like
-             *   require user Babs Jensen
-             */
-            result = util_ldap_cache_compare(r, ldc, sec->url, req->dn, sec->attribute, t);
-            switch(result) {
-                case LDAP_COMPARE_TRUE: {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
-                                  "[%d] auth_ldap authorise: "
-                                  "require user: authorisation successful", getpid());
-                    return OK;
-                }
-                default: {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
-                                  "[%d] auth_ldap authorise: require user: "
-                                  "authorisation failed [%s][%s]", getpid(),
-                                  ldc->reason, ldap_err2string(result));
-                }
-            }
-            /* 
-             * Now break apart the line and compare each word on it 
-             */
-            while (t[0]) {
-	        w = ap_getword_conf(r->pool, &t);
-                result = util_ldap_cache_compare(r, ldc, sec->url, req->dn, sec->attribute, w);
-                switch(result) {
-                    case LDAP_COMPARE_TRUE: {
-                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
-                                      "[%d] auth_ldap authorise: "
-                                      "require user: authorisation successful", getpid());
-                        return OK;
-                    }
-                    default: {
-                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
-                                      "[%d] auth_ldap authorise: "
-                                      "require user: authorisation failed [%s][%s]",
-                                      getpid(), ldc->reason, ldap_err2string(result));
-                    }
-                }
-            }
-        }
-        else if (strcmp(w, "dn") == 0) {
-            if (req->dn == NULL || strlen(req->dn) == 0) {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
-                              "[%d] auth_ldap authorise: "
-                              "require dn: user's DN has not been defined; failing authorisation", 
-                              getpid());
-                return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
-            }
-
-            result = util_ldap_cache_comparedn(r, ldc, sec->url, req->dn, t, sec->compare_dn_on_server);
-            switch(result) {
-                case LDAP_COMPARE_TRUE: {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
-                                  "[%d] auth_ldap authorise: "
-                                  "require dn: authorisation successful", getpid());
-                    return OK;
-                }
-                default: {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
-                                  "[%d] auth_ldap authorise: "
-                                  "require dn \"%s\": LDAP error [%s][%s]",
-                                  getpid(), t, ldc->reason, ldap_err2string(result));
-                }
-            }
-        }
-        else if (strcmp(w, "group") == 0) {
-            struct mod_auth_ldap_groupattr_entry_t *ent = (struct mod_auth_ldap_groupattr_entry_t *) sec->groupattr->elts;
-            int i;
-
-            if (sec->group_attrib_is_dn) {
-                if (req->dn == NULL || strlen(req->dn) == 0) {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
-                                  "[%d] auth_ldap authorise: require group: user's DN has not been defined; failing authorisation", 
-                                  getpid());
-                    return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
-                }
-            }
-            else {
-                if (req->user == NULL || strlen(req->user) == 0) {
-	            /* We weren't called in the authentication phase, so we didn't have a 
-                     * chance to set the user field. Do so now. */
-                    req->user = r->user;
-                }
-            }
-
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
-                          "[%d] auth_ldap authorise: require group: testing for group membership in \"%s\"", 
-		          getpid(), t);
-
-            for (i = 0; i < sec->groupattr->nelts; i++) {
-	        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
-                              "[%d] auth_ldap authorise: require group: testing for %s: %s (%s)", getpid(),
-                              ent[i].name, sec->group_attrib_is_dn ? req->dn : req->user, t);
-
-                result = util_ldap_cache_compare(r, ldc, sec->url, t, ent[i].name, 
-                                     sec->group_attrib_is_dn ? req->dn : req->user);
-                switch(result) {
-                    case LDAP_COMPARE_TRUE: {
-                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
-                                      "[%d] auth_ldap authorise: require group: "
-                                      "authorisation successful (attribute %s) [%s][%s]",
-                                      getpid(), ent[i].name, ldc->reason, ldap_err2string(result));
-                        return OK;
-                    }
-                    default: {
-                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
-                                      "[%d] auth_ldap authorise: require group \"%s\": "
-                                      "authorisation failed [%s][%s]",
-                                      getpid(), t, ldc->reason, ldap_err2string(result));
-                    }
-                }
-            }
-        }
-        else if (strcmp(w, "ldap-attribute") == 0) {
-            if (req->dn == NULL || strlen(req->dn) == 0) {
-	        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
-                              "[%d] auth_ldap authorise: "
-                              "require ldap-attribute: user's DN has not been defined; failing authorisation", 
-                              getpid());
-                return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
-            }
-            while (t[0]) {
-                w = ap_getword(r->pool, &t, '=');
-                value = ap_getword_conf(r->pool, &t);
-
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
-                              "[%d] auth_ldap authorise: checking attribute"
-                              " %s has value %s", getpid(), w, value);
-                result = util_ldap_cache_compare(r, ldc, sec->url, req->dn,
-                                                 w, value);
-                switch(result) {
-                    case LDAP_COMPARE_TRUE: {
-                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 
-                                      0, r, "[%d] auth_ldap authorise: "
-                                      "require attribute: authorisation "
-                                      "successful", getpid());
-                        return OK;
-                    }
-                    default: {
-                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 
-                                      0, r, "[%d] auth_ldap authorise: "
-                                      "require attribute: authorisation "
-                                      "failed [%s][%s]", getpid(), 
-                                      ldc->reason, ldap_err2string(result));
-                    }
-                }
-            }
+    /* if a keepalive socket is already open, check whether it must stay
+     * open, or whether it should be closed and a new socket created.
+     */
+    /* see memory note above */
+    if (backend->connection) {
+        client_socket = ap_get_module_config(backend->connection->conn_config, &core_module);
+        if ((backend->connection->id == c->id) &&
+            (backend->port == p_conn->port) &&
+            (backend->hostname) &&
+            (!apr_strnatcasecmp(backend->hostname, p_conn->name))) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: keepalive address match (keep original socket)");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: keepalive address mismatch / connection has"
+                         " changed (close old socket (%s/%s, %d/%d))", 
+                         p_conn->name, backend->hostname, p_conn->port,
+                         backend->port);
+            apr_socket_close(client_socket);
+            backend->connection = NULL;
         }
     }
 
-    if (!method_restricted) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
-                      "[%d] auth_ldap authorise: agreeing because non-restricted", 
-                      getpid());
-        return OK;
+    /* get a socket - either a keepalive one, or a new one */
+    new = 1;
+    if ((backend->connection) && (backend->connection->id == c->id)) {
+        apr_size_t buffer_len = 1;
+        char test_buffer[1]; 
+        apr_status_t socket_status;
+        apr_interval_time_t current_timeout;
+
+        /* use previous keepalive socket */
+        *origin = backend->connection;
+        p_conn->sock = client_socket;
+        new = 0;
+
+        /* save timeout */
+        apr_socket_timeout_get(p_conn->sock, &current_timeout);
+        /* set no timeout */
+        apr_socket_timeout_set(p_conn->sock, 0);
+        socket_status = apr_recv(p_conn->sock, test_buffer, &buffer_len);
+        /* put back old timeout */
+        apr_socket_timeout_set(p_conn->sock, current_timeout);
+        if ( APR_STATUS_IS_EOF(socket_status) ) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                         "proxy: HTTP: previous connection is closed");
+            new = 1;
+        }
     }
+    if (new) {
 
-    if (!sec->auth_authoritative) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
-                      "[%d] auth_ldap authorise: declining to authorise", getpid());
-        return DECLINED;
+        /* create a new socket */
+        backend->connection = NULL;
+
+        /*
+         * At this point we have a list of one or more IP addresses of
+         * the machine to connect to. If configured, reorder this
+         * list so that the "best candidate" is first try. "best
+         * candidate" could mean the least loaded server, the fastest
+         * responding server, whatever.
+         *
+         * For now we do nothing, ie we get DNS round robin.
+         * XXX FIXME
+         */
+        failed = ap_proxy_connect_to_backend(&p_conn->sock, "HTTP",
+                                             p_conn->addr, p_conn->name,
+                                             conf, r->server, c->pool);
+
+        /* handle a permanent error on the connect */
+        if (failed) {
+            if (proxyname) {
+                return DECLINED;
+            } else {
+                return HTTP_BAD_GATEWAY;
+            }
+        }
+
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: socket is connected");
+
+        /* the socket is now open, create a new backend server connection */
+        *origin = ap_run_create_connection(c->pool, r->server, p_conn->sock,
+                                           r->connection->id,
+                                           r->connection->sbh, c->bucket_alloc);
+        if (!*origin) {
+        /* the peer reset the connection already; ap_run_create_connection() 
+         * closed the socket
+         */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                         r->server, "proxy: an error occurred creating a "
+                         "new connection to %pI (%s)", p_conn->addr,
+                         p_conn->name);
+            apr_socket_close(p_conn->sock);
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+        backend->connection = *origin;
+        backend->hostname = apr_pstrdup(c->pool, p_conn->name);
+        backend->port = p_conn->port;
+
+        if (backend->is_ssl) {
+            if (!ap_proxy_ssl_enable(backend->connection)) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0,
+                             r->server, "proxy: failed to enable ssl support "
+                             "for %pI (%s)", p_conn->addr, p_conn->name);
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
+        }
+        else {
+            ap_proxy_ssl_disable(backend->connection);
+        }
+
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: connection complete to %pI (%s)",
+                     p_conn->addr, p_conn->name);
+
+        /* set up the connection filters */
+        ap_run_pre_connection(*origin, p_conn->sock);
     }
-
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
-                  "[%d] auth_ldap authorise: authorisation denied", getpid());
-    ap_note_basic_auth_failure (r);
-
-    return HTTP_UNAUTHORIZED;
+    return OK;
 }

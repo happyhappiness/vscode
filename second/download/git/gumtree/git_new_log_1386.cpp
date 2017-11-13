@@ -1,1 +1,0 @@
-fprintf(cmitmsg, "Message-Id: %s\n", message_id);

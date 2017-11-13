@@ -1,9 +1,36 @@
-void read_buf(int f,char *buf,int len)
+char *map_ptr(char *buf,off_t offset,int len)
 {
-  if (readfd(f,buf,len) != len) {
-    if (verbose > 1) 
-      fprintf(stderr,"Error reading %d bytes : %s\n",len,strerror(errno));
-    exit(1);
+  if (buf)
+    return buf+offset;
+
+  if (len == 0) 
+    return NULL;
+
+  len = MIN(len,map_size-offset);
+
+  if (offset >= p_offset && 
+      offset+len <= p_offset+p_len) {
+    return (p + (offset - p_offset));
   }
-  total_read += len;
+
+  len = MAX(len,CHUNK_SIZE);
+  len = MIN(len,map_size - offset);  
+
+  if (len > p_size) {
+    if (p) free(p);
+    p = (char *)malloc(len);
+    if (!p) out_of_memory("map_ptr");
+    p_size = len;
+  }
+
+  if (lseek(map_fd,offset,SEEK_SET) != offset ||
+      read(map_fd,p,len) != len) {
+    fprintf(stderr,"EOF in map_ptr!\n");
+    exit_cleanup(1);
+  }
+
+  p_offset = offset;
+  p_len = len;
+
+  return p; 
 }

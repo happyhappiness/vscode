@@ -1,1 +1,1 @@
-fprintf(stderr,"write failed on %s : %s\n",fname,strerror(errno));
+fprintf(stderr,"map_file failed\n");

@@ -1,1 +1,3 @@
-ap_rputs("<tr><td colspan='2'><input type=submit value='Submit'></td></tr>\n", r);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
+                              "h2_task_input(%s): getline: %s",
+                              input->task->id, buffer);

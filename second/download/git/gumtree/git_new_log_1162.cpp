@@ -1,1 +1,1 @@
-die("cannot combine --walk-reflogs with history-limiting options");
+error("empty patch: '%s'", patch);

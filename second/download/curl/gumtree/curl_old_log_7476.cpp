@@ -1,11 +1,9 @@
 fputs(
-"  to the file name. You can also post the contents of several files in one\n"
-"  field.  For example, the field name 'coolfiles' is used to send three files,\n"
-"  with different content types using the following syntax:\n"
+"  While -d uses the application/x-www-form-urlencoded mime-type, generally\n"
+"  understood by CGI's and similar, curl also supports the more capable\n"
+"  multipart/form-data type. This latter type supports things like file upload.\n"
 "\n"
-"        curl -F \"coolfiles=@fil1.gif;type=image/gif,fil2.txt,fil3.html\" \\\n"
-"        http://www.post.com/postit.cgi\n"
-"\n"
-"  If the content-type is not specified, curl will try to guess from the file\n"
-"  extension (it only knows a few), or use the previously specified type (from\n"
+"  -F accepts parameters like -F \"name=contents\". If you want the contents to\n"
+"  be read from a file, use <@filename> as contents. When specifying a file,\n"
+"  you can also specify the file content type by appending ';type=<mime type>'\n"
 , stdout);

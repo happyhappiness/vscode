@@ -1,9 +1,10 @@
 fputs(
-"              match   local.com,  local.com:80,  and  www.local.com,  but  not\n"
-"              www.notlocal.com.  (Added in 7.19.4).\n"
+"       --netrc-file\n"
+"              This  option  is similar to --netrc, except that you provide the\n"
+"              path (absolute or relative) to the netrc file that  Curl  should\n"
+"              use.   You  can  only  specify one netrc file per invocation. If\n"
+"              several --netrc-file options are provided,  only  the  last  one\n"
+"              will be used.  (Added in 7.21.5)\n"
 "\n"
-"       --ntlm (HTTP) Enables  NTLM  authentication.  The  NTLM  authentication\n"
-"              method was designed by Microsoft and is used by IIS web servers.\n"
-"              It is a proprietary protocol, reverse-engineered by clever  peo-\n"
-"              ple and implemented in curl based on their efforts. This kind of\n"
+"              This  option  overrides  any use of --netrc as they are mutually\n"
 , stdout);

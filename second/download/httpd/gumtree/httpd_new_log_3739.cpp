@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01166)
-                      "%s: Lock failed for pre_request", (*balancer)->s->name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01349) "unknown parameter "
+                          "\"%s\" to tag config in %s", tag, r->filename);

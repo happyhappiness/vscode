@@ -1,57 +1,85 @@
-static void cgid_maint(int reason, void *data, apr_wait_t status)
+static apr_status_t ssl_io_filter_Upgrade(ap_filter_t *f,
+                                         apr_bucket_brigade *bb)
+
 {
-    apr_proc_t *proc = data;
-    int mpm_state;
-    int stopping;
+    const char *upgrade;
+    apr_bucket_brigade *upgradebb;
+    request_rec *r = f->r;
+    apr_socket_t *csd = NULL;
+    char *key;
+    int ret;
+    secsocket_data *csd_data;
+    apr_bucket *b;
+    apr_status_t rv;
 
-    switch (reason) {
-        case APR_OC_REASON_DEATH:
-            apr_proc_other_child_unregister(data);
-            /* If apache is not terminating or restarting,
-             * restart the cgid daemon
-             */
-            stopping = 1; /* if MPM doesn't support query,
-                           * assume we shouldn't restart daemon
-                           */
-            if (ap_mpm_query(AP_MPMQ_MPM_STATE, &mpm_state) == APR_SUCCESS &&
-                mpm_state != AP_MPMQ_STOPPING) {
-                stopping = 0;
-            }
-            if (!stopping) {
-                if (status == DAEMON_STARTUP_ERROR) {
-                    ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL,
-                                 "cgid daemon failed to initialize");
-                }
-                else {
-                    ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
-                                 "cgid daemon process died, restarting");
-                    cgid_start(root_pool, root_server, proc);
-                }
-            }
-            break;
-        case APR_OC_REASON_RESTART:
-            /* don't do anything; server is stopping or restarting */
-            apr_proc_other_child_unregister(data);
-            break;
-        case APR_OC_REASON_LOST:
-            /* Restart the child cgid daemon process */
-            apr_proc_other_child_unregister(data);
-            cgid_start(root_pool, root_server, proc);
-            break;
-        case APR_OC_REASON_UNREGISTER:
-            /* we get here when pcgi is cleaned up; pcgi gets cleaned
-             * up when pconf gets cleaned up
-             */
-            kill(proc->pid, SIGHUP); /* send signal to daemon telling it to die */
+    /* Just remove the filter, if it doesn't work the first time, it won't
+     * work at all for this request.
+     */
+    ap_remove_output_filter(f);
 
-            /* Remove the cgi socket, we must do it here in order to try and
-             * guarantee the same permissions as when the socket was created.
-             */
-            if (unlink(sockname) < 0 && errno != ENOENT) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, errno, NULL,
-                             "Couldn't unlink unix domain socket %s",
-                             sockname);
-            }
-            break;
+    /* No need to ensure that this is a server with optional SSL, the filter
+     * is only inserted if that is true.
+     */
+
+    upgrade = apr_table_get(r->headers_in, "Upgrade");
+    if (upgrade == NULL
+        || strcmp(ap_getword(r->pool, &upgrade, ','), "TLS/1.0")) {
+            /* "Upgrade: TLS/1.0, ..." header not found, don't do Upgrade */
+        return ap_pass_brigade(f->next, bb);
     }
+
+    apr_table_unset(r->headers_out, "Upgrade");
+
+    if (r) {
+        csd_data = (secsocket_data*)ap_get_module_config(r->connection->conn_config, &nwssl_module);
+        csd = csd_data->csd;
+    }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "Unable to get upgradeable socket handle");
+        return ap_pass_brigade(f->next, bb);
+    }
+
+
+    /* Send the interim 101 response. */
+    upgradebb = apr_brigade_create(r->pool, f->c->bucket_alloc);
+
+    ap_fputstrs(f->next, upgradebb, SWITCH_STATUS_LINE, CRLF,
+                UPGRADE_HEADER, CRLF, CONNECTION_HEADER, CRLF, CRLF, NULL);
+
+    b = apr_bucket_flush_create(f->c->bucket_alloc);
+    APR_BRIGADE_INSERT_TAIL(upgradebb, b);
+
+    rv = ap_pass_brigade(f->next, upgradebb);
+    if (rv) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "could not send interim 101 Upgrade response");
+        return AP_FILTER_ERROR;
+    }
+
+    key = get_port_key(r->connection);
+
+    if (csd && key) {
+        int sockdes;
+        apr_os_sock_get(&sockdes, csd);
+
+
+        ret = SSLize_Socket(sockdes, key, r);
+        if (!ret) {
+            csd_data->is_secure = 1;
+        }
+    }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "Upgradeable socket handle not found");
+        return AP_FILTER_ERROR;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                 "Awaiting re-negotiation handshake");
+
+    /* Now that we have initialized the ssl connection which added the ssl_io_filter,
+       pass the brigade off to the connection based output filters so that the
+       request can complete encrypted */
+    return ap_pass_brigade(f->c->output_filters, bb);
 }

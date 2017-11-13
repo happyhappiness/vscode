@@ -1,4 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                         "proxy: read zero bytes, expecting"
-                         " %" APR_OFF_T_FMT " bytes",
-                         content_length);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                          "%s: type: %s, length: %" APR_SIZE_T_FMT,
+                          fname, b->type->name ? b->type->name : "(unknown)",
+                          b->length);

@@ -1,1 +1,1 @@
-rprintf(FERROR,"failed to open %s : %s\n",fname,strerror(errno));
+rprintf(FINFO,"built hash table\n");

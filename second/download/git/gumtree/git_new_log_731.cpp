@@ -1,1 +1,1 @@
-error("key does not contain variable name: %s", key);
+fprintf(s->fp, "%c %s%c", prefix, path, eol_char);

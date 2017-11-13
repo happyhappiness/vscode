@@ -1,11 +1,9 @@
 fputs(
-"                     This  will make curl URL-encode the content and pass that\n"
-"                     on. Just be careful so that the content  doesn't  contain\n"
-"                     any  =  or  @  symbols, as that will then make the syntax\n"
-"                     match one of the other cases below!\n"
-"\n"
-"              =content\n"
-"                     This will make curl URL-encode the content and pass  that\n"
-"                     on. The preceding = symbol is not included in the data.\n"
+"              If no '=' symbol is used in the argument, it is instead  treated\n"
+"              as a filename to read previously stored cookie from. This option\n"
+"              also activates the cookie engine which  will  make  curl  record\n"
+"              incoming  cookies,  which  may  be handy if you're using this in\n"
+"              combination with the -L, --location option or  do  multiple  URL\n"
+"              transfers on the same invoke.\n"
 "\n"
 , stdout);

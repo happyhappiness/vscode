@@ -1,80 +1,65 @@
-static int pass_response(request_rec *r, proxy_conn_rec *conn)
+static int lua_handler(request_rec *r)
 {
-    apr_bucket_brigade *bb;
-    apr_bucket *b;
-    const char *location;
-    scgi_config *conf;
-    socket_ex_data *sock_data;
-    int status;
-
-    sock_data = apr_palloc(r->pool, sizeof(*sock_data));
-    sock_data->sock = conn->sock;
-    sock_data->counter = &conn->worker->s->read;
-
-    bb = apr_brigade_create(r->pool, r->connection->bucket_alloc);
-    b = bucket_socket_ex_create(sock_data, r->connection->bucket_alloc);
-    APR_BRIGADE_INSERT_TAIL(bb, b);
-    b = apr_bucket_eos_create(r->connection->bucket_alloc);
-    APR_BRIGADE_INSERT_TAIL(bb, b);
-
-    status = ap_scan_script_header_err_brigade(r, bb, NULL);
-    if (status != OK) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "proxy: " PROXY_FUNCTION ": error reading response "
-                      "headers from %s:%u", conn->hostname, conn->port);
-        r->status_line = NULL;
-        apr_brigade_destroy(bb);
-        return status;
+    ap_lua_dir_cfg *dcfg;
+    if (strcmp(r->handler, "lua-script")) {
+        return DECLINED;
     }
 
-    conf = ap_get_module_config(r->per_dir_config, &proxy_scgi_module);
-    if (conf->sendfile && conf->sendfile != scgi_sendfile_off) {
-        short err = 1;
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "handling [%s] in mod_lua",
+                  r->filename);
+    dcfg = ap_get_module_config(r->per_dir_config, &lua_module);
 
-        location = apr_table_get(r->err_headers_out, conf->sendfile);
-        if (!location) {
-            err = 0;
-            location = apr_table_get(r->headers_out, conf->sendfile);
+    if (!r->header_only) {
+        lua_State *L;
+        const ap_lua_dir_cfg *cfg = ap_get_module_config(r->per_dir_config,
+                                                      &lua_module);
+        ap_lua_request_cfg *rcfg =
+            ap_get_module_config(r->request_config, &lua_module);
+        mapped_request_details *d = rcfg->mapped_request_details;
+        ap_lua_vm_spec *spec = NULL;
+
+        if (!d) {
+            d = apr_palloc(r->pool, sizeof(mapped_request_details));
+            spec = apr_pcalloc(r->pool, sizeof(ap_lua_vm_spec));
+            spec->scope = dcfg->vm_scope;
+            spec->pool = r->pool;
+            spec->file = r->filename;
+            spec->code_cache_style = dcfg->code_cache_style;
+            d->spec = spec;
+            d->function_name = "handle";
         }
-        if (location) {
-            scgi_request_config *req_conf = apr_palloc(r->pool,
-                                                       sizeof(*req_conf));
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "proxy: " PROXY_FUNCTION ": Found %s: %s - "
-                          "preparing subrequest.",
-                          conf->sendfile, location);
 
-            if (err) {
-                apr_table_unset(r->err_headers_out, conf->sendfile);
-            }
-            else {
-                apr_table_unset(r->headers_out, conf->sendfile);
-            }
-            req_conf->location = location;
-            req_conf->type = scgi_sendfile;
-            ap_set_module_config(r->request_config, &proxy_scgi_module,
-                                 req_conf);
-            apr_brigade_destroy(bb);
-            return OK;
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "request details scope:%u, cache:%u, filename:%s, function:%s",
+                      d->spec->scope,
+                      d->spec->code_cache_style,
+                      d->spec->file,
+                      d->function_name);
+        L = ap_lua_get_lua_state(r->pool,
+                              d->spec,
+                              cfg->package_paths,
+                              cfg->package_cpaths,
+                              &lua_open_callback, NULL);
+
+        if (!L) {
+            /* TODO annotate spec with failure reason */
+            r->status = HTTP_INTERNAL_SERVER_ERROR;
+            ap_rputs("Unable to compile VM, see logs", r);
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "got a vm!");
+        lua_getglobal(L, d->function_name);
+        if (!lua_isfunction(L, -1)) {
+            ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r,
+                          "lua: Unable to find function %s in %s",
+                          d->function_name,
+                          d->spec->file);
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+        ap_lua_run_lua_request(L, r);
+        if (lua_pcall(L, 1, 0, 0)) {
+            report_lua_error(L, r);
         }
     }
-
-    if (conf->internal_redirect && r->status == HTTP_OK) {
-        location = apr_table_get(r->headers_out, "Location");
-        if (location && *location == '/') {
-            scgi_request_config *req_conf = apr_palloc(r->pool,
-                                                       sizeof(*req_conf));
-            req_conf->location = location;
-            req_conf->type = scgi_internal_redirect;
-            ap_set_module_config(r->request_config, &proxy_scgi_module,
-                                 req_conf);
-            apr_brigade_destroy(bb);
-            return OK;
-        }
-    }
-
-    /* XXX: What could we do with that return code? */
-    (void)ap_pass_brigade(r->output_filters, bb);
-
     return OK;
 }

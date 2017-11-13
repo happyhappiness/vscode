@@ -1,1 +1,1 @@
-error("cannot lock ref '%s'", refname);
+fprintf(stderr, "cannot chmod %cx '%s'\n", flip, ce->name);

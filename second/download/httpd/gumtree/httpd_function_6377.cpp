@@ -1,52 +1,37 @@
-static authz_status authz_alias_check_authorization(request_rec *r,
-                                                    const char *require_args,
-                                                    const void *parsed_require_args)
+apr_status_t h2_mplx_in_read(h2_mplx *m, apr_read_type_e block,
+                             int stream_id, apr_bucket_brigade *bb, 
+                             apr_table_t *trailers,
+                             struct apr_thread_cond_t *iowait)
 {
-    const char *provider_name;
-    authz_status ret = AUTHZ_DENIED;
-
-    /* Look up the provider alias in the alias list.
-     * Get the the dir_config and call ap_Merge_per_dir_configs()
-     * Call the real provider->check_authorization() function
-     * return the result of the above function call
-     */
-
-    provider_name = apr_table_get(r->notes, AUTHZ_PROVIDER_NAME_NOTE);
-
-    if (provider_name) {
-        authz_core_srv_conf *authcfg;
-        provider_alias_rec *prvdraliasrec;
-
-        authcfg = ap_get_module_config(r->server->module_config,
-                                       &authz_core_module);
-
-        prvdraliasrec = apr_hash_get(authcfg->alias_rec, provider_name,
-                                     APR_HASH_KEY_STRING);
-
-        /* If we found the alias provider in the list, then merge the directory
-           configurations and call the real provider */
-        if (prvdraliasrec) {
-            ap_conf_vector_t *orig_dir_config = r->per_dir_config;
-
-            r->per_dir_config =
-                ap_merge_per_dir_configs(r->pool, orig_dir_config,
-                                         prvdraliasrec->sec_auth);
-
-            ret = prvdraliasrec->provider->
-                check_authorization(r, prvdraliasrec->provider_args,
-                                    prvdraliasrec->provider_parsed_args);
-
-            r->per_dir_config = orig_dir_config;
+    apr_status_t status; 
+    int acquired;
+    
+    AP_DEBUG_ASSERT(m);
+    if ((status = enter_mutex(m, &acquired)) == APR_SUCCESS) {
+        h2_io *io = h2_io_set_get(m->stream_ios, stream_id);
+        if (io && !io->orphaned) {
+            H2_MPLX_IO_IN(APLOG_TRACE2, m, io, "h2_mplx_in_read_pre");
+            
+            h2_io_signal_init(io, H2_IO_READ, m->stream_timeout, iowait);
+            status = h2_io_in_read(io, bb, -1, trailers);
+            while (APR_STATUS_IS_EAGAIN(status) 
+                   && !is_aborted(m, &status)
+                   && block == APR_BLOCK_READ) {
+                ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, m->c,
+                              "h2_mplx(%ld-%d): wait on in data (BLOCK_READ)", 
+                              m->id, stream_id);
+                status = h2_io_signal_wait(m, io);
+                if (status == APR_SUCCESS) {
+                    status = h2_io_in_read(io, bb, -1, trailers);
+                }
+            }
+            H2_MPLX_IO_IN(APLOG_TRACE2, m, io, "h2_mplx_in_read_post");
+            h2_io_signal_exit(io);
         }
         else {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02305)
-                          "no alias provider found for '%s' (BUG?)",
-                          provider_name);
+            status = APR_EOF;
         }
+        leave_mutex(m, acquired);
     }
-    else {
-        ap_assert(provider_name != NULL);
-    }
-
-    return ret;
+    return status;
 }

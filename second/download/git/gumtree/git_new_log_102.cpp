@@ -1,1 +1,0 @@
-die_errno("atexit(winansi_exit) failed");

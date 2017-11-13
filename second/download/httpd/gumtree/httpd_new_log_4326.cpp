@@ -1,2 +1,3 @@
-ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_TRACE3, 0, l->pool,
-                      "Acquiring mutex %s:%d", l->file, l->line);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(01206)
+                             "Failed to init balancer %s in child",
+                             balancer->s->name);

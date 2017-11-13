@@ -1,1 +1,1 @@
-die(_("bad numeric config value '%s' for '%s': %s"), value, name, reason);
+die(_("SHA1 COLLISION FOUND WITH %s !"), oid_to_hex(oid));

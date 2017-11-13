@@ -1,40 +1,57 @@
-static int fsck_obj(struct object *obj)
+int init_db(const char *template_dir, unsigned int flags)
 {
-	if (obj->flags & SEEN)
-		return 0;
-	obj->flags |= SEEN;
+	int reinit;
+	const char *git_dir = get_git_dir();
 
-	if (verbose)
-		fprintf(stderr, "Checking %s %s\n",
-			typename(obj->type), oid_to_hex(&obj->oid));
+	if (git_link)
+		separate_git_dir(git_dir);
 
-	if (fsck_walk(obj, NULL, &fsck_obj_options))
-		objerror(obj, "broken links");
-	if (fsck_object(obj, NULL, 0, &fsck_obj_options))
-		return -1;
+	safe_create_dir(git_dir, 0);
 
-	if (obj->type == OBJ_TREE) {
-		struct tree *item = (struct tree *) obj;
+	init_is_bare_repository = is_bare_repository();
 
-		free_tree_buffer(item);
+	/* Check to see if the repository version is right.
+	 * Note that a newly created repository does not have
+	 * config file, so this will not fail.  What we are catching
+	 * is an attempt to reinitialize new repository with an old tool.
+	 */
+	check_repository_format();
+
+	reinit = create_default_files(template_dir);
+
+	create_object_directory();
+
+	if (get_shared_repository()) {
+		char buf[10];
+		/* We do not spell "group" and such, so that
+		 * the configuration can be read by older version
+		 * of git. Note, we use octal numbers for new share modes,
+		 * and compatibility values for PERM_GROUP and
+		 * PERM_EVERYBODY.
+		 */
+		if (get_shared_repository() < 0)
+			/* force to the mode value */
+			xsnprintf(buf, sizeof(buf), "0%o", -get_shared_repository());
+		else if (get_shared_repository() == PERM_GROUP)
+			xsnprintf(buf, sizeof(buf), "%d", OLD_PERM_GROUP);
+		else if (get_shared_repository() == PERM_EVERYBODY)
+			xsnprintf(buf, sizeof(buf), "%d", OLD_PERM_EVERYBODY);
+		else
+			die("BUG: invalid value for shared_repository");
+		git_config_set("core.sharedrepository", buf);
+		git_config_set("receive.denyNonFastforwards", "true");
 	}
 
-	if (obj->type == OBJ_COMMIT) {
-		struct commit *commit = (struct commit *) obj;
+	if (!(flags & INIT_DB_QUIET)) {
+		int len = strlen(git_dir);
 
-		free_commit_buffer(commit);
-
-		if (!commit->parents && show_root)
-			printf("root %s\n", oid_to_hex(&commit->object.oid));
-	}
-
-	if (obj->type == OBJ_TAG) {
-		struct tag *tag = (struct tag *) obj;
-
-		if (show_tags && tag->tagged) {
-			printf("tagged %s %s", typename(tag->tagged->type), oid_to_hex(&tag->tagged->oid));
-			printf(" (%s) in %s\n", tag->tag, oid_to_hex(&tag->object.oid));
-		}
+		/* TRANSLATORS: The first '%s' is either "Reinitialized
+		   existing" or "Initialized empty", the second " shared" or
+		   "", and the last '%s%s' is the verbatim directory name. */
+		printf(_("%s%s Git repository in %s%s\n"),
+		       reinit ? _("Reinitialized existing") : _("Initialized empty"),
+		       get_shared_repository() ? _(" shared") : "",
+		       git_dir, len && git_dir[len-1] != '/' ? "/" : "");
 	}
 
 	return 0;

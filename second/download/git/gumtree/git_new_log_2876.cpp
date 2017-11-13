@@ -1,1 +1,1 @@
-warning_errno("failed to stat %s", pack_tmp_name);
+warning_errno("failed utime() on %s", pack_tmp_name);

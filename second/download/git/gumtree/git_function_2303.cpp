@@ -1,14 +1,30 @@
-int cmd_submodule__helper(int argc, const char **argv, const char *prefix)
+static int emit_one_suspect_detail(struct origin *suspect, int repeat)
 {
-	int i;
-	if (argc < 2)
-		die(_("fatal: submodule--helper subcommand must be "
-		      "called with a subcommand"));
+	struct commit_info ci;
 
-	for (i = 0; i < ARRAY_SIZE(commands); i++)
-		if (!strcmp(argv[1], commands[i].cmd))
-			return commands[i].fn(argc - 1, argv + 1, prefix);
+	if (!repeat && (suspect->commit->object.flags & METAINFO_SHOWN))
+		return 0;
 
-	die(_("fatal: '%s' is not a valid submodule--helper "
-	      "subcommand"), argv[1]);
+	suspect->commit->object.flags |= METAINFO_SHOWN;
+	get_commit_info(suspect->commit, &ci, 1);
+	printf("author %s\n", ci.author.buf);
+	printf("author-mail %s\n", ci.author_mail.buf);
+	printf("author-time %lu\n", ci.author_time);
+	printf("author-tz %s\n", ci.author_tz.buf);
+	printf("committer %s\n", ci.committer.buf);
+	printf("committer-mail %s\n", ci.committer_mail.buf);
+	printf("committer-time %lu\n", ci.committer_time);
+	printf("committer-tz %s\n", ci.committer_tz.buf);
+	printf("summary %s\n", ci.summary.buf);
+	if (suspect->commit->object.flags & UNINTERESTING)
+		printf("boundary\n");
+	if (suspect->previous) {
+		struct origin *prev = suspect->previous;
+		printf("previous %s ", sha1_to_hex(prev->commit->object.sha1));
+		write_name_quoted(prev->path, stdout, '\n');
+	}
+
+	commit_info_destroy(&ci);
+
+	return 1;
 }

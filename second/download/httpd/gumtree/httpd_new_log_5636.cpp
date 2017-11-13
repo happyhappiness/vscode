@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(03018)
-                         "Parsed addr %s", inet_ntoa(New->addr));
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                     APLOGNO(00374) "Failed to delete the '%s' service",
+                     mpm_display_name);

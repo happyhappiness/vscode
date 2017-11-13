@@ -1,1 +1,2 @@
-apr_file_printf(errfile, "Automatically using MD5 format." NL);
+apr_file_printf(errfile,"Warning: storing passwords as plain text "
+                        "might just not work on this platform." NL);

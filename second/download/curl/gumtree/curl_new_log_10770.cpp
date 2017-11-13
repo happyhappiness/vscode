@@ -1,8 +1,10 @@
 fputs(
-"              file name to read the data from, or - if you want curl  to  read\n"
-"              the data from stdin. Multiple files can also be specified. Post-\n"
-"              ing data from a file named 'foobar'  would  thus  be  done  with\n"
-"              --data  @foobar.  When  --data  is told to read from a file like\n"
-"              that, carriage returns and newlines will be stripped out. If you\n"
-"              don't  want the @ character to have a special interpretation use\n"
+"              cial  interpretation of the @ character. See -d, --data.  (Added\n"
+"              in 7.43.0)\n"
+"\n"
+"       --data-urlencode <data>\n"
+"              (HTTP) This posts data, similar to the other --data options with\n"
+"              the exception that this performs URL-encoding. (Added in 7.18.0)\n"
+"              To  be  CGI-compliant,  the <data> part should begin with a name\n"
+"              followed by a separator and a content specification. The  <data>\n"
 , stdout);

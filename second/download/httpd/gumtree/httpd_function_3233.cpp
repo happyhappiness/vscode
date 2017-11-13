@@ -1,127 +1,114 @@
-static int filter_lookup(ap_filter_t *f, ap_filter_rec_t *filter)
+static authz_status ldapattribute_check_authorization(request_rec *r,
+                                             const char *require_args)
 {
-    ap_filter_provider_t *provider;
-    int match = 0;
-    const char *err = NULL;
-    request_rec *r = f->r;
-    harness_ctx *ctx = f->ctx;
-    provider_ctx *pctx;
-#ifndef NO_PROTOCOL
-    unsigned int proto_flags;
-    mod_filter_ctx *rctx = ap_get_module_config(r->request_config,
-                                                &filter_module);
-#endif
+    int result = 0;
+    authn_ldap_request_t *req =
+        (authn_ldap_request_t *)ap_get_module_config(r->request_config, &authnz_ldap_module);
+    authn_ldap_config_t *sec =
+        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
 
-    /* Check registered providers in order */
-    for (provider = filter->providers; provider; provider = provider->next) {
-        if (provider->expr) {
-            match = ap_expr_exec(r, provider->expr, &err);
-            if (err) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01379)
-                              "Error evaluating filter dispatch condition: %s",
-                              err);
-                match = 0;
-            }
-            ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                          "Expression condition for '%s' %s",
-                          provider->frec->name,
-                          match ? "matched" : "did not match");
+    util_ldap_connection_t *ldc = NULL;
+
+    const char *t;
+    char *w, *value;
+
+    char filtbuf[FILTER_LENGTH];
+    const char *dn = NULL;
+
+    if (!r->user) {
+        return AUTHZ_DENIED_NO_USER;
+    }
+
+    if (!sec->have_ldap_url) {
+        return AUTHZ_DENIED;
+    }
+
+    if (sec->host) {
+        ldc = get_connection_for_authz(r, LDAP_COMPARE);
+        apr_pool_cleanup_register(r->pool, ldc,
+                                  authnz_ldap_cleanup_connection_close,
+                                  apr_pool_cleanup_null);
+    }
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "auth_ldap authorize: no sec->host - weird...?");
+        return AUTHZ_DENIED;
+    }
+
+    /*
+     * If we have been authenticated by some other module than mod_auth_ldap,
+     * the req structure needed for authorization needs to be created
+     * and populated with the userid and DN of the account in LDAP
+     */
+
+    if (!strlen(r->user)) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+            "ldap authorize: Userid is blank, AuthType=%s",
+            r->ap_auth_type);
+    }
+
+    if(!req) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+            "ldap authorize: Creating LDAP req structure");
+
+        /* Build the username filter */
+        authn_ldap_build_filter(filtbuf, r, r->user, NULL, sec);
+
+        /* Search for the user DN */
+        result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
+             sec->scope, sec->attributes, filtbuf, &dn, &(req->vals));
+
+        /* Search failed, log error and return failure */
+        if(result != LDAP_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                "auth_ldap authorise: User DN not found, %s", ldc->reason);
+            return AUTHZ_DENIED;
         }
-        else if (r->content_type) {
-            const char **type = provider->types;
-            size_t len = strcspn(r->content_type, "; \t");
-            AP_DEBUG_ASSERT(type != NULL);
-            while (*type) {
-                /* Handle 'content-type;charset=...' correctly */
-                if (strncmp(*type, r->content_type, len) == 0
-                    && (*type)[len] == '\0') {
-                    match = 1;
-                    break;
-                }
-                type++;
-            }
-            ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                          "Content-Type condition for '%s' %s",
-                          provider->frec->name,
-                          match ? "matched" : "did not match");
-        }
 
-        if (match) {
-            /* condition matches this provider */
-#ifndef NO_PROTOCOL
-            /* check protocol
-             *
-             * FIXME:
-             * This is a quick hack and almost certainly buggy.
-             * The idea is that by putting this in mod_filter, we relieve
-             * filter implementations of the burden of fixing up HTTP headers
-             * for cases that are routinely affected by filters.
-             *
-             * Default is ALWAYS to do nothing, so as not to tread on the
-             * toes of filters which want to do it themselves.
-             *
-             */
-            proto_flags = provider->frec->proto_flags;
+        req = (authn_ldap_request_t *)apr_pcalloc(r->pool,
+            sizeof(authn_ldap_request_t));
+        ap_set_module_config(r->request_config, &authnz_ldap_module, req);
+        req->dn = apr_pstrdup(r->pool, dn);
+        req->user = r->user;
+    }
 
-            /* some specific things can't happen in a proxy */
-            if (r->proxyreq) {
-                if (proto_flags & AP_FILTER_PROTO_NO_PROXY) {
-                    /* can't use this provider; try next */
-                    continue;
-                }
+    if (req->dn == NULL || strlen(req->dn) == 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "auth_ldap authorize: require ldap-attribute: user's DN "
+                      "has not been defined; failing authorization");
+        return AUTHZ_DENIED;
+    }
 
-                if (proto_flags & AP_FILTER_PROTO_TRANSFORM) {
-                    const char *str = apr_table_get(r->headers_out,
-                                                    "Cache-Control");
-                    if (str) {
-                        char *str1 = apr_pstrdup(r->pool, str);
-                        ap_str_tolower(str1);
-                        if (strstr(str1, "no-transform")) {
-                            /* can't use this provider; try next */
-                            continue;
-                        }
-                    }
-                    apr_table_addn(r->headers_out, "Warning",
-                                   apr_psprintf(r->pool,
-                                                "214 %s Transformation applied",
-                                                r->hostname));
-                }
-            }
+    t = require_args;
+    while (t[0]) {
+        w = ap_getword(r->pool, &t, '=');
+        value = ap_getword_conf(r->pool, &t);
 
-            /* things that are invalidated if the filter transforms content */
-            if (proto_flags & AP_FILTER_PROTO_CHANGE) {
-                apr_table_unset(r->headers_out, "Content-MD5");
-                apr_table_unset(r->headers_out, "ETag");
-                if (proto_flags & AP_FILTER_PROTO_CHANGE_LENGTH) {
-                    apr_table_unset(r->headers_out, "Content-Length");
-                }
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "auth_ldap authorize: checking attribute %s has value %s",
+                      w, value);
+        result = util_ldap_cache_compare(r, ldc, sec->url, req->dn, w, value);
+        switch(result) {
+            case LDAP_COMPARE_TRUE: {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "auth_ldap authorize: "
+                              "require attribute: authorization successful");
+                set_request_vars(r, LDAP_AUTHZ);
+                return AUTHZ_GRANTED;
             }
-
-            /* no-cache is for a filter that has different effect per-hit */
-            if (proto_flags & AP_FILTER_PROTO_NO_CACHE) {
-                apr_table_unset(r->headers_out, "Last-Modified");
-                apr_table_addn(r->headers_out, "Cache-Control", "no-cache");
+            default: {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "auth_ldap authorize: require attribute: "
+                              "authorization failed [%s][%s]",
+                              ldc->reason, ldap_err2string(result));
             }
-
-            if (proto_flags & AP_FILTER_PROTO_NO_BYTERANGE) {
-                apr_table_setn(r->headers_out, "Accept-Ranges", "none");
-            }
-            else if (rctx && rctx->range) {
-                /* restore range header we saved earlier */
-                apr_table_setn(r->headers_in, "Range", rctx->range);
-                rctx->range = NULL;
-            }
-#endif
-            for (pctx = ctx->init_ctx; pctx; pctx = pctx->next) {
-                if (pctx->provider == provider) {
-                    ctx->fctx = pctx->ctx ;
-                }
-            }
-            ctx->func = provider->frec->filter_func.out_func;
-            return 1;
         }
     }
 
-    /* No provider matched */
-    return 0;
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "auth_ldap authorize attribute: authorization denied for "
+                  "user %s to %s",
+                  r->user, r->uri);
+
+    return AUTHZ_DENIED;
 }

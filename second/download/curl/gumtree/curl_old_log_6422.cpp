@@ -1,10 +1,11 @@
 fputs(
-"              service  sockd/real-name  would  use  sockd/real-name  for cases\n"
-"              where the proxy-name does not match the principal name.   (Added\n"
-"              in 7.19.4).\n"
+"              This  option (as well as --socks4) does not work with IPV6, FTPS\n"
+"              or LDAP.\n"
 "\n"
-"       --socks5-gssapi-nec\n"
-"              As  part  of the gssapi negotiation a protection mode is negoti-\n"
-"              ated. RFC 1961 says in section 4.3/4.4 it should  be  protected,\n"
-"              but  the  NEC  reference  implementation  does  not.  The option\n"
+"       --socks5-gssapi-service <servicename>\n"
+"              The default service name for a socks server is rcmd/server-fqdn.\n"
+"              This option allows you to change it.\n"
+"\n"
+"              Examples:   --socks5  proxy-name  --socks5-gssapi-service  sockd\n"
+"              would use sockd/proxy-name --socks5 proxy-name  --socks5-gssapi-\n"
 , stdout);

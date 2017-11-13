@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                          "apr_socket_opt_set(APR_TCP_NODELAY): "
-                          "Failed to set");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                                     "Child %d: Encountered too many accept() "
+                                     "resource faults, aborting.",
+                                     my_pid);

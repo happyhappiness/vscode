@@ -1,49 +1,66 @@
-int copy_file(char *source, char *dest, mode_t mode)
+static int writefd(int fd,char *buf,int len)
 {
-	int ifd;
-	int ofd;
-	char buf[1024 * 8];
-	int len;   /* Number of bytes read into `buf'. */
+  int total = 0;
+  fd_set w_fds, r_fds;
+  int fd_count, count, got_select=0;
+  struct timeval tv;
 
-	ifd = open(source, O_RDONLY);
-	if (ifd == -1) {
-		fprintf(FERROR,"open %s: %s\n",
-			source,strerror(errno));
-		return -1;
-	}
+  if (buffer_f_in == -1) 
+    return write(fd,buf,len);
 
-	if (unlink(dest) && errno != ENOENT) {
-		fprintf(FERROR,"unlink %s: %s\n",
-			dest,strerror(errno));
-		return -1;
-	}
+  while (total < len) {
+    int ret = write(fd,buf+total,len-total);
 
-	ofd = open(dest, O_WRONLY | O_CREAT | O_TRUNC | O_EXCL, mode);
-	if (ofd < 0) {
-		fprintf(FERROR,"open %s: %s\n",
-			dest,strerror(errno));
-		close(ifd);
-		return -1;
-	}
+    if (ret == 0) return total;
 
-	while ((len = safe_read(ifd, buf, sizeof(buf))) > 0) {
-		if (full_write(ofd, buf, len) < 0) {
-			fprintf(FERROR,"write %s: %s\n",
-				dest,strerror(errno));
-			close(ifd);
-			close(ofd);
-			return -1;
-		}
-	}
+    if (ret == -1 && !(errno == EWOULDBLOCK || errno == EAGAIN)) 
+      return -1;
 
-	close(ifd);
-	close(ofd);
+    if (ret == -1 && got_select) {
+	    /* hmmm, we got a write select on the fd and then failed to write.
+	       Why doesn't that mean that the fd is dead? It doesn't on some
+	       systems it seems (eg. IRIX) */
+#if 0
+	    fprintf(FERROR,"write exception\n");
+	    exit_cleanup(1);
+#endif
+    }
 
-	if (len < 0) {
-		fprintf(FERROR,"read %s: %s\n",
-			source,strerror(errno));
-		return -1;
-	}
+    got_select = 0;
 
-	return 0;
+
+    if (ret == -1) {
+      read_check(buffer_f_in);
+
+      fd_count = fd+1;
+      FD_ZERO(&w_fds);
+      FD_ZERO(&r_fds);
+      FD_SET(fd,&w_fds);
+      if (buffer_f_in != -1) {
+	      FD_SET(buffer_f_in,&r_fds);
+	      if (buffer_f_in > fd) 
+		      fd_count = buffer_f_in+1;
+      }
+
+      tv.tv_sec = BLOCKING_TIMEOUT;
+      tv.tv_usec = 0;
+      count = select(fd_count,buffer_f_in == -1? NULL: &r_fds,
+		     &w_fds,NULL,&tv);
+      if (count == -1 && errno != EINTR) {
+	      if (verbose > 1) 
+		      fprintf(FERROR,"select error: %s\n", strerror(errno));
+	      exit_cleanup(1);
+      }
+
+      if (count == 0) continue;
+      
+      if (FD_ISSET(fd, &w_fds)) {
+	      got_select = 1;
+      }
+    } else {
+      total += ret;
+    }
+  }
+
+  return total;
 }

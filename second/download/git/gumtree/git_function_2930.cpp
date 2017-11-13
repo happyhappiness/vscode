@@ -1,41 +1,16 @@
-static int serve_cache_loop(int fd)
+static int populate_from_stdin(struct diff_filespec *s)
 {
-	struct pollfd pfd;
-	unsigned long wakeup;
+	struct strbuf buf = STRBUF_INIT;
+	size_t size = 0;
 
-	wakeup = check_expirations();
-	if (!wakeup)
-		return 0;
+	if (strbuf_read(&buf, 0, 0) < 0)
+		return error("error while reading from stdin %s",
+				     strerror(errno));
 
-	pfd.fd = fd;
-	pfd.events = POLLIN;
-	if (poll(&pfd, 1, 1000 * wakeup) < 0) {
-		if (errno != EINTR)
-			die_errno("poll failed");
-		return 1;
-	}
-
-	if (pfd.revents & POLLIN) {
-		int client, client2;
-		FILE *in, *out;
-
-		client = accept(fd, NULL, NULL);
-		if (client < 0) {
-			warning("accept failed: %s", strerror(errno));
-			return 1;
-		}
-		client2 = dup(client);
-		if (client2 < 0) {
-			warning("dup failed: %s", strerror(errno));
-			close(client);
-			return 1;
-		}
-
-		in = xfdopen(client, "r");
-		out = xfdopen(client2, "w");
-		serve_one_client(in, out);
-		fclose(in);
-		fclose(out);
-	}
-	return 1;
+	s->should_munmap = 0;
+	s->data = strbuf_detach(&buf, &size);
+	s->size = size;
+	s->should_free = 1;
+	s->is_stdin = 1;
+	return 0;
 }

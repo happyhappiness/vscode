@@ -1,35 +1,34 @@
-static int list_tags(struct ref_filter *filter, struct ref_sorting *sorting,
-		     struct ref_format *format)
+static void am_resolve(struct am_state *state)
 {
-	struct ref_array array;
-	char *to_free = NULL;
-	int i;
+	validate_resume_state(state);
 
-	memset(&array, 0, sizeof(array));
+	say(state, stdout, _("Applying: %.*s"), linelen(state->msg), state->msg);
 
-	if (filter->lines == -1)
-		filter->lines = 0;
-
-	if (!format->format) {
-		if (filter->lines) {
-			to_free = xstrfmt("%s %%(contents:lines=%d)",
-					  "%(align:15)%(refname:lstrip=2)%(end)",
-					  filter->lines);
-			format->format = to_free;
-		} else
-			format->format = "%(refname:lstrip=2)";
+	if (!index_has_changes(NULL)) {
+		printf_ln(_("No changes - did you forget to use 'git add'?\n"
+			"If there is nothing left to stage, chances are that something else\n"
+			"already introduced the same changes; you might want to skip this patch."));
+		die_user_resolve(state);
 	}
 
-	if (verify_ref_format(format))
-		die(_("unable to parse format string"));
-	filter->with_commit_tag_algo = 1;
-	filter_refs(&array, filter, FILTER_REFS_TAGS);
-	ref_array_sort(sorting, &array);
+	if (unmerged_cache()) {
+		printf_ln(_("You still have unmerged paths in your index.\n"
+			"Did you forget to use 'git add'?"));
+		die_user_resolve(state);
+	}
 
-	for (i = 0; i < array.nr; i++)
-		show_ref_array_item(array.items[i], format);
-	ref_array_clear(&array);
-	free(to_free);
+	if (state->interactive) {
+		write_index_patch(state);
+		if (do_interactive(state))
+			goto next;
+	}
 
-	return 0;
+	rerere(0);
+
+	do_commit(state);
+
+next:
+	am_next(state);
+	am_load(state);
+	am_run(state, 0);
 }

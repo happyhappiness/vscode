@@ -1,1 +1,1 @@
-printf("%s%s\n", tok, val);
+printf("%s%c %s\n", tok, separators[0], val);

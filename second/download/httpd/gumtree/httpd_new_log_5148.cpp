@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02830)
-                        "ajp_marshal_into_msgb: "
-                        "Error appending attribute %s=%s",
-                        key, envvar);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00234)
+                         "MinSpareThreads of %d not allowed, increasing to 1",
+                         ap_threads_min_free);

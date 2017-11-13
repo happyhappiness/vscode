@@ -1,10 +1,11 @@
 fputs(
-"                             also only enables http and https\n"
+"              Tell  curl  to  not handle sequences of /../ or /./ in the given\n"
+"              URL path. Normally curl will squash or merge them  according  to\n"
+"              standards but with this option set you tell it not to do that.\n"
 "\n"
-"              Unknown  protocols  produce  a  warning.  This allows scripts to\n"
-"              safely rely on being able to disable potentially dangerous  pro-\n"
-"              tocols,  without  relying  upon  support for that protocol being\n"
-"              built into curl to avoid an error.\n"
+"              (Added in 7.42.0)\n"
 "\n"
-"              This option can be used multiple times, in which case the effect\n"
+"       --post301\n"
+"              (HTTP) Tells curl to respect RFC 7230/6.4.2 and not convert POST\n"
+"              requests into GET requests when following a 301 redirection. The\n"
 , stdout);

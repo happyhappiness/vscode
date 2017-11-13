@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
-                     "make_secure_socket: failed to get a socket for %s",
-                     addr);
+printf("<tr %s><th colspan=2 %s>Requests per second:</th>"
+           "<td colspan=2 %s>%.2f</td></tr>\n",
+           trstring, tdstring, tdstring, 1000 * (float) (done) / timetaken);

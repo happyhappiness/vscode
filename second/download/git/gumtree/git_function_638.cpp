@@ -1,65 +1,34 @@
-static int run_git_commit(const char *defmsg, struct replay_opts *opts,
-			  int allow_empty, int edit, int amend,
-			  int cleanup_commit_message)
+static int populate_opts_cb(const char *key, const char *value, void *data)
 {
-	struct child_process cmd = CHILD_PROCESS_INIT;
-	const char *value;
+	struct replay_opts *opts = data;
+	int error_flag = 1;
 
-	cmd.git_cmd = 1;
+	if (!value)
+		error_flag = 0;
+	else if (!strcmp(key, "options.no-commit"))
+		opts->no_commit = git_config_bool_or_int(key, value, &error_flag);
+	else if (!strcmp(key, "options.edit"))
+		opts->edit = git_config_bool_or_int(key, value, &error_flag);
+	else if (!strcmp(key, "options.signoff"))
+		opts->signoff = git_config_bool_or_int(key, value, &error_flag);
+	else if (!strcmp(key, "options.record-origin"))
+		opts->record_origin = git_config_bool_or_int(key, value, &error_flag);
+	else if (!strcmp(key, "options.allow-ff"))
+		opts->allow_ff = git_config_bool_or_int(key, value, &error_flag);
+	else if (!strcmp(key, "options.mainline"))
+		opts->mainline = git_config_int(key, value);
+	else if (!strcmp(key, "options.strategy"))
+		git_config_string(&opts->strategy, key, value);
+	else if (!strcmp(key, "options.gpg-sign"))
+		git_config_string(&opts->gpg_sign, key, value);
+	else if (!strcmp(key, "options.strategy-option")) {
+		ALLOC_GROW(opts->xopts, opts->xopts_nr + 1, opts->xopts_alloc);
+		opts->xopts[opts->xopts_nr++] = xstrdup(value);
+	} else
+		return error(_("Invalid key: %s"), key);
 
-	if (is_rebase_i(opts)) {
-		if (!edit) {
-			cmd.stdout_to_stderr = 1;
-			cmd.err = -1;
-		}
+	if (!error_flag)
+		return error(_("Invalid value for %s: %s"), key, value);
 
-		if (read_env_script(&cmd.env_array)) {
-			const char *gpg_opt = gpg_sign_opt_quoted(opts);
-
-			return error(_(staged_changes_advice),
-				     gpg_opt, gpg_opt);
-		}
-	}
-
-	argv_array_push(&cmd.args, "commit");
-	argv_array_push(&cmd.args, "-n");
-
-	if (amend)
-		argv_array_push(&cmd.args, "--amend");
-	if (opts->gpg_sign)
-		argv_array_pushf(&cmd.args, "-S%s", opts->gpg_sign);
-	if (opts->signoff)
-		argv_array_push(&cmd.args, "-s");
-	if (defmsg)
-		argv_array_pushl(&cmd.args, "-F", defmsg, NULL);
-	if (cleanup_commit_message)
-		argv_array_push(&cmd.args, "--cleanup=strip");
-	if (edit)
-		argv_array_push(&cmd.args, "-e");
-	else if (!cleanup_commit_message &&
-		 !opts->signoff && !opts->record_origin &&
-		 git_config_get_value("commit.cleanup", &value))
-		argv_array_push(&cmd.args, "--cleanup=verbatim");
-
-	if (allow_empty)
-		argv_array_push(&cmd.args, "--allow-empty");
-
-	if (opts->allow_empty_message)
-		argv_array_push(&cmd.args, "--allow-empty-message");
-
-	if (cmd.err == -1) {
-		/* hide stderr on success */
-		struct strbuf buf = STRBUF_INIT;
-		int rc = pipe_command(&cmd,
-				      NULL, 0,
-				      /* stdout is already redirected */
-				      NULL, 0,
-				      &buf, 0);
-		if (rc)
-			fputs(buf.buf, stderr);
-		strbuf_release(&buf);
-		return rc;
-	}
-
-	return run_command(&cmd);
+	return 0;
 }

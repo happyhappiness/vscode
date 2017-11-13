@@ -1,4 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Authorization of user %s to access %s failed, reason: "
-                          "user doesn't appear in DBM group file (%s).", 
-                          r->user, r->uri, conf->grpfile);
+fprintf(stderr, "                    (" SSL2_HELP_MSG "SSL3, TLS1" TLS1_X_HELP_MSG " or ALL)\n");

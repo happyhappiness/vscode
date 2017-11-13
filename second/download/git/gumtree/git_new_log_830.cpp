@@ -1,1 +1,1 @@
-die("BUG: how is this possible?");
+error(_("could not read HEAD's commit message"));

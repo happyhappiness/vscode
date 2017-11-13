@@ -1,1 +1,0 @@
-fprintf(FERROR,"receiver read %d\n",read_total());

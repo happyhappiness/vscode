@@ -1,1 +1,1 @@
-mutt_window_mvprintw (MuttIndexWindow, HDR_FCC, 0, TITLE_FMT, Prompts[HDR_FCC]);
+(mutt_yesorno (prompt, MUTT_YES);

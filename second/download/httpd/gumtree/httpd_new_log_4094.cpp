@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, res, r, APLOGNO(01837)
-                    "apr_crypto_block_decrypt_init failed");
+ap_log_error(APLOG_MARK, APLOG_ALERT, rv, main_server, APLOGNO(01563)
+          "unable to find hostname of the server");

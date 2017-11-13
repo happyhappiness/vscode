@@ -1,52 +1,130 @@
-static apr_status_t hm_listen(hm_ctx_t *ctx)
+static const char *
+    add_pass(cmd_parms *cmd, void *dummy, const char *arg, int is_regex)
 {
-    apr_status_t rv;
+    server_rec *s = cmd->server;
+    proxy_server_conf *conf =
+    (proxy_server_conf *) ap_get_module_config(s->module_config, &proxy_module);
+    struct proxy_alias *new;
+    char *f = cmd->path;
+    char *r = NULL;
+    char *word;
+    apr_table_t *params = apr_table_make(cmd->pool, 5);
+    const apr_array_header_t *arr;
+    const apr_table_entry_t *elts;
+    int i;
+    int use_regex = is_regex;
+    unsigned int flags = 0;
 
-    rv = apr_socket_create(&ctx->sock, ctx->mcast_addr->family,
-                           SOCK_DGRAM, APR_PROTO_UDP, ctx->p);
+    while (*arg) {
+        word = ap_getword_conf(cmd->pool, &arg);
+        if (!f) {
+            if (!strcmp(word, "~")) {
+                if (is_regex) {
+                    return "ProxyPassMatch invalid syntax ('~' usage).";
+                }
+                use_regex = 1;
+                continue;
+            }
+            f = word;
+        }
+        else if (!r) {
+            r = word;
+        }
+        else if (!strcasecmp(word,"nocanon")) {
+            flags |= PROXYPASS_NOCANON;
+        }
+        else if (!strcasecmp(word,"interpolate")) {
+            flags |= PROXYPASS_INTERPOLATE;
+        }
+        else {
+            char *val = strchr(word, '=');
+            if (!val) {
+                if (cmd->path) {
+                    if (*r == '/') {
+                        return "ProxyPass|ProxyPassMatch can not have a path when defined in "
+                               "a location.";
+                    }
+                    else {
+                        return "Invalid ProxyPass|ProxyPassMatch parameter. Parameter must "
+                               "be in the form 'key=value'.";
+                    }
+                }
+                else {
+                    return "Invalid ProxyPass|ProxyPassMatch parameter. Parameter must be "
+                           "in the form 'key=value'.";
+                }
+            }
+            else
+                *val++ = '\0';
+            apr_table_setn(params, word, val);
+        }
+    };
 
-    if (rv) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Failed to create listening socket.");
-        return rv;
+    if (r == NULL)
+        return "ProxyPass|ProxyPassMatch needs a path when not defined in a location";
+
+    new = apr_array_push(conf->aliases);
+    new->fake = apr_pstrdup(cmd->pool, f);
+    new->real = apr_pstrdup(cmd->pool, r);
+    new->flags = flags;
+    if (use_regex) {
+        new->regex = ap_pregcomp(cmd->pool, f, AP_REG_EXTENDED);
+        if (new->regex == NULL)
+            return "Regular expression could not be compiled.";
+    }
+    else {
+        new->regex = NULL;
     }
 
-    rv = apr_socket_opt_set(ctx->sock, APR_SO_REUSEADDR, 1);
-    if (rv) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Failed to set APR_SO_REUSEADDR to 1 on socket.");
-        return rv;
+    if (r[0] == '!' && r[1] == '\0')
+        return NULL;
+
+    arr = apr_table_elts(params);
+    elts = (const apr_table_entry_t *)arr->elts;
+    /* Distinguish the balancer from worker */
+    if (strncasecmp(r, "balancer:", 9) == 0) {
+        proxy_balancer *balancer = ap_proxy_get_balancer(cmd->pool, conf, r);
+        if (!balancer) {
+            const char *err = ap_proxy_add_balancer(&balancer,
+                                                    cmd->pool,
+                                                    conf, r);
+            if (err)
+                return apr_pstrcat(cmd->temp_pool, "ProxyPass ", err, NULL);
+        }
+        for (i = 0; i < arr->nelts; i++) {
+            const char *err = set_balancer_param(conf, cmd->pool, balancer, elts[i].key,
+                                                 elts[i].val);
+            if (err)
+                return apr_pstrcat(cmd->temp_pool, "ProxyPass ", err, NULL);
+        }
     }
+    else {
+        proxy_worker *worker = ap_proxy_get_worker(cmd->temp_pool, conf, r);
+        int reuse = 0;
+        if (!worker) {
+            const char *err = ap_proxy_add_worker(&worker, cmd->pool, conf, r);
+            if (err)
+                return apr_pstrcat(cmd->temp_pool, "ProxyPass ", err, NULL);
+            PROXY_COPY_CONF_PARAMS(worker, conf);
+        } else {
+            reuse = 1;
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, cmd->server,
+                         "Sharing worker '%s' instead of creating new worker '%s'",
+                         worker->name, new->real);
+        }
 
-
-    rv = apr_socket_opt_set(ctx->sock, APR_SO_NONBLOCK, 1);
-    if (rv) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Failed to set APR_SO_NONBLOCK to 1 on socket.");
-        return rv;
+        for (i = 0; i < arr->nelts; i++) {
+            if (reuse) {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                             "Ignoring parameter '%s=%s' for worker '%s' because of worker sharing",
+                             elts[i].key, elts[i].val, worker->name);
+            } else {
+                const char *err = set_worker_param(cmd->pool, worker, elts[i].key,
+                                                   elts[i].val);
+                if (err)
+                    return apr_pstrcat(cmd->temp_pool, "ProxyPass ", err, NULL);
+            }
+        }
     }
-
-    rv = apr_socket_bind(ctx->sock, ctx->mcast_addr);
-    if (rv) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Failed to bind on socket.");
-        return rv;
-    }
-
-    rv = apr_mcast_join(ctx->sock, ctx->mcast_addr, NULL, NULL);
-
-    if (rv) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Failed to join multicast group");
-        return rv;
-    }
-
-    rv = apr_mcast_loopback(ctx->sock, 1);
-    if (rv) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Failed to accept localhost mulitcast on socket.");
-        return rv;
-    }
-
-    return APR_SUCCESS;
+    return NULL;
 }

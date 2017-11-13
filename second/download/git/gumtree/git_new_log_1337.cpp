@@ -1,1 +1,2 @@
-die("BUG: delete called for transaction that is not open");
+fprintf(pack_edges, " %s",
+						oid_to_hex(&t->oid));

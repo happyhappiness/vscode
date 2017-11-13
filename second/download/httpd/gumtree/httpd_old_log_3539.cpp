@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                              "mod_rewrite: can't access DBM RewriteMap "
-                              "file %s", s->checkfile2);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
+                     "Heartmonitor: Failed to bind on socket.");

@@ -1,1 +1,2 @@
-die("BUG! Want to close pack marked 'do-not-close'");
+die("unable to generate diff (%s)",
+		    sha1_to_hex(parent->commit->object.sha1));

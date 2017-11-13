@@ -1,93 +1,227 @@
-static BOOL shmcb_subcache_store(server_rec *s, SHMCBHeader *header,
-                                 SHMCBSubcache *subcache, 
-                                 UCHAR *data, unsigned int data_len,
-                                 UCHAR *id, time_t expiry)
+request_rec *ap_read_request(conn_rec *conn)
 {
-    unsigned int new_offset, new_idx;
-    SHMCBIndex *idx;
+    request_rec *r;
+    apr_pool_t *p;
+    const char *expect;
+    int access_status;
+    apr_bucket_brigade *tmp_bb;
+    apr_socket_t *csd;
+    apr_interval_time_t cur_timeout;
 
-    /* Sanity check the input */
-    if ((data_len > header->subcache_data_size) || (data_len > SSL_SESSION_MAX_DER)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "inserting session larger (%d) than subcache data area (%d)",
-                     data_len, header->subcache_data_size);
-        return FALSE;
-    }
+    apr_pool_create(&p, conn->pool);
+    apr_pool_tag(p, "request");
+    r = apr_pcalloc(p, sizeof(request_rec));
+    r->pool            = p;
+    r->connection      = conn;
+    r->server          = conn->base_server;
 
-    /* If there are entries to expire, ditch them first. */
-    shmcb_subcache_expire(s, header, subcache);
+    r->user            = NULL;
+    r->ap_auth_type    = NULL;
 
-    /* Loop until there is enough space to insert */
-    if (header->subcache_data_size - subcache->data_used < data_len
-        || subcache->idx_used == header->index_num) {
-        unsigned int loop = 0;
+    r->allowed_methods = ap_make_method_list(p, 2);
 
-        idx = SHMCB_INDEX(subcache, subcache->idx_pos);
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "about to force-expire, subcache: idx_used=%d, "
-                     "data_used=%d", subcache->idx_used, subcache->data_used);
-        do {
-            SHMCBIndex *idx2;
+    r->headers_in      = apr_table_make(r->pool, 25);
+    r->trailers_in     = apr_table_make(r->pool, 5);
+    r->subprocess_env  = apr_table_make(r->pool, 25);
+    r->headers_out     = apr_table_make(r->pool, 12);
+    r->err_headers_out = apr_table_make(r->pool, 5);
+    r->trailers_out    = apr_table_make(r->pool, 5);
+    r->notes           = apr_table_make(r->pool, 5);
 
-            /* Adjust the indexes by one */
-            subcache->idx_pos = SHMCB_CYCLIC_INCREMENT(subcache->idx_pos, 1,
-                                                       header->index_num);
-            subcache->idx_used--;
-            if (!subcache->idx_used) {
-                /* There's nothing left */
-                subcache->data_used = 0;
-                break;
-            }
-            /* Adjust the data */
-            idx2 = SHMCB_INDEX(subcache, subcache->idx_pos);
-            subcache->data_used -= SHMCB_CYCLIC_SPACE(idx->data_pos, idx2->data_pos,
-                                                      header->subcache_data_size);
-            subcache->data_pos = idx2->data_pos;
-            /* Stats */
-            header->stat_scrolled++;
-            /* Loop admin */
-            idx = idx2;
-            loop++;
-        } while (header->subcache_data_size - subcache->data_used < data_len);
+    r->request_config  = ap_create_request_config(r->pool);
+    /* Must be set before we run create request hook */
 
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "finished force-expire, subcache: idx_used=%d, "
-                     "data_used=%d", subcache->idx_used, subcache->data_used);
-    }
+    r->proto_output_filters = conn->output_filters;
+    r->output_filters  = r->proto_output_filters;
+    r->proto_input_filters = conn->input_filters;
+    r->input_filters   = r->proto_input_filters;
+    ap_run_create_request(r);
+    r->per_dir_config  = r->server->lookup_defaults;
 
-    /* HERE WE ASSUME THAT THE NEW SESSION SHOULD GO ON THE END! I'M NOT
-     * CHECKING WHETHER IT SHOULD BE GENUINELY "INSERTED" SOMEWHERE.
-     *
-     * We either fix that, or find out at a "higher" (read "mod_ssl")
-     * level whether it is possible to have distinct session caches for
-     * any attempted tomfoolery to do with different session timeouts.
-     * Knowing in advance that we can have a cache-wide constant timeout
-     * would make this stuff *MUCH* more efficient. Mind you, it's very
-     * efficient right now because I'm ignoring this problem!!!
+    r->sent_bodyct     = 0;                      /* bytect isn't for body */
+
+    r->read_length     = 0;
+    r->read_body       = REQUEST_NO_BODY;
+
+    r->status          = HTTP_OK;  /* Until further notice */
+    r->the_request     = NULL;
+
+    /* Begin by presuming any module can make its own path_info assumptions,
+     * until some module interjects and changes the value.
      */
-    /* Insert the data */
-    new_offset = SHMCB_CYCLIC_INCREMENT(subcache->data_pos, subcache->data_used,
-                                        header->subcache_data_size);
-    shmcb_cyclic_ntoc_memcpy(header->subcache_data_size,
-                             SHMCB_DATA(header, subcache), new_offset,
-                             data, data_len);
-    subcache->data_used += data_len;
-    /* Insert the index */
-    new_idx = SHMCB_CYCLIC_INCREMENT(subcache->idx_pos, subcache->idx_used,
-                                     header->index_num);
-    idx = SHMCB_INDEX(subcache, new_idx);
-    idx->expires = expiry;
-    idx->data_pos = new_offset;
-    idx->data_used = data_len;
-    idx->s_id2 = id[1];
-    idx->removed = 0;
-    subcache->idx_used++;
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "insert happened at idx=%d, data=%d", new_idx, new_offset);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "finished insert, subcache: idx_pos/idx_used=%d/%d, "
-                 "data_pos/data_used=%d/%d",
-                 subcache->idx_pos, subcache->idx_used,
-                 subcache->data_pos, subcache->data_used);
-    return TRUE;
+    r->used_path_info = AP_REQ_DEFAULT_PATH_INFO;
+
+    tmp_bb = apr_brigade_create(r->pool, r->connection->bucket_alloc);
+
+    /* Get the request... */
+    if (!read_request_line(r, tmp_bb)) {
+        switch (r->status) {
+        case HTTP_REQUEST_URI_TOO_LARGE:
+        case HTTP_BAD_REQUEST:
+        case HTTP_VERSION_NOT_SUPPORTED:
+        case HTTP_NOT_IMPLEMENTED:
+            if (r->status == HTTP_REQUEST_URI_TOO_LARGE) {
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "request failed: client's request-line exceeds LimitRequestLine (longer than %d)",
+                              r->server->limit_req_line);
+            }
+            else if (r->method == NULL) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "request failed: malformed request line");
+            }
+            access_status = r->status;
+            r->status = HTTP_OK;
+            ap_die(access_status, r);
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            ap_run_log_transaction(r);
+            r = NULL;
+            apr_brigade_destroy(tmp_bb);
+            return r;
+        case HTTP_REQUEST_TIME_OUT:
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            if (!r->connection->keepalives)
+                ap_run_log_transaction(r);
+            apr_brigade_destroy(tmp_bb);
+            return r;
+        default:
+            apr_brigade_destroy(tmp_bb);
+            r = NULL;
+            return r;
+        }
+    }
+
+    /* We may have been in keep_alive_timeout mode, so toggle back
+     * to the normal timeout mode as we fetch the header lines,
+     * as necessary.
+     */
+    csd = ap_get_module_config(conn->conn_config, &core_module);
+    apr_socket_timeout_get(csd, &cur_timeout);
+    if (cur_timeout != conn->base_server->timeout) {
+        apr_socket_timeout_set(csd, conn->base_server->timeout);
+        cur_timeout = conn->base_server->timeout;
+    }
+
+    if (!r->assbackwards) {
+        const char *tenc;
+
+        ap_get_mime_headers_core(r, tmp_bb);
+        if (r->status != HTTP_OK) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "request failed: error reading the headers");
+            ap_send_error_response(r, 0);
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            ap_run_log_transaction(r);
+            apr_brigade_destroy(tmp_bb);
+            return r;
+        }
+
+        tenc = apr_table_get(r->headers_in, "Transfer-Encoding");
+        if (tenc) {
+            /* http://tools.ietf.org/html/draft-ietf-httpbis-p1-messaging-23
+             * Section 3.3.3.3: "If a Transfer-Encoding header field is
+             * present in a request and the chunked transfer coding is not
+             * the final encoding ...; the server MUST respond with the 400
+             * (Bad Request) status code and then close the connection".
+             */
+            if (!(strcasecmp(tenc, "chunked") == 0 /* fast path */
+                    || ap_find_last_token(r->pool, tenc, "chunked"))) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "client sent unknown Transfer-Encoding "
+                              "(%s): %s", tenc, r->uri);
+                r->status = HTTP_BAD_REQUEST;
+                conn->keepalive = AP_CONN_CLOSE;
+                ap_send_error_response(r, 0);
+                ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+                ap_run_log_transaction(r);
+                apr_brigade_destroy(tmp_bb);
+                return r;
+            }
+
+            /* http://tools.ietf.org/html/draft-ietf-httpbis-p1-messaging-23
+             * Section 3.3.3.3: "If a message is received with both a
+             * Transfer-Encoding and a Content-Length header field, the
+             * Transfer-Encoding overrides the Content-Length. ... A sender
+             * MUST remove the received Content-Length field".
+             */
+            apr_table_unset(r->headers_in, "Content-Length");
+        }
+    }
+
+    apr_brigade_destroy(tmp_bb);
+
+    /* update what we think the virtual host is based on the headers we've
+     * now read. may update status.
+     */
+    ap_update_vhost_from_headers(r);
+    access_status = r->status;
+
+    /* Toggle to the Host:-based vhost's timeout mode to fetch the
+     * request body and send the response body, if needed.
+     */
+    if (cur_timeout != r->server->timeout) {
+        apr_socket_timeout_set(csd, r->server->timeout);
+        cur_timeout = r->server->timeout;
+    }
+
+    /* we may have switched to another server */
+    r->per_dir_config = r->server->lookup_defaults;
+
+    if ((!r->hostname && (r->proto_num >= HTTP_VERSION(1, 1)))
+        || ((r->proto_num == HTTP_VERSION(1, 1))
+            && !apr_table_get(r->headers_in, "Host"))) {
+        /*
+         * Client sent us an HTTP/1.1 or later request without telling us the
+         * hostname, either with a full URL or a Host: header. We therefore
+         * need to (as per the 1.1 spec) send an error.  As a special case,
+         * HTTP/1.1 mentions twice (S9, S14.23) that a request MUST contain
+         * a Host: header, and the server MUST respond with 400 if it doesn't.
+         */
+        access_status = HTTP_BAD_REQUEST;
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "client sent HTTP/1.1 request without hostname "
+                      "(see RFC2616 section 14.23): %s", r->uri);
+    }
+
+    /*
+     * Add the HTTP_IN filter here to ensure that ap_discard_request_body
+     * called by ap_die and by ap_send_error_response works correctly on
+     * status codes that do not cause the connection to be dropped and
+     * in situations where the connection should be kept alive.
+     */
+
+    ap_add_input_filter_handle(ap_http_input_filter_handle,
+                               NULL, r, r->connection);
+
+    if (access_status != HTTP_OK
+        || (access_status = ap_run_post_read_request(r))) {
+        ap_die(access_status, r);
+        ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+        ap_run_log_transaction(r);
+        return NULL;
+    }
+
+    if (((expect = apr_table_get(r->headers_in, "Expect")) != NULL)
+        && (expect[0] != '\0')) {
+        /*
+         * The Expect header field was added to HTTP/1.1 after RFC 2068
+         * as a means to signal when a 100 response is desired and,
+         * unfortunately, to signal a poor man's mandatory extension that
+         * the server must understand or return 417 Expectation Failed.
+         */
+        if (strcasecmp(expect, "100-continue") == 0) {
+            r->expecting_100 = 1;
+        }
+        else {
+            r->status = HTTP_EXPECTATION_FAILED;
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                          "client sent an unrecognized expectation value of "
+                          "Expect: %s", expect);
+            ap_send_error_response(r, 0);
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            ap_run_log_transaction(r);
+            return r;
+        }
+    }
+
+    return r;
 }

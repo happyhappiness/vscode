@@ -1,36 +1,48 @@
-static int create_graft(int argc, const char **argv, int force)
+static void import_object(unsigned char *sha1, enum object_type type,
+			  int raw, const char *filename)
 {
-	unsigned char old[20], new[20];
-	const char *old_ref = argv[0];
-	struct commit *commit;
-	struct strbuf buf = STRBUF_INIT;
-	const char *buffer;
-	unsigned long size;
+	int fd;
 
-	if (get_sha1(old_ref, old) < 0)
-		die(_("Not a valid object name: '%s'"), old_ref);
-	commit = lookup_commit_or_die(old, old_ref);
+	fd = open(filename, O_RDONLY);
+	if (fd < 0)
+		die_errno("unable to open %s for reading", filename);
 
-	buffer = get_commit_buffer(commit, &size);
-	strbuf_add(&buf, buffer, size);
-	unuse_commit_buffer(commit, buffer);
+	if (!raw && type == OBJ_TREE) {
+		const char *argv[] = { "mktree", NULL };
+		struct child_process cmd = { argv };
+		struct strbuf result = STRBUF_INIT;
 
-	replace_parents(&buf, argc - 1, &argv[1]);
+		cmd.argv = argv;
+		cmd.git_cmd = 1;
+		cmd.in = fd;
+		cmd.out = -1;
 
-	if (remove_signature(&buf)) {
-		warning(_("the original commit '%s' has a gpg signature."), old_ref);
-		warning(_("the signature will be removed in the replacement commit!"));
+		if (start_command(&cmd))
+			die("unable to spawn mktree");
+
+		if (strbuf_read(&result, cmd.out, 41) < 0)
+			die_errno("unable to read from mktree");
+		close(cmd.out);
+
+		if (finish_command(&cmd))
+			die("mktree reported failure");
+		if (get_sha1_hex(result.buf, sha1) < 0)
+			die("mktree did not return an object name");
+
+		strbuf_release(&result);
+	} else {
+		struct stat st;
+		int flags = HASH_FORMAT_CHECK | HASH_WRITE_OBJECT;
+
+		if (fstat(fd, &st) < 0)
+			die_errno("unable to fstat %s", filename);
+		if (index_fd(sha1, fd, &st, type, NULL, flags) < 0)
+			die("unable to write object to database");
+		/* index_fd close()s fd for us */
 	}
 
-	check_mergetags(commit, argc, argv);
-
-	if (write_sha1_file(buf.buf, buf.len, commit_type, new))
-		die(_("could not write replacement commit for: '%s'"), old_ref);
-
-	strbuf_release(&buf);
-
-	if (!hashcmp(old, new))
-		return error("new commit is the same as the old one: '%s'", sha1_to_hex(old));
-
-	return replace_object_sha1(old_ref, old, "replacement", new, force);
+	/*
+	 * No need to close(fd) here; both run-command and index-fd
+	 * will have done it for us.
+	 */
 }

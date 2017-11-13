@@ -1,1 +1,1 @@
-rprintf(FERROR,"%s : not a regular file (recv_files)\n",fname);
+rprintf(FINFO,"%s\n",fname);

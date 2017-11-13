@@ -1,1 +1,3 @@
-apr_file_printf(f, "%16s alias %s\n", "", name[i]);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Handler for %s returned invalid result code %d",
+                          r->handler, result);

@@ -1,1 +1,1 @@
-die(_("remote error: %s"), arg);
+error(_("no commits parsed."));

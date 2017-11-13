@@ -1,11 +1,9 @@
 fputs(
-"              port. Use -V, --version  to  see  if  your  curl  supports  GSS-\n"
-"              API/SSPI or SPNEGO.\n"
+"              Specify the maximum size (in bytes) of a file  to  download.  If\n"
+"              the  file requested is larger than this value, the transfer will\n"
+"              not start and curl will return with exit code 63.\n"
 "\n"
-"              When  using this option, you must also provide a fake -u, --user\n"
-"              option to activate the authentication code properly.  Sending  a\n"
-"              '-u  :'  is  enough  as  the user name and password from the -u,\n"
-"              --user option aren't actually used.\n"
-"\n"
-"              If this option is used several times,  only  the  first  one  is\n"
+"              NOTE: The file size is not always known prior to  download,  and\n"
+"              for such files this option has no effect even if the file trans-\n"
+"              fer ends up being larger than this given  limit.  This  concerns\n"
 , stdout);

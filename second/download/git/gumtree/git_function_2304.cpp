@@ -1,14 +1,13 @@
-int cmd_submodule__helper(int argc, const char **argv, const char *prefix)
+static void found_guilty_entry(struct blame_entry *ent)
 {
-	int i;
-	if (argc < 2)
-		die(_("fatal: submodule--helper subcommand must be "
-		      "called with a subcommand"));
+	if (incremental) {
+		struct origin *suspect = ent->suspect;
 
-	for (i = 0; i < ARRAY_SIZE(commands); i++)
-		if (!strcmp(argv[1], commands[i].cmd))
-			return commands[i].fn(argc - 1, argv + 1, prefix);
-
-	die(_("fatal: '%s' is not a valid submodule--helper "
-	      "subcommand"), argv[1]);
+		printf("%s %d %d %d\n",
+		       sha1_to_hex(suspect->commit->object.sha1),
+		       ent->s_lno + 1, ent->lno + 1, ent->num_lines);
+		emit_one_suspect_detail(suspect, 0);
+		write_filename_info(suspect->path);
+		maybe_flush_or_die(stdout, "stdout");
+	}
 }

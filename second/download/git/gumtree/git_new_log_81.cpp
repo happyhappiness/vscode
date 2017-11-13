@@ -1,1 +1,0 @@
-die("update: missing <ref>");

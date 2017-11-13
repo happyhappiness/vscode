@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01234)
-                    "file permissions deny server access: %s", r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01633)
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");

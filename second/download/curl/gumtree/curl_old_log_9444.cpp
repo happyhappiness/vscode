@@ -1,12 +1,10 @@
 fputs(
-"              local_ip       The  IP  address  of  the  local  end of the most\n"
-"                             recently done connection - can be either IPv4  or\n"
-"                             IPv6 (Added in 7.29.0)\n"
+"              stdin you write \"@-\".\n"
 "\n"
-"              local_port     The  local  port number of the most recently done\n"
-"                             connection (Added in 7.29.0)\n"
-"\n"
-"              num_connects   Number of new connects made in the recent  trans-\n"
-"                             fer. (Added in 7.12.3)\n"
+"              The variables present in the output format will  be  substituted\n"
+"              by  the  value or text that curl thinks fit, as described below.\n"
+"              All variables are specified as %{variable_name} and to output  a\n"
+"              normal  % you just write them as %%. You can output a newline by\n"
+"              using \\n, a carriage return with \\r and a tab space with \\t.\n"
 "\n"
 , stdout);

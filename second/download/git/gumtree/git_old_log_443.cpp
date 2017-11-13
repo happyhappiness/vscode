@@ -1,1 +1,1 @@
-error(_("Unable to update cache tree\n"));
+die("Failed to resolve NOTES_MERGE_REF");

@@ -1,1 +1,1 @@
-out_of_memory("recv_xattr_request");
+out_of_memory("receive_xattr");

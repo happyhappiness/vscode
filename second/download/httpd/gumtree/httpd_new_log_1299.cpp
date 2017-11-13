@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
-                             "integer overflow or out of memory condition." );
+ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                              "SSL Proxy: Peer certificate is expired");

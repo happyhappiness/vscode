@@ -1,1 +1,0 @@
-die(_("Malformed options sheet: %s"), git_path_opts_file());

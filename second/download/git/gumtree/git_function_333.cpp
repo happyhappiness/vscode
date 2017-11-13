@@ -1,63 +1,70 @@
-static int filter_buffer_or_fd(int in, int out, void *data)
+static int write_out_one_reject(struct apply_state *state, struct patch *patch)
 {
-	/*
-	 * Spawn cmd and feed the buffer contents through its stdin.
-	 */
-	struct child_process child_process = CHILD_PROCESS_INIT;
-	struct filter_params *params = (struct filter_params *)data;
-	int write_err, status;
-	const char *argv[] = { NULL, NULL };
+	FILE *rej;
+	char namebuf[PATH_MAX];
+	struct fragment *frag;
+	int cnt = 0;
+	struct strbuf sb = STRBUF_INIT;
 
-	/* apply % substitution to cmd */
-	struct strbuf cmd = STRBUF_INIT;
-	struct strbuf path = STRBUF_INIT;
-	struct strbuf_expand_dict_entry dict[] = {
-		{ "f", NULL, },
-		{ NULL, NULL, },
-	};
-
-	/* quote the path to preserve spaces, etc. */
-	sq_quote_buf(&path, params->path);
-	dict[0].value = path.buf;
-
-	/* expand all %f with the quoted path */
-	strbuf_expand(&cmd, params->cmd, strbuf_expand_dict_cb, &dict);
-	strbuf_release(&path);
-
-	argv[0] = cmd.buf;
-
-	child_process.argv = argv;
-	child_process.use_shell = 1;
-	child_process.in = -1;
-	child_process.out = out;
-
-	if (start_command(&child_process))
-		return error("cannot fork to run external filter %s", params->cmd);
-
-	sigchain_push(SIGPIPE, SIG_IGN);
-
-	if (params->src) {
-		write_err = (write_in_full(child_process.in,
-					   params->src, params->size) < 0);
-		if (errno == EPIPE)
-			write_err = 0;
-	} else {
-		write_err = copy_fd(params->fd, child_process.in);
-		if (write_err == COPY_WRITE_ERROR && errno == EPIPE)
-			write_err = 0;
+	for (cnt = 0, frag = patch->fragments; frag; frag = frag->next) {
+		if (!frag->rejected)
+			continue;
+		cnt++;
 	}
 
-	if (close(child_process.in))
-		write_err = 1;
-	if (write_err)
-		error("cannot feed the input to external filter %s", params->cmd);
+	if (!cnt) {
+		if (state->apply_verbosely)
+			say_patch_name(stderr,
+				       _("Applied patch %s cleanly."), patch);
+		return 0;
+	}
 
-	sigchain_pop(SIGPIPE);
+	/* This should not happen, because a removal patch that leaves
+	 * contents are marked "rejected" at the patch level.
+	 */
+	if (!patch->new_name)
+		die(_("internal error"));
 
-	status = finish_command(&child_process);
-	if (status)
-		error("external filter %s failed %d", params->cmd, status);
+	/* Say this even without --verbose */
+	strbuf_addf(&sb, Q_("Applying patch %%s with %d reject...",
+			    "Applying patch %%s with %d rejects...",
+			    cnt),
+		    cnt);
+	say_patch_name(stderr, sb.buf, patch);
+	strbuf_release(&sb);
 
-	strbuf_release(&cmd);
-	return (write_err || status);
+	cnt = strlen(patch->new_name);
+	if (ARRAY_SIZE(namebuf) <= cnt + 5) {
+		cnt = ARRAY_SIZE(namebuf) - 5;
+		warning(_("truncating .rej filename to %.*s.rej"),
+			cnt - 1, patch->new_name);
+	}
+	memcpy(namebuf, patch->new_name, cnt);
+	memcpy(namebuf + cnt, ".rej", 5);
+
+	rej = fopen(namebuf, "w");
+	if (!rej)
+		return error(_("cannot open %s: %s"), namebuf, strerror(errno));
+
+	/* Normal git tools never deal with .rej, so do not pretend
+	 * this is a git patch by saying --git or giving extended
+	 * headers.  While at it, maybe please "kompare" that wants
+	 * the trailing TAB and some garbage at the end of line ;-).
+	 */
+	fprintf(rej, "diff a/%s b/%s\t(rejected hunks)\n",
+		patch->new_name, patch->new_name);
+	for (cnt = 1, frag = patch->fragments;
+	     frag;
+	     cnt++, frag = frag->next) {
+		if (!frag->rejected) {
+			fprintf_ln(stderr, _("Hunk #%d applied cleanly."), cnt);
+			continue;
+		}
+		fprintf_ln(stderr, _("Rejected hunk #%d."), cnt);
+		fprintf(rej, "%.*s", frag->size, frag->patch);
+		if (frag->patch[frag->size-1] != '\n')
+			fputc('\n', rej);
+	}
+	fclose(rej);
+	return -1;
 }

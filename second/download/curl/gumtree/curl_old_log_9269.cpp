@@ -1,12 +1,9 @@
 fputs(
-"                             URL  a  redirect  would  take  you  to. (Added in\n"
-"                             7.18.2)\n"
+"                             The ultimate filename that curl  writes  out  to.\n"
+"                             This  is only meaningful if curl is told to write\n"
+"                             to a file  with  the  --remote-name  or  --output\n"
+"                             option.  It's most useful in combination with the\n"
+"                             --remote-header-name option. (Added in 7.25.1)\n"
 "\n"
-"              remote_ip      The remote IP address of the most  recently  done\n"
-"                             connection - can be either IPv4 or IPv6 (Added in\n"
-"                             7.29.0)\n"
-"\n"
-"              remote_port    The remote port number of the most recently  done\n"
-"                             connection (Added in 7.29.0)\n"
-"\n"
+"              ftp_entry_path The initial path curl ended up in when logging on\n"
 , stdout);

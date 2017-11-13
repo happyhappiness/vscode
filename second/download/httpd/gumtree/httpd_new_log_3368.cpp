@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01237)
-                      "Server status unavailable in inetd mode");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                          "WriteClient ap_pass_brigade failed: %s",
+                          r->filename);

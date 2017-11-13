@@ -1,1 +1,1 @@
-out_of_memory("check_alt_basis_dirs");
+fprintf(fp,"  %-*s   ", (int)maxLeftCol+displaypad, left);

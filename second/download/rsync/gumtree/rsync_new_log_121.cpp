@@ -1,1 +1,1 @@
-fprintf(FERROR,"nothing to do\n");
+fprintf(FERROR,"getwd : %s\n",strerror(errno));

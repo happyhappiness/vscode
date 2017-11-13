@@ -1,59 +1,49 @@
-int cmd_merge_recursive(int argc, const char **argv, const char *prefix)
+static int parse_binary(struct apply_state *state,
+			char *buffer,
+			unsigned long size,
+			struct patch *patch)
 {
-	const struct object_id *bases[21];
-	unsigned bases_count = 0;
-	int i, failed;
-	struct object_id h1, h2;
-	struct merge_options o;
-	struct commit *result;
+	/*
+	 * We have read "GIT binary patch\n"; what follows is a line
+	 * that says the patch method (currently, either "literal" or
+	 * "delta") and the length of data before deflating; a
+	 * sequence of 'length-byte' followed by base-85 encoded data
+	 * follows.
+	 *
+	 * When a binary patch is reversible, there is another binary
+	 * hunk in the same format, starting with patch method (either
+	 * "literal" or "delta") with the length of data, and a sequence
+	 * of length-byte + base-85 encoded data, terminated with another
+	 * empty line.  This data, when applied to the postimage, produces
+	 * the preimage.
+	 */
+	struct fragment *forward;
+	struct fragment *reverse;
+	int status;
+	int used, used_1;
 
-	init_merge_options(&o);
-	if (argv[0] && ends_with(argv[0], "-subtree"))
-		o.subtree_shift = "";
+	forward = parse_binary_hunk(state, &buffer, &size, &status, &used);
+	if (!forward && !status)
+		/* there has to be one hunk (forward hunk) */
+		return error(_("unrecognized binary patch at line %d"), state->linenr-1);
+	if (status)
+		/* otherwise we already gave an error message */
+		return status;
 
-	if (argc < 4)
-		usagef(builtin_merge_recursive_usage, argv[0]);
-
-	for (i = 1; i < argc; ++i) {
-		const char *arg = argv[i];
-
-		if (starts_with(arg, "--")) {
-			if (!arg[2])
-				break;
-			if (parse_merge_opt(&o, arg + 2))
-				die("Unknown option %s", arg);
-			continue;
-		}
-		if (bases_count < ARRAY_SIZE(bases)-1) {
-			struct object_id *oid = xmalloc(sizeof(struct object_id));
-			if (get_oid(argv[i], oid))
-				die("Could not parse object '%s'", argv[i]);
-			bases[bases_count++] = oid;
-		}
-		else
-			warning("Cannot handle more than %d bases. "
-				"Ignoring %s.",
-				(int)ARRAY_SIZE(bases)-1, argv[i]);
+	reverse = parse_binary_hunk(state, &buffer, &size, &status, &used_1);
+	if (reverse)
+		used += used_1;
+	else if (status) {
+		/*
+		 * Not having reverse hunk is not an error, but having
+		 * a corrupt reverse hunk is.
+		 */
+		free((void*) forward->patch);
+		free(forward);
+		return status;
 	}
-	if (argc - i != 3) /* "--" "<head>" "<remote>" */
-		die("Not handling anything other than two heads merge.");
-
-	o.branch1 = argv[++i];
-	o.branch2 = argv[++i];
-
-	if (get_oid(o.branch1, &h1))
-		die("Could not resolve ref '%s'", o.branch1);
-	if (get_oid(o.branch2, &h2))
-		die("Could not resolve ref '%s'", o.branch2);
-
-	o.branch1 = better_branch_name(o.branch1);
-	o.branch2 = better_branch_name(o.branch2);
-
-	if (o.verbosity >= 3)
-		printf("Merging %s with %s\n", o.branch1, o.branch2);
-
-	failed = merge_recursive_generic(&o, &h1, &h2, bases_count, bases, &result);
-	if (failed < 0)
-		return 128; /* die() error code */
-	return failed;
+	forward->next = reverse;
+	patch->fragments = forward;
+	patch->is_binary = 1;
+	return used;
 }

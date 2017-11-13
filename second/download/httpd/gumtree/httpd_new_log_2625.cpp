@@ -1,1 +1,1 @@
-ap_rwrite(str, strlen(str), r);
+printf("%s \n", ap_get_server_description());

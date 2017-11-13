@@ -1,1 +1,0 @@
-packet_write_fmt(1, "%s %s\n", sha1_to_hex(sha1), path);

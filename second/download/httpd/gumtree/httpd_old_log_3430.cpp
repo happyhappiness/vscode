@@ -1,4 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                       "Unable to set LDAP_OPT_REFHOPLIMIT option to %d: %d.",
-                       ldc->ReferralHopLimit,
-                       result->rc);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                         "cache: error returned while trying to return %s "
+                         "cached data",
+                         cache->provider_name);

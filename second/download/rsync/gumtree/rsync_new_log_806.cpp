@@ -1,1 +1,1 @@
-out_of_memory("expand_item_list");
+io_printf(f_out, "@ERROR: pre-xfer exec preparation failed\n");

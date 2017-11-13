@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(02331)
-                                    "lua: Unable to find entry function '%s' in %s (not a valid function)",
-                                    function_name,
-                                    filename);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, 
+                          H2_SSSN_LOG(APLOGNO(03401), session, 
+                          "conn error -> shutdown"));

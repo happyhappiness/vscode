@@ -1,1 +1,0 @@
-error("external filter '%s' does not support filter protocol version 2", cmd);

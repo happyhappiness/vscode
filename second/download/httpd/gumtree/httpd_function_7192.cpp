@@ -1,166 +1,116 @@
-static int master_main(server_rec *s, HANDLE shutdown_event, HANDLE restart_event)
+apr_status_t mpm_service_install(apr_pool_t *ptemp, int argc,
+                                 const char * const * argv, int reconfig)
 {
-    int rv, cld;
-    int child_created;
-    int restart_pending;
-    int shutdown_pending;
-    HANDLE child_exit_event;
-    HANDLE event_handles[NUM_WAIT_HANDLES];
-    DWORD child_pid;
+    char key_name[MAX_PATH];
+    char exe_path[MAX_PATH];
+    char *launch_cmd;
+    ap_regkey_t *key;
+    apr_status_t rv;
+    SC_HANDLE   schService;
+    SC_HANDLE   schSCManager;
 
-    child_created = restart_pending = shutdown_pending = 0;
+    fprintf(stderr,reconfig ? "Reconfiguring the %s service\n"
+                   : "Installing the %s service\n", mpm_display_name);
 
-    event_handles[SHUTDOWN_HANDLE] = shutdown_event;
-    event_handles[RESTART_HANDLE] = restart_event;
-
-    /* Create a single child process */
-    rv = create_process(pconf, &event_handles[CHILD_HANDLE],
-                        &child_exit_event, &child_pid);
-    if (rv < 0)
+    /* ###: utf-ize */
+    if (GetModuleFileName(NULL, exe_path, sizeof(exe_path)) == 0)
     {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf, APLOGNO(00419)
-                     "master_main: create child process failed. Exiting.");
-        shutdown_pending = 1;
-        goto die_now;
+        apr_status_t rv = apr_get_os_error();
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00368)
+                     "GetModuleFileName failed");
+        return rv;
     }
 
-    child_created = 1;
-
-    if (!strcasecmp(signal_arg, "runservice")) {
-        mpm_service_started();
+    schSCManager = OpenSCManager(NULL, NULL, /* local, default database */
+                                 SC_MANAGER_CREATE_SERVICE);
+    if (!schSCManager) {
+        rv = apr_get_os_error();
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00369)
+                     "Failed to open the WinNT service manager, perhaps "
+                     "you forgot to log in as Adminstrator?");
+        return (rv);
     }
 
-    /* Update the scoreboard. Note that there is only a single active
-     * child at once.
-     */
-    ap_scoreboard_image->parent[0].quiescing = 0;
-    winnt_note_child_started(/* slot */ 0, child_pid);
+    launch_cmd = apr_psprintf(ptemp, "\"%s\" -k runservice", exe_path);
 
-    /* Wait for shutdown or restart events or for child death */
-    winnt_mpm_state = AP_MPMQ_RUNNING;
-    rv = WaitForMultipleObjects(NUM_WAIT_HANDLES, (HANDLE *) event_handles, FALSE, INFINITE);
-    cld = rv - WAIT_OBJECT_0;
-    if (rv == WAIT_FAILED) {
-        /* Something serious is wrong */
-        ap_log_error(APLOG_MARK,APLOG_CRIT, apr_get_os_error(), ap_server_conf, APLOGNO(00420)
-                     "master_main: WaitForMultipleObjects WAIT_FAILED -- doing server shutdown");
-        shutdown_pending = 1;
-    }
-    else if (rv == WAIT_TIMEOUT) {
-        /* Hey, this cannot happen */
-        ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s, APLOGNO(00421)
-                     "master_main: WaitForMultipleObjects with INFINITE wait exited with WAIT_TIMEOUT");
-        shutdown_pending = 1;
-    }
-    else if (cld == SHUTDOWN_HANDLE) {
-        /* shutdown_event signalled */
-        shutdown_pending = 1;
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, s, APLOGNO(00422)
-                     "Parent: Received shutdown signal -- Shutting down the server.");
-        if (ResetEvent(shutdown_event) == 0) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s, APLOGNO(00423)
-                         "ResetEvent(shutdown_event)");
+    if (reconfig) {
+        /* ###: utf-ize */
+        schService = OpenService(schSCManager, mpm_service_name,
+                                 SERVICE_CHANGE_CONFIG);
+        if (!schService) {
+            ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_ERR,
+                         apr_get_os_error(), NULL,
+                         "OpenService failed");
         }
-    }
-    else if (cld == RESTART_HANDLE) {
-        /* Received a restart event. Prepare the restart_event to be reused
-         * then signal the child process to exit.
-         */
-        restart_pending = 1;
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, APLOGNO(00424)
-                     "Parent: Received restart signal -- Restarting the server.");
-        if (ResetEvent(restart_event) == 0) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s, APLOGNO(00425)
-                         "Parent: ResetEvent(restart_event) failed.");
+        /* ###: utf-ize */
+        else if (!ChangeServiceConfig(schService,
+                                      SERVICE_WIN32_OWN_PROCESS,
+                                      SERVICE_AUTO_START,
+                                      SERVICE_ERROR_NORMAL,
+                                      launch_cmd, NULL, NULL,
+                                      "Tcpip\0Afd\0", NULL, NULL,
+                                      mpm_display_name)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_ERR,
+                         apr_get_os_error(), NULL,
+                         "ChangeServiceConfig failed");
+
+            /* !schService aborts configuration below */
+            CloseServiceHandle(schService);
+            schService = NULL;
+            }
         }
-        if (SetEvent(child_exit_event) == 0) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s, APLOGNO(00426)
-                         "Parent: SetEvent for child process %pp failed.",
-                         event_handles[CHILD_HANDLE]);
-        }
-        /* Don't wait to verify that the child process really exits,
-         * just move on with the restart.
-         */
-        CloseHandle(event_handles[CHILD_HANDLE]);
-        event_handles[CHILD_HANDLE] = NULL;
-    }
     else {
-        /* The child process exited prematurely due to a fatal error. */
-        DWORD exitcode;
-        if (!GetExitCodeProcess(event_handles[CHILD_HANDLE], &exitcode)) {
-            /* HUH? We did exit, didn't we? */
-            exitcode = APEXIT_CHILDFATAL;
-        }
-        if (   exitcode == APEXIT_CHILDFATAL
-            || exitcode == APEXIT_CHILDINIT
-            || exitcode == APEXIT_INIT) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ap_server_conf, APLOGNO(00427)
-                         "Parent: child process exited with status %lu -- Aborting.", exitcode);
-            shutdown_pending = 1;
-        }
-        else {
-            int i;
-            restart_pending = 1;
-            ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf, APLOGNO(00428)
-                         "Parent: child process exited with status %lu -- Restarting.", exitcode);
-            for (i = 0; i < ap_threads_per_child; i++) {
-                ap_update_child_status_from_indexes(0, i, SERVER_DEAD, NULL);
-            }
-        }
-        CloseHandle(event_handles[CHILD_HANDLE]);
-        event_handles[CHILD_HANDLE] = NULL;
-    }
-
-    winnt_note_child_killed(/* slot */ 0);
-
-    if (restart_pending) {
-        ++my_generation;
-        ap_scoreboard_image->global->running_generation = my_generation;
-    }
-die_now:
-    if (shutdown_pending)
-    {
-        int timeout = 30000;  /* Timeout is milliseconds */
-        winnt_mpm_state = AP_MPMQ_STOPPING;
-
-        if (!child_created) {
-            return 0;  /* Tell the caller we do not want to restart */
-        }
-
-        /* This shutdown is only marginally graceful. We will give the
-         * child a bit of time to exit gracefully. If the time expires,
-         * the child will be wacked.
+        /* RPCSS is the Remote Procedure Call (RPC) Locator required
+         * for DCOM communication pipes.  I am far from convinced we
+         * should add this to the default service dependencies, but
+         * be warned that future apache modules or ISAPI dll's may
+         * depend on it.
          */
-        if (!strcasecmp(signal_arg, "runservice")) {
-            mpm_service_stopping();
+        /* ###: utf-ize */
+        schService = CreateService(schSCManager,         /* SCManager database */
+                                   mpm_service_name,     /* name of service    */
+                                   mpm_display_name,     /* name to display    */
+                                   SERVICE_ALL_ACCESS,   /* access required    */
+                                   SERVICE_WIN32_OWN_PROCESS,  /* service type */
+                                   SERVICE_AUTO_START,   /* start type         */
+                                   SERVICE_ERROR_NORMAL, /* error control type */
+                                   launch_cmd,           /* service's binary   */
+                                   NULL,                 /* no load svc group  */
+                                   NULL,                 /* no tag identifier  */
+                                   "Tcpip\0Afd\0",       /* dependencies       */
+                                   NULL,                 /* use SYSTEM account */
+                                   NULL);                /* no password        */
+
+        if (!schService)
+        {
+            rv = apr_get_os_error();
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00370)
+                         "Failed to create WinNT Service Profile");
+            CloseServiceHandle(schSCManager);
+            return (rv);
         }
-        /* Signal the child processes to exit */
-        if (SetEvent(child_exit_event) == 0) {
-                ap_log_error(APLOG_MARK,APLOG_ERR, apr_get_os_error(), ap_server_conf, APLOGNO(00429)
-                             "Parent: SetEvent for child process %pp failed",
-                             event_handles[CHILD_HANDLE]);
-        }
-        if (event_handles[CHILD_HANDLE]) {
-            rv = WaitForSingleObject(event_handles[CHILD_HANDLE], timeout);
-            if (rv == WAIT_OBJECT_0) {
-                ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, APLOGNO(00430)
-                             "Parent: Child process exited successfully.");
-                CloseHandle(event_handles[CHILD_HANDLE]);
-                event_handles[CHILD_HANDLE] = NULL;
-            }
-            else {
-                ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, APLOGNO(00431)
-                             "Parent: Forcing termination of child process %pp",
-                             event_handles[CHILD_HANDLE]);
-                TerminateProcess(event_handles[CHILD_HANDLE], 1);
-                CloseHandle(event_handles[CHILD_HANDLE]);
-                event_handles[CHILD_HANDLE] = NULL;
-            }
-        }
-        CloseHandle(child_exit_event);
-        return 0;  /* Tell the caller we do not want to restart */
     }
-    winnt_mpm_state = AP_MPMQ_STARTING;
-    CloseHandle(child_exit_event);
-    return 1;      /* Tell the caller we want a restart */
+
+    CloseServiceHandle(schService);
+    CloseServiceHandle(schSCManager);
+
+    set_service_description();
+
+    /* Store the service ConfigArgs in the registry...
+     */
+    apr_snprintf(key_name, sizeof(key_name), SERVICEPARAMS, mpm_service_name);
+    rv = ap_regkey_open(&key, AP_REGKEY_LOCAL_MACHINE, key_name,
+                        APR_READ | APR_WRITE | APR_CREATE, pconf);
+    if (rv == APR_SUCCESS) {
+        rv = ap_regkey_value_array_set(key, "ConfigArgs", argc, argv, pconf);
+        ap_regkey_close(key);
+    }
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00371)
+                     "%s: Failed to store the ConfigArgs in the registry.",
+                     mpm_display_name);
+        return (rv);
+    }
+    fprintf(stderr,"The %s service is successfully installed.\n", mpm_display_name);
+    return APR_SUCCESS;
 }

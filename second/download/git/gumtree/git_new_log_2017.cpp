@@ -1,1 +1,1 @@
-error(_("malformed object name '%s'"), arg);
+die("unable to generate word diff");

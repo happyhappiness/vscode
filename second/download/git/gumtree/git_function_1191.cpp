@@ -1,61 +1,34 @@
-static void determine_author_info(struct strbuf *author_ident)
+static int write_shared_index(struct index_state *istate,
+			      struct lock_file *lock, unsigned flags)
 {
-	char *name, *email, *date;
-	struct ident_split author;
+	struct split_index *si = istate->split_index;
+	int fd, ret;
 
-	name = envdup("GIT_AUTHOR_NAME");
-	email = envdup("GIT_AUTHOR_EMAIL");
-	date = envdup("GIT_AUTHOR_DATE");
-
-	if (author_message) {
-		struct ident_split ident;
-		size_t len;
-		const char *a;
-
-		a = find_commit_header(author_message_buffer, "author", &len);
-		if (!a)
-			die(_("commit '%s' lacks author header"), author_message);
-		if (split_ident_line(&ident, a, len) < 0)
-			die(_("commit '%s' has malformed author line"), author_message);
-
-		set_ident_var(&name, xmemdupz(ident.name_begin, ident.name_end - ident.name_begin));
-		set_ident_var(&email, xmemdupz(ident.mail_begin, ident.mail_end - ident.mail_begin));
-
-		if (ident.date_begin) {
-			struct strbuf date_buf = STRBUF_INIT;
-			strbuf_addch(&date_buf, '@');
-			strbuf_add(&date_buf, ident.date_begin, ident.date_end - ident.date_begin);
-			strbuf_addch(&date_buf, ' ');
-			strbuf_add(&date_buf, ident.tz_begin, ident.tz_end - ident.tz_begin);
-			set_ident_var(&date, strbuf_detach(&date_buf, NULL));
-		}
+	fd = mks_tempfile(&temporary_sharedindex, git_path("sharedindex_XXXXXX"));
+	if (fd < 0) {
+		hashclr(si->base_sha1);
+		return do_write_locked_index(istate, lock, flags);
+	}
+	move_cache_to_base_index(istate);
+	ret = do_write_index(si->base, &temporary_sharedindex, 1);
+	if (ret) {
+		delete_tempfile(&temporary_sharedindex);
+		return ret;
+	}
+	ret = adjust_shared_perm(get_tempfile_path(&temporary_sharedindex));
+	if (ret) {
+		int save_errno = errno;
+		error("cannot fix permission bits on %s", get_tempfile_path(&temporary_sharedindex));
+		delete_tempfile(&temporary_sharedindex);
+		errno = save_errno;
+		return ret;
+	}
+	ret = rename_tempfile(&temporary_sharedindex,
+			      git_path("sharedindex.%s", sha1_to_hex(si->base->sha1)));
+	if (!ret) {
+		hashcpy(si->base_sha1, si->base->sha1);
+		clean_shared_index_files(sha1_to_hex(si->base->sha1));
 	}
 
-	if (force_author) {
-		struct ident_split ident;
-
-		if (split_ident_line(&ident, force_author, strlen(force_author)) < 0)
-			die(_("malformed --author parameter"));
-		set_ident_var(&name, xmemdupz(ident.name_begin, ident.name_end - ident.name_begin));
-		set_ident_var(&email, xmemdupz(ident.mail_begin, ident.mail_end - ident.mail_begin));
-	}
-
-	if (force_date) {
-		struct strbuf date_buf = STRBUF_INIT;
-		if (parse_force_date(force_date, &date_buf))
-			die(_("invalid date format: %s"), force_date);
-		set_ident_var(&date, strbuf_detach(&date_buf, NULL));
-	}
-
-	strbuf_addstr(author_ident, fmt_ident(name, email, date, IDENT_STRICT));
-	if (!split_ident_line(&author, author_ident->buf, author_ident->len) &&
-	    sane_ident_split(&author)) {
-		export_one("GIT_AUTHOR_NAME", author.name_begin, author.name_end, 0);
-		export_one("GIT_AUTHOR_EMAIL", author.mail_begin, author.mail_end, 0);
-		export_one("GIT_AUTHOR_DATE", author.date_begin, author.tz_end, '@');
-	}
-
-	free(name);
-	free(email);
-	free(date);
+	return ret;
 }

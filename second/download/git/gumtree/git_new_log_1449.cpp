@@ -1,2 +1,4 @@
-error("atomic push failed for ref %s. status: %d\n",
-		     failing_ref->name, failing_ref->status);
+error("external filter '%s' signaled that '%s' "
+					      "is now available although it has not been "
+					      "delayed earlier",
+					      filter->string, path->string);

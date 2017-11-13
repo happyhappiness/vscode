@@ -1,4 +1,2 @@
-ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
-                                      "h2_session(%ld): async idle, nonblock read, "
-                                      "%d streams open", session->id, 
-                                      session->open_streams);
+ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                             "apr_thread_create: unable to create worker thread");

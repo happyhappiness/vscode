@@ -1,11 +1,11 @@
 fputs(
-"              certificate/private key in the system or user keychain,  or  the\n"
-"              path  to  a  PKCS#12-encoded certificate and private key. If you\n"
-"              want to use a file from the current directory, please precede it\n"
-"              with \"./\" prefix, in order to avoid confusion with a nickname.\n"
+"              lows a Location: header. The \";auto\" string can be  used  alone,\n"
+"              even if you don't set an initial --referer.\n"
 "\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --engine <name>\n"
-"              Select  the  OpenSSL crypto engine to use for cipher operations.\n"
+"       -E, --cert <certificate[:password]>\n"
+"              (SSL)  Tells  curl  to use the specified client certificate file\n"
+"              when getting a file with HTTPS, FTPS or another SSL-based proto-\n"
+"              col.  The  certificate must be in PKCS#12 format if using Secure\n"
 , stdout);

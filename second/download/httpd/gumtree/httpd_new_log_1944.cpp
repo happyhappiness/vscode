@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR,
-                         apr_get_netos_error(), ap_server_conf,
-                         "WSAEventSelect() failed.");
+ap_rvputs(r, r->uri, "\">\n<dl>", NULL);

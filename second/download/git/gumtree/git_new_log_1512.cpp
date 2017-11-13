@@ -1,1 +1,1 @@
-error("invalid pattern: %s", regex_);
+die(_("Not a valid object name %s"), obj_name);

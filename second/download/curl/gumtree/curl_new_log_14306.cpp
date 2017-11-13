@@ -1,11 +1,9 @@
 fputs(
-"       --disable-epsv\n"
-"              (FTP) (FTP) Tell curl to disable the use  of  the  EPSV  command\n"
-"              when  doing  passive  FTP  transfers.  Curl will normally always\n"
-"              first attempt to use EPSV before PASV, but with this option,  it\n"
-"              will not try using EPSV.\n"
+"              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
+"              'name=daniel&skill=lousy'.\n"
 "\n"
-"              --epsv can be used to explicitly enable EPSV again and --no-epsv\n"
-"              is an alias for --disable-epsv.\n"
-"\n"
+"              If  you  start  the data with the letter @, the rest should be a\n"
+"              file name to read the data from, or - if you want curl  to  read\n"
+"              the data from stdin. Multiple files can also be specified. Post-\n"
+"              ing data from a file named  from  a  file  like  that,  carriage\n"
 , stdout);

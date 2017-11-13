@@ -1,18 +1,29 @@
-static int show_merge_base(struct commit **rev, int rev_nr, int show_all)
+int copy_file(const char *dst, const char *src, int mode)
 {
-	struct commit_list *result;
+	int fdi, fdo, status;
 
-	result = get_merge_bases_many_dirty(rev[0], rev_nr - 1, rev + 1);
-
-	if (!result)
-		return 1;
-
-	while (result) {
-		printf("%s\n", sha1_to_hex(result->item->object.sha1));
-		if (!show_all)
-			return 0;
-		result = result->next;
+	mode = (mode & 0111) ? 0777 : 0666;
+	if ((fdi = open(src, O_RDONLY)) < 0)
+		return fdi;
+	if ((fdo = open(dst, O_WRONLY | O_CREAT | O_EXCL, mode)) < 0) {
+		close(fdi);
+		return fdo;
 	}
+	status = copy_fd(fdi, fdo);
+	switch (status) {
+	case COPY_READ_ERROR:
+		error("copy-fd: read returned %s", strerror(errno));
+		break;
+	case COPY_WRITE_ERROR:
+		error("copy-fd: write returned %s", strerror(errno));
+		break;
+	}
+	close(fdi);
+	if (close(fdo) != 0)
+		return error("%s: close error: %s", dst, strerror(errno));
 
-	return 0;
+	if (!status && adjust_shared_perm(dst))
+		return -1;
+
+	return status;
 }

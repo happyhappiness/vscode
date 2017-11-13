@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, r->server,
-                     "proxy: checking remote machine [%s] against [%s]", uri_addr->hostname, npent[j].name);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, f->r->server,
+                 "cache: CACHE filter was added twice, or was added in quick "
+    		     "handler mode and will be ignored.");

@@ -1,10 +1,9 @@
 fputs(
-"              quote commands itself before sending them to the  server.   File\n"
-"              names may be quoted shell-style to embed spaces or special char-\n"
-"              acters.  Following is the list of all supported SFTP quote  com-\n"
-"              mands:\n"
+"              commands  as  RFC 959 defines to FTP servers, or one of the com-\n"
+"              mands listed below to SFTP servers.  This  option  can  be  used\n"
+"              multiple  times. When speaking to an FTP server, prefix the com-\n"
+"              mand with an asterisk (*) to make curl continue even if the com-\n"
+"              mand fails as by default curl will stop at first failure.\n"
 "\n"
-"              chgrp group file\n"
-"                     The  chgrp command sets the group ID of the file named by\n"
-"                     the file operand to the group ID specified by  the  group\n"
+"              SFTP  is a binary protocol. Unlike for FTP, curl interprets SFTP\n"
 , stdout);

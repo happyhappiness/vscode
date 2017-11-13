@@ -1,92 +1,57 @@
-static int on_send_data_cb(nghttp2_session *ngh2, 
-                           nghttp2_frame *frame, 
-                           const uint8_t *framehd, 
-                           size_t length, 
-                           nghttp2_data_source *source, 
-                           void *userp)
+apr_status_t h2_request_end_headers(h2_request *req, apr_pool_t *pool, int eos)
 {
-    apr_status_t status = APR_SUCCESS;
-    h2_session *session = (h2_session *)userp;
-    int stream_id = (int)frame->hd.stream_id;
-    unsigned char padlen;
-    int eos;
-    h2_stream *stream;
-    apr_bucket *b;
+    const char *s;
     
-    (void)ngh2;
-    (void)source;
-    if (frame->data.padlen > H2_MAX_PADLEN) {
-        return NGHTTP2_ERR_PROTO;
+    if (req->eoh) {
+        return APR_EINVAL;
     }
-    padlen = (unsigned char)frame->data.padlen;
-    
-    stream = h2_session_get_stream(session, stream_id);
-    if (!stream) {
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_NOTFOUND, session->c,
-                      APLOGNO(02924) 
-                      "h2_stream(%ld-%d): send_data",
-                      session->id, (int)stream_id);
-        return NGHTTP2_ERR_CALLBACK_FAILURE;
+
+    /* Always set the "Host" header from :authority, see rfc7540, ch. 8.1.2.3 */
+    if (!req->authority) {
+        return APR_BADARG;
     }
-    
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
-                  "h2_stream(%ld-%d): send_data_cb for %ld bytes",
-                  session->id, (int)stream_id, (long)length);
-                  
-    if (h2_conn_io_is_buffered(&session->io)) {
-        status = h2_conn_io_write(&session->io, (const char *)framehd, 9);
-        if (status == APR_SUCCESS) {
-            if (padlen) {
-                status = h2_conn_io_write(&session->io, (const char *)&padlen, 1);
-            }
-            
-            if (status == APR_SUCCESS) {
-                apr_off_t len = length;
-                status = h2_stream_readx(stream, pass_data, session, &len, &eos);
-                if (status == APR_SUCCESS && len != length) {
-                    status = APR_EINVAL;
-                }
-            }
-            
-            if (status == APR_SUCCESS && padlen) {
-                if (padlen) {
-                    status = h2_conn_io_write(&session->io, immortal_zeros, padlen);
-                }
-            }
+    apr_table_setn(req->headers, "Host", req->authority);
+
+    s = apr_table_get(req->headers, "Content-Length");
+    if (s) {
+        if (inspect_clen(req, s) != APR_SUCCESS) {
+            ap_log_perror(APLOG_MARK, APLOG_WARNING, APR_EINVAL, pool,
+                          APLOGNO(02959) 
+                          "h2_request(%d): content-length value not parsed: %s",
+                          req->id, s);
+            return APR_EINVAL;
         }
     }
     else {
-        status = h2_conn_io_write(&session->io, (const char *)framehd, 9);
-        if (padlen && status == APR_SUCCESS) {
-            status = h2_conn_io_write(&session->io, (const char *)&padlen, 1);
+        /* no content-length given */
+        req->content_length = -1;
+        if (!eos) {
+            /* We have not seen a content-length and have no eos,
+             * simulate a chunked encoding for our HTTP/1.1 infrastructure,
+             * in case we have "H2SerializeHeaders on" here
+             */
+            req->chunked = 1;
+            apr_table_mergen(req->headers, "Transfer-Encoding", "chunked");
         }
-        if (status == APR_SUCCESS) {
-            apr_off_t len = length;
-            status = h2_stream_read_to(stream, session->io.output, &len, &eos);
-            if (status == APR_SUCCESS && len != length) {
-                status = APR_EINVAL;
-            }
+        else if (apr_table_get(req->headers, "Content-Type")) {
+            /* If we have a content-type, but already see eos, no more
+             * data will come. Signal a zero content length explicitly.
+             */
+            apr_table_setn(req->headers, "Content-Length", "0");
         }
-            
-        if (status == APR_SUCCESS && padlen) {
-            b = apr_bucket_immortal_create(immortal_zeros, padlen, 
-                                           session->c->bucket_alloc);
-            status = h2_conn_io_writeb(&session->io, b);
+    }
+
+    req->eoh = 1;
+    
+    /* In the presence of trailers, force behaviour of chunked encoding */
+    s = apr_table_get(req->headers, "Trailer");
+    if (s && s[0]) {
+        req->trailers = apr_table_make(pool, 5);
+        if (!req->chunked) {
+            req->chunked = 1;
+            apr_table_mergen(req->headers, "Transfer-Encoding", "chunked");
         }
     }
     
-    
-    if (status == APR_SUCCESS) {
-        stream->data_frames_sent++;
-        h2_conn_io_consider_pass(&session->io);
-        return 0;
-    }
-    else {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
-                      APLOGNO(02925) 
-                      "h2_stream(%ld-%d): failed send_data_cb",
-                      session->id, (int)stream_id);
-    }
-    
-    return h2_session_status_from_apr_status(status);
+    return APR_SUCCESS;
 }

@@ -1,11 +1,10 @@
 fputs(
-"              This option (as well as --socks4) does not work with IPV6,  FTPS\n"
-"              or LDAP.\n"
+"              (SSL)  This option tells curl to not work around a security flaw\n"
+"              in the SSL3 and TLS1.0 protocols known as BEAST.  If this option\n"
+"              isn't  used,  the  SSL  layer may use workarounds known to cause\n"
+"              interoperability problems with some older  SSL  implementations.\n"
+"              WARNING: this option loosens the SSL security, and by using this\n"
+"              flag you ask for exactly that.  (Added in 7.25.0)\n"
 "\n"
-"       --socks5-gssapi-service <servicename>\n"
-"              The default service name for a socks server is rcmd/server-fqdn.\n"
-"              This option allows you to change it.\n"
-"\n"
-"              Examples:  --socks5  proxy-name  --socks5-gssapi-service   sockd\n"
-"              would  use sockd/proxy-name --socks5 proxy-name --socks5-gssapi-\n"
+"       --ssl-no-revoke\n"
 , stdout);

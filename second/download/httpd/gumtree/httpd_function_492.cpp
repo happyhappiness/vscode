@@ -1,78 +1,70 @@
-static apr_status_t ssl_io_filter_buffer(ap_filter_t *f,
-                                         apr_bucket_brigade *bb,
-                                         ap_input_mode_t mode,
-                                         apr_read_type_e block,
-                                         apr_off_t bytes)
+static int make_child(server_rec *s, int slot) 
 {
-    struct modssl_buffer_ctx *ctx = f->ctx;
-    apr_status_t rv;
+    int pid;
 
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, f->r,
-                  "read from buffered SSL brigade, mode %d, "
-                  "%" APR_OFF_T_FMT " bytes",
-                  mode, bytes);
-
-    if (mode != AP_MODE_READBYTES && mode != AP_MODE_GETLINE) {
-        return APR_ENOTIMPL;
+    if (slot + 1 > ap_max_daemons_limit) {
+        ap_max_daemons_limit = slot + 1;
     }
 
-    if (mode == AP_MODE_READBYTES) {
-        apr_bucket *e;
-
-        /* Partition the buffered brigade. */
-        rv = apr_brigade_partition(ctx->bb, bytes, &e);
-        if (rv && rv != APR_INCOMPLETE) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r,
-                          "could not partition buffered SSL brigade");
-            ap_remove_input_filter(f);
-            return rv;
-        }
-
-        /* If the buffered brigade contains less then the requested
-         * length, just pass it all back. */
-        if (rv == APR_INCOMPLETE) {
-            APR_BRIGADE_CONCAT(bb, ctx->bb);
-        } else {
-            apr_bucket *d = APR_BRIGADE_FIRST(ctx->bb);
-
-            e = APR_BUCKET_PREV(e);
-            
-            /* Unsplice the partitioned segment and move it into the
-             * passed-in brigade; no convenient way to do this with
-             * the APR_BRIGADE_* macros. */
-            APR_RING_UNSPLICE(d, e, link);
-            APR_RING_SPLICE_HEAD(&bb->list, d, e, apr_bucket, link);
-
-            APR_BRIGADE_CHECK_CONSISTENCY(bb);
-            APR_BRIGADE_CHECK_CONSISTENCY(ctx->bb);
-        }
-    }
-    else {
-        /* Split a line into the passed-in brigade. */
-        rv = apr_brigade_split_line(bb, ctx->bb, mode, bytes);
-
-        if (rv) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r,
-                          "could not split line from buffered SSL brigade");
-            ap_remove_input_filter(f);
-            return rv;
-        }
+    if (one_process) {
+        set_signals();
+        ap_scoreboard_image->parent[slot].pid = getpid();
+        child_main(slot);
     }
 
-    if (APR_BRIGADE_EMPTY(ctx->bb)) {
-        apr_bucket *e = APR_BRIGADE_LAST(bb);
-        
-        /* Ensure that the brigade is terminated by an EOS if the
-         * buffered request body has been entirely consumed. */
-        if (e == APR_BRIGADE_SENTINEL(bb) || !APR_BUCKET_IS_EOS(e)) {
-            e = apr_bucket_eos_create(f->c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(bb, e);
-        }
+    if ((pid = fork()) == -1) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, errno, s, 
+                     "fork: Unable to fork new process");
 
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, f->r,
-                      "buffered SSL brigade now exhausted; removing filter");
-        ap_remove_input_filter(f);
+        /* fork didn't succeed. Fix the scoreboard or else
+         * it will say SERVER_STARTING forever and ever
+         */
+        ap_update_child_status_from_indexes(slot, 0, SERVER_DEAD, NULL);
+
+        /* In case system resources are maxxed out, we don't want
+           Apache running away with the CPU trying to fork over and
+           over and over again. */
+        apr_sleep(apr_time_from_sec(10));
+
+        return -1;
     }
 
-    return APR_SUCCESS;
+    if (!pid) {
+#ifdef HAVE_BINDPROCESSOR
+        /* By default, AIX binds to a single processor.  This bit unbinds
+         * children which will then bind to another CPU.
+         */
+        int status = bindprocessor(BINDPROCESS, (int)getpid(),
+                               PROCESSOR_CLASS_ANY);
+        if (status != OK)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, 
+                         ap_server_conf,
+                         "processor unbind failed %d", status);
+#endif
+        RAISE_SIGSTOP(MAKE_CHILD);
+
+        apr_signal(SIGTERM, just_die);
+        child_main(slot);
+
+        clean_child_exit(0);
+    }
+    /* else */
+    if (ap_scoreboard_image->parent[slot].pid != 0) {
+        /* This new child process is squatting on the scoreboard
+         * entry owned by an exiting child process, which cannot
+         * exit until all active requests complete.
+         * Don't forget about this exiting child process, or we
+         * won't be able to kill it if it doesn't exit by the
+         * time the server is shut down.
+         */
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                     "taking over scoreboard slot from %" APR_PID_T_FMT "%s",
+                     ap_scoreboard_image->parent[slot].pid,
+                     ap_scoreboard_image->parent[slot].quiescing ?
+                         " (quiescing)" : "");
+        ap_register_extra_mpm_process(ap_scoreboard_image->parent[slot].pid);
+    }
+    ap_scoreboard_image->parent[slot].quiescing = 0;
+    ap_scoreboard_image->parent[slot].pid = pid;
+    return 0;
 }

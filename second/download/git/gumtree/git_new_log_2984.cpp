@@ -1,1 +1,1 @@
-warning_errno("failed utime() on %s", tmp_file.buf);
+error_errno("short read");

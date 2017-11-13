@@ -1,1 +1,1 @@
-fprintf(f,"-C, --cvs-exclude        auto ignore files in the same way CVS does\n");
+fprintf(FINFO,"created directory %s\n",name);

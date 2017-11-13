@@ -1,1 +1,2 @@
-printf("%s\n", out.buf);
+die_errno("Could not switch to '%s'",
+						  sb.buf);

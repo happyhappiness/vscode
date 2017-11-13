@@ -1,1 +1,1 @@
-fprintf(stderr, "Error opening database %s\n", argv[i]);
+fprintf(stderr, "Password too long\n");

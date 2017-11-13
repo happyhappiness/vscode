@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "auth_ldap authorize: "
-                              "require user: authorization successful");
+apr_file_printf(errfile,
+                        "Could not remove file '%s': %s" APR_EOL_STR, file,
+                        apr_strerror(rv, errmsg, sizeof errmsg));

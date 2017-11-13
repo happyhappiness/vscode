@@ -1,6 +1,3 @@
-ap_log_error( APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(03090)
-                 "mod_http2 (v%s, feats=%s%s%s, nghttp2 %s), initializing...",
-                 MOD_HTTP2_VERSION, 
-                 myfeats.change_prio? "CHPRIO" : "", sep, 
-                 myfeats.sha256?      "SHA256" : "",
-                 ngh2?                ngh2->version_str : "unknown");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, stream->session->c,
+                  "h2_stream(%ld-%d): suspended=%d",
+                  stream->session->id, stream->id, stream->suspended);

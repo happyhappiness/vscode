@@ -1,11 +1,11 @@
 fputs(
-"              used with -L, --location you can append \";auto\" to the --referer\n"
-"              URL to make curl automatically set the previous URL when it fol-\n"
-"              lows  a  Location: header. The \";auto\" string can be used alone,\n"
-"              even if you don't set an initial --referer.\n"
+"              --epsv can be used to explicitly enable EPRT again and --no-epsv\n"
+"              is an alias for --disable-epsv.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              Disabling EPSV only changes the passive behavior. If you want to\n"
+"              switch to active mode you need to use -P, --ftp-port.\n"
 "\n"
-"       -E, --cert <certificate[:password]>\n"
-"              (SSL) Tells curl to use the specified  client  certificate  file\n"
+"       -e, --referer <URL>\n"
+"              (HTTP)  Sends the \"Referer Page\" information to the HTTP server.\n"
+"              This can also be set with the -H, --header flag of course.  When\n"
 , stdout);

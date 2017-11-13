@@ -1,2 +1,1 @@
-die("unable to read %s",
-		    oid_to_hex(&entry->delta->idx.oid));
+error("new object is the same as the old one: '%s'", oid_to_hex(&old));

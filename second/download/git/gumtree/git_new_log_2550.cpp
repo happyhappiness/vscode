@@ -1,1 +1,0 @@
-die("submodule--helper remote-branch takes exactly one arguments, got %d", argc);

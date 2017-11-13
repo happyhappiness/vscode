@@ -1,105 +1,103 @@
-static int show(int argc, const char **argv)
+int rename_ref(const char *oldrefname, const char *newrefname, const char *logmsg)
 {
-	int no_query = 0, result = 0, query_flag = 0;
-	struct option options[] = {
-		OPT_BOOL('n', NULL, &no_query, N_("do not query remotes")),
-		OPT_END()
-	};
-	struct ref_states states;
-	struct string_list info_list = STRING_LIST_INIT_NODUP;
-	struct show_info info;
+	unsigned char sha1[20], orig_sha1[20];
+	int flag = 0, logmoved = 0;
+	struct ref_lock *lock;
+	struct stat loginfo;
+	int log = !lstat(git_path("logs/%s", oldrefname), &loginfo);
+	const char *symref = NULL;
+	struct strbuf err = STRBUF_INIT;
 
-	argc = parse_options(argc, argv, NULL, options, builtin_remote_show_usage,
-			     0);
+	if (log && S_ISLNK(loginfo.st_mode))
+		return error("reflog for %s is a symlink", oldrefname);
 
-	if (argc < 1)
-		return show_all();
+	symref = resolve_ref_unsafe(oldrefname, RESOLVE_REF_READING,
+				    orig_sha1, &flag);
+	if (flag & REF_ISSYMREF)
+		return error("refname %s is a symbolic ref, renaming it is not supported",
+			oldrefname);
+	if (!symref)
+		return error("refname %s not found", oldrefname);
 
-	if (!no_query)
-		query_flag = (GET_REF_STATES | GET_HEAD_NAMES | GET_PUSH_REF_STATES);
+	if (!rename_ref_available(oldrefname, newrefname))
+		return 1;
 
-	memset(&states, 0, sizeof(states));
-	memset(&info, 0, sizeof(info));
-	info.states = &states;
-	info.list = &info_list;
-	for (; argc; argc--, argv++) {
-		int i;
-		const char **url;
-		int url_nr;
+	if (log && rename(git_path("logs/%s", oldrefname), git_path(TMP_RENAMED_LOG)))
+		return error("unable to move logfile logs/%s to "TMP_RENAMED_LOG": %s",
+			oldrefname, strerror(errno));
 
-		get_remote_ref_states(*argv, &states, query_flag);
-
-		printf_ln(_("* remote %s"), *argv);
-		printf_ln(_("  Fetch URL: %s"), states.remote->url_nr > 0 ?
-		       states.remote->url[0] : _("(no URL)"));
-		if (states.remote->pushurl_nr) {
-			url = states.remote->pushurl;
-			url_nr = states.remote->pushurl_nr;
-		} else {
-			url = states.remote->url;
-			url_nr = states.remote->url_nr;
-		}
-		for (i = 0; i < url_nr; i++)
-			/* TRANSLATORS: the colon ':' should align with
-			   the one in "  Fetch URL: %s" translation */
-			printf_ln(_("  Push  URL: %s"), url[i]);
-		if (!i)
-			printf_ln(_("  Push  URL: %s"), "(no URL)");
-		if (no_query)
-			printf_ln(_("  HEAD branch: %s"), "(not queried)");
-		else if (!states.heads.nr)
-			printf_ln(_("  HEAD branch: %s"), "(unknown)");
-		else if (states.heads.nr == 1)
-			printf_ln(_("  HEAD branch: %s"), states.heads.items[0].string);
-		else {
-			printf(_("  HEAD branch (remote HEAD is ambiguous,"
-				 " may be one of the following):\n"));
-			for (i = 0; i < states.heads.nr; i++)
-				printf("    %s\n", states.heads.items[i].string);
-		}
-
-		/* remote branch info */
-		info.width = 0;
-		for_each_string_list(&states.new, add_remote_to_show_info, &info);
-		for_each_string_list(&states.tracked, add_remote_to_show_info, &info);
-		for_each_string_list(&states.stale, add_remote_to_show_info, &info);
-		if (info.list->nr)
-			printf_ln(Q_("  Remote branch:%s",
-				     "  Remote branches:%s",
-				     info.list->nr),
-				  no_query ? _(" (status not queried)") : "");
-		for_each_string_list(info.list, show_remote_info_item, &info);
-		string_list_clear(info.list, 0);
-
-		/* git pull info */
-		info.width = 0;
-		info.any_rebase = 0;
-		for_each_string_list(&branch_list, add_local_to_show_info, &info);
-		if (info.list->nr)
-			printf_ln(Q_("  Local branch configured for 'git pull':",
-				     "  Local branches configured for 'git pull':",
-				     info.list->nr));
-		for_each_string_list(info.list, show_local_info_item, &info);
-		string_list_clear(info.list, 0);
-
-		/* git push info */
-		if (states.remote->mirror)
-			printf_ln(_("  Local refs will be mirrored by 'git push'"));
-
-		info.width = info.width2 = 0;
-		for_each_string_list(&states.push, add_push_to_show_info, &info);
-		qsort(info.list->items, info.list->nr,
-			sizeof(*info.list->items), cmp_string_with_push);
-		if (info.list->nr)
-			printf_ln(Q_("  Local ref configured for 'git push'%s:",
-				     "  Local refs configured for 'git push'%s:",
-				     info.list->nr),
-				  no_query ? _(" (status not queried)") : "");
-		for_each_string_list(info.list, show_push_info_item, &info);
-		string_list_clear(info.list, 0);
-
-		free_remote_ref_states(&states);
+	if (delete_ref(oldrefname, orig_sha1, REF_NODEREF)) {
+		error("unable to delete old %s", oldrefname);
+		goto rollback;
 	}
 
-	return result;
+	if (!read_ref_full(newrefname, RESOLVE_REF_READING, sha1, NULL) &&
+	    delete_ref(newrefname, sha1, REF_NODEREF)) {
+		if (errno==EISDIR) {
+			struct strbuf path = STRBUF_INIT;
+			int result;
+
+			strbuf_git_path(&path, "%s", newrefname);
+			result = remove_empty_directories(&path);
+			strbuf_release(&path);
+
+			if (result) {
+				error("Directory not empty: %s", newrefname);
+				goto rollback;
+			}
+		} else {
+			error("unable to delete existing %s", newrefname);
+			goto rollback;
+		}
+	}
+
+	if (log && rename_tmp_log(newrefname))
+		goto rollback;
+
+	logmoved = log;
+
+	lock = lock_ref_sha1_basic(newrefname, NULL, NULL, NULL, 0, NULL, &err);
+	if (!lock) {
+		error("unable to rename '%s' to '%s': %s", oldrefname, newrefname, err.buf);
+		strbuf_release(&err);
+		goto rollback;
+	}
+	hashcpy(lock->old_oid.hash, orig_sha1);
+
+	if (write_ref_to_lockfile(lock, orig_sha1, &err) ||
+	    commit_ref_update(lock, orig_sha1, logmsg, 0, &err)) {
+		error("unable to write current sha1 into %s: %s", newrefname, err.buf);
+		strbuf_release(&err);
+		goto rollback;
+	}
+
+	return 0;
+
+ rollback:
+	lock = lock_ref_sha1_basic(oldrefname, NULL, NULL, NULL, 0, NULL, &err);
+	if (!lock) {
+		error("unable to lock %s for rollback: %s", oldrefname, err.buf);
+		strbuf_release(&err);
+		goto rollbacklog;
+	}
+
+	flag = log_all_ref_updates;
+	log_all_ref_updates = 0;
+	if (write_ref_to_lockfile(lock, orig_sha1, &err) ||
+	    commit_ref_update(lock, orig_sha1, NULL, 0, &err)) {
+		error("unable to write current sha1 into %s: %s", oldrefname, err.buf);
+		strbuf_release(&err);
+	}
+	log_all_ref_updates = flag;
+
+ rollbacklog:
+	if (logmoved && rename(git_path("logs/%s", newrefname), git_path("logs/%s", oldrefname)))
+		error("unable to restore logfile %s from %s: %s",
+			oldrefname, newrefname, strerror(errno));
+	if (!logmoved && log &&
+	    rename(git_path(TMP_RENAMED_LOG), git_path("logs/%s", oldrefname)))
+		error("unable to restore logfile %s from "TMP_RENAMED_LOG": %s",
+			oldrefname, strerror(errno));
+
+	return 1;
 }

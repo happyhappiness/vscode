@@ -1,1 +1,0 @@
-state_puts (_("The CRL is not available\n"), s);

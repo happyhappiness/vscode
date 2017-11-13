@@ -1,10 +1,11 @@
 fputs(
-"   HTTP offers many different methods of authentication and curl supports\n"
-"   several: Basic, Digest, NTLM and Negotiate (SPNEGO). Without telling which\n"
-"   method to use, curl defaults to Basic. You can also ask curl to pick the\n"
-"   most secure ones out of the ones that the server accepts for the given URL,\n"
-"   by using --anyauth.\n"
+"              already exists in the current working directory it will  not  be\n"
+"              overwritten and an error will occur. If the server doesn't spec-\n"
+"              ify a file name then this option has no effect.\n"
 "\n"
-"   NOTE! According to the URL specification, HTTP URLs can not contain a user\n"
-"   and password, so that style will not work when using curl via a proxy, even\n"
+"              There's no attempt to decode %-sequences (yet) in  the  provided\n"
+"              file name, so this option may provide you with rather unexpected\n"
+"              file names.\n"
+"\n"
+"              WARNING: Exercise judicious use of this  option,  especially  on\n"
 , stdout);

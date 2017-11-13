@@ -1,11 +1,9 @@
 fputs(
-"              debugging  and  seeing  what's going on \"under the hood\". A line\n"
-"              starting with '>' means \"header data\" sent by  curl,  '<'  means\n"
-"              \"header  data\"  received by curl that is hidden in normal cases,\n"
-"              and a line starting with '*' means additional info  provided  by\n"
-"              curl.\n"
+"              The user name and passwords are split up  on  the  first  colon,\n"
+"              which  makes  it impossible to use a colon in the user name with\n"
+"              this option. The password can, still.\n"
 "\n"
-"              Note  that  if  you  only  want  HTTP headers in the output, -i,\n"
-"              --include might be the option you're looking for.\n"
-"\n"
+"              When using Kerberos V5 with a Windows based  server  you  should\n"
+"              include  the  Windows domain name in the user name, in order for\n"
+"              the server to successfully obtain  a  Kerberos  Ticket.  If  you\n"
 , stdout);

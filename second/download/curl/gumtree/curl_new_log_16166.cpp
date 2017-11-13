@@ -1,2 +1,1 @@
-warnf(config->global,
-              "garbage at end of field specification: %s\n", contp);
+warnf(config->global, "curl_mime_type failed!\n");

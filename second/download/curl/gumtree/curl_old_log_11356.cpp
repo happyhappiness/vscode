@@ -1,9 +1,11 @@
 fputs(
-"              (FTP)  When listing an FTP directory, this switch forces a name-\n"
-"              only view. This is  especially  useful  if  the  user  wants  to\n"
-"              machine-parse  the contents of an FTP directory since the normal\n"
-"              directory view doesn't use a standard look or format. When  used\n"
-"              like  this,  the  option causes a NLST command to be sent to the\n"
-"              server instead of LIST.\n"
+"              dir  given the current user in your system). On Windows, it then\n"
+"              checks for the APPDATA variable, or as a last resort the '%USER-\n"
+"              PROFILE%\\Application Data'.\n"
+"\n"
+"              2)  On  windows, if there is no _curlrc file in the home dir, it\n"
+"              checks for one in the same dir the curl executable is placed. On\n"
+"              Unix-like  systems,  it will simply try to load .curlrc from the\n"
+"              determined home dir.\n"
 "\n"
 , stdout);

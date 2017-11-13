@@ -1,8 +1,11 @@
 fputs(
-"              For  a  request to the given HOST:PORT pair, connect to CONNECT-\n"
-"              TO-HOST:CONNECT-TO-PORT instead.  This  option  is  suitable  to\n"
-"              direct requests at a specific server, e.g. at a specific cluster\n"
-"              node in a cluster of servers.   This  option  is  only  used  to\n"
-"              establish  the  network connection. It does NOT affect the host-\n"
-"              name/port that is used for TLS/SSL (e.g. SNI, certificate  veri-\n"
+"              escape sequences are available: \\\\, \\\", \\t, \\n,  \\r  and  \\v.  A\n"
+"              backslash  preceding  any  other letter is ignored. If the first\n"
+"              column of a config line is a '#' character, the rest of the line\n"
+"              will be treated as a comment. Only write one option per physical\n"
+"              line in the config file.\n"
+"\n"
+"              Specify the filename to -K, --config as '-' to  make  curl  read\n"
+"              the file from stdin.\n"
+"\n"
 , stdout);

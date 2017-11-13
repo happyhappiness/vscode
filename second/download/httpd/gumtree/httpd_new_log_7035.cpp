@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, err, s, APLOGNO(10007)
-                             "Failed to free auth_digest client allocation");
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02558) 
+                      "no AuthLDAPURL");

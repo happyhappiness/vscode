@@ -1,86 +1,103 @@
-static void parse_negotiate_header(request_rec *r, negotiation_state *neg)
+static int shmcb_subcache_store(server_rec *s, SHMCBHeader *header,
+                                SHMCBSubcache *subcache, 
+                                unsigned char *data, unsigned int data_len,
+                                const unsigned char *id, unsigned int id_len,
+                                apr_time_t expiry)
 {
-    const char *negotiate = apr_table_get(r->headers_in, "Negotiate");
-    char *tok;
+    unsigned int data_offset, new_idx, id_offset;
+    SHMCBIndex *idx;
+    unsigned int total_len = id_len + data_len;
 
-    /* First, default to no TCN, no Alternates, and the original Apache
-     * negotiation algorithm with fiddles for broken browser configs.
-     *
-     * To save network bandwidth, we do not configure to send an
-     * Alternates header to the user agent by default.  User
-     * agents that want an Alternates header for agent-driven
-     * negotiation will have to request it by sending an
-     * appropriate Negotiate header.
+    /* Sanity check the input */
+    if (total_len > header->subcache_data_size) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "inserting socache entry larger (%d) than subcache data area (%d)",
+                     total_len, header->subcache_data_size);
+        return -1;
+    }
+
+    /* First reclaim space from removed and expired records. */
+    shmcb_subcache_expire(s, header, subcache, apr_time_now());
+
+    /* Loop until there is enough space to insert
+     * XXX: This should first compress out-of-order expiries and
+     * removed records, and then force-remove oldest-first
      */
-    neg->ua_supports_trans   = 0;
-    neg->send_alternates     = 0;
-    neg->may_choose          = 1;
-    neg->use_rvsa            = 0;
-    neg->dont_fiddle_headers = 0;
+    if (header->subcache_data_size - subcache->data_used < total_len
+        || subcache->idx_used == header->index_num) {
+        unsigned int loop = 0;
 
-    if (!negotiate)
-        return;
+        idx = SHMCB_INDEX(subcache, subcache->idx_pos);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "about to force-expire, subcache: idx_used=%d, "
+                     "data_used=%d", subcache->idx_used, subcache->data_used);
+        do {
+            SHMCBIndex *idx2;
 
-    if (strcmp(negotiate, "trans") == 0) {
-        /* Lynx 2.7 and 2.8 send 'negotiate: trans' even though they
-         * do not support transparent content negotiation, so for Lynx we
-         * ignore the negotiate header when its contents are exactly "trans".
-         * If future versions of Lynx ever need to say 'negotiate: trans',
-         * they can send the equivalent 'negotiate: trans, trans' instead
-         * to avoid triggering the workaround below.
-         */
-        const char *ua = apr_table_get(r->headers_in, "User-Agent");
+            /* Adjust the indexes by one */
+            subcache->idx_pos = SHMCB_CYCLIC_INCREMENT(subcache->idx_pos, 1,
+                                                       header->index_num);
+            subcache->idx_used--;
+            if (!subcache->idx_used) {
+                /* There's nothing left */
+                subcache->data_used = 0;
+                break;
+            }
+            /* Adjust the data */
+            idx2 = SHMCB_INDEX(subcache, subcache->idx_pos);
+            subcache->data_used -= SHMCB_CYCLIC_SPACE(idx->data_pos, idx2->data_pos,
+                                                      header->subcache_data_size);
+            subcache->data_pos = idx2->data_pos;
+            /* Stats */
+            header->stat_scrolled++;
+            /* Loop admin */
+            idx = idx2;
+            loop++;
+        } while (header->subcache_data_size - subcache->data_used < total_len);
 
-        if (ua && (strncmp(ua, "Lynx", 4) == 0))
-            return;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "finished force-expire, subcache: idx_used=%d, "
+                     "data_used=%d", subcache->idx_used, subcache->data_used);
     }
 
-    neg->may_choose = 0;  /* An empty Negotiate would require 300 response */
-
-    while ((tok = ap_get_list_item(neg->pool, &negotiate)) != NULL) {
-
-        if (strcmp(tok, "trans") == 0 ||
-            strcmp(tok, "vlist") == 0 ||
-            strcmp(tok, "guess-small") == 0 ||
-            apr_isdigit(tok[0]) ||
-            strcmp(tok, "*") == 0) {
-
-            /* The user agent supports transparent negotiation */
-            neg->ua_supports_trans = 1;
-
-            /* Send-alternates could be configurable, but note
-             * that it must be 1 if we have 'vlist' in the
-             * negotiate header.
-             */
-            neg->send_alternates = 1;
-
-            if (strcmp(tok, "1.0") == 0) {
-                /* we may use the RVSA/1.0 algorithm, configure for it */
-                neg->may_choose = 1;
-                neg->use_rvsa = 1;
-                neg->dont_fiddle_headers = 1;
-            }
-            else if (tok[0] == '*') {
-                /* we may use any variant selection algorithm, configure
-                 * to use the Apache algorithm
-                 */
-                neg->may_choose = 1;
-
-                /* We disable header fiddles on the assumption that a
-                 * client sending Negotiate knows how to send correct
-                 * headers which don't need fiddling.
-                 */
-                neg->dont_fiddle_headers = 1;
-            }
-        }
-    }
-
-#ifdef NEG_DEBUG
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00680)
-            "dont_fiddle_headers=%d use_rvsa=%d ua_supports_trans=%d "
-            "send_alternates=%d, may_choose=%d",
-            neg->dont_fiddle_headers, neg->use_rvsa,
-            neg->ua_supports_trans, neg->send_alternates, neg->may_choose);
-#endif
-
+    /* HERE WE ASSUME THAT THE NEW ENTRY SHOULD GO ON THE END! I'M NOT
+     * CHECKING WHETHER IT SHOULD BE GENUINELY "INSERTED" SOMEWHERE.
+     *
+     * We aught to fix that.  httpd (never mind third party modules)
+     * does not promise to perform any processing in date order
+     * (c.f. FAQ "My log entries are not in date order!")
+     */
+    /* Insert the id */
+    id_offset = SHMCB_CYCLIC_INCREMENT(subcache->data_pos, subcache->data_used,
+                                       header->subcache_data_size);
+    shmcb_cyclic_ntoc_memcpy(header->subcache_data_size,
+                             SHMCB_DATA(header, subcache), id_offset,
+                             id, id_len);
+    subcache->data_used += id_len;
+    /* Insert the data */
+    data_offset = SHMCB_CYCLIC_INCREMENT(subcache->data_pos, subcache->data_used,
+                                         header->subcache_data_size);
+    shmcb_cyclic_ntoc_memcpy(header->subcache_data_size,
+                             SHMCB_DATA(header, subcache), data_offset,
+                             data, data_len);
+    subcache->data_used += data_len;
+    /* Insert the index */
+    new_idx = SHMCB_CYCLIC_INCREMENT(subcache->idx_pos, subcache->idx_used,
+                                     header->index_num);
+    idx = SHMCB_INDEX(subcache, new_idx);
+    idx->expires = expiry;
+    idx->data_pos = id_offset;
+    idx->data_used = total_len;
+    idx->id_len = id_len;
+    idx->removed = 0;
+    subcache->idx_used++;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "insert happened at idx=%d, data=(%u:%u)", new_idx, 
+                 id_offset, data_offset);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "finished insert, subcache: idx_pos/idx_used=%d/%d, "
+                 "data_pos/data_used=%d/%d",
+                 subcache->idx_pos, subcache->idx_used,
+                 subcache->data_pos, subcache->data_used);
+    return 0;
 }

@@ -1,20 +1,16 @@
-void ssl_dyn_lock_function(int mode, struct CRYPTO_dynlock_value *l,
-                           const char *file, int line)
+static void remove_unused_name_vhosts(server_rec *main_s, ipaddr_chain **pic)
 {
-    apr_status_t rv;
+    while (*pic) {
+        ipaddr_chain *ic = *pic;
 
-    if (mode & CRYPTO_LOCK) {
-        ap_log_perror(file, line, APLOG_DEBUG, 0, l->pool, 
-                      "Acquiring mutex %s:%d", l->file, l->line);
-        rv = apr_thread_mutex_lock(l->mutex);
-        ap_log_perror(file, line, APLOG_DEBUG, rv, l->pool, 
-                      "Mutex %s:%d acquired!", l->file, l->line);
-    }
-    else {
-        ap_log_perror(file, line, APLOG_DEBUG, 0, l->pool, 
-                      "Releasing mutex %s:%d", l->file, l->line);
-        rv = apr_thread_mutex_unlock(l->mutex);
-        ap_log_perror(file, line, APLOG_DEBUG, rv, l->pool, 
-                      "Mutex %s:%d released!", l->file, l->line);
+        if (ic->server == NULL) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, main_s,
+                         "NameVirtualHost %s:%u has no VirtualHosts",
+                         ic->sar->virthost, ic->sar->host_port);
+            *pic = ic->next;
+        }
+        else {
+            pic = &ic->next;
+        }
     }
 }

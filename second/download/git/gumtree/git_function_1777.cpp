@@ -1,51 +1,54 @@
-const char *read_gitfile(const char *path)
+static int process_diff_filepair(struct rev_info *rev,
+				 struct diff_filepair *pair,
+				 struct line_log_data *range,
+				 struct diff_ranges **diff_out)
 {
-	char *buf;
-	char *dir;
-	const char *slash;
-	struct stat st;
-	int fd;
-	ssize_t len;
+	struct line_log_data *rg = range;
+	struct range_set tmp;
+	struct diff_ranges diff;
+	mmfile_t file_parent, file_target;
 
-	if (stat(path, &st))
-		return NULL;
-	if (!S_ISREG(st.st_mode))
-		return NULL;
-	fd = open(path, O_RDONLY);
-	if (fd < 0)
-		die_errno("Error opening '%s'", path);
-	buf = xmalloc(st.st_size + 1);
-	len = read_in_full(fd, buf, st.st_size);
-	close(fd);
-	if (len != st.st_size)
-		die("Error reading %s", path);
-	buf[len] = '\0';
-	if (!starts_with(buf, "gitdir: "))
-		die("Invalid gitfile format: %s", path);
-	while (buf[len - 1] == '\n' || buf[len - 1] == '\r')
-		len--;
-	if (len < 9)
-		die("No path in gitfile: %s", path);
-	buf[len] = '\0';
-	dir = buf + 8;
-
-	if (!is_absolute_path(dir) && (slash = strrchr(path, '/'))) {
-		size_t pathlen = slash+1 - path;
-		size_t dirlen = pathlen + len - 8;
-		dir = xmalloc(dirlen + 1);
-		strncpy(dir, path, pathlen);
-		strncpy(dir + pathlen, buf + 8, len - 8);
-		dir[dirlen] = '\0';
-		free(buf);
-		buf = dir;
+	assert(pair->two->path);
+	while (rg) {
+		assert(rg->path);
+		if (!strcmp(rg->path, pair->two->path))
+			break;
+		rg = rg->next;
 	}
 
-	if (!is_git_directory(dir))
-		die("Not a git repository: %s", dir);
+	if (!rg)
+		return 0;
+	if (rg->ranges.nr == 0)
+		return 0;
 
-	update_linked_gitdir(path, dir);
-	path = real_path(dir);
+	assert(pair->two->sha1_valid);
+	diff_populate_filespec(pair->two, 0);
+	file_target.ptr = pair->two->data;
+	file_target.size = pair->two->size;
 
-	free(buf);
-	return path;
+	if (pair->one->sha1_valid) {
+		diff_populate_filespec(pair->one, 0);
+		file_parent.ptr = pair->one->data;
+		file_parent.size = pair->one->size;
+	} else {
+		file_parent.ptr = "";
+		file_parent.size = 0;
+	}
+
+	diff_ranges_init(&diff);
+	if (collect_diff(&file_parent, &file_target, &diff))
+		die("unable to generate diff for %s", pair->one->path);
+
+	/* NEEDSWORK should apply some heuristics to prevent mismatches */
+	free(rg->path);
+	rg->path = xstrdup(pair->one->path);
+
+	range_set_init(&tmp, 0);
+	range_set_map_across_diff(&tmp, &rg->ranges, &diff, diff_out);
+	range_set_release(&rg->ranges);
+	range_set_move(&rg->ranges, &tmp);
+
+	diff_ranges_release(&diff);
+
+	return ((*diff_out)->parent.nr > 0);
 }

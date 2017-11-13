@@ -1,3 +1,1 @@
-error(ERRORMSG(o, ERROR_BIND_OVERLAP),
-			      super_prefixed(a->name),
-			      super_prefixed(old->name));
+wt_longstatus_print_other(s, &s->untracked, _("Untracked files"), "add");

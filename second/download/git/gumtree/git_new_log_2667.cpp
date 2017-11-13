@@ -1,1 +1,1 @@
-die("BUG: peel called before advance for cache iterator");
+die(_("no input file given for in-place editing"));

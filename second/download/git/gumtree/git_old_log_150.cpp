@@ -1,1 +1,1 @@
-status_printf_ln(s, c, "");
+die("%s", unable_to_lock_message(path, err));

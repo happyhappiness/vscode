@@ -1,20 +1,35 @@
-void ssl_dyn_lock_function(int mode, struct CRYPTO_dynlock_value *l,
-                           const char *file, int line)
+static void balancer_child_init(apr_pool_t *p, server_rec *s)
 {
-    apr_status_t rv;
+    while (s) {
+        proxy_balancer *balancer;
+        int i;
+        void *sconf = s->module_config;
+        proxy_server_conf *conf = (proxy_server_conf *)ap_get_module_config(sconf, &proxy_module);
+        apr_status_t rv;
 
-    if (mode & CRYPTO_LOCK) {
-        ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_DEBUG, 0, l->pool,
-                      "Acquiring mutex %s:%d", l->file, l->line);
-        rv = apr_thread_mutex_lock(l->mutex);
-        ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_DEBUG, rv, l->pool,
-                      "Mutex %s:%d acquired!", l->file, l->line);
+        if (conf->balancers->nelts) {
+            apr_size_t size;
+            unsigned int num;
+            storage->attach(&(conf->bslot), conf->id, &size, &num, p);
+            if (!conf->bslot) {
+                ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01205) "slotmem_attach failed");
+                exit(1); /* Ugly, but what else? */
+            }
+        }
+
+        balancer = (proxy_balancer *)conf->balancers->elts;
+        for (i = 0; i < conf->balancers->nelts; i++, balancer++) {
+            rv = ap_proxy_initialize_balancer(balancer, s, p);
+
+            if (rv != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(01206)
+                             "Failed to init balancer %s in child",
+                             balancer->s->name);
+                exit(1); /* Ugly, but what else? */
+            }
+            init_balancer_members(conf->pool, s, balancer);
+        }
+        s = s->next;
     }
-    else {
-        ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_DEBUG, 0, l->pool,
-                      "Releasing mutex %s:%d", l->file, l->line);
-        rv = apr_thread_mutex_unlock(l->mutex);
-        ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_DEBUG, rv, l->pool,
-                      "Mutex %s:%d released!", l->file, l->line);
-    }
+
 }

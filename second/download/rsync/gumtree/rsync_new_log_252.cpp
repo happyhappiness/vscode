@@ -1,2 +1,2 @@
-fprintf(FERROR,"EOF in map_ptr! (offset=%d len=%d nread=%d errno=%d)\n",
-	    (int)offset, len, nread, errno);
+fprintf(stderr,"Error reading %d bytes : %s\n",
+	      4,ret==-1?strerror(errno):"EOF");

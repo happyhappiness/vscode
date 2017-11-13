@@ -1,18 +1,32 @@
-const void *get_commit_buffer(const struct commit *commit, unsigned long *sizep)
+static int interpret_branch_mark(const char *name, int namelen,
+				 int at, struct strbuf *buf,
+				 int (*get_mark)(const char *, int),
+				 const char *(*get_data)(struct branch *,
+							 struct strbuf *))
 {
-	const void *ret = get_cached_commit_buffer(commit, sizep);
-	if (!ret) {
-		enum object_type type;
-		unsigned long size;
-		ret = read_sha1_file(commit->object.sha1, &type, &size);
-		if (!ret)
-			die("cannot read commit object %s",
-			    sha1_to_hex(commit->object.sha1));
-		if (type != OBJ_COMMIT)
-			die("expected commit for %s, got %s",
-			    sha1_to_hex(commit->object.sha1), typename(type));
-		if (sizep)
-			*sizep = size;
-	}
-	return ret;
+	int len;
+	struct branch *branch;
+	struct strbuf err = STRBUF_INIT;
+	const char *value;
+
+	len = get_mark(name + at, namelen - at);
+	if (!len)
+		return -1;
+
+	if (memchr(name, ':', at))
+		return -1;
+
+	if (at) {
+		char *name_str = xmemdupz(name, at);
+		branch = branch_get(name_str);
+		free(name_str);
+	} else
+		branch = branch_get(NULL);
+
+	value = get_data(branch, &err);
+	if (!value)
+		die("%s", err.buf);
+
+	set_shortened_ref(buf, value);
+	return len + at;
 }

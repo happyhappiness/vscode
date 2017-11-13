@@ -1,192 +1,97 @@
-static int uldap_connection_init(request_rec *r,
-                                 util_ldap_connection_t *ldc)
+static int initialize_tables(server_rec *s, apr_pool_t *ctx)
 {
-    int rc = 0, ldap_option = 0;
-    int version  = LDAP_VERSION3;
-    apr_ldap_err_t *result = NULL;
-#ifdef LDAP_OPT_NETWORK_TIMEOUT
-    struct timeval connectionTimeout = {10,0};    /* 10 second connection timeout */
-#endif
-    util_ldap_state_t *st =
-        (util_ldap_state_t *)ap_get_module_config(r->server->module_config,
-        &ldap_module);
+    unsigned long idx;
+    apr_status_t   sts;
+    const char *tempdir; 
 
-    /* Since the host will include a port if the default port is not used,
-     * always specify the default ports for the port parameter.  This will
-     * allow a host string that contains multiple hosts the ability to mix
-     * some hosts with ports and some without. All hosts which do not
-     * specify a port will use the default port.
+    /* set up client list */
+
+    sts = apr_temp_dir_get(&tempdir, ctx);
+    if (APR_SUCCESS != sts) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, sts, s, 
+                     "Failed to find temporary directory");
+        log_error_and_cleanup("failed to find temp dir", sts, s);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    /* Create the shared memory segment */
+
+    /* 
+     * Create a unique filename using our pid. This information is 
+     * stashed in the global variable so the children inherit it.
      */
-    apr_ldap_init(r->pool, &(ldc->ldap),
-                  ldc->host,
-                  APR_LDAP_SSL == ldc->secure ? LDAPS_PORT : LDAP_PORT,
-                  APR_LDAP_NONE,
-                  &(result));
+    client_shm_filename = apr_psprintf(ctx, "%s/authdigest_shm.%"APR_PID_T_FMT, tempdir, 
+                                       getpid());
 
-    if (NULL == result) {
-        /* something really bad happened */
-        ldc->bound = 0;
-        if (NULL == ldc->reason) {
-            ldc->reason = "LDAP: ldap initialization failed";
-        }
-        return(APR_EGENERAL);
+    /* Now create that segment */
+    sts = apr_shm_create(&client_shm, shmem_size,
+                        client_shm_filename, ctx);
+    if (APR_SUCCESS != sts) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, sts, s, 
+                     "Failed to create shared memory segment on file %s", 
+                     client_shm_filename);
+        log_error_and_cleanup("failed to initialize shm", sts, s);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    if (result->rc) {
-        ldc->reason = result->reason;
+    sts = apr_rmm_init(&client_rmm,
+                       NULL, /* no lock, we'll do the locking ourselves */
+                       apr_shm_baseaddr_get(client_shm),
+                       shmem_size, ctx);
+    if (sts != APR_SUCCESS) {
+        log_error_and_cleanup("failed to initialize rmm", sts, s);
+        return !OK;
     }
 
-    if (NULL == ldc->ldap)
-    {
-        ldc->bound = 0;
-        if (NULL == ldc->reason) {
-            ldc->reason = "LDAP: ldap initialization failed";
-        }
-        else {
-            ldc->reason = result->reason;
-        }
-        return(result->rc);
+    client_list = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(*client_list) +
+                                                          sizeof(client_entry*)*num_buckets));
+    if (!client_list) {
+        log_error_and_cleanup("failed to allocate shared memory", -1, s);
+        return !OK;
+    }
+    client_list->table = (client_entry**) (client_list + 1);
+    for (idx = 0; idx < num_buckets; idx++) {
+        client_list->table[idx] = NULL;
+    }
+    client_list->tbl_len     = num_buckets;
+    client_list->num_entries = 0;
+
+    sts = ap_global_mutex_create(&client_lock, NULL, client_mutex_type, NULL,
+                                 s, ctx, 0);
+    if (sts != APR_SUCCESS) {
+        log_error_and_cleanup("failed to create lock (client_lock)", sts, s);
+        return !OK;
     }
 
-    /* Now that we have an ldap struct, add it to the referral list for rebinds. */
-    rc = apr_ldap_rebind_add(ldc->pool, ldc->ldap, ldc->binddn, ldc->bindpw);
-    if (rc != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "LDAP: Unable to add rebind cross reference entry. Out of memory?");
-        uldap_connection_unbind(ldc);
-        ldc->reason = "LDAP: Unable to add rebind cross reference entry.";
-        return(rc);
+
+    /* setup opaque */
+
+    opaque_cntr = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(*opaque_cntr)));
+    if (opaque_cntr == NULL) {
+        log_error_and_cleanup("failed to allocate shared memory", -1, s);
+        return !OK;
+    }
+    *opaque_cntr = 1UL;
+
+    sts = ap_global_mutex_create(&opaque_lock, NULL, opaque_mutex_type, NULL,
+                                 s, ctx, 0);
+    if (sts != APR_SUCCESS) {
+        log_error_and_cleanup("failed to create lock (opaque_lock)", sts, s);
+        return !OK;
     }
 
-    /* always default to LDAP V3 */
-    ldap_set_option(ldc->ldap, LDAP_OPT_PROTOCOL_VERSION, &version);
 
-    /* set client certificates */
-    if (!apr_is_empty_array(ldc->client_certs)) {
-        apr_ldap_set_option(r->pool, ldc->ldap, APR_LDAP_OPT_TLS_CERT,
-                            ldc->client_certs, &(result));
-        if (LDAP_SUCCESS != result->rc) {
-            uldap_connection_unbind( ldc );
-            ldc->reason = result->reason;
-            return(result->rc);
-        }
-    }
+    /* setup one-time-nonce counter */
 
-    /* switch on SSL/TLS */
-    if (APR_LDAP_NONE != ldc->secure) {
-        apr_ldap_set_option(r->pool, ldc->ldap,
-                            APR_LDAP_OPT_TLS, &ldc->secure, &(result));
-        if (LDAP_SUCCESS != result->rc) {
-            uldap_connection_unbind( ldc );
-            ldc->reason = result->reason;
-            return(result->rc);
-        }
+    otn_counter = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(*otn_counter)));
+    if (otn_counter == NULL) {
+        log_error_and_cleanup("failed to allocate shared memory", -1, s);
+        return !OK;
     }
+    *otn_counter = 0;
+    /* no lock here */
 
-    /* Set the alias dereferencing option */
-    ldap_option = ldc->deref;
-    ldap_set_option(ldc->ldap, LDAP_OPT_DEREF, &ldap_option);
 
-    /* Set options for rebind and referrals. */
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "LDAP: Setting referrals to %s.",
-                 ((ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) ? "On" : "Off"));
-    apr_ldap_set_option(r->pool, ldc->ldap,
-                        APR_LDAP_OPT_REFERRALS,
-                        (void *)((ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) ?
-                                 LDAP_OPT_ON : LDAP_OPT_OFF),
-                        &(result));
-    if (result->rc != LDAP_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "Unable to set LDAP_OPT_REFERRALS option to %s: %d.",
-                     ((ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) ? "On" : "Off"),
-                     result->rc);
-        result->reason = "Unable to set LDAP_OPT_REFERRALS.";
-        ldc->reason = result->reason;
-        uldap_connection_unbind(ldc);
-        return(result->rc);
-    }
-
-    if ((ldc->ReferralHopLimit != AP_LDAP_HOPLIMIT_UNSET) && ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) {
-        /* Referral hop limit - only if referrals are enabled and a hop limit is explicitly requested */
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "Setting referral hop limit to %d.",
-                     ldc->ReferralHopLimit);
-        apr_ldap_set_option(r->pool, ldc->ldap,
-                            APR_LDAP_OPT_REFHOPLIMIT,
-                            (void *)&ldc->ReferralHopLimit,
-                            &(result));
-        if (result->rc != LDAP_SUCCESS) {
-          ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                       "Unable to set LDAP_OPT_REFHOPLIMIT option to %d: %d.",
-                       ldc->ReferralHopLimit,
-                       result->rc);
-          result->reason = "Unable to set LDAP_OPT_REFHOPLIMIT.";
-          ldc->reason = result->reason;
-          uldap_connection_unbind(ldc);
-          return(result->rc);
-        }
-    }
-
-/*XXX All of the #ifdef's need to be removed once apr-util 1.2 is released */
-#ifdef APR_LDAP_OPT_VERIFY_CERT
-    apr_ldap_set_option(r->pool, ldc->ldap, APR_LDAP_OPT_VERIFY_CERT,
-                        &(st->verify_svr_cert), &(result));
-#else
-#if defined(LDAPSSL_VERIFY_SERVER)
-    if (st->verify_svr_cert) {
-        result->rc = ldapssl_set_verify_mode(LDAPSSL_VERIFY_SERVER);
-    }
-    else {
-        result->rc = ldapssl_set_verify_mode(LDAPSSL_VERIFY_NONE);
-    }
-#elif defined(LDAP_OPT_X_TLS_REQUIRE_CERT)
-    /* This is not a per-connection setting so just pass NULL for the
-       Ldap connection handle */
-    if (st->verify_svr_cert) {
-        int i = LDAP_OPT_X_TLS_DEMAND;
-        result->rc = ldap_set_option(NULL, LDAP_OPT_X_TLS_REQUIRE_CERT, &i);
-    }
-    else {
-        int i = LDAP_OPT_X_TLS_NEVER;
-        result->rc = ldap_set_option(NULL, LDAP_OPT_X_TLS_REQUIRE_CERT, &i);
-    }
-#endif
-#endif
-
-#ifdef LDAP_OPT_NETWORK_TIMEOUT
-    if (st->connectionTimeout > 0) {
-        connectionTimeout.tv_sec = st->connectionTimeout;
-    }
-
-    if (st->connectionTimeout >= 0) {
-        rc = apr_ldap_set_option(r->pool, ldc->ldap, LDAP_OPT_NETWORK_TIMEOUT,
-                                 (void *)&connectionTimeout, &(result));
-        if (APR_SUCCESS != rc) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "LDAP: Could not set the connection timeout");
-        }
-    }
-#endif
-
-#ifdef LDAP_OPT_TIMEOUT
-    /*
-     * LDAP_OPT_TIMEOUT is not portable, but it influences all synchronous ldap
-     * function calls and not just ldap_search_ext_s(), which accepts a timeout
-     * parameter.
-     * XXX: It would be possible to simulate LDAP_OPT_TIMEOUT by replacing all
-     * XXX: synchronous ldap function calls with asynchronous calls and using
-     * XXX: ldap_result() with a timeout.
-     */
-    if (st->opTimeout) {
-        rc = apr_ldap_set_option(r->pool, ldc->ldap, LDAP_OPT_TIMEOUT,
-                                 st->opTimeout, &(result));
-        if (APR_SUCCESS != rc) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "LDAP: Could not set LDAP_OPT_TIMEOUT");
-        }
-    }
-#endif
-
-    return(rc);
+    /* success */
+    return OK;
 }

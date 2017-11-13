@@ -1,0 +1,1 @@
+printf(" %-19s %s\n", helptext[i].opt, helptext[i].desc);

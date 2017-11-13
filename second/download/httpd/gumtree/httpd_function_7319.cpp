@@ -1,70 +1,112 @@
-BOOL SSL_X509_match_name(apr_pool_t *p, X509 *x509, const char *name,
-                         BOOL allow_wildcard, server_rec *s)
+static BOOL stapling_renew_response(server_rec *s, modssl_ctx_t *mctx, SSL *ssl,
+                                    certinfo *cinf, OCSP_RESPONSE **prsp,
+                                    apr_pool_t *pool)
 {
-    BOOL matched = FALSE;
-    apr_array_header_t *ids;
+    conn_rec *conn      = (conn_rec *)SSL_get_app_data(ssl);
+    apr_pool_t *vpool;
+    OCSP_REQUEST *req = NULL;
+    OCSP_CERTID *id = NULL;
+    STACK_OF(X509_EXTENSION) *exts;
+    int i;
+    BOOL ok = FALSE;
+    BOOL rv = TRUE;
+    const char *ocspuri;
+    apr_uri_t uri;
 
-    /*
-     * At some day in the future, this might be replaced with X509_check_host()
-     * (available in OpenSSL 1.0.2 and later), but two points should be noted:
-     * 1) wildcard matching in X509_check_host() might yield different
-     *    results (by default, it supports a broader set of patterns, e.g.
-     *    wildcards in non-initial positions);
-     * 2) we lose the option of logging each DNS- and CN-ID (until a match
-     *    is found).
-     */
+    *prsp = NULL;
+    /* Build up OCSP query from server certificate info */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01938)
+                 "stapling_renew_response: querying responder");
 
-    if (SSL_X509_getIDs(p, x509, &ids)) {
-        const char *cp;
-        int i;
-        char **id = (char **)ids->elts;
-        BOOL is_wildcard;
+    req = OCSP_REQUEST_new();
+    if (!req)
+        goto err;
+    id = OCSP_CERTID_dup(cinf->cid);
+    if (!id)
+        goto err;
+    if (!OCSP_request_add0_id(req, id))
+        goto err;
+    id = NULL;
+    /* Add any extensions to the request */
+    SSL_get_tlsext_status_exts(ssl, &exts);
+    for (i = 0; i < sk_X509_EXTENSION_num(exts); i++) {
+        X509_EXTENSION *ext = sk_X509_EXTENSION_value(exts, i);
+        if (!OCSP_REQUEST_add_ext(req, ext, -1))
+            goto err;
+    }
 
-        for (i = 0; i < ids->nelts; i++) {
-            if (!id[i])
-                continue;
+    if (mctx->stapling_force_url)
+        ocspuri = mctx->stapling_force_url;
+    else
+        ocspuri = cinf->uri;
 
-            /*
-             * Determine if it is a wildcard ID - we're restrictive
-             * in the sense that we require the wildcard character to be
-             * THE left-most label (i.e., the ID must start with "*.")
-             */
-            is_wildcard = (*id[i] == '*' && *(id[i]+1) == '.') ? TRUE : FALSE;
+    /* Create a temporary pool to constrain memory use */
+    apr_pool_create(&vpool, conn->pool);
 
-            /*
-             * If the ID includes a wildcard character (and the caller is
-             * allowing wildcards), check if it matches for the left-most
-             * DNS label - i.e., the wildcard character is not allowed
-             * to match a dot. Otherwise, try a simple string compare.
-             */
-            if ((allow_wildcard == TRUE && is_wildcard == TRUE &&
-                 (cp = ap_strchr_c(name, '.')) && !strcasecmp(id[i]+1, cp)) ||
-                !strcasecmp(id[i], name)) {
-                matched = TRUE;
-            }
+    ok = apr_uri_parse(vpool, ocspuri, &uri);
+    if (ok != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01939)
+                     "stapling_renew_response: Error parsing uri %s",
+                      ocspuri);
+        rv = FALSE;
+        goto done;
+    }
+    else if (strcmp(uri.scheme, "http")) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01940)
+                     "stapling_renew_response: Unsupported uri %s", ocspuri);
+        rv = FALSE;
+        goto done;
+    }
 
-            if (s) {
-                ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, s,
-                             "[%s] SSL_X509_match_name: expecting name '%s', "
-                             "%smatched by ID '%s'",
-                             (mySrvConfig(s))->vhost_id, name,
-                             matched == TRUE ? "" : "NOT ", id[i]);
-            }
+    if (!uri.port) {
+        uri.port = apr_uri_port_of_scheme(uri.scheme);
+    }
 
-            if (matched == TRUE) {
-                break;
+    *prsp = modssl_dispatch_ocsp_request(&uri, mctx->stapling_responder_timeout,
+                                         req, conn, vpool);
+
+    apr_pool_destroy(vpool);
+
+    if (!*prsp) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01941)
+                     "stapling_renew_response: responder error");
+        if (mctx->stapling_fake_trylater) {
+            *prsp = OCSP_response_create(OCSP_RESPONSE_STATUS_TRYLATER, NULL);
+        }
+        else {
+            goto done;
+        }
+    }
+    else {
+        int response_status = OCSP_response_status(*prsp);
+
+        if (response_status == OCSP_RESPONSE_STATUS_SUCCESSFUL) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01942)
+                        "stapling_renew_response: query response received");
+            stapling_check_response(s, mctx, cinf, *prsp, &ok);
+            if (ok == FALSE) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01943)
+                             "stapling_renew_response: error in retreived response!");
             }
         }
-
+        else {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01944)
+                         "stapling_renew_response: responder error %s",
+                         OCSP_response_status_str(response_status));
+        }
+    }
+    if (stapling_cache_response(s, mctx, *prsp, cinf, ok, pool) == FALSE) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01945)
+                     "stapling_renew_response: error caching response!");
     }
 
-    if (s) {
-        ssl_log_xerror(SSLLOG_MARK, APLOG_DEBUG, 0, p, s, x509,
-                       APLOGNO(02412) "[%s] Cert %s for name '%s'",
-                       (mySrvConfig(s))->vhost_id,
-                       matched == TRUE ? "matches" : "does not match",
-                       name);
-    }
-
-    return matched;
+done:
+    if (id)
+        OCSP_CERTID_free(id);
+    if (req)
+        OCSP_REQUEST_free(req);
+    return rv;
+err:
+    rv = FALSE;
+    goto done;
 }

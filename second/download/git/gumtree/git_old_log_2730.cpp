@@ -1,1 +1,1 @@
-warning("ignoring ref with broken name %s", refname);
+warning("ignoring broken ref %s", refname);

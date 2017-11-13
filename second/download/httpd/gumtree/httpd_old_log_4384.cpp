@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "stapling_cb: setting response");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "proxy: FCGI: Got bogus version %d",
+                             (int) header.version);

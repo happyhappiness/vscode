@@ -1,126 +1,140 @@
-static int spool_reqbody_cl(apr_pool_t *p,
-                                     request_rec *r,
-                                     proxy_conn_rec *p_conn,
-                                     conn_rec *origin,
-                                     apr_bucket_brigade *header_brigade,
-                                     apr_bucket_brigade *input_brigade,
-                                     int force_cl)
+static int util_ldap_post_config(apr_pool_t *p, apr_pool_t *plog,
+                                 apr_pool_t *ptemp, server_rec *s)
 {
-    int seen_eos = 0;
-    apr_status_t status;
-    apr_bucket_alloc_t *bucket_alloc = r->connection->bucket_alloc;
-    apr_bucket_brigade *body_brigade;
-    apr_bucket *e;
-    apr_off_t bytes, bytes_spooled = 0, fsize = 0;
-    apr_file_t *tmpfile = NULL;
+    apr_status_t result;
+    server_rec *s_vhost;
+    util_ldap_state_t *st_vhost;
 
-    body_brigade = apr_brigade_create(p, bucket_alloc);
+    util_ldap_state_t *st = (util_ldap_state_t *)
+                            ap_get_module_config(s->module_config,
+                                                 &ldap_module);
 
-    while (!APR_BUCKET_IS_EOS(APR_BRIGADE_FIRST(input_brigade)))
+    void *data;
+    const char *userdata_key = "util_ldap_init";
+    apr_ldap_err_t *result_err = NULL;
+    int rc;
+
+    /* util_ldap_post_config() will be called twice. Don't bother
+     * going through all of the initialization on the first call
+     * because it will just be thrown away.*/
+    apr_pool_userdata_get(&data, userdata_key, s->process->pool);
+    if (!data) {
+        apr_pool_userdata_set((const void *)1, userdata_key,
+                               apr_pool_cleanup_null, s->process->pool);
+
+#if APR_HAS_SHARED_MEMORY
+        /* If the cache file already exists then delete it.  Otherwise we are
+         * going to run into problems creating the shared memory. */
+        if (st->cache_file) {
+            char *lck_file = apr_pstrcat(ptemp, st->cache_file, ".lck",
+                                         NULL);
+            apr_file_remove(lck_file, ptemp);
+        }
+#endif
+        return OK;
+    }
+
+#if APR_HAS_SHARED_MEMORY
+    /* initializing cache if shared memory size is not zero and we already
+     * don't have shm address
+     */
+    if (!st->cache_shm && st->cache_bytes > 0) {
+#endif
+        result = util_ldap_cache_init(p, st);
+        if (result != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, result, s,
+                         "LDAP cache: could not create shared memory segment");
+            return DONE;
+        }
+
+        result = ap_global_mutex_create(&st->util_ldap_cache_lock, NULL,
+                                        ldap_cache_mutex_type, NULL, s, p, 0);
+        if (result != APR_SUCCESS) {
+            return result;
+        }
+
+        /* merge config in all vhost */
+        s_vhost = s->next;
+        while (s_vhost) {
+            st_vhost = (util_ldap_state_t *)
+                       ap_get_module_config(s_vhost->module_config,
+                                            &ldap_module);
+
+#if APR_HAS_SHARED_MEMORY
+            st_vhost->cache_shm = st->cache_shm;
+            st_vhost->cache_rmm = st->cache_rmm;
+            st_vhost->cache_file = st->cache_file;
+            st_vhost->util_ldap_cache = st->util_ldap_cache;
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, result, s,
+                         "LDAP merging Shared Cache conf: shm=0x%pp rmm=0x%pp "
+                         "for VHOST: %s", st->cache_shm, st->cache_rmm,
+                         s_vhost->server_hostname);
+#endif
+            s_vhost = s_vhost->next;
+        }
+#if APR_HAS_SHARED_MEMORY
+    }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "LDAP cache: LDAPSharedCacheSize is zero, disabling "
+                     "shared memory cache");
+    }
+#endif
+
+    /* log the LDAP SDK used
+     */
     {
-        /* If this brigade contains EOS, either stop or remove it. */
-        if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(input_brigade))) {
-            seen_eos = 1;
-
-            /* We can't pass this EOS to the output_filters. */
-            e = APR_BRIGADE_LAST(input_brigade);
-            apr_bucket_delete(e);
-        }
-
-        apr_brigade_length(input_brigade, 1, &bytes);
-
-        if (bytes_spooled + bytes > MAX_MEM_SPOOL) {
-            /* can't spool any more in memory; write latest brigade to disk */
-            if (tmpfile == NULL) {
-                const char *temp_dir;
-                char *template;
-
-                status = apr_temp_dir_get(&temp_dir, p);
-                if (status != APR_SUCCESS) {
-                    ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                                 "proxy: search for temporary directory failed");
-                    return HTTP_INTERNAL_SERVER_ERROR;
-                }
-                apr_filepath_merge(&template, temp_dir,
-                                   "modproxy.tmp.XXXXXX",
-                                   APR_FILEPATH_NATIVE, p);
-                status = apr_file_mktemp(&tmpfile, template, 0, p);
-                if (status != APR_SUCCESS) {
-                    ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                                 "proxy: creation of temporary file in directory %s failed",
-                                 temp_dir);
-                    return HTTP_INTERNAL_SERVER_ERROR;
-                }
-            }
-            for (e = APR_BRIGADE_FIRST(input_brigade);
-                 e != APR_BRIGADE_SENTINEL(input_brigade);
-                 e = APR_BUCKET_NEXT(e)) {
-                const char *data;
-                apr_size_t bytes_read, bytes_written;
-
-                apr_bucket_read(e, &data, &bytes_read, APR_BLOCK_READ);
-                status = apr_file_write_full(tmpfile, data, bytes_read, &bytes_written);
-                if (status != APR_SUCCESS) {
-                    const char *tmpfile_name;
-
-                    if (apr_file_name_get(&tmpfile_name, tmpfile) != APR_SUCCESS) {
-                        tmpfile_name = "(unknown)";
-                    }
-                    ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                                 "proxy: write to temporary file %s failed",
-                                 tmpfile_name);
-                    return HTTP_INTERNAL_SERVER_ERROR;
-                }
-                AP_DEBUG_ASSERT(bytes_read == bytes_written);
-                fsize += bytes_written;
-            }
-            apr_brigade_cleanup(input_brigade);
-        }
-        else {
-
-            /*
-             * Save input_brigade in body_brigade. (At least) in the SSL case
-             * input_brigade contains transient buckets whose data would get
-             * overwritten during the next call of ap_get_brigade in the loop.
-             * ap_save_brigade ensures these buckets to be set aside.
-             * Calling ap_save_brigade with NULL as filter is OK, because
-             * body_brigade already has been created and does not need to get
-             * created by ap_save_brigade.
-             */
-            status = ap_save_brigade(NULL, &body_brigade, &input_brigade, p);
-            if (status != APR_SUCCESS) {
-                return HTTP_INTERNAL_SERVER_ERROR;
-            }
-
-        }
-
-        bytes_spooled += bytes;
-
-        if (seen_eos) {
-            break;
-        }
-
-        status = ap_get_brigade(r->input_filters, input_brigade,
-                                AP_MODE_READBYTES, APR_BLOCK_READ,
-                                HUGE_STRING_LEN);
-
-        if (status != APR_SUCCESS) {
-            return HTTP_BAD_REQUEST;
+        apr_ldap_err_t *result = NULL;
+        apr_ldap_info(p, &(result));
+        if (result != NULL) {
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, "%s", result->reason);
         }
     }
 
-    if (bytes_spooled || force_cl) {
-        add_cl(p, bucket_alloc, header_brigade, apr_off_t_toa(p, bytes_spooled));
+    apr_pool_cleanup_register(p, s, util_ldap_cleanup_module,
+                              util_ldap_cleanup_module);
+
+    /*
+     * Initialize SSL support, and log the result for the benefit of the admin.
+     *
+     * If SSL is not supported it is not necessarily an error, as the
+     * application may not want to use it.
+     */
+    rc = apr_ldap_ssl_init(p,
+                      NULL,
+                      0,
+                      &(result_err));
+    if (APR_SUCCESS == rc) {
+        rc = apr_ldap_set_option(ptemp, NULL, APR_LDAP_OPT_TLS_CERT,
+                                 (void *)st->global_certs, &(result_err));
     }
-    terminate_headers(bucket_alloc, header_brigade);
-    APR_BRIGADE_CONCAT(header_brigade, body_brigade);
-    if (tmpfile) {
-        apr_brigade_insert_file(header_brigade, tmpfile, 0, fsize, p);
+
+    if (APR_SUCCESS == rc) {
+        st->ssl_supported = 1;
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                     "LDAP: SSL support available" );
     }
-    if (apr_table_get(r->subprocess_env, "proxy-sendextracrlf")) {
-        e = apr_bucket_immortal_create(ASCII_CRLF, 2, bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(header_brigade, e);
+    else {
+        st->ssl_supported = 0;
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                     "LDAP: SSL support unavailable%s%s",
+                     result_err ? ": " : "",
+                     result_err ? result_err->reason : "");
     }
-    /* This is all a single brigade, pass with flush flagged */
-    return(pass_brigade(bucket_alloc, r, p_conn, origin, header_brigade, 1));
+
+    /* Initialize the rebind callback's cross reference list. */
+    apr_ldap_rebind_init (p);
+
+#ifdef AP_LDAP_OPT_DEBUG
+    if (st->debug_level > 0) { 
+        result = ldap_set_option(NULL, AP_LDAP_OPT_DEBUG, &st->debug_level);
+        if (result != LDAP_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                    "LDAP: Could not set the LDAP library debug level to %d:(%d) %s", 
+                    st->debug_level, result, ldap_err2string(result));
+        }
+    }
+#endif
+
+    return(OK);
 }

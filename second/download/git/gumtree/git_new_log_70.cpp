@@ -1,1 +1,1 @@
-die("badly quoted argument: %s", orig);
+warning(_("the original commit '%s' has a gpg signature."), old_ref);

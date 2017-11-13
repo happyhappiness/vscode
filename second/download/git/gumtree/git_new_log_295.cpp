@@ -1,1 +1,0 @@
-packet_write_fmt(stdin_fd, "%s %s%c", serv, repo, 0);

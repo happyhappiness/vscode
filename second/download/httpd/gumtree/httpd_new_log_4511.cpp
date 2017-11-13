@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(00469)
-                          "process_socket: connection aborted");
+ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, APLOGNO(00919)
+                     "no mutex %s", balancer->s->name);

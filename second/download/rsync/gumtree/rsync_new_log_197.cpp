@@ -1,1 +1,1 @@
-fprintf(FERROR,"generator wrote %d\n",write_total());
+fprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));

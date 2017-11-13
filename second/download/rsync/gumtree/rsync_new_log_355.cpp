@@ -1,1 +1,1 @@
-fprintf(FINFO,"send_files(%d,%s)\n",i,fname);
+fprintf(FERROR,"rmdir(%s) : %s\n", fname, strerror(errno));

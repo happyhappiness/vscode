@@ -1,10 +1,10 @@
 fputs(
-"              When -L, --location is used, is used to prevent curl  from  fol-\n"
-"              lowing  redirections \"in absurdum\". By default, the limit is set\n"
-"              to 50 redirections. Set this option to -1 to make it unlimited.\n"
+"              See also -u, --user.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -m, --max-time <time>\n"
-"              Maximum time in seconds that you allow the  whole  operation  to\n"
+"       -L, --location\n"
+"              (HTTP)  If  the server reports that the requested page has moved\n"
+"              to a different location (indicated with a Location: header and a\n"
+"              3XX  response code), this option will make curl redo the request\n"
+"              on the new place. If used together with  -i,  --include  or  -I,\n"
+"              --head,  headers  from  all  requested pages will be shown. When\n"
 , stdout);

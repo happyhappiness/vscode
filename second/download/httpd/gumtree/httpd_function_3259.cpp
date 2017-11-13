@@ -1,84 +1,87 @@
-static apr_status_t handle_config(include_ctx_t *ctx, ap_filter_t *f,
-                                  apr_bucket_brigade *bb)
+static int authorize_user_core(request_rec *r, int after_authn)
 {
-    request_rec *r = f->r;
-    apr_table_t *env = r->subprocess_env;
+    authz_core_dir_conf *conf;
+    authz_status auth_result;
 
-    if (!ctx->argc) {
-        ap_log_rerror(APLOG_MARK,
-                      (ctx->flags & SSI_FLAG_PRINTING)
-                          ? APLOG_ERR : APLOG_WARNING,
-                      0, r, "missing argument for config element in %s",
-                      r->filename);
+    conf = ap_get_module_config(r->per_dir_config, &authz_core_module);
+
+    if (!conf->section) {
+        if (ap_auth_type(r)) {
+            /* there's an AuthType configured, but no authorization
+             * directives applied to support it
+             */
+
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_SUCCESS, r,
+                          "AuthType configured with no corresponding "
+                          "authorization directives");
+
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r,
+                      "authorization result: granted (no directives)");
+
+        return OK;
     }
 
-    if (!(ctx->flags & SSI_FLAG_PRINTING)) {
-        return APR_SUCCESS;
+    auth_result = apply_authz_sections(r, conf->section, AUTHZ_LOGIC_AND);
+
+    if (auth_result == AUTHZ_GRANTED) {
+        return OK;
     }
+    else if (auth_result == AUTHZ_DENIED_NO_USER) {
+        if (after_authn) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_SUCCESS, r,
+                          "authorization failure (no authenticated user): %s",
+                          r->uri);
+            /*
+             * If we're returning 401 to an authenticated user, tell them to
+             * try again. If unauthenticated, note_auth_failure has already
+             * been called during auth.
+             */
+            if (r->user)
+                ap_note_auth_failure(r);
 
-    if (!ctx->argc) {
-        SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
-        return APR_SUCCESS;
-    }
-
-    while (1) {
-        char *tag     = NULL;
-        char *tag_val = NULL;
-
-        ap_ssi_get_tag_and_value(ctx, &tag, &tag_val, SSI_VALUE_RAW);
-        if (!tag || !tag_val) {
-            break;
-        }
-
-        if (!strcmp(tag, "errmsg")) {
-            ctx->error_str = ap_ssi_parse_string(ctx, tag_val, NULL, 0,
-                                                 SSI_EXPAND_DROP_NAME);
-        }
-        else if (!strcmp(tag, "echomsg")) {
-            ctx->intern->undefined_echo =
-                ap_ssi_parse_string(ctx, tag_val, NULL, 0,SSI_EXPAND_DROP_NAME);
-            ctx->intern->undefined_echo_len=strlen(ctx->intern->undefined_echo);
-        }
-        else if (!strcmp(tag, "timefmt")) {
-            apr_time_t date = r->request_time;
-
-            ctx->time_str = ap_ssi_parse_string(ctx, tag_val, NULL, 0,
-                                                SSI_EXPAND_DROP_NAME);
-
-            apr_table_setn(env, "DATE_LOCAL", ap_ht_time(r->pool, date,
-                           ctx->time_str, 0));
-            apr_table_setn(env, "DATE_GMT", ap_ht_time(r->pool, date,
-                           ctx->time_str, 1));
-            apr_table_setn(env, "LAST_MODIFIED",
-                           ap_ht_time(r->pool, r->finfo.mtime,
-                           ctx->time_str, 0));
-        }
-        else if (!strcmp(tag, "sizefmt")) {
-            char *parsed_string;
-
-            parsed_string = ap_ssi_parse_string(ctx, tag_val, NULL, 0,
-                                                SSI_EXPAND_DROP_NAME);
-            if (!strcmp(parsed_string, "bytes")) {
-                ctx->flags |= SSI_FLAG_SIZE_IN_BYTES;
-            }
-            else if (!strcmp(parsed_string, "abbrev")) {
-                ctx->flags &= SSI_FLAG_SIZE_ABBREV;
-            }
-            else {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unknown value "
-                              "\"%s\" to parameter \"sizefmt\" of tag config "
-                              "in %s", parsed_string, r->filename);
-                SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
-                break;
-            }
+            return HTTP_UNAUTHORIZED;
         }
         else {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unknown parameter "
-                          "\"%s\" to tag config in %s", tag, r->filename);
-            SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
-            break;
+            /*
+             * We need a user before we can decide what to do.
+             * Get out of the way and proceed with authentication.
+             */
+            return DECLINED;
         }
     }
+    else if (auth_result == AUTHZ_DENIED || auth_result == AUTHZ_NEUTRAL) {
+        if (!after_authn || ap_auth_type(r) == NULL) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_SUCCESS, r,
+                          "client denied by server configuration: %s%s",
+                          r->filename ? "" : "uri ",
+                          r->filename ? r->filename : r->uri);
 
-    return APR_SUCCESS;
+            return HTTP_FORBIDDEN;
+        }
+        else {
+            /* XXX: maybe we want to return FORBIDDEN here, too??? */
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_SUCCESS, r,
+                          "user %s: authorization failure for \"%s\": ",
+                          r->user, r->uri);
+
+            /*
+             * If we're returning 401 to an authenticated user, tell them to
+             * try again. If unauthenticated, note_auth_failure has already
+             * been called during auth.
+             */
+            if (r->user)
+                ap_note_auth_failure(r);
+
+            return HTTP_UNAUTHORIZED;
+        }
+    }
+    else {
+        /* We'll assume that the module has already said what its
+         * error was in the logs.
+         */
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
 }

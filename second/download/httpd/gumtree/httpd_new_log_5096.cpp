@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                     APLOGNO(00373) "Failed to open the '%s' service",
-                     mpm_display_name);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00518)
+                         "StartServers of %d not allowed, increasing to 1",
+                         ap_daemons_to_start);

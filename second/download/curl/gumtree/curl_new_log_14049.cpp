@@ -1,9 +1,11 @@
 fputs(
-"              address and prevent the otherwise normally resolved  address  to\n"
-"              be  used.  Consider it a sort of /etc/hosts alternative provided\n"
-"              on the command line. The port number should be the  number  used\n"
-"              for  the  specific  protocol the host will be used for. It means\n"
-"              you need several entries if you want to provide address for  the\n"
-"              same host but different ports.\n"
+"              the proxy to use. If there's an environment variable  setting  a\n"
+"              proxy, you can set proxy to \"\" to override it.\n"
+"\n"
+"              All operations that are performed over an HTTP proxy will trans-\n"
+"              parently be converted to HTTP. It means  that  certain  protocol\n"
+"              specific operations might not be available. This is not the case\n"
+"              if you can tunnel through the proxy, as one with the -p, --prox-\n"
+"              ytunnel option.\n"
 "\n"
 , stdout);

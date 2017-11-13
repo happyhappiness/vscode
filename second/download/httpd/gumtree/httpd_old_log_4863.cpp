@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MaxClients of %d is not an integer "
-                         "multiple of", max_clients);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                      "OCSP response: got %" APR_SIZE_T_FMT 
+                      " bytes, %" APR_SIZE_T_FMT " total", len, count);

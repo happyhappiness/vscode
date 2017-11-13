@@ -1,1 +1,1 @@
-argv_array_pushf(&av, "--max-age=%lu", deepen_since);
+die(_("error in object: %s"), line);

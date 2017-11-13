@@ -1,65 +1,35 @@
-apr_status_t h2_ngn_shed_push_task(h2_ngn_shed *shed, const char *ngn_type, 
-                                   h2_task *task, http2_req_engine_init *einit) 
+apr_status_t h2_mplx_release_and_join(h2_mplx *m, apr_thread_cond_t *wait)
 {
-    h2_req_engine *ngn;
+    apr_status_t status;
+    workers_unregister(m);
 
-    AP_DEBUG_ASSERT(shed);
-    
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, shed->c,
-                  "h2_ngn_shed(%ld): PUSHing request (task=%s)", shed->c->id, 
-                  task->id);
-    if (task->ser_headers) {
-        /* Max compatibility, deny processing of this */
-        return APR_EOF;
-    }
-    
-    ngn = apr_hash_get(shed->ngns, ngn_type, APR_HASH_KEY_STRING);
-    if (ngn && !ngn->shutdown) {
-        /* this task will be processed in another thread,
-         * freeze any I/O for the time being. */
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c,
-                      "h2_ngn_shed(%ld): pushing request %s to %s", 
-                      shed->c->id, task->id, ngn->id);
-        if (!h2_task_is_detached(task)) {
-            h2_task_freeze(task);
-        }
-        /* FIXME: sometimes ngn is garbage, probly alread freed */
-        ngn_add_task(ngn, task);
-        ngn->no_assigned++;
-        return APR_SUCCESS;
-    }
-    
-    /* no existing engine or being shut down, start a new one */
-    if (einit) {
-        apr_status_t status;
-        apr_pool_t *pool = task->pool;
-        h2_req_engine *newngn;
+    status = apr_thread_mutex_lock(m->lock);
+    if (APR_SUCCESS == status) {
+        int attempts = 0;
         
-        newngn = apr_pcalloc(pool, sizeof(*ngn));
-        newngn->pool = pool;
-        newngn->id   = apr_psprintf(pool, "ngn-%s", task->id);
-        newngn->type = apr_pstrdup(pool, ngn_type);
-        newngn->c    = task->c;
-        newngn->shed = shed;
-        newngn->capacity = shed->default_capacity;
-        newngn->no_assigned = 1;
-        newngn->no_live = 1;
-        APR_RING_INIT(&newngn->entries, h2_ngn_entry, link);
-        
-        status = einit(newngn, newngn->id, newngn->type, newngn->pool,
-                       shed->req_buffer_size, task->r, 
-                       &newngn->out_consumed, &newngn->out_consumed_ctx);
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, task->c,
-                      "h2_ngn_shed(%ld): create engine %s (%s)", 
-                      shed->c->id, newngn->id, newngn->type);
-        if (status == APR_SUCCESS) {
-            AP_DEBUG_ASSERT(task->engine == NULL);
-            newngn->task = task;
-            task->engine = newngn;
-            task->assigned = newngn;
-            apr_hash_set(shed->ngns, newngn->type, APR_HASH_KEY_STRING, newngn);
+        release(m);
+        while (apr_atomic_read32(&m->refs) > 0) {
+            m->join_wait = wait;
+            ap_log_cerror(APLOG_MARK, (attempts? APLOG_INFO : APLOG_DEBUG), 
+                          0, m->c,
+                          "h2_mplx(%ld): release_join, refs=%d, waiting...", 
+                          m->id, m->refs);
+            apr_thread_cond_timedwait(wait, m->lock, apr_time_from_sec(10));
+            if (++attempts >= 6) {
+                ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c,
+                              APLOGNO(02952) 
+                              "h2_mplx(%ld): join attempts exhausted, refs=%d", 
+                              m->id, m->refs);
+                break;
+            }
         }
-        return status;
+        if (m->join_wait) {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c,
+                          "h2_mplx(%ld): release_join -> destroy", m->id);
+        }
+        m->join_wait = NULL;
+        apr_thread_mutex_unlock(m->lock);
+        h2_mplx_destroy(m);
     }
-    return APR_EOF;
+    return status;
 }

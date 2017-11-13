@@ -1,1 +1,1 @@
-die(_(incremental_bitmap_conflict_error));
+die("%s doesn't support --super-prefix", p->cmd);

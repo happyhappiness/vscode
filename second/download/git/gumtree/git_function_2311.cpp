@@ -1,26 +1,71 @@
-int main(int ac, char **av)
+static int append_ref(const char *refname, const struct object_id *oid, int flags, void *cb_data)
 {
-	int i;
-	int dirty, clean, racy;
+	struct append_ref_cb *cb = (struct append_ref_cb *)(cb_data);
+	struct ref_list *ref_list = cb->ref_list;
+	struct ref_item *newitem;
+	struct commit *commit;
+	int kind, i;
+	const char *prefix, *orig_refname = refname;
 
-	dirty = clean = racy = 0;
-	read_cache();
-	for (i = 0; i < active_nr; i++) {
-		struct cache_entry *ce = active_cache[i];
-		struct stat st;
+	static struct {
+		int kind;
+		const char *prefix;
+	} ref_kind[] = {
+		{ REF_LOCAL_BRANCH, "refs/heads/" },
+		{ REF_REMOTE_BRANCH, "refs/remotes/" },
+	};
 
-		if (lstat(ce->name, &st)) {
-			error("lstat(%s): %s", ce->name, strerror(errno));
-			continue;
+	/* Detect kind */
+	for (i = 0; i < ARRAY_SIZE(ref_kind); i++) {
+		prefix = ref_kind[i].prefix;
+		if (skip_prefix(refname, prefix, &refname)) {
+			kind = ref_kind[i].kind;
+			break;
+		}
+	}
+	if (ARRAY_SIZE(ref_kind) <= i)
+		return 0;
+
+	/* Don't add types the caller doesn't want */
+	if ((kind & ref_list->kinds) == 0)
+		return 0;
+
+	if (!match_patterns(cb->pattern, refname))
+		return 0;
+
+	commit = NULL;
+	if (ref_list->verbose || ref_list->with_commit || merge_filter != NO_FILTER) {
+		commit = lookup_commit_reference_gently(oid->hash, 1);
+		if (!commit) {
+			cb->ret = error(_("branch '%s' does not point at a commit"), refname);
+			return 0;
 		}
 
-		if (ce_match_stat(ce, &st, 0))
-			dirty++;
-		else if (ce_match_stat(ce, &st, CE_MATCH_RACY_IS_DIRTY))
-			racy++;
-		else
-			clean++;
+		/* Filter with with_commit if specified */
+		if (!is_descendant_of(commit, ref_list->with_commit))
+			return 0;
+
+		if (merge_filter != NO_FILTER)
+			add_pending_object(&ref_list->revs,
+					   (struct object *)commit, refname);
 	}
-	printf("dirty %d, clean %d, racy %d\n", dirty, clean, racy);
+
+	ALLOC_GROW(ref_list->list, ref_list->index + 1, ref_list->alloc);
+
+	/* Record the new item */
+	newitem = &(ref_list->list[ref_list->index++]);
+	newitem->name = xstrdup(refname);
+	newitem->kind = kind;
+	newitem->commit = commit;
+	newitem->width = utf8_strwidth(refname);
+	newitem->dest = resolve_symref(orig_refname, prefix);
+	newitem->ignore = 0;
+	/* adjust for "remotes/" */
+	if (newitem->kind == REF_REMOTE_BRANCH &&
+	    ref_list->kinds != REF_REMOTE_BRANCH)
+		newitem->width += 8;
+	if (newitem->width > ref_list->maxwidth)
+		ref_list->maxwidth = newitem->width;
+
 	return 0;
 }

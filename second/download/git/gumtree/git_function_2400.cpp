@@ -1,37 +1,50 @@
-static int verify_absent_1(const struct cache_entry *ce,
-			   enum unpack_trees_error_types error_type,
-			   struct unpack_trees_options *o)
+static int get_url(int argc, const char **argv)
 {
-	int len;
-	struct stat st;
+	int i, push_mode = 0, all_mode = 0;
+	const char *remotename = NULL;
+	struct remote *remote;
+	const char **url;
+	int url_nr;
+	struct option options[] = {
+		OPT_BOOL('\0', "push", &push_mode,
+			 N_("query push URLs rather than fetch URLs")),
+		OPT_BOOL('\0', "all", &all_mode,
+			 N_("return all URLs")),
+		OPT_END()
+	};
+	argc = parse_options(argc, argv, NULL, options, builtin_remote_geturl_usage, 0);
 
-	if (o->index_only || o->reset || !o->update)
-		return 0;
+	if (argc != 1)
+		usage_with_options(builtin_remote_geturl_usage, options);
 
-	len = check_leading_path(ce->name, ce_namelen(ce));
-	if (!len)
-		return 0;
-	else if (len > 0) {
-		char *path;
-		int ret;
+	remotename = argv[0];
 
-		path = xmemdupz(ce->name, len);
-		if (lstat(path, &st))
-			ret = error("cannot stat '%s': %s", path,
-					strerror(errno));
-		else
-			ret = check_ok_to_remove(path, len, DT_UNKNOWN, NULL,
-						 &st, error_type, o);
-		free(path);
-		return ret;
-	} else if (lstat(ce->name, &st)) {
-		if (errno != ENOENT)
-			return error("cannot stat '%s': %s", ce->name,
-				     strerror(errno));
-		return 0;
-	} else {
-		return check_ok_to_remove(ce->name, ce_namelen(ce),
-					  ce_to_dtype(ce), ce, &st,
-					  error_type, o);
+	if (!remote_is_configured(remotename))
+		die(_("No such remote '%s'"), remotename);
+	remote = remote_get(remotename);
+
+	url_nr = 0;
+	if (push_mode) {
+		url = remote->pushurl;
+		url_nr = remote->pushurl_nr;
 	}
+	/* else fetch mode */
+
+	/* Use the fetch URL when no push URLs were found or requested. */
+	if (!url_nr) {
+		url = remote->url;
+		url_nr = remote->url_nr;
+	}
+
+	if (!url_nr)
+		die(_("no URLs configured for remote '%s'"), remotename);
+
+	if (all_mode) {
+		for (i = 0; i < url_nr; i++)
+			printf_ln("%s", url[i]);
+	} else {
+		printf_ln("%s", *url);
+	}
+
+	return 0;
 }

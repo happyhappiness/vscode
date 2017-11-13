@@ -1,1 +1,1 @@
-die(_("positive value expected contents:lines=%s"), arg);
+die("Missing '=': '%s'", buf);

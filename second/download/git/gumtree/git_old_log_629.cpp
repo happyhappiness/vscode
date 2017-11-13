@@ -1,1 +1,1 @@
-die(_("Missing ')' at the end of pathspec magic in '%s'"), elt);
+die_errno(_("Could not open %s"), git_path_todo_file());

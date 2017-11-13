@@ -1,1 +1,1 @@
-out_of_memory("do_cmd");
+out_of_memory("open_socket_out");

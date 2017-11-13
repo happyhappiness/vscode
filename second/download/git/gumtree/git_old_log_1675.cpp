@@ -1,2 +1,2 @@
-printf("%s was both good and bad\n",
-		       oid_to_hex(current_bad_oid));
+fprintf(info_ref_fp, "%s	%s^{}\n",
+				sha1_to_hex(o->sha1), path);

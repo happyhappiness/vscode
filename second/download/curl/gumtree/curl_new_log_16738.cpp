@@ -1,10 +1,11 @@
 puts(
-"          stituted  by the value or text that curl thinks fit, as\n"
-"          described  below.  All  variables  are  specified  like\n"
-"          %{variable_name}  and  to  output  a  normal % you just\n"
-"          write them like %%. You can output a newline  by  using\n"
-"          \\n, a carrige return with \\r and a tab space with \\t.\n"
+"          $HOME/.curlrc file will not be read and used as a  con�\n"
+"          fig file.\n"
 "\n"
-"          NOTE:   The   %-letter  is  a  special  letter  in  the\n"
-"          win32-environment, where all occurrences of %  must  be\n"
+"     -Q/--quote <comand>\n"
+"          (FTP)  Send  an  arbitrary  command  to  the remote FTP\n"
+"          server, by using the QUOTE command of the  server.  Not\n"
+"          all  servers support this command, and the set of QUOTE\n"
+"          commands are server specific! Quote commands  are  sent\n"
+"          BEFORE  the  transfer is taking place. To make commands\n"
 );

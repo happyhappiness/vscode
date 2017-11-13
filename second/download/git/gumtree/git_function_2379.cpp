@@ -1,73 +1,57 @@
-unsigned char *use_pack(struct packed_git *p,
-		struct pack_window **w_cursor,
-		off_t offset,
-		unsigned long *left)
+static int handle_commit_msg(struct strbuf *line)
 {
-	struct pack_window *win = *w_cursor;
+	static int still_looking = 1;
 
-	/* Since packfiles end in a hash of their content and it's
-	 * pointless to ask for an offset into the middle of that
-	 * hash, and the in_window function above wouldn't match
-	 * don't allow an offset too close to the end of the file.
-	 */
-	if (!p->pack_size && p->pack_fd == -1 && open_packed_git(p))
-		die("packfile %s cannot be accessed", p->pack_name);
-	if (offset > (p->pack_size - 20))
-		die("offset beyond end of packfile (truncated pack?)");
-	if (offset < 0)
-		die(_("offset before end of packfile (broken .idx?)"));
+	if (!cmitmsg)
+		return 0;
 
-	if (!win || !in_window(win, offset)) {
-		if (win)
-			win->inuse_cnt--;
-		for (win = p->windows; win; win = win->next) {
-			if (in_window(win, offset))
-				break;
-		}
-		if (!win) {
-			size_t window_align = packed_git_window_size / 2;
-			off_t len;
-
-			if (p->pack_fd == -1 && open_packed_git(p))
-				die("packfile %s cannot be accessed", p->pack_name);
-
-			win = xcalloc(1, sizeof(*win));
-			win->offset = (offset / window_align) * window_align;
-			len = p->pack_size - win->offset;
-			if (len > packed_git_window_size)
-				len = packed_git_window_size;
-			win->len = (size_t)len;
-			pack_mapped += win->len;
-			while (packed_git_limit < pack_mapped
-				&& unuse_one_window(p))
-				; /* nothing */
-			win->base = xmmap(NULL, win->len,
-				PROT_READ, MAP_PRIVATE,
-				p->pack_fd, win->offset);
-			if (win->base == MAP_FAILED)
-				die("packfile %s cannot be mapped: %s",
-					p->pack_name,
-					strerror(errno));
-			if (!win->offset && win->len == p->pack_size
-				&& !p->do_not_close)
-				close_pack_fd(p);
-			pack_mmap_calls++;
-			pack_open_windows++;
-			if (pack_mapped > peak_pack_mapped)
-				peak_pack_mapped = pack_mapped;
-			if (pack_open_windows > peak_pack_open_windows)
-				peak_pack_open_windows = pack_open_windows;
-			win->next = p->windows;
-			p->windows = win;
-		}
+	if (still_looking) {
+		if (!line->len || (line->len == 1 && line->buf[0] == '\n'))
+			return 0;
 	}
-	if (win != *w_cursor) {
-		win->last_used = pack_used_ctr++;
-		win->inuse_cnt++;
-		*w_cursor = win;
+
+	if (use_inbody_headers && still_looking) {
+		still_looking = check_header(line, s_hdr_data, 0);
+		if (still_looking)
+			return 0;
+	} else
+		/* Only trim the first (blank) line of the commit message
+		 * when ignoring in-body headers.
+		 */
+		still_looking = 0;
+
+	/* normalize the log message to UTF-8. */
+	if (metainfo_charset)
+		convert_to_utf8(line, charset.buf);
+
+	if (use_scissors && is_scissors_line(line)) {
+		int i;
+		if (fseek(cmitmsg, 0L, SEEK_SET))
+			die_errno("Could not rewind output message file");
+		if (ftruncate(fileno(cmitmsg), 0))
+			die_errno("Could not truncate output message file at scissors");
+		still_looking = 1;
+
+		/*
+		 * We may have already read "secondary headers"; purge
+		 * them to give ourselves a clean restart.
+		 */
+		for (i = 0; header[i]; i++) {
+			if (s_hdr_data[i])
+				strbuf_release(s_hdr_data[i]);
+			s_hdr_data[i] = NULL;
+		}
+		return 0;
 	}
-	offset -= win->offset;
-	if (left)
-		*left = win->len - xsize_t(offset);
-	return win->base + offset;
+
+	if (patchbreak(line)) {
+		if (message_id)
+			fprintf(cmitmsg, "Message-Id: %s\n", message_id);
+		fclose(cmitmsg);
+		cmitmsg = NULL;
+		return 1;
+	}
+
+	fputs(line->buf, cmitmsg);
+	return 0;
 }

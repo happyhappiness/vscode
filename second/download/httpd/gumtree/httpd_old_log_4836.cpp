@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
-                             ap_server_conf,
-                             "long lost child came home! (pid %ld)",
-                             (long)pid.pid);
+ap_log_error(APLOG_MARK, APLOG_CRIT|APLOG_NOERRNO, 0, s,
+                     "Don't understand PKCS7 file %s", pkcs7);

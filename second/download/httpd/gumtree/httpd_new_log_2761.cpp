@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01735)
-                              "auth_ldap authorize: "
-                              "require attribute: authorization successful");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "A prepared statement could not be found for "
+                      "AuthDBDUserPWQuery with the key '%s'", conf->user);

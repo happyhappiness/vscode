@@ -1,1 +1,3 @@
-alloc_xbuf(&iobuf.in, ROUND_UP_1024(IO_BUFFER_SIZE));
+fprintf(stderr,
+			    "Incompatible options specified for inc-recursive %s.\n",
+			    read_batch ? "batch file" : "connection");

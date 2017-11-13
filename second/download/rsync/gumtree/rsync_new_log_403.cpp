@@ -1,1 +1,1 @@
-rprintf(FINFO,"recv_file_list done\n");
+fprintf(FERROR,"pipe: %s\n",strerror(errno));

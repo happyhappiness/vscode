@@ -1,115 +1,188 @@
-static void break_delta_chains(struct object_entry *entry)
+int cmd_index_pack(int argc, const char **argv, const char *prefix)
 {
-	/*
-	 * The actual depth of each object we will write is stored as an int,
-	 * as it cannot exceed our int "depth" limit. But before we break
-	 * changes based no that limit, we may potentially go as deep as the
-	 * number of objects, which is elsewhere bounded to a uint32_t.
-	 */
-	uint32_t total_depth;
-	struct object_entry *cur, *next;
+	int i, fix_thin_pack = 0, verify = 0, stat_only = 0;
+	const char *curr_index;
+	const char *index_name = NULL, *pack_name = NULL;
+	const char *keep_name = NULL, *keep_msg = NULL;
+	struct strbuf index_name_buf = STRBUF_INIT,
+		      keep_name_buf = STRBUF_INIT;
+	struct pack_idx_entry **idx_objects;
+	struct pack_idx_option opts;
+	unsigned char pack_sha1[20];
+	unsigned foreign_nr = 1;	/* zero is a "good" value, assume bad */
+	int report_end_of_input = 0;
 
-	for (cur = entry, total_depth = 0;
-	     cur;
-	     cur = cur->delta, total_depth++) {
-		if (cur->dfs_state == DFS_DONE) {
-			/*
-			 * We've already seen this object and know it isn't
-			 * part of a cycle. We do need to append its depth
-			 * to our count.
-			 */
-			total_depth += cur->depth;
-			break;
+	if (argc == 2 && !strcmp(argv[1], "-h"))
+		usage(index_pack_usage);
+
+	check_replace_refs = 0;
+	fsck_options.walk = mark_link;
+
+	reset_pack_idx_option(&opts);
+	git_config(git_index_pack_config, &opts);
+	if (prefix && chdir(prefix))
+		die(_("Cannot come back to cwd"));
+
+	for (i = 1; i < argc; i++) {
+		const char *arg = argv[i];
+
+		if (*arg == '-') {
+			if (!strcmp(arg, "--stdin")) {
+				from_stdin = 1;
+			} else if (!strcmp(arg, "--fix-thin")) {
+				fix_thin_pack = 1;
+			} else if (!strcmp(arg, "--strict")) {
+				strict = 1;
+				do_fsck_object = 1;
+			} else if (skip_prefix(arg, "--strict=", &arg)) {
+				strict = 1;
+				do_fsck_object = 1;
+				fsck_set_msg_types(&fsck_options, arg);
+			} else if (!strcmp(arg, "--check-self-contained-and-connected")) {
+				strict = 1;
+				check_self_contained_and_connected = 1;
+			} else if (!strcmp(arg, "--verify")) {
+				verify = 1;
+			} else if (!strcmp(arg, "--verify-stat")) {
+				verify = 1;
+				show_stat = 1;
+			} else if (!strcmp(arg, "--verify-stat-only")) {
+				verify = 1;
+				show_stat = 1;
+				stat_only = 1;
+			} else if (!strcmp(arg, "--keep")) {
+				keep_msg = "";
+			} else if (starts_with(arg, "--keep=")) {
+				keep_msg = arg + 7;
+			} else if (starts_with(arg, "--threads=")) {
+				char *end;
+				nr_threads = strtoul(arg+10, &end, 0);
+				if (!arg[10] || *end || nr_threads < 0)
+					usage(index_pack_usage);
+#ifdef NO_PTHREADS
+				if (nr_threads != 1)
+					warning(_("no threads support, "
+						  "ignoring %s"), arg);
+				nr_threads = 1;
+#endif
+			} else if (starts_with(arg, "--pack_header=")) {
+				struct pack_header *hdr;
+				char *c;
+
+				hdr = (struct pack_header *)input_buffer;
+				hdr->hdr_signature = htonl(PACK_SIGNATURE);
+				hdr->hdr_version = htonl(strtoul(arg + 14, &c, 10));
+				if (*c != ',')
+					die(_("bad %s"), arg);
+				hdr->hdr_entries = htonl(strtoul(c + 1, &c, 10));
+				if (*c)
+					die(_("bad %s"), arg);
+				input_len = sizeof(*hdr);
+			} else if (!strcmp(arg, "-v")) {
+				verbose = 1;
+			} else if (!strcmp(arg, "--show-resolving-progress")) {
+				show_resolving_progress = 1;
+			} else if (!strcmp(arg, "--report-end-of-input")) {
+				report_end_of_input = 1;
+			} else if (!strcmp(arg, "-o")) {
+				if (index_name || (i+1) >= argc)
+					usage(index_pack_usage);
+				index_name = argv[++i];
+			} else if (starts_with(arg, "--index-version=")) {
+				char *c;
+				opts.version = strtoul(arg + 16, &c, 10);
+				if (opts.version > 2)
+					die(_("bad %s"), arg);
+				if (*c == ',')
+					opts.off32_limit = strtoul(c+1, &c, 0);
+				if (*c || opts.off32_limit & 0x80000000)
+					die(_("bad %s"), arg);
+			} else if (skip_prefix(arg, "--max-input-size=", &arg)) {
+				max_input_size = strtoumax(arg, NULL, 10);
+			} else
+				usage(index_pack_usage);
+			continue;
 		}
 
-		/*
-		 * We break cycles before looping, so an ACTIVE state (or any
-		 * other cruft which made its way into the state variable)
-		 * is a bug.
-		 */
-		if (cur->dfs_state != DFS_NONE)
-			die("BUG: confusing delta dfs state in first pass: %d",
-			    cur->dfs_state);
-
-		/*
-		 * Now we know this is the first time we've seen the object. If
-		 * it's not a delta, we're done traversing, but we'll mark it
-		 * done to save time on future traversals.
-		 */
-		if (!cur->delta) {
-			cur->dfs_state = DFS_DONE;
-			break;
-		}
-
-		/*
-		 * Mark ourselves as active and see if the next step causes
-		 * us to cycle to another active object. It's important to do
-		 * this _before_ we loop, because it impacts where we make the
-		 * cut, and thus how our total_depth counter works.
-		 * E.g., We may see a partial loop like:
-		 *
-		 *   A -> B -> C -> D -> B
-		 *
-		 * Cutting B->C breaks the cycle. But now the depth of A is
-		 * only 1, and our total_depth counter is at 3. The size of the
-		 * error is always one less than the size of the cycle we
-		 * broke. Commits C and D were "lost" from A's chain.
-		 *
-		 * If we instead cut D->B, then the depth of A is correct at 3.
-		 * We keep all commits in the chain that we examined.
-		 */
-		cur->dfs_state = DFS_ACTIVE;
-		if (cur->delta->dfs_state == DFS_ACTIVE) {
-			drop_reused_delta(cur);
-			cur->dfs_state = DFS_DONE;
-			break;
-		}
+		if (pack_name)
+			usage(index_pack_usage);
+		pack_name = arg;
 	}
 
-	/*
-	 * And now that we've gone all the way to the bottom of the chain, we
-	 * need to clear the active flags and set the depth fields as
-	 * appropriate. Unlike the loop above, which can quit when it drops a
-	 * delta, we need to keep going to look for more depth cuts. So we need
-	 * an extra "next" pointer to keep going after we reset cur->delta.
-	 */
-	for (cur = entry; cur; cur = next) {
-		next = cur->delta;
+	if (!pack_name && !from_stdin)
+		usage(index_pack_usage);
+	if (fix_thin_pack && !from_stdin)
+		die(_("--fix-thin cannot be used without --stdin"));
+	if (from_stdin && !startup_info->have_repository)
+		die(_("--stdin requires a git repository"));
+	if (!index_name && pack_name)
+		index_name = derive_filename(pack_name, ".idx", &index_name_buf);
+	if (keep_msg && !keep_name && pack_name)
+		keep_name = derive_filename(pack_name, ".keep", &keep_name_buf);
 
-		/*
-		 * We should have a chain of zero or more ACTIVE states down to
-		 * a final DONE. We can quit after the DONE, because either it
-		 * has no bases, or we've already handled them in a previous
-		 * call.
-		 */
-		if (cur->dfs_state == DFS_DONE)
-			break;
-		else if (cur->dfs_state != DFS_ACTIVE)
-			die("BUG: confusing delta dfs state in second pass: %d",
-			    cur->dfs_state);
-
-		/*
-		 * If the total_depth is more than depth, then we need to snip
-		 * the chain into two or more smaller chains that don't exceed
-		 * the maximum depth. Most of the resulting chains will contain
-		 * (depth + 1) entries (i.e., depth deltas plus one base), and
-		 * the last chain (i.e., the one containing entry) will contain
-		 * whatever entries are left over, namely
-		 * (total_depth % (depth + 1)) of them.
-		 *
-		 * Since we are iterating towards decreasing depth, we need to
-		 * decrement total_depth as we go, and we need to write to the
-		 * entry what its final depth will be after all of the
-		 * snipping. Since we're snipping into chains of length (depth
-		 * + 1) entries, the final depth of an entry will be its
-		 * original depth modulo (depth + 1). Any time we encounter an
-		 * entry whose final depth is supposed to be zero, we snip it
-		 * from its delta base, thereby making it so.
-		 */
-		cur->depth = (total_depth--) % (depth + 1);
-		if (!cur->depth)
-			drop_reused_delta(cur);
-
-		cur->dfs_state = DFS_DONE;
+	if (verify) {
+		if (!index_name)
+			die(_("--verify with no packfile name given"));
+		read_idx_option(&opts, index_name);
+		opts.flags |= WRITE_IDX_VERIFY | WRITE_IDX_STRICT;
 	}
+	if (strict)
+		opts.flags |= WRITE_IDX_STRICT;
+
+#ifndef NO_PTHREADS
+	if (!nr_threads) {
+		nr_threads = online_cpus();
+		/* An experiment showed that more threads does not mean faster */
+		if (nr_threads > 3)
+			nr_threads = 3;
+	}
+#endif
+
+	curr_pack = open_pack_file(pack_name);
+	parse_pack_header();
+	objects = xcalloc(st_add(nr_objects, 1), sizeof(struct object_entry));
+	if (show_stat)
+		obj_stat = xcalloc(st_add(nr_objects, 1), sizeof(struct object_stat));
+	ofs_deltas = xcalloc(nr_objects, sizeof(struct ofs_delta_entry));
+	parse_pack_objects(pack_sha1);
+	if (report_end_of_input)
+		write_in_full(2, "\0", 1);
+	resolve_deltas();
+	conclude_pack(fix_thin_pack, curr_pack, pack_sha1);
+	free(ofs_deltas);
+	free(ref_deltas);
+	if (strict)
+		foreign_nr = check_objects();
+
+	if (show_stat)
+		show_pack_info(stat_only);
+
+	ALLOC_ARRAY(idx_objects, nr_objects);
+	for (i = 0; i < nr_objects; i++)
+		idx_objects[i] = &objects[i].idx;
+	curr_index = write_idx_file(index_name, idx_objects, nr_objects, &opts, pack_sha1);
+	free(idx_objects);
+
+	if (!verify)
+		final(pack_name, curr_pack,
+		      index_name, curr_index,
+		      keep_name, keep_msg,
+		      pack_sha1);
+	else
+		close(input_fd);
+	free(objects);
+	strbuf_release(&index_name_buf);
+	strbuf_release(&keep_name_buf);
+	if (pack_name == NULL)
+		free((void *) curr_pack);
+	if (index_name == NULL)
+		free((void *) curr_index);
+
+	/*
+	 * Let the caller know this pack is not self contained
+	 */
+	if (check_self_contained_and_connected && foreign_nr)
+		return 1;
+
+	return 0;
 }

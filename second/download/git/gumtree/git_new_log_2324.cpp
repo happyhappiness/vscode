@@ -1,1 +1,3 @@
-error_errno(_("failed write to rev-list"));
+die(_("No tags can describe '%s'.\n"
+			    "Try --always, or create some tags."),
+			    oid_to_hex(oid));

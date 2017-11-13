@@ -1,2 +1,1 @@
-die("ref '%s' does not have %ld components to :strip",
-			    refname, nr);
+error("cannot fix permission bits on %s", lk->filename.buf);

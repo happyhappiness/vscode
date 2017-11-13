@@ -1,1 +1,1 @@
-rprintf(FERROR, "internal: args[] overflowed in do_cmd()\n");
+out_of_memory("is_in_group");

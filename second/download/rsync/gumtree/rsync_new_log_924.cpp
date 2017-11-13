@@ -1,1 +1,1 @@
-out_of_memory("parse_rule_tok");
+out_of_memory("parse_filter_str");

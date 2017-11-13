@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, 
-                              "ldap_compare_s(%pp, %s, %s, %s) = %s (cached)", 
-                              ldc->ldap, dn, attrib, value, ldap_err2string(result));
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00233)
+                         "WARNING: MinSpareThreads of %d not allowed, "
+                         "increasing to 1", ap_threads_min_free);

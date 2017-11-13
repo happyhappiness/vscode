@@ -1,18 +1,26 @@
-const void *get_commit_buffer(const struct commit *commit, unsigned long *sizep)
+static const char *get_upstream_branch(const char *branch_buf, int len)
 {
-	const void *ret = get_cached_commit_buffer(commit, sizep);
-	if (!ret) {
-		enum object_type type;
-		unsigned long size;
-		ret = read_sha1_file(commit->object.sha1, &type, &size);
-		if (!ret)
-			die("cannot read commit object %s",
-			    sha1_to_hex(commit->object.sha1));
-		if (type != OBJ_COMMIT)
-			die("expected commit for %s, got %s",
-			    sha1_to_hex(commit->object.sha1), typename(type));
-		if (sizep)
-			*sizep = size;
+	char *branch = xstrndup(branch_buf, len);
+	struct branch *upstream = branch_get(*branch ? branch : NULL);
+
+	/*
+	 * Upstream can be NULL only if branch refers to HEAD and HEAD
+	 * points to something different than a branch.
+	 */
+	if (!upstream)
+		die(_("HEAD does not point to a branch"));
+	if (!upstream->merge || !upstream->merge[0]->dst) {
+		if (!ref_exists(upstream->refname))
+			die(_("No such branch: '%s'"), branch);
+		if (!upstream->merge) {
+			die(_("No upstream configured for branch '%s'"),
+				upstream->name);
+		}
+		die(
+			_("Upstream branch '%s' not stored as a remote-tracking branch"),
+			upstream->merge[0]->src);
 	}
-	return ret;
+	free(branch);
+
+	return upstream->merge[0]->dst;
 }

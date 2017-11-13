@@ -1,0 +1,1 @@
+fprintf(logfile,"%s  %s", timestring(), buf);

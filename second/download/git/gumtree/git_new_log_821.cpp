@@ -1,1 +1,1 @@
-die(_("-n option is only allowed in list mode"));
+die(_("%%(trailers) does not take arguments"));

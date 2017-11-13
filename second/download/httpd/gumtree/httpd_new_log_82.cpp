@@ -1,2 +1,2 @@
 ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                         "mem_cache: Cached url: %s", obj->key);
+                     "disk_cache: Could not cache URL %s [%d]", key, rv);

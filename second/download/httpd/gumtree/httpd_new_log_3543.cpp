@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(00667)
-                     "mod_rewrite: could not init map cache in child");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02075)
+                         "Unable to read file: %s", ctx->storage_path);

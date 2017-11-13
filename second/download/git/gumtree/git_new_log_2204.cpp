@@ -1,1 +1,1 @@
-error("could not expand include path '%s'", path);
+die(_("Malformed options sheet: %s"), git_path_opts_file());

@@ -1,9 +1,11 @@
 fputs(
-"              'content'  part  to  be  a  file, prefix the file name with an @\n"
-"              sign. To just get the content part from a file, prefix the  file\n"
-"              name  with  the symbol <. The difference between @ and < is then\n"
-"              that @ makes a file get attached in the post as a  file  upload,\n"
-"              while  the  <  makes  a text field and just get the contents for\n"
-"              that text field from a file.\n"
+"              from this certificate and if it does not exactly match the  pub-\n"
+"              lic  key provided to this option, curl will abort the connection\n"
+"              before sending or receiving any data.\n"
+"\n"
+"              Added in 7.39.0 for OpenSSL, GnuTLS and GSKit. Added  in  7.43.0\n"
+"              for  NSS  and wolfSSL/CyaSSL. sha256 support added in 7.44.0 for\n"
+"              OpenSSL, GnuTLS, NSS and wolfSSL/CyaSSL. Other SSL backends  not\n"
+"              supported.\n"
 "\n"
 , stdout);

@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "%s: cannot open file %s for "
-                                "read/write access" NL, argv[0], pwfilename);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                        "Parent: Unable to connect child stdout to NUL.");

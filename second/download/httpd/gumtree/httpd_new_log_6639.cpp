@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, rv, NULL, APLOGNO(00107)
-                             "piped_log_maintenance: unable to respawn '%s'",
-                             pl->program);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, session->c, 
+                  "h2_stream(%ld-%d): prepared len=%ld, eos=%d", 
+                  session->id, stream->id, (long)len, eos);

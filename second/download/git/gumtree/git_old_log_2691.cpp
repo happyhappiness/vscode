@@ -1,4 +1,1 @@
-fprintf(stderr,
-				"Could not open '%s' for tracing: %s\n"
-				"Defaulting to tracing on stderr...\n",
-				trace, strerror(errno));
+warning(_("Untracked cache is disabled on this system."));

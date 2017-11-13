@@ -1,2 +1,2 @@
-ap_rvputs(r, "value='", ap_escape_html(r->pool, wsel->s->redirect),
-                      NULL);
+ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server, APLOGNO(01242)
+                     "Couldn't create unix domain socket");

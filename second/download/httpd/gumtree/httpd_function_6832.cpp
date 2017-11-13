@@ -1,93 +1,18 @@
-static apr_status_t find_directory(apr_pool_t *pool, const char *base,
-        const char *rest)
+static int on_invalid_header_cb(nghttp2_session *ngh2, 
+                                const nghttp2_frame *frame, 
+                                const uint8_t *name, size_t namelen, 
+                                const uint8_t *value, size_t valuelen, 
+                                uint8_t flags, void *user_data)
 {
-    apr_status_t rv;
-    apr_dir_t *dirp;
-    apr_finfo_t dirent;
-    int found = 0, files = 0;
-    const char *header = apr_pstrcat(pool, rest, CACHE_HEADER_SUFFIX, NULL);
-    const char *data = apr_pstrcat(pool, rest, CACHE_DATA_SUFFIX, NULL);
-    const char *vdir = apr_pstrcat(pool, rest, CACHE_HEADER_SUFFIX,
-            CACHE_VDIR_SUFFIX, NULL);
-    const char *dirname = NULL;
-
-    rv = apr_dir_open(&dirp, base, pool);
-    if (rv != APR_SUCCESS) {
-        char errmsg[120];
-        apr_file_printf(errfile, "Could not open directory %s: %s" APR_EOL_STR,
-                base, apr_strerror(rv, errmsg, sizeof errmsg));
-        return rv;
+    h2_session *session = user_data;
+    if (APLOGcdebug(session->c)) {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03456)
+                      "h2_session(%ld-%d): denying stream with invalid header "
+                      "'%s: %s'", session->id, (int)frame->hd.stream_id,
+                      apr_pstrndup(session->pool, (const char *)name, namelen),
+                      apr_pstrndup(session->pool, (const char *)value, valuelen));
     }
-
-    rv = APR_ENOENT;
-
-    while (apr_dir_read(&dirent, APR_FINFO_DIRENT | APR_FINFO_TYPE, dirp)
-            == APR_SUCCESS) {
-        int len = strlen(dirent.name);
-        int restlen = strlen(rest);
-        if (dirent.filetype == APR_DIR && !strncmp(rest, dirent.name, len)) {
-            dirname = apr_pstrcat(pool, base, "/", dirent.name, NULL);
-            rv = find_directory(pool, dirname, rest + (len < restlen ? len
-                    : restlen));
-            if (APR_SUCCESS == rv) {
-                found = 1;
-            }
-        }
-        if (dirent.filetype == APR_DIR) {
-            if (!strcmp(dirent.name, vdir)) {
-                files = 1;
-            }
-        }
-        if (dirent.filetype == APR_REG) {
-            if (!strcmp(dirent.name, header) || !strcmp(dirent.name, data)) {
-                files = 1;
-            }
-        }
-    }
-
-    apr_dir_close(dirp);
-
-    if (files) {
-        rv = APR_SUCCESS;
-        if (!dryrun) {
-            const char *remove;
-            apr_status_t status;
-
-            remove = apr_pstrcat(pool, base, "/", header, NULL);
-            status = apr_file_remove(remove, pool);
-            if (status != APR_SUCCESS && !APR_STATUS_IS_ENOENT(status)) {
-                char errmsg[120];
-                apr_file_printf(errfile, "Could not remove file %s: %s" APR_EOL_STR,
-                        remove, apr_strerror(status, errmsg, sizeof errmsg));
-                rv = status;
-            }
-
-            remove = apr_pstrcat(pool, base, "/", data, NULL);
-            status = apr_file_remove(remove, pool);
-            if (status != APR_SUCCESS && !APR_STATUS_IS_ENOENT(status)) {
-                char errmsg[120];
-                apr_file_printf(errfile, "Could not remove file %s: %s" APR_EOL_STR,
-                        remove, apr_strerror(status, errmsg, sizeof errmsg));
-                rv = status;
-            }
-
-            status = remove_directory(pool, apr_pstrcat(pool, base, "/", vdir, NULL));
-            if (status != APR_SUCCESS && !APR_STATUS_IS_ENOENT(status)) {
-                rv = status;
-            }
-        }
-    }
-
-    /* If asked to delete dirs, do so now. We don't care if it fails.
-     * If it fails, it likely means there was something else there.
-     */
-    if (dirname && deldirs && !dryrun) {
-        apr_dir_remove(dirname, pool);
-    }
-
-    if (found) {
-        return APR_SUCCESS;
-    }
-
-    return rv;
+    return nghttp2_submit_rst_stream(session->ngh2, NGHTTP2_FLAG_NONE,
+                                     frame->hd.stream_id, 
+                                     NGHTTP2_PROTOCOL_ERROR);
 }

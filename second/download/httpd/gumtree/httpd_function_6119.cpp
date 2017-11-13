@@ -1,16 +1,18 @@
-static void copyright(void)
+static apr_status_t h2_sos_mplx_read_to(h2_sos *sos, apr_bucket_brigade *bb, 
+                                        apr_off_t *plen, int *peos)
 {
-    if (!use_html) {
-        printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1748469 $>");
-        printf("Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
-        printf("Licensed to The Apache Software Foundation, http://www.apache.org/\n");
-        printf("\n");
+    h2_sos_mplx *msos = sos->ctx;
+    apr_status_t status;
+
+    status = h2_append_brigade(bb, msos->bb, plen, peos);
+    if (status == APR_SUCCESS && !*peos && !*plen) {
+        status = APR_EAGAIN;
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, msos->m->c,
+                      "h2_stream(%ld-%d): read_to, len=%ld eos=%d",
+                      msos->m->id, sos->stream->id, (long)*plen, *peos);
     }
-    else {
-        printf("<p>\n");
-        printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1748469 $");
-        printf(" Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
-        printf(" Licensed to The Apache Software Foundation, http://www.apache.org/<br>\n");
-        printf("</p>\n<p>\n");
-    }
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, msos->m->c,
+                  "h2_stream(%ld-%d): read_to, len=%ld eos=%d",
+                  msos->m->id, sos->stream->id, (long)*plen, *peos);
+    return status;
 }

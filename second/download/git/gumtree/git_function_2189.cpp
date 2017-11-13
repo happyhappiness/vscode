@@ -1,82 +1,46 @@
-struct transport *transport_get(struct remote *remote, const char *url)
+static int read_ref_at_ent(unsigned char *osha1, unsigned char *nsha1,
+		const char *email, unsigned long timestamp, int tz,
+		const char *message, void *cb_data)
 {
-	const char *helper;
-	struct transport *ret = xcalloc(1, sizeof(*ret));
+	struct read_ref_at_cb *cb = cb_data;
 
-	ret->progress = isatty(2);
+	cb->reccnt++;
+	cb->tz = tz;
+	cb->date = timestamp;
 
-	if (!remote)
-		die("No remote provided to transport_get()");
-
-	ret->got_remote_refs = 0;
-	ret->remote = remote;
-	helper = remote->foreign_vcs;
-
-	if (!url && remote->url)
-		url = remote->url[0];
-	ret->url = url;
-
-	/* maybe it is a foreign URL? */
-	if (url) {
-		const char *p = url;
-
-		while (is_urlschemechar(p == url, *p))
-			p++;
-		if (starts_with(p, "::"))
-			helper = xstrndup(url, p - url);
-	}
-
-	if (helper) {
-		transport_helper_init(ret, helper);
-	} else if (starts_with(url, "rsync:")) {
-		die("git-over-rsync is no longer supported");
-	} else if (url_is_local_not_ssh(url) && is_file(url) && is_bundle(url, 1)) {
-		struct bundle_transport_data *data = xcalloc(1, sizeof(*data));
-		transport_check_allowed("file");
-		ret->data = data;
-		ret->get_refs_list = get_refs_from_bundle;
-		ret->fetch = fetch_refs_from_bundle;
-		ret->disconnect = close_bundle;
-		ret->smart_options = NULL;
-	} else if (!is_url(url)
-		|| starts_with(url, "file://")
-		|| starts_with(url, "git://")
-		|| starts_with(url, "ssh://")
-		|| starts_with(url, "git+ssh://") /* deprecated - do not use */
-		|| starts_with(url, "ssh+git://") /* deprecated - do not use */
-		) {
+	if (timestamp <= cb->at_time || cb->cnt == 0) {
+		if (cb->msg)
+			*cb->msg = xstrdup(message);
+		if (cb->cutoff_time)
+			*cb->cutoff_time = timestamp;
+		if (cb->cutoff_tz)
+			*cb->cutoff_tz = tz;
+		if (cb->cutoff_cnt)
+			*cb->cutoff_cnt = cb->reccnt - 1;
 		/*
-		 * These are builtin smart transports; "allowed" transports
-		 * will be checked individually in git_connect.
+		 * we have not yet updated cb->[n|o]sha1 so they still
+		 * hold the values for the previous record.
 		 */
-		struct git_transport_data *data = xcalloc(1, sizeof(*data));
-		ret->data = data;
-		ret->set_option = NULL;
-		ret->get_refs_list = get_refs_via_connect;
-		ret->fetch = fetch_refs_via_pack;
-		ret->push_refs = git_transport_push;
-		ret->connect = connect_git;
-		ret->disconnect = disconnect_git;
-		ret->smart_options = &(data->options);
-
-		data->conn = NULL;
-		data->got_remote_heads = 0;
-	} else {
-		/* Unknown protocol in URL. Pass to external handler. */
-		int len = external_specification_len(url);
-		char *handler = xmemdupz(url, len);
-		transport_helper_init(ret, handler);
+		if (!is_null_sha1(cb->osha1)) {
+			hashcpy(cb->sha1, nsha1);
+			if (hashcmp(cb->osha1, nsha1))
+				warning("Log for ref %s has gap after %s.",
+					cb->refname, show_date(cb->date, cb->tz, DATE_RFC2822));
+		}
+		else if (cb->date == cb->at_time)
+			hashcpy(cb->sha1, nsha1);
+		else if (hashcmp(nsha1, cb->sha1))
+			warning("Log for ref %s unexpectedly ended on %s.",
+				cb->refname, show_date(cb->date, cb->tz,
+						   DATE_RFC2822));
+		hashcpy(cb->osha1, osha1);
+		hashcpy(cb->nsha1, nsha1);
+		cb->found_it = 1;
+		return 1;
 	}
-
-	if (ret->smart_options) {
-		ret->smart_options->thin = 1;
-		ret->smart_options->uploadpack = "git-upload-pack";
-		if (remote->uploadpack)
-			ret->smart_options->uploadpack = remote->uploadpack;
-		ret->smart_options->receivepack = "git-receive-pack";
-		if (remote->receivepack)
-			ret->smart_options->receivepack = remote->receivepack;
-	}
-
-	return ret;
+	hashcpy(cb->osha1, osha1);
+	hashcpy(cb->nsha1, nsha1);
+	if (cb->cnt > 0)
+		cb->cnt--;
+	return 0;
 }

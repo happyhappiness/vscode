@@ -1,1 +1,1 @@
-io_printf(f_out, "@ERROR: setuid failed\n");
+out_of_memory("glob_expand");

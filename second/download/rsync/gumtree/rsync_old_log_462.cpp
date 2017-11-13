@@ -1,1 +1,1 @@
-fprintf(f,"    --timeout TIME       set IO timeout in seconds\n");
+fprintf(FERROR,"pipe failed in do_recv\n");

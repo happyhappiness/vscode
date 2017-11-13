@@ -1,10 +1,11 @@
 fputs(
-"              --location (Added in 7.19.1)\n"
+"                     for the control connection\n"
 "\n"
-"       --post303\n"
-"              (HTTP) Tells curl to respect RFC  2616/10.3.2  and  not  convert\n"
-"              POST  requests  into GET requests when following a 303 redirect-\n"
-"              ion. The non-RFC behaviour is ubiquitous  in  web  browsers,  so\n"
-"              curl  does  the  conversion  by default to maintain consistency.\n"
-"              However, a server may require a POST to remain a POST after such\n"
+"       If  this  option is used several times, the last one will be used. Dis-\n"
+"       able the use of PORT with --ftp-pasv. Disable the attempt  to  use  the\n"
+"       EPRT  command  instead  of PORT by using --disable-eprt. EPRT is really\n"
+"       PORT++.\n"
+"\n"
+"       Starting in 7.19.5, you can append \":[start]-[end]\" to the right of the\n"
+"       address,  to tell curl what TCP port range to use. That means you spec-\n"
 , stdout);

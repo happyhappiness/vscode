@@ -1,1 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01077) "declining URL %s", url);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss, APLOGNO(01600)
+                     "mod_mime: analyze_ct: cannot get media type from '%s'",
+                     (const char *) mp);

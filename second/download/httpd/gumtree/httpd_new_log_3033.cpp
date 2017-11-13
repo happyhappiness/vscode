@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00835)
-                 "socache_shmcb_retrieve (0x%02x -> subcache %d)",
-                 SHMCB_MASK_DBG(header, id));
+ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
+                      "Response sent with status %d%s",
+		      r->status,
+		      APLOGrtrace4(r) ? ", headers:" : "");

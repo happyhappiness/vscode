@@ -1,42 +1,80 @@
-static int sequencer_rollback(struct replay_opts *opts)
+int sequencer_pick_revisions(struct replay_opts *opts)
 {
-	FILE *f;
+	struct commit_list *todo_list = NULL;
 	unsigned char sha1[20];
-	struct strbuf buf = STRBUF_INIT;
+	int i;
 
-	f = fopen(git_path_head_file(), "r");
-	if (!f && errno == ENOENT) {
-		/*
-		 * There is no multiple-cherry-pick in progress.
-		 * If CHERRY_PICK_HEAD or REVERT_HEAD indicates
-		 * a single-cherry-pick in progress, abort that.
-		 */
-		return rollback_single_pick();
+	if (opts->subcommand == REPLAY_NONE)
+		assert(opts->revs);
+
+	read_and_refresh_cache(opts);
+
+	/*
+	 * Decide what to do depending on the arguments; a fresh
+	 * cherry-pick should be handled differently from an existing
+	 * one that is being continued
+	 */
+	if (opts->subcommand == REPLAY_REMOVE_STATE) {
+		remove_sequencer_state();
+		return 0;
 	}
-	if (!f)
-		return error_errno(_("cannot open %s"), git_path_head_file());
-	if (strbuf_getline_lf(&buf, f)) {
-		error(_("cannot read %s: %s"), git_path_head_file(),
-		      ferror(f) ?  strerror(errno) : _("unexpected end of file"));
-		fclose(f);
-		goto fail;
+	if (opts->subcommand == REPLAY_ROLLBACK)
+		return sequencer_rollback(opts);
+	if (opts->subcommand == REPLAY_CONTINUE)
+		return sequencer_continue(opts);
+
+	for (i = 0; i < opts->revs->pending.nr; i++) {
+		unsigned char sha1[20];
+		const char *name = opts->revs->pending.objects[i].name;
+
+		/* This happens when using --stdin. */
+		if (!strlen(name))
+			continue;
+
+		if (!get_sha1(name, sha1)) {
+			if (!lookup_commit_reference_gently(sha1, 1)) {
+				enum object_type type = sha1_object_info(sha1, NULL);
+				die(_("%s: can't cherry-pick a %s"), name, typename(type));
+			}
+		} else
+			die(_("%s: bad revision"), name);
 	}
-	fclose(f);
-	if (get_sha1_hex(buf.buf, sha1) || buf.buf[40] != '\0') {
-		error(_("stored pre-cherry-pick HEAD file '%s' is corrupt"),
-			git_path_head_file());
-		goto fail;
+
+	/*
+	 * If we were called as "git cherry-pick <commit>", just
+	 * cherry-pick/revert it, set CHERRY_PICK_HEAD /
+	 * REVERT_HEAD, and don't touch the sequencer state.
+	 * This means it is possible to cherry-pick in the middle
+	 * of a cherry-pick sequence.
+	 */
+	if (opts->revs->cmdline.nr == 1 &&
+	    opts->revs->cmdline.rev->whence == REV_CMD_REV &&
+	    opts->revs->no_walk &&
+	    !opts->revs->cmdline.rev->flags) {
+		struct commit *cmit;
+		if (prepare_revision_walk(opts->revs))
+			die(_("revision walk setup failed"));
+		cmit = get_revision(opts->revs);
+		if (!cmit || get_revision(opts->revs))
+			die("BUG: expected exactly one commit from walk");
+		return single_pick(cmit, opts);
 	}
-	if (is_null_sha1(sha1)) {
-		error(_("cannot abort from a branch yet to be born"));
-		goto fail;
+
+	/*
+	 * Start a new cherry-pick/ revert sequence; but
+	 * first, make sure that an existing one isn't in
+	 * progress
+	 */
+
+	walk_revs_populate_todo(&todo_list, opts);
+	if (create_seq_dir() < 0)
+		return -1;
+	if (get_sha1("HEAD", sha1)) {
+		if (opts->action == REPLAY_REVERT)
+			return error(_("Can't revert as initial commit"));
+		return error(_("Can't cherry-pick into empty head"));
 	}
-	if (reset_for_rollback(sha1))
-		goto fail;
-	remove_sequencer_state();
-	strbuf_release(&buf);
-	return 0;
-fail:
-	strbuf_release(&buf);
-	return -1;
+	save_head(sha1_to_hex(sha1));
+	save_opts(opts);
+	return pick_commits(todo_list, opts);
 }

@@ -1,1 +1,1 @@
-die("destination '%s' is not a directory", dest_path[0]);
+die_errno("cannot open or read '%s'", read_from);

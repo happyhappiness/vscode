@@ -1,1 +1,0 @@
-die("protocol error: unexpected ref after capabilities^{}");

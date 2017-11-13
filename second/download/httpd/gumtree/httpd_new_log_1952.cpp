@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, rv, ap_server_conf,
-                                     "winnt_mpm: falling back to "
-                                     "'AcceptFilter none'.");
+ap_rvputs(r, "<tr>\n<td>", (*worker)->scheme, "</td>", NULL);

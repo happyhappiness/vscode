@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, 0, ap_server_conf, APLOGNO(00049)
-                     "refusing to send signal %d to pid %ld outside "
-                     "process group", sig, (long)pid);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01943)
+                             "stapling_renew_response: error in retreived response!");

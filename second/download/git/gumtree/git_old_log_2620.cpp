@@ -1,1 +1,2 @@
-fputs(diff_get_color_opt(&opt->diffopt, DIFF_COMMIT), stdout);
+packet_write(1, "shallow %s",
+						sha1_to_hex(object->sha1));

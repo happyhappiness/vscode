@@ -1,1 +1,2 @@
-apr_file_printf(errfile, "\thtpasswd -nb[mdps] username password" NL);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv,
+                             ap_server_conf, "apr_pollset_poll: (listen)");

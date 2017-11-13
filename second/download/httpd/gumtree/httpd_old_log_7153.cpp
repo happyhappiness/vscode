@@ -1,1 +1,4 @@
-ap_rvputs(r, ap_get_server_name(r), "</h1>\n\n", NULL);
+ap_rvputs(r, "<a href='", r->uri, "?b=",
+                      balancer->s->name + sizeof(BALANCER_PREFIX) - 1,
+                      "&nonce=", balancer->s->nonce,
+                      "'>", NULL);

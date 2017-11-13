@@ -1,1 +1,1 @@
-out_of_memory("expand_item_list");
+S_ISDIR(st.st_mode);

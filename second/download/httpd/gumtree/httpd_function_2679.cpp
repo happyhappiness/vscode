@@ -1,34 +1,59 @@
-static int authenticate_form_redirect_handler(request_rec * r)
+static void ssl_check_public_cert(server_rec *s,
+                                  apr_pool_t *ptemp,
+                                  X509 *cert,
+                                  int type)
 {
+    int is_ca, pathlen;
+    char *cn;
 
-    request_rec *rr = NULL;
-    const char *sent_method = NULL, *sent_mimetype = NULL;
-
-    if (strcmp(r->handler, FORM_REDIRECT_HANDLER)) {
-        return DECLINED;
+    if (!cert) {
+        return;
     }
 
-    /* get the method and mimetype from the notes */
-    get_notes_auth(r, NULL, NULL, &sent_method, &sent_mimetype);
+    /*
+     * Some information about the certificate(s)
+     */
 
-    if (r->kept_body && sent_method && sent_mimetype) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, LOG_PREFIX
-          "internal redirect to method '%s' and body mimetype '%s' for the "
-                      "uri: %s", sent_method, sent_mimetype, r->uri);
-
-        rr = ap_sub_req_method_uri(sent_method, r->uri, r, r->output_filters);
-        r->status = ap_run_sub_req(rr);
-
-    }
-    else {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, LOG_PREFIX
-        "internal redirect requested but one or all of method, mimetype or "
-                      "body are NULL: %s", r->uri);
-        return HTTP_INTERNAL_SERVER_ERROR;
+    if (SSL_X509_isSGC(cert)) {
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                     "%s server certificate enables "
+                     "Server Gated Cryptography (SGC)",
+                     ssl_asn1_keystr(type));
     }
 
-    /* return the underlying error, or OK on success */
-    return r->status == HTTP_OK || r->status == OK ? OK : r->status;
+    if (SSL_X509_getBC(cert, &is_ca, &pathlen)) {
+        if (is_ca) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "%s server certificate is a CA certificate "
+                         "(BasicConstraints: CA == TRUE !?)",
+                         ssl_asn1_keystr(type));
+        }
 
+        if (pathlen > 0) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "%s server certificate is not a leaf certificate "
+                         "(BasicConstraints: pathlen == %d > 0 !?)",
+                         ssl_asn1_keystr(type), pathlen);
+        }
+    }
+
+    if (SSL_X509_getCN(ptemp, cert, &cn)) {
+        int fnm_flags = APR_FNM_PERIOD|APR_FNM_CASE_BLIND;
+
+        if (apr_fnmatch_test(cn) &&
+            (apr_fnmatch(cn, s->server_hostname,
+                         fnm_flags) == APR_FNM_NOMATCH))
+        {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "%s server certificate wildcard CommonName (CN) `%s' "
+                         "does NOT match server name!?",
+                         ssl_asn1_keystr(type), cn);
+        }
+        else if (strNE(s->server_hostname, cn)) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "%s server certificate CommonName (CN) `%s' "
+                         "does NOT match server name!?",
+                         ssl_asn1_keystr(type), cn);
+        }
+    }
 }

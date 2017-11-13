@@ -1,1 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s, "h2_switch init");
+fprintf(stderr, "Unable to open stdout\n");

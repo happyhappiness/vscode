@@ -1,4 +1,4 @@
-ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_ERR, stat, p, APLOGNO(00073)
-                      "make_sock: unable to listen for connections "
-                      "on address %pI",
-                      server->bind_addr);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01097)
+                      "pass request body failed to %pI (%s) from %s (%s)",
+                      p_conn->addr, p_conn->hostname ? p_conn->hostname: "",
+                      c->client_ip, c->remote_host ? c->remote_host: "");

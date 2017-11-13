@@ -1,2 +1,4 @@
-ap_log_cerror(APLOG_MARK, level, 0, c, "bb_dump(%ld-%d)-%s: %s", 
-                  c->id, stream_id, tag, line);
+ap_log_error(APLOG_MARK, APLOG_ALERT, 0,
+                         ap_server_conf, APLOGNO(00285)
+                         "No active workers found..."
+                         " Apache is exiting!");

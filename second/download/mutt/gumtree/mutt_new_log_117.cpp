@@ -1,1 +1,1 @@
-(mutt_yesorno (_("Can't match nametemplate, continue?"), MUTT_YES);
+(mutt_yesorno (buf, M_NO);

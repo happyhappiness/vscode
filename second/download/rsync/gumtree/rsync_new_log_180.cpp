@@ -1,1 +1,1 @@
-fprintf(FERROR,"mktemp %s failed\n",fnametmp);
+fprintf(FERROR,"recv_generator(%s)\n",fname);

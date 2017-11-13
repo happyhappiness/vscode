@@ -1,1 +1,1 @@
-die("could not read ref '%s'", pseudoref);
+append_msgs_to_imap(&server, &all_msgs, total);

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                                  APLOGNO(02537) "Error occurred reading padding");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                                         APLOGNO(02551) "bad md5 match");

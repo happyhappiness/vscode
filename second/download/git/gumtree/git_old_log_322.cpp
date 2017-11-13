@@ -1,1 +1,1 @@
-die("The remote end hung up upon initial contact");
+die(_("unable to remove %s from index"), patch->old_name);

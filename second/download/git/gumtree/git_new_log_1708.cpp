@@ -1,1 +1,1 @@
-die(_("-b, -B, and --detach are mutually exclusive"));
+die("BUG: unable to parse our own ident: %s", buf->buf);

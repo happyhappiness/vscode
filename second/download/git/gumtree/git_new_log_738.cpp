@@ -1,1 +1,1 @@
-error(_("remote unpack failed: %s"), line);
+die("unable to read blob object %s", oid_to_hex(oid));

@@ -1,1 +1,1 @@
-die("Could not resolve ref '%s'", o.branch1);
+printf(" %-*s |  Bin\n", max, qname.buf);

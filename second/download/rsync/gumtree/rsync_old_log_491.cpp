@@ -1,2 +1,1 @@
-fprintf(FERROR,"\nError: MDupdate called with illegal count value %d."
-              ,count);
+fprintf(f,"-e, --rsh COMMAND        specify rsh replacement\n");

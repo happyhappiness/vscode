@@ -1,1 +1,1 @@
-fputs(_(env_hint), stderr);
+die(_("could not parse object '%s'"), argv[i]);

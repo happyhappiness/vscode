@@ -1,1 +1,2 @@
-fprintf(FERROR,"unlink %s : %s\n",f_name(f),strerror(errno));
+fprintf(FERROR,"opendir(%s): %s\n",
+			fname,strerror(errno));

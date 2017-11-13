@@ -1,1 +1,4 @@
-die("BUG: abort called on a closed reference transaction");
+fprintf(stderr,
+						_("Stopped at %s...  %.*s\n"),
+						short_commit_name(commit),
+						item->arg_len, item->arg);

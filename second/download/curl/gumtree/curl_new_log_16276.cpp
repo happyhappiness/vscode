@@ -1,9 +1,9 @@
 fputs(
-"              If  any of these options is used more than once on the same com-\n"
-"              mand line, the data pieces specified  will  be  merged  together\n"
-"              with  a  separating  &-symbol.  Thus,  using  '-d name=daniel -d\n"
-"              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
-"              'name=daniel&skill=lousy'.\n"
+"              followed) and cannot be modified by a server-set cookie. If  the\n"
+"              cookie  engine is enabled and a server sets a cookie of the same\n"
+"              name then both will be sent on a future transfer to that server,\n"
+"              likely  not  what  you  intended.  To address these issues set a\n"
+"              domain in Set-Cookie (doing that will include  sub  domains)  or\n"
+"              use the Netscape format.\n"
 "\n"
-"              If  you  start  the data with the letter @, the rest should be a\n"
 , stdout);

@@ -1,15 +1,19 @@
-static void process_tag(struct tag *tag, struct object_array *p,
-			const char *name, struct connectivity_progress *cp)
+static void git_config_raw(config_fn_t fn, void *data)
 {
-	struct object *obj = &tag->object;
+	struct config_options opts = {0};
 
-	if (obj->flags & SEEN)
-		return;
-	obj->flags |= SEEN;
-	update_progress(cp);
-
-	if (parse_tag(tag) < 0)
-		die("bad tag object %s", sha1_to_hex(obj->sha1));
-	if (tag->tagged)
-		add_object(tag->tagged, p, NULL, name);
+	opts.respect_includes = 1;
+	if (git_config_with_options(fn, data, NULL, &opts) < 0)
+		/*
+		 * git_config_with_options() normally returns only
+		 * zero, as most errors are fatal, and
+		 * non-fatal potential errors are guarded by "if"
+		 * statements that are entered only when no error is
+		 * possible.
+		 *
+		 * If we ever encounter a non-fatal error, it means
+		 * something went really wrong and we should stop
+		 * immediately.
+		 */
+		die(_("unknown error occurred while reading the configuration files"));
 }

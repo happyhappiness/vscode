@@ -1,2 +1,1 @@
-rprintf(FERROR,"(%d) Error reading %d bytes : %s\n",
-					getpid(),8,ret==-1?strerror(errno):"EOF");
+out_of_memory("add_delete_entry");

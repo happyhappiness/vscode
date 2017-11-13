@@ -1,1 +1,1 @@
-fprintf(FINFO,"recv_file_name(%s)\n",f_name(flist->files[i]));
+fprintf(f,"-L, --copy-links         treat soft links like regular files\n");

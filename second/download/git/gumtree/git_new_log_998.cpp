@@ -1,1 +1,2 @@
-printf("  size: %d\tflags: %x\n", sd->sd_size, ce->ce_flags);
+error("%s: object corrupt or missing: %s",
+		      oid_to_hex(oid), path);

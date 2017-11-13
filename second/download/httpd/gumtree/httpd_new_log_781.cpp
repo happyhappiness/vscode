@@ -1,2 +1,3 @@
-printf("%sdebug: after reduction, shifting from state %d \
-to state %d\n", YYPREFIX, *ssl_expr_yyssp, ssl_expr_yystate);
+ap_rputs("\n\n<table border=\"0\"><tr>"
+                 "<th>SSes</th><th>Timeout</th><th>Method</th>"
+                 "</tr>\n<tr>", r);

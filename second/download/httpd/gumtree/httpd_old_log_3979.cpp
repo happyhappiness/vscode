@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                         "proxy: HTTP: failed to make connection to backend: %s",
-                         backend->hostname);
+ap_log_perror(APLOG_MARK, APLOG_DEBUG, 0, lifecycle_pool,
+                          "loading lua file %s", spec->file);

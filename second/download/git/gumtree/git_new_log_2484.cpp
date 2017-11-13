@@ -1,1 +1,1 @@
-error(_("index file corrupt"));
+fputs(find_unique_abbrev(commit->object.oid.hash, abbrev_commit), stdout);

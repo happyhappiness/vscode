@@ -1,66 +1,78 @@
-static const char *ssl_cmd_protocol_parse(cmd_parms *parms,
-                                          const char *arg,
-                                          ssl_proto_t *options)
+static void set_signals(void)
 {
-    ssl_proto_t thisopt;
-
-    *options = SSL_PROTOCOL_NONE;
-
-    while (*arg) {
-        char *w = ap_getword_conf(parms->temp_pool, &arg);
-        char action = '\0';
-
-        if ((*w == '+') || (*w == '-')) {
-            action = *(w++);
-        }
-
-        if (strcEQ(w, "SSLv2")) {
-            if (action == '-') {
-                continue;
-            }
-            else {
-                return "SSLProtocol: SSLv2 is no longer supported";
-            }
-        }
-        else if (strcEQ(w, "SSLv3")) {
-            thisopt = SSL_PROTOCOL_SSLV3;
-        }
-        else if (strcEQ(w, "TLSv1")) {
-            thisopt = SSL_PROTOCOL_TLSV1;
-        }
-#ifdef HAVE_TLSV1_X
-        else if (strcEQ(w, "TLSv1.1")) {
-            thisopt = SSL_PROTOCOL_TLSV1_1;
-        }
-        else if (strcEQ(w, "TLSv1.2")) {
-            thisopt = SSL_PROTOCOL_TLSV1_2;
-        }
+#ifndef NO_USE_SIGACTION
+    struct sigaction sa;
 #endif
-        else if (strcEQ(w, "all")) {
-            thisopt = SSL_PROTOCOL_ALL;
-        }
-        else {
-            return apr_pstrcat(parms->temp_pool,
-                               parms->cmd->name,
-                               ": Illegal protocol '", w, "'", NULL);
-        }
 
-        if (action == '-') {
-            *options &= ~thisopt;
-        }
-        else if (action == '+') {
-            *options |= thisopt;
-        }
-        else {
-            if (*options != SSL_PROTOCOL_NONE) {
-                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, parms->server, APLOGNO(02532)
-                             "%s: Protocol '%s' overrides already set parameter(s). "
-                             "Check if a +/- prefix is missing.",
-                             parms->cmd->name, w);
-            }
-            *options = thisopt;
-        }
+    if (!one_process) {
+        ap_fatal_signal_setup(ap_server_conf, pconf);
     }
 
-    return NULL;
+#ifndef NO_USE_SIGACTION
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+
+    sa.sa_handler = sig_term;
+    if (sigaction(SIGTERM, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGTERM)");
+#ifdef AP_SIG_GRACEFUL_STOP
+    if (sigaction(AP_SIG_GRACEFUL_STOP, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
+                     "sigaction(" AP_SIG_GRACEFUL_STOP_STRING ")");
+#endif
+#ifdef SIGINT
+    if (sigaction(SIGINT, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGINT)");
+#endif
+#ifdef SIGXCPU
+    sa.sa_handler = SIG_DFL;
+    if (sigaction(SIGXCPU, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGXCPU)");
+#endif
+#ifdef SIGXFSZ
+    sa.sa_handler = SIG_DFL;
+    if (sigaction(SIGXFSZ, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGXFSZ)");
+#endif
+#ifdef SIGPIPE
+    sa.sa_handler = SIG_IGN;
+    if (sigaction(SIGPIPE, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGPIPE)");
+#endif
+
+    /* we want to ignore HUPs and AP_SIG_GRACEFUL while we're busy
+     * processing one
+     */
+    sigaddset(&sa.sa_mask, SIGHUP);
+    sigaddset(&sa.sa_mask, AP_SIG_GRACEFUL);
+    sa.sa_handler = restart;
+    if (sigaction(SIGHUP, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGHUP)");
+    if (sigaction(AP_SIG_GRACEFUL, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(" AP_SIG_GRACEFUL_STRING ")");
+#else
+    if (!one_process) {
+#ifdef SIGXCPU
+        apr_signal(SIGXCPU, SIG_DFL);
+#endif /* SIGXCPU */
+#ifdef SIGXFSZ
+        apr_signal(SIGXFSZ, SIG_DFL);
+#endif /* SIGXFSZ */
+    }
+
+    apr_signal(SIGTERM, sig_term);
+#ifdef SIGHUP
+    apr_signal(SIGHUP, restart);
+#endif /* SIGHUP */
+#ifdef AP_SIG_GRACEFUL
+    apr_signal(AP_SIG_GRACEFUL, restart);
+#endif /* AP_SIG_GRACEFUL */
+#ifdef AP_SIG_GRACEFUL_STOP
+    apr_signal(AP_SIG_GRACEFUL_STOP, sig_term);
+#endif /* AP_SIG_GRACEFUL */
+#ifdef SIGPIPE
+    apr_signal(SIGPIPE, SIG_IGN);
+#endif /* SIGPIPE */
+
+#endif
 }

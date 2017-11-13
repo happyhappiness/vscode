@@ -1,32 +1,28 @@
-static void register_hooks(apr_pool_t *p)
+static apr_status_t write_body(cache_handle_t *h, request_rec *r, apr_bucket_brigade *b) 
 {
-    /* cache initializer */
-    /* cache handler */
-    ap_hook_quick_handler(cache_url_handler, NULL, NULL, APR_HOOK_FIRST);
-    /* cache filters 
-     * XXX The cache filters need to run right after the handlers and before
-     * any other filters. Consider creating AP_FTYPE_CACHE for this purpose.
-     * Make them AP_FTYPE_CONTENT for now.
-     * XXX ianhH:they should run AFTER all the other content filters.
-     */
-    cache_save_filter_handle = 
-        ap_register_output_filter("CACHE_SAVE", 
-                                  cache_save_filter, 
-                                  NULL,
-                                  AP_FTYPE_CONTENT_SET-1);
-    /* CACHE_OUT must go into the filter chain before SUBREQ_CORE to
-     * handle subrequsts. Decrementing filter type by 1 ensures this 
-     * happens.
-     */
-    cache_out_filter_handle = 
-        ap_register_output_filter("CACHE_OUT", 
-                                  cache_out_filter, 
-                                  NULL,
-                                  AP_FTYPE_CONTENT_SET-1);
-    cache_conditional_filter_handle =
-        ap_register_output_filter("CACHE_CONDITIONAL", 
-                                  cache_conditional_filter, 
-                                  NULL,
-                                  AP_FTYPE_CONTENT_SET);
-    ap_hook_post_config(cache_post_config, NULL, NULL, APR_HOOK_REALLY_FIRST);
+    apr_bucket *e;
+    apr_status_t rv;
+    disk_cache_object_t *dobj = (disk_cache_object_t *) h->cache_obj->vobj;
+
+    if (!dobj->fd) {
+        rv = apr_file_open(&dobj->fd, dobj->tempfile, 
+                           APR_WRITE | APR_CREATE | APR_BINARY| APR_TRUNCATE | APR_BUFFERED,
+                           APR_UREAD | APR_UWRITE, r->pool);
+        if (rv != APR_SUCCESS) {
+            return rv;
+        }
+    }
+    APR_BRIGADE_FOREACH(e, b) {
+        const char *str;
+        apr_size_t length;
+        apr_bucket_read(e, &str, &length, APR_BLOCK_READ);
+        apr_file_write(dobj->fd, str, &length);
+    }
+    if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(b))) {
+        file_cache_el_final(h, r);    /* Link to the perm file, and close the descriptor  */
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                     "disk_cache: Cached body for URL %s",  dobj->name);
+    }
+
+    return APR_SUCCESS;	
 }

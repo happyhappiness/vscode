@@ -1,1 +1,1 @@
-warning(_(rename_limit_warning));
+die(_("--contents and --reverse do not blend well."));

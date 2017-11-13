@@ -1,35 +1,55 @@
-static int uncompress(request_rec *r, int method,
-                      unsigned char **newch, apr_size_t n)
+static int process_mkcol_body(request_rec *r)
 {
-    struct uncompress_parms parm;
-    apr_file_t *pipe_out = NULL;
-    apr_pool_t *sub_context;
-    apr_status_t rv;
+    /* This is snarfed from ap_setup_client_block(). We could get pretty
+     * close to this behavior by passing REQUEST_NO_BODY, but we need to
+     * return HTTP_UNSUPPORTED_MEDIA_TYPE (while ap_setup_client_block
+     * returns HTTP_REQUEST_ENTITY_TOO_LARGE). */
 
-    parm.r = r;
-    parm.method = method;
+    const char *tenc = apr_table_get(r->headers_in, "Transfer-Encoding");
+    const char *lenp = apr_table_get(r->headers_in, "Content-Length");
 
-    /* We make a sub_pool so that we can collect our child early, otherwise
-     * there are cases (i.e. generating directory indicies with mod_autoindex)
-     * where we would end up with LOTS of zombies.
+    /* make sure to set the Apache request fields properly. */
+    r->read_body = REQUEST_NO_BODY;
+    r->read_chunked = 0;
+    r->remaining = 0;
+
+    if (tenc) {
+        if (strcasecmp(tenc, "chunked")) {
+            /* Use this instead of Apache's default error string */
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Unknown Transfer-Encoding %s", tenc);
+            return HTTP_NOT_IMPLEMENTED;
+        }
+
+        r->read_chunked = 1;
+    }
+    else if (lenp) {
+        const char *pos = lenp;
+
+        while (apr_isdigit(*pos) || apr_isspace(*pos)) {
+            ++pos;
+        }
+
+        if (*pos != '\0') {
+            /* This supplies additional information for the default message. */
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Invalid Content-Length %s", lenp);
+            return HTTP_BAD_REQUEST;
+        }
+
+        r->remaining = apr_atoi64(lenp);
+    }
+
+    if (r->read_chunked || r->remaining > 0) {
+        /* ### log something? */
+
+        /* Apache will supply a default error for this. */
+        return HTTP_UNSUPPORTED_MEDIA_TYPE;
+    }
+
+    /*
+     * Get rid of the body. this will call ap_setup_client_block(), but
+     * our copy above has already verified its work.
      */
-    if (apr_pool_create(&sub_context, r->pool) != APR_SUCCESS)
-        return -1;
-
-    if ((rv = create_uncompress_child(&parm, sub_context, &pipe_out)) != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                    MODNAME ": couldn't spawn uncompress process: %s", r->uri);
-        return -1;
-    }
-
-    *newch = (unsigned char *) apr_palloc(r->pool, n);
-    rv = apr_file_read(pipe_out, *newch, &n);
-    if (n == 0) {
-        apr_pool_destroy(sub_context);
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-            MODNAME ": read failed from uncompress of %s", r->filename);
-        return -1;
-    }
-    apr_pool_destroy(sub_context);
-    return n;
+    return ap_discard_request_body(r);
 }

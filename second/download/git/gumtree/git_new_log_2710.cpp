@@ -1,1 +1,1 @@
-die(_("unrecognized width:%s"), s);
+die(_("unrecognized %%(align) argument: %s"), s);

@@ -1,2 +1,1 @@
-printf("Using remote notes for %s\n",
-						sha1_to_hex(p->obj));
+die(_("Cannot read note data from non-blob object '%s'."), arg);

@@ -1,1 +1,1 @@
-fputs(sha1_to_hex(sha1), fh);
+die_errno("error writing to pack-objects");

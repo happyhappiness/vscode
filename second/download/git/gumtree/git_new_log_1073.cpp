@@ -1,1 +1,1 @@
-printf("%s\n", commands[i].cmd);
+die("BUG: should have same number of entries");

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k config          : change startup Options of an Apache "
-                 "service");
+ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, f->c,
+                          "could not split line from buffered SSL brigade");

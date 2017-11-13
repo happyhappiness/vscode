@@ -1,9 +1,8 @@
 fputs(
-"              The file will be saved in the current working directory. If  you\n"
-"              want  the  file  saved  in  a different directory, make sure you\n"
-"              change the current working directory before invoking  curl  with\n"
-"              this option.\n"
-"\n"
-"              The  remote  file  name  to use for saving is extracted from the\n"
-"              given URL, nothing else, and if it already  exists  it  will  be\n"
+"              cluster  node in a cluster of servers.  This option is only used\n"
+"              to establish the network connection.  It  does  NOT  affect  the\n"
+"              hostname/port  that  is  used for TLS/SSL (e.g. SNI, certificate\n"
+"              verification) or for  the  application  protocols.   \"host\"  and\n"
+"              \"port\"  may be the empty string, meaning \"any host/port\".  \"con-\n"
+"              nect-to-host\"  and  \"connect-to-port\"  may  also  be  the  empty\n"
 , stdout);

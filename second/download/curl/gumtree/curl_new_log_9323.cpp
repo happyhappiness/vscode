@@ -1,11 +1,10 @@
 fputs(
-"              libcurl was built with an SSL library that supports  ALPN.  ALPN\n"
-"              is  used  by  a libcurl that supports HTTP 2 to negotiate HTTP 2\n"
-"              support with the server during https sessions.\n"
+"       the options -O, -L and -v at once as -OLv.\n"
 "\n"
-"              (Added in 7.36.0)\n"
-"\n"
-"       -1, --tlsv1\n"
-"              (SSL) Forces curl to use TLS version 1.x when negotiating with a\n"
-"              remote  TLS  server.   You can use options --tlsv1.0, --tlsv1.1,\n"
+"       In general, all boolean options are enabled with --option and yet again\n"
+"       disabled  with --no-option. That is, you use the exact same option name\n"
+"       but prefix it with \"no-\". However, in this list we mostly only list and\n"
+"       show  the --option version of them. (This concept with --no options was\n"
+"       added in  7.19.0.  Previously  most  options  were  toggled  on/off  on\n"
+"       repeated use of the same command line option.)\n"
 , stdout);

@@ -1,1 +1,2 @@
-die("Unknown fsck message type: '%s'", str);
+fprintf(stderr, _("Overwriting existing notes for object %s\n"),
+			sha1_to_hex(object));

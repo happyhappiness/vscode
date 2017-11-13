@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01388)
-                          "Zlib: Invalid flags %02x", ctx->zlib_flags);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02619)
+                                  "Encountered premature end-of-stream while "
+                                  "reading inflate header");

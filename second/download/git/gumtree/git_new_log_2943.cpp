@@ -1,1 +1,1 @@
-warning_errno("unable to set SO_KEEPALIVE on socket");
+error_errno("Couldn't create temporary file %s", freq->tmpfile);

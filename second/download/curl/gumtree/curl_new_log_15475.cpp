@@ -1,12 +1,9 @@
 fputs(
-"              The default service name for a socks server is rcmd/server-fqdn.\n"
-"              This option allows you to change it.\n"
+"              If  a  transient  error is returned when curl tries to perform a\n"
+"              transfer, it will retry this number of times before  giving  up.\n"
+"              Setting  the  number to 0 makes curl do no retries (which is the\n"
+"              default). Transient error means either: a timeout,  an  FTP  4xx\n"
+"              response code or an HTTP 5xx response code.\n"
 "\n"
-"              Examples:  --socks5  proxy-name  --socks5-gssapi-service   sockd\n"
-"              would  use sockd/proxy-name --socks5 proxy-name --socks5-gssapi-\n"
-"              service sockd/real-name  would  use  sockd/real-name  for  cases\n"
-"              where the proxy-name does not match the principal name.\n"
-"\n"
-"              Added in 7.19.4.\n"
-"\n"
+"              When  curl  is about to retry a transfer, it will first wait one\n"
 , stdout);

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00690)
-                          "no acceptable variant: %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00852)
+                         "possible match at idx=%d, data=%d", pos, idx->data_pos);

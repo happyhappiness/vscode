@@ -1,93 +1,112 @@
-static void handle_commit(struct commit *commit, struct rev_info *rev)
+int cmd_gc(int argc, const char **argv, const char *prefix)
 {
-	int saved_output_format = rev->diffopt.output_format;
-	const char *commit_buffer;
-	const char *author, *author_end, *committer, *committer_end;
-	const char *encoding, *message;
-	char *reencoded = NULL;
-	struct commit_list *p;
-	const char *refname;
-	int i;
+	int aggressive = 0;
+	int auto_gc = 0;
+	int quiet = 0;
+	int force = 0;
+	const char *name;
+	pid_t pid;
 
-	rev->diffopt.output_format = DIFF_FORMAT_CALLBACK;
+	struct option builtin_gc_options[] = {
+		OPT__QUIET(&quiet, N_("suppress progress reporting")),
+		{ OPTION_STRING, 0, "prune", &prune_expire, N_("date"),
+			N_("prune unreferenced objects"),
+			PARSE_OPT_OPTARG, NULL, (intptr_t)prune_expire },
+		OPT_BOOL(0, "aggressive", &aggressive, N_("be more thorough (increased runtime)")),
+		OPT_BOOL(0, "auto", &auto_gc, N_("enable auto-gc mode")),
+		OPT_BOOL(0, "force", &force, N_("force running gc even if there may be another gc running")),
+		OPT_END()
+	};
 
-	parse_commit_or_die(commit);
-	commit_buffer = get_commit_buffer(commit, NULL);
-	author = strstr(commit_buffer, "\nauthor ");
-	if (!author)
-		die ("Could not find author in commit %s",
-		     sha1_to_hex(commit->object.sha1));
-	author++;
-	author_end = strchrnul(author, '\n');
-	committer = strstr(author_end, "\ncommitter ");
-	if (!committer)
-		die ("Could not find committer in commit %s",
-		     sha1_to_hex(commit->object.sha1));
-	committer++;
-	committer_end = strchrnul(committer, '\n');
-	message = strstr(committer_end, "\n\n");
-	encoding = find_encoding(committer_end, message);
-	if (message)
-		message += 2;
+	if (argc == 2 && !strcmp(argv[1], "-h"))
+		usage_with_options(builtin_gc_usage, builtin_gc_options);
 
-	if (commit->parents &&
-	    get_object_mark(&commit->parents->item->object) != 0 &&
-	    !full_tree) {
-		parse_commit_or_die(commit->parents->item);
-		diff_tree_sha1(commit->parents->item->tree->object.sha1,
-			       commit->tree->object.sha1, "", &rev->diffopt);
+	argv_array_pushl(&pack_refs_cmd, "pack-refs", "--all", "--prune", NULL);
+	argv_array_pushl(&reflog, "reflog", "expire", "--all", NULL);
+	argv_array_pushl(&repack, "repack", "-d", "-l", NULL);
+	argv_array_pushl(&prune, "prune", "--expire", NULL);
+	argv_array_pushl(&prune_worktrees, "worktree", "prune", "--expire", NULL);
+	argv_array_pushl(&rerere, "rerere", "gc", NULL);
+
+	gc_config();
+
+	if (pack_refs < 0)
+		pack_refs = !is_bare_repository();
+
+	argc = parse_options(argc, argv, prefix, builtin_gc_options,
+			     builtin_gc_usage, 0);
+	if (argc > 0)
+		usage_with_options(builtin_gc_usage, builtin_gc_options);
+
+	if (aggressive) {
+		argv_array_push(&repack, "-f");
+		if (aggressive_depth > 0)
+			argv_array_pushf(&repack, "--depth=%d", aggressive_depth);
+		if (aggressive_window > 0)
+			argv_array_pushf(&repack, "--window=%d", aggressive_window);
 	}
-	else
-		diff_root_tree_sha1(commit->tree->object.sha1,
-				    "", &rev->diffopt);
+	if (quiet)
+		argv_array_push(&repack, "-q");
 
-	/* Export the referenced blobs, and remember the marks. */
-	for (i = 0; i < diff_queued_diff.nr; i++)
-		if (!S_ISGITLINK(diff_queued_diff.queue[i]->two->mode))
-			export_blob(diff_queued_diff.queue[i]->two->sha1);
+	if (auto_gc) {
+		/*
+		 * Auto-gc should be least intrusive as possible.
+		 */
+		if (!need_to_gc())
+			return 0;
+		if (!quiet) {
+			if (detach_auto)
+				fprintf(stderr, _("Auto packing the repository in background for optimum performance.\n"));
+			else
+				fprintf(stderr, _("Auto packing the repository for optimum performance.\n"));
+			fprintf(stderr, _("See \"git help gc\" for manual housekeeping.\n"));
+		}
+		if (detach_auto) {
+			if (gc_before_repack())
+				return -1;
+			/*
+			 * failure to daemonize is ok, we'll continue
+			 * in foreground
+			 */
+			daemonize();
+		}
+	} else
+		add_repack_all_option();
 
-	refname = commit->util;
-	if (anonymize) {
-		refname = anonymize_refname(refname);
-		anonymize_ident_line(&committer, &committer_end);
-		anonymize_ident_line(&author, &author_end);
+	name = lock_repo_for_gc(force, &pid);
+	if (name) {
+		if (auto_gc)
+			return 0; /* be quiet on --auto */
+		die(_("gc is already running on machine '%s' pid %"PRIuMAX" (use --force if not)"),
+		    name, (uintmax_t)pid);
 	}
 
-	mark_next_object(&commit->object);
-	if (anonymize)
-		reencoded = anonymize_commit_message(message);
-	else if (!is_encoding_utf8(encoding))
-		reencoded = reencode_string(message, "UTF-8", encoding);
-	if (!commit->parents)
-		printf("reset %s\n", refname);
-	printf("commit %s\nmark :%"PRIu32"\n%.*s\n%.*s\ndata %u\n%s",
-	       refname, last_idnum,
-	       (int)(author_end - author), author,
-	       (int)(committer_end - committer), committer,
-	       (unsigned)(reencoded
-			  ? strlen(reencoded) : message
-			  ? strlen(message) : 0),
-	       reencoded ? reencoded : message ? message : "");
-	free(reencoded);
-	unuse_commit_buffer(commit, commit_buffer);
+	if (gc_before_repack())
+		return -1;
 
-	for (i = 0, p = commit->parents; p; p = p->next) {
-		int mark = get_object_mark(&p->item->object);
-		if (!mark)
-			continue;
-		if (i == 0)
-			printf("from :%d\n", mark);
-		else
-			printf("merge :%d\n", mark);
-		i++;
+	if (run_command_v_opt(repack.argv, RUN_GIT_CMD))
+		return error(FAILED_RUN, repack.argv[0]);
+
+	if (prune_expire) {
+		argv_array_push(&prune, prune_expire);
+		if (quiet)
+			argv_array_push(&prune, "--no-progress");
+		if (run_command_v_opt(prune.argv, RUN_GIT_CMD))
+			return error(FAILED_RUN, prune.argv[0]);
 	}
 
-	if (full_tree)
-		printf("deleteall\n");
-	log_tree_diff_flush(rev);
-	rev->diffopt.output_format = saved_output_format;
+	if (prune_worktrees_expire) {
+		argv_array_push(&prune_worktrees, prune_worktrees_expire);
+		if (run_command_v_opt(prune_worktrees.argv, RUN_GIT_CMD))
+			return error(FAILED_RUN, prune_worktrees.argv[0]);
+	}
 
-	printf("\n");
+	if (run_command_v_opt(rerere.argv, RUN_GIT_CMD))
+		return error(FAILED_RUN, rerere.argv[0]);
 
-	show_progress();
+	if (auto_gc && too_many_loose_objects())
+		warning(_("There are too many unreachable loose objects; "
+			"run 'git prune' to remove them."));
+
+	return 0;
 }

@@ -1,127 +1,363 @@
-static int create_entity(cache_handle_t *h, request_rec *r,
-                         const char *type, 
-                         const char *key, 
-                         apr_off_t len) 
+static int cache_in_filter(ap_filter_t *f, apr_bucket_brigade *in)
 {
-    cache_object_t *obj, *tmp_obj;
-    mem_cache_object_t *mobj;
-    cache_type_e type_e;
-    apr_size_t key_len;
+    int rv;
+    request_rec *r = f->r;
+    cache_request_rec *cache;
+    cache_server_conf *conf;
+    char *url = r->unparsed_uri;
+    const char *cc_out, *cl;
+    const char *exps, *lastmods, *dates, *etag;
+    apr_time_t exp, date, lastmod, now;
+    apr_off_t size;
+    cache_info *info;
+    char *reason;
+    apr_pool_t *p;
 
-    if (!strcasecmp(type, "mem")) {
-        type_e = CACHE_TYPE_HEAP;
-    } 
-    else if (!strcasecmp(type, "fd")) {
-        type_e = CACHE_TYPE_FILE;
+    /* check first whether running this filter has any point or not */
+    if(r->no_cache) {
+        ap_remove_output_filter(f);
+        return ap_pass_brigade(f->next, in);
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "cache: running CACHE_IN filter");
+
+    /* Setup cache_request_rec */
+    cache = (cache_request_rec *) ap_get_module_config(r->request_config, &cache_module);
+    if (!cache) {
+        cache = apr_pcalloc(r->pool, sizeof(cache_request_rec));
+        ap_set_module_config(r->request_config, &cache_module, cache);
+    }
+
+    reason = NULL;
+    p = r->pool;
+    /*
+     * Pass Data to Cache
+     * ------------------
+     * This section passes the brigades into the cache modules, but only
+     * if the setup section (see below) is complete.
+     */
+
+    /* have we already run the cachability check and set up the
+     * cached file handle? 
+     */
+    if (cache->in_checked) {
+        /* pass the brigades into the cache, then pass them
+         * up the filter stack
+         */
+        rv = cache_write_entity_body(cache->handle, r, in);
+        if (rv != APR_SUCCESS) {
+            ap_remove_output_filter(f);
+        }
+        return ap_pass_brigade(f->next, in);
+    }
+
+    /*
+     * Setup Data in Cache
+     * -------------------
+     * This section opens the cache entity and sets various caching
+     * parameters, and decides whether this URL should be cached at
+     * all. This section is* run before the above section.
+     */
+    info = apr_pcalloc(r->pool, sizeof(cache_info));
+
+    /* read expiry date; if a bad date, then leave it so the client can
+     * read it 
+     */
+    exps = apr_table_get(r->headers_out, "Expires");
+    if (exps != NULL) {
+        if (APR_DATE_BAD == (exp = apr_date_parse_http(exps))) {
+            exps = NULL;
+        }
     }
     else {
-        return DECLINED;
+        exp = APR_DATE_BAD;
     }
 
-    /* In principle, we should be able to dispense with the cache_size checks
-     * when caching open file descriptors.  However, code in cache_insert() and 
-     * other places does not make the distinction whether a file's content or
-     * descriptor is being cached. For now, just do all the same size checks
-     * regardless of what we are caching.
-     */
-    if (len < sconf->min_cache_object_size || 
-        len > sconf->max_cache_object_size) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "cache_mem: URL %s failed the size check, "
-                     "or is incomplete", 
-                     key);
-        return DECLINED;
+    /* read the last-modified date; if the date is bad, then delete it */
+    lastmods = apr_table_get(r->headers_out, "Last-Modified");
+    if (lastmods != NULL) {
+        if (APR_DATE_BAD == (lastmod = apr_date_parse_http(lastmods))) {
+            lastmods = NULL;
+        }
     }
-    if (type_e == CACHE_TYPE_FILE) {
-        /* CACHE_TYPE_FILE is only valid for local content handled by the 
-         * default handler. Need a better way to check if the file is
-         * local or not.
+    else {
+        lastmod = APR_DATE_BAD;
+    }
+
+    conf = (cache_server_conf *) ap_get_module_config(r->server->module_config, &cache_module);
+    /* read the etag and cache-control from the entity */
+    etag = apr_table_get(r->headers_out, "Etag");
+    cc_out = apr_table_get(r->headers_out, "Cache-Control");
+
+    /*
+     * what responses should we not cache?
+     *
+     * At this point we decide based on the response headers whether it
+     * is appropriate _NOT_ to cache the data from the server. There are
+     * a whole lot of conditions that prevent us from caching this data.
+     * They are tested here one by one to be clear and unambiguous. 
+     */
+    if (r->status != HTTP_OK && r->status != HTTP_NON_AUTHORITATIVE
+        && r->status != HTTP_MULTIPLE_CHOICES
+        && r->status != HTTP_MOVED_PERMANENTLY
+        && r->status != HTTP_NOT_MODIFIED) {
+        /* RFC2616 13.4 we are allowed to cache 200, 203, 206, 300, 301 or 410
+         * We don't cache 206, because we don't (yet) cache partial responses.
+         * We include 304 Not Modified here too as this is the origin server
+         * telling us to serve the cached copy.
          */
-        if (!r->filename) {
-            return DECLINED;
+        reason = apr_psprintf(p, "Response status %d", r->status);
+    } 
+    else if (exps != NULL && exp == APR_DATE_BAD) {
+        /* if a broken Expires header is present, don't cache it */
+        reason = apr_pstrcat(p, "Broken expires header: ", exps, NULL);
+    }
+    else if (r->args && exps == NULL) {
+        /* if query string present but no expiration time, don't cache it
+         * (RFC 2616/13.9)
+         */
+        reason = "Query string present but no expires header";
+    }
+    else if (r->status == HTTP_NOT_MODIFIED && (NULL == cache->handle)) {
+        /* if the server said 304 Not Modified but we have no cache
+         * file - pass this untouched to the user agent, it's not for us.
+         */
+        reason = "HTTP Status 304 Not Modified";
+    }
+    else if (r->status == HTTP_OK && lastmods == NULL && etag == NULL 
+             && (conf->no_last_mod_ignore ==0)) {
+        /* 200 OK response from HTTP/1.0 and up without a Last-Modified
+         * header/Etag 
+         */
+        /* XXX mod-include clears last_modified/expires/etags - this
+         * is why we have an optional function for a key-gen ;-) 
+         */
+        reason = "No Last-Modified or Etag header";
+    }
+    else if (r->header_only) {
+        /* HEAD requests */
+        reason = "HTTP HEAD request";
+    }
+    else if (ap_cache_liststr(NULL, cc_out, "no-store", NULL)) {
+        /* RFC2616 14.9.2 Cache-Control: no-store response
+         * indicating do not cache, or stop now if you are
+         * trying to cache it */
+        reason = "Cache-Control: no-store present";
+    }
+    else if (ap_cache_liststr(NULL, cc_out, "private", NULL)) {
+        /* RFC2616 14.9.1 Cache-Control: private
+         * this object is marked for this user's eyes only. Behave
+         * as a tunnel.
+         */
+        reason = "Cache-Control: private present";
+    }
+    else if (apr_table_get(r->headers_in, "Authorization") != NULL
+             && !(ap_cache_liststr(NULL, cc_out, "s-maxage", NULL)
+                  || ap_cache_liststr(NULL, cc_out, "must-revalidate", NULL)
+                  || ap_cache_liststr(NULL, cc_out, "public", NULL))) {
+        /* RFC2616 14.8 Authorisation:
+         * if authorisation is included in the request, we don't cache,
+         * but we can cache if the following exceptions are true:
+         * 1) If Cache-Control: s-maxage is included
+         * 2) If Cache-Control: must-revalidate is included
+         * 3) If Cache-Control: public is included
+         */
+        reason = "Authorization required";
+    }
+    else if (r->no_cache) {
+        /* or we've been asked not to cache it above */
+        reason = "no_cache present";
+    }
+
+    if (reason) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "cache: %s not cached. Reason: %s", url, reason);
+        /* remove this object from the cache 
+         * BillS Asks.. Why do we need to make this call to remove_url?
+         * leave it in for now..
+         */
+        cache_remove_url(r, cache->types, url);
+
+        /* remove this filter from the chain */
+        ap_remove_output_filter(f);
+
+        /* ship the data up the stack */
+        return ap_pass_brigade(f->next, in);
+    }
+    cache->in_checked = 1;
+
+    /* Set the content length if known. 
+     */
+    cl = apr_table_get(r->headers_out, "Content-Length");
+    if (cl) {
+        size = apr_atoi64(cl);
+    }
+    else {
+        /* if we don't get the content-length, see if we have all the 
+         * buckets and use their length to calculate the size 
+         */
+        apr_bucket *e;
+        int all_buckets_here=0;
+        int unresolved_length = 0;
+        size=0;
+        APR_BRIGADE_FOREACH(e, in) {
+            if (APR_BUCKET_IS_EOS(e)) {
+                all_buckets_here=1;
+                break;
+            }
+            if (APR_BUCKET_IS_FLUSH(e)) {
+                unresolved_length = 1;
+                continue;
+            }
+            if (e->length == (apr_size_t)-1) {
+                break;
+            }
+            size += e->length;
+        }
+        if (!all_buckets_here) {
+            size = -1;
         }
     }
 
-    /* Allocate and initialize cache_object_t */
-    obj = calloc(1, sizeof(*obj));
-    if (!obj) {
-        return DECLINED;
-    }
-    key_len = strlen(key) + 1;
-    obj->key = malloc(key_len);
-    if (!obj->key) {
-        cleanup_cache_object(obj);
-        return DECLINED;
-    }
-    memcpy(obj->key, key, key_len);
-    obj->info.len = len;
-
-
-    /* Allocate and init mem_cache_object_t */
-    mobj = calloc(1, sizeof(*mobj));
-    if (!mobj) {
-        cleanup_cache_object(obj);
-        return DECLINED;
-    }
-
-    /* Finish initing the cache object */
-#ifdef USE_ATOMICS
-    apr_atomic_set(&obj->refcount, 1);
-#else 
-    obj->refcount = 1;
-#endif
-    mobj->total_refs = 1;
-    obj->complete = 0;
-    obj->cleanup = 0;
-    obj->vobj = mobj;
-    mobj->m_len = len;
-    mobj->type = type_e;
-
-    /* Place the cache_object_t into the hash table.
-     * Note: Perhaps we should wait to put the object in the
-     * hash table when the object is complete?  I add the object here to
-     * avoid multiple threads attempting to cache the same content only
-     * to discover at the very end that only one of them will suceed.
-     * Furthermore, adding the cache object to the table at the end could
-     * open up a subtle but easy to exploit DoS hole: someone could request 
-     * a very large file with multiple requests. Better to detect this here
-     * rather than after the cache object has been completely built and
-     * initialized...
-     * XXX Need a way to insert into the cache w/o such coarse grained locking 
+    /* It's safe to cache the response.
+     *
+     * There are two possiblities at this point:
+     * - cache->handle == NULL. In this case there is no previously
+     * cached entity anywhere on the system. We must create a brand
+     * new entity and store the response in it.
+     * - cache->handle != NULL. In this case there is a stale
+     * entity in the system which needs to be replaced by new
+     * content (unless the result was 304 Not Modified, which means
+     * the cached entity is actually fresh, and we should update
+     * the headers).
      */
-    if (sconf->lock) {
-        apr_thread_mutex_lock(sconf->lock);
+    /* no cache handle, create a new entity */
+    if (!cache->handle) {
+        rv = cache_create_entity(r, cache->types, url, size);
     }
-    tmp_obj = (cache_object_t *) cache_find(sconf->cache_cache, key);
+    /* pre-existing cache handle and 304, make entity fresh */
+    else if (r->status == HTTP_NOT_MODIFIED) {
+        /* update headers */
 
-    if (!tmp_obj) {
-        cache_insert(sconf->cache_cache, obj);     
-        sconf->object_cnt++;
-        sconf->cache_size += len;
-    }
-    if (sconf->lock) {
-        apr_thread_mutex_unlock(sconf->lock);
-    }
+        /* remove this filter ??? */
 
-    if (tmp_obj) {
-        /* This thread collided with another thread loading the same object
-         * into the cache at the same time. Defer to the other thread which 
-         * is further along.
+        /* XXX is this right?  we must set rv to something other than OK 
+         * in this path
          */
-        cleanup_cache_object(obj);
-        return DECLINED;
+        rv = HTTP_NOT_MODIFIED;
+    }
+    /* pre-existing cache handle and new entity, replace entity
+     * with this one
+     */
+    else {
+        cache_remove_entity(r, cache->types, cache->handle);
+        rv = cache_create_entity(r, cache->types, url, size);
+    }
+    
+    if (rv != OK) {
+        /* Caching layer declined the opportunity to cache the response */
+        ap_remove_output_filter(f);
+        return ap_pass_brigade(f->next, in);
     }
 
-    apr_pool_cleanup_register(r->pool, obj, decrement_refcount, 
-                              apr_pool_cleanup_null);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "cache: Caching url: %s", url);
 
-    /* Populate the cache handle */
-    h->cache_obj = obj;
-    h->read_body = &read_body;
-    h->read_headers = &read_headers;
-    h->write_body = &write_body;
-    h->write_headers = &write_headers;
-    h->remove_entity = &remove_entity;
+    /*
+     * We now want to update the cache file header information with
+     * the new date, last modified, expire and content length and write
+     * it away to our cache file. First, we determine these values from
+     * the response, using heuristics if appropriate.
+     *
+     * In addition, we make HTTP/1.1 age calculations and write them away
+     * too.
+     */
 
-    return OK;
+    /* Read the date. Generate one if one is not supplied */
+    dates = apr_table_get(r->headers_out, "Date");
+    if (dates != NULL) {
+        info->date = apr_date_parse_http(dates);
+    }
+    else {
+        info->date = APR_DATE_BAD;
+    }
+
+    now = apr_time_now();
+    if (info->date == APR_DATE_BAD) {  /* No, or bad date */
+        char *dates;
+        /* no date header! */
+        /* add one; N.B. use the time _now_ rather than when we were checking
+         * the cache 
+         */
+        date = now;
+        dates = apr_pcalloc(r->pool, MAX_STRING_LEN);
+        apr_rfc822_date(dates, now);
+        apr_table_set(r->headers_out, "Date", dates);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "cache: Added date header");
+        info->date = date;
+    }
+    else {
+        date = info->date;
+    }
+
+    /* set response_time for HTTP/1.1 age calculations */
+    info->response_time = now;
+
+    /* get the request time */
+    info->request_time = r->request_time;
+
+    /* check last-modified date */
+    /* XXX FIXME we're referencing date on a path where we didn't set it */
+    if (lastmod != APR_DATE_BAD && lastmod > date) {
+        /* if it's in the future, then replace by date */
+        lastmod = date;
+        lastmods = dates;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                     r->server,
+                     "cache: Last modified is in the future, "
+                     "replacing with now");
+    }
+    info->lastmod = lastmod;
+
+    /* if no expiry date then
+     *   if lastmod
+     *      expiry date = now + min((date - lastmod) * factor, maxexpire)
+     *   else
+     *      expire date = now + defaultexpire
+     */
+    if (exp == APR_DATE_BAD) {
+        /* if lastmod == date then you get 0*conf->factor which results in
+         *   an expiration time of now. This causes some problems with
+         *   freshness calculations, so we choose the else path...
+         */
+        if ((lastmod != APR_DATE_BAD) && (lastmod < date)) {
+            apr_time_t x = (apr_time_t) ((date - lastmod) * conf->factor);
+            if (x > conf->maxex) {
+                x = conf->maxex;
+            }
+            exp = now + x;
+        }
+        else {
+            exp = now + conf->defex;
+        }
+    }
+    info->expire = exp;
+
+    info->content_type = apr_pstrdup(r->pool, r->content_type);
+    info->filename = apr_pstrdup(r->pool, r->filename );
+
+    /*
+     * Write away header information to cache.
+     */
+    rv = cache_write_entity_headers(cache->handle, r, info);
+    if (rv == APR_SUCCESS) {
+        rv = cache_write_entity_body(cache->handle, r, in);
+    }
+    if (rv != APR_SUCCESS) {
+        ap_remove_output_filter(f);
+    }
+
+    return ap_pass_brigade(f->next, in);
 }

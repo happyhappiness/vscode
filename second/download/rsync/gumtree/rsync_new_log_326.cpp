@@ -1,2 +1,2 @@
-fprintf(FINFO,"chunk[%d] offset=%d len=%d sum1=%08x\n",
-	      i,(int)s->sums[i].offset,s->sums[i].len,s->sums[i].sum1);
+fprintf(FERROR,"(%d) Error reading %d bytes : %s\n",
+					getpid(),8,ret==-1?strerror(errno):"EOF");

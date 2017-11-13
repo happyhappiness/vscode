@@ -1,1 +1,1 @@
-die(_("unrecognized %%(contents) argument: %s"), arg);
+error("object %s: %s", sha1_to_hex(obj->sha1), message);

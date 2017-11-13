@@ -1,97 +1,63 @@
-static int initialize_tables(server_rec *s, apr_pool_t *ctx)
+static apr_status_t dbd_construct(void **db, void *params, apr_pool_t *pool)
 {
-    unsigned long idx;
-    apr_status_t   sts;
-    const char *tempdir; 
+    svr_cfg *svr = (svr_cfg*) params;
+    ap_dbd_t *rec = apr_pcalloc(pool, sizeof(ap_dbd_t));
+    apr_status_t rv;
 
-    /* set up client list */
-
-    sts = apr_temp_dir_get(&tempdir, ctx);
-    if (APR_SUCCESS != sts) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, sts, s, 
-                     "Failed to find temporary directory");
-        log_error_and_cleanup("failed to find temp dir", sts, s);
-        return HTTP_INTERNAL_SERVER_ERROR;
+    /* this pool is mostly so dbd_close can destroy the prepared stmts */
+    rv = apr_pool_create(&rec->pool, pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, pool,
+                      "DBD: Failed to create memory pool");
     }
 
-    /* Create the shared memory segment */
-
-    /* 
-     * Create a unique filename using our pid. This information is 
-     * stashed in the global variable so the children inherit it.
-     */
-    client_shm_filename = apr_psprintf(ctx, "%s/authdigest_shm.%"APR_PID_T_FMT, tempdir, 
-                                       getpid());
-
-    /* Now create that segment */
-    sts = apr_shm_create(&client_shm, shmem_size,
-                        client_shm_filename, ctx);
-    if (APR_SUCCESS != sts) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, sts, s, 
-                     "Failed to create shared memory segment on file %s", 
-                     client_shm_filename);
-        log_error_and_cleanup("failed to initialize shm", sts, s);
-        return HTTP_INTERNAL_SERVER_ERROR;
+/* The driver is loaded at config time now, so this just checks a hash.
+ * If that changes, the driver DSO could be registered to unload against
+ * our pool, which is probably not what we want.  Error checking isn't
+ * necessary now, but in case that changes in the future ...
+ */
+    rv = apr_dbd_get_driver(rec->pool, svr->name, &rec->driver);
+    switch (rv) {
+    case APR_ENOTIMPL:
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
+                      "DBD: driver for %s not available", svr->name);
+        return rv;
+    case APR_EDSOOPEN:
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
+                      "DBD: can't find driver for %s", svr->name);
+        return rv;
+    case APR_ESYMNOTFOUND:
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
+                      "DBD: driver for %s is invalid or corrupted", svr->name);
+        return rv;
+    default:
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
+                      "DBD: mod_dbd not compatible with apr in get_driver");
+        return rv;
+    case APR_SUCCESS:
+        break;
     }
 
-    sts = apr_rmm_init(&client_rmm,
-                       NULL, /* no lock, we'll do the locking ourselves */
-                       apr_shm_baseaddr_get(client_shm),
-                       shmem_size, ctx);
-    if (sts != APR_SUCCESS) {
-        log_error_and_cleanup("failed to initialize rmm", sts, s);
-        return !OK;
+    rv = apr_dbd_open(rec->driver, rec->pool, svr->params, &rec->handle);
+    switch (rv) {
+    case APR_EGENERAL:
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
+                      "DBD: Can't connect to %s", svr->name);
+        return rv;
+    default:
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
+                      "DBD: mod_dbd not compatible with apr in open");
+        return rv;
+    case APR_SUCCESS:
+        break;
     }
-
-    client_list = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(*client_list) +
-                                                          sizeof(client_entry*)*num_buckets));
-    if (!client_list) {
-        log_error_and_cleanup("failed to allocate shared memory", -1, s);
-        return !OK;
+    *db = rec;
+    rv = dbd_prepared_init(rec->pool, svr, rec);
+    if (rv != APR_SUCCESS) {
+        const char *errmsg = apr_dbd_error(rec->driver, rec->handle, rv);
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
+                      "DBD: failed to initialise prepared SQL statements: %s",
+                      (errmsg ? errmsg : "[???]"));
     }
-    client_list->table = (client_entry**) (client_list + 1);
-    for (idx = 0; idx < num_buckets; idx++) {
-        client_list->table[idx] = NULL;
-    }
-    client_list->tbl_len     = num_buckets;
-    client_list->num_entries = 0;
-
-    sts = ap_global_mutex_create(&client_lock, NULL, client_mutex_type, NULL,
-                                 s, ctx, 0);
-    if (sts != APR_SUCCESS) {
-        log_error_and_cleanup("failed to create lock (client_lock)", sts, s);
-        return !OK;
-    }
-
-
-    /* setup opaque */
-
-    opaque_cntr = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(*opaque_cntr)));
-    if (opaque_cntr == NULL) {
-        log_error_and_cleanup("failed to allocate shared memory", -1, s);
-        return !OK;
-    }
-    *opaque_cntr = 1UL;
-
-    sts = ap_global_mutex_create(&opaque_lock, NULL, opaque_mutex_type, NULL,
-                                 s, ctx, 0);
-    if (sts != APR_SUCCESS) {
-        log_error_and_cleanup("failed to create lock (opaque_lock)", sts, s);
-        return !OK;
-    }
-
-
-    /* setup one-time-nonce counter */
-
-    otn_counter = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(*otn_counter)));
-    if (otn_counter == NULL) {
-        log_error_and_cleanup("failed to allocate shared memory", -1, s);
-        return !OK;
-    }
-    *otn_counter = 0;
-    /* no lock here */
-
-
-    /* success */
-    return OK;
+    return rv;
 }

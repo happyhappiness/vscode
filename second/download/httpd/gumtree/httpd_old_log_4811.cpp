@@ -1,2 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
-                     "sigaction(SIGINT)");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0,
+                                     pServ,
+                                     "Init: Unable to read pass phrase "
+                                     "[Hint: key introduced or changed "
+                                     "before restart?]");

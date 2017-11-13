@@ -1,7 +1,9 @@
-static int advertise_shallow_grafts_cb(const struct commit_graft *graft, void *cb)
+int is_inside_dir(const char *dir)
 {
-	int fd = *(int *)cb;
-	if (graft->nr_parent == -1)
-		packet_write(fd, "shallow %s\n", sha1_to_hex(graft->sha1));
-	return 0;
+	char cwd[PATH_MAX];
+	if (!dir)
+		return 0;
+	if (!getcwd(cwd, sizeof(cwd)))
+		die_errno("can't find the current directory");
+	return dir_inside_of(cwd, dir) >= 0;
 }

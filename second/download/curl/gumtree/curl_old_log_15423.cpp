@@ -1,11 +1,10 @@
 fputs(
-"              If  you  use a Windows SSPI-enabled curl binary and perform Ker-\n"
-"              beros V5, Negotiate, NTLM or Digest authentication then you  can\n"
-"              tell  curl  to select the user name and password from your envi-\n"
-"              ronment by specifying a single colon with this option: \"-u :\".\n"
+"              curl will think that your last directory name is the remote file\n"
+"              name to use. That will most likely cause the upload operation to\n"
+"              fail. If this is used on an HTTP(S) server, the PUT command will\n"
+"              be used.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -v, --verbose\n"
-"              Makes curl verbose during the operation.  Useful  for  debugging\n"
+"              Use  the file name \"-\" (a single dash) to use stdin instead of a\n"
+"              given file.  Alternately, the file name \".\"  (a  single  period)\n"
+"              may  be  specified  instead  of \"-\" to use stdin in non-blocking\n"
 , stdout);

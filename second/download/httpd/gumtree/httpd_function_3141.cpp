@@ -1,149 +1,265 @@
-static int dav_method_update(request_rec *r)
+static int authenticate_digest_user(request_rec *r)
 {
-    dav_resource *resource;
-    dav_resource *version = NULL;
-    const dav_hooks_vsn *vsn_hooks = DAV_GET_HOOKS_VSN(r);
-    apr_xml_doc *doc;
-    apr_xml_elem *child;
-    int is_label = 0;
-    int depth;
-    int result;
-    apr_size_t tsize;
-    const char *target;
-    dav_response *multi_response;
-    dav_error *err;
-    dav_lookup_result lookup;
+    digest_config_rec *conf;
+    digest_header_rec *resp;
+    request_rec       *mainreq;
+    const char        *t;
+    int                res;
+    authn_status       return_code;
 
-    /* If no versioning provider, or UPDATE not supported,
-     * decline the request */
-    if (vsn_hooks == NULL || vsn_hooks->update == NULL)
+    /* do we require Digest auth for this URI? */
+
+    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest")) {
         return DECLINED;
-
-    if ((depth = dav_get_depth(r, 0)) < 0) {
-        /* dav_get_depth() supplies additional information for the
-         * default message. */
-        return HTTP_BAD_REQUEST;
     }
 
-    /* parse the request body */
-    if ((result = ap_xml_parse_input(r, &doc)) != OK) {
-        return result;
-    }
-
-    if (doc == NULL || !dav_validate_root(doc, "update")) {
-        /* This supplies additional information for the default message. */
+    if (!ap_auth_name(r)) {
         ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "The request body does not contain "
-                      "an \"update\" element.");
-        return HTTP_BAD_REQUEST;
+                      "Digest: need AuthName: %s", r->uri);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    /* check for label-name or version element, but not both */
-    if ((child = dav_find_child(doc->root, "label-name")) != NULL)
-        is_label = 1;
-    else if ((child = dav_find_child(doc->root, "version")) != NULL) {
-        /* get the href element */
-        if ((child = dav_find_child(child, "href")) == NULL) {
+
+    /* get the client response and mark */
+
+    mainreq = r;
+    while (mainreq->main != NULL) {
+        mainreq = mainreq->main;
+    }
+    while (mainreq->prev != NULL) {
+        mainreq = mainreq->prev;
+    }
+    resp = (digest_header_rec *) ap_get_module_config(mainreq->request_config,
+                                                      &auth_digest_module);
+    resp->needed_auth = 1;
+
+
+    /* get our conf */
+
+    conf = (digest_config_rec *) ap_get_module_config(r->per_dir_config,
+                                                      &auth_digest_module);
+
+
+    /* check for existence and syntax of Auth header */
+
+    if (resp->auth_hdr_sts != VALID) {
+        if (resp->auth_hdr_sts == NOT_DIGEST) {
             ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "The version element does not contain "
-                          "an \"href\" element.");
+                          "Digest: client used wrong authentication scheme "
+                          "`%s': %s", resp->scheme, r->uri);
+        }
+        else if (resp->auth_hdr_sts == INVALID) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Digest: missing user, realm, nonce, uri, digest, "
+                          "cnonce, or nonce_count in authorization header: %s",
+                          r->uri);
+        }
+        /* else (resp->auth_hdr_sts == NO_HEADER) */
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
+    }
+
+    r->user         = (char *) resp->username;
+    r->ap_auth_type = (char *) "Digest";
+
+    /* check the auth attributes */
+
+    if (strcmp(resp->uri, resp->raw_request_uri)) {
+        /* Hmm, the simple match didn't work (probably a proxy modified the
+         * request-uri), so lets do a more sophisticated match
+         */
+        apr_uri_t r_uri, d_uri;
+
+        copy_uri_components(&r_uri, resp->psd_request_uri, r);
+        if (apr_uri_parse(r->pool, resp->uri, &d_uri) != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Digest: invalid uri <%s> in Authorization header",
+                          resp->uri);
+            return HTTP_BAD_REQUEST;
+        }
+
+        if (d_uri.hostname) {
+            ap_unescape_url(d_uri.hostname);
+        }
+        if (d_uri.path) {
+            ap_unescape_url(d_uri.path);
+        }
+
+        if (d_uri.query) {
+            ap_unescape_url(d_uri.query);
+        }
+        else if (r_uri.query) {
+            /* MSIE compatibility hack.  MSIE has some RFC issues - doesn't
+             * include the query string in the uri Authorization component
+             * or when computing the response component.  the second part
+             * works out ok, since we can hash the header and get the same
+             * result.  however, the uri from the request line won't match
+             * the uri Authorization component since the header lacks the
+             * query string, leaving us incompatable with a (broken) MSIE.
+             *
+             * the workaround is to fake a query string match if in the proper
+             * environment - BrowserMatch MSIE, for example.  the cool thing
+             * is that if MSIE ever fixes itself the simple match ought to
+             * work and this code won't be reached anyway, even if the
+             * environment is set.
+             */
+
+            if (apr_table_get(r->subprocess_env,
+                              "AuthDigestEnableQueryStringHack")) {
+
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "Digest: "
+                              "applying AuthDigestEnableQueryStringHack "
+                              "to uri <%s>", resp->raw_request_uri);
+
+               d_uri.query = r_uri.query;
+            }
+        }
+
+        if (r->method_number == M_CONNECT) {
+            if (!r_uri.hostinfo || strcmp(resp->uri, r_uri.hostinfo)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Digest: uri mismatch - <%s> does not match "
+                              "request-uri <%s>", resp->uri, r_uri.hostinfo);
+                return HTTP_BAD_REQUEST;
+            }
+        }
+        else if (
+            /* check hostname matches, if present */
+            (d_uri.hostname && d_uri.hostname[0] != '\0'
+              && strcasecmp(d_uri.hostname, r_uri.hostname))
+            /* check port matches, if present */
+            || (d_uri.port_str && d_uri.port != r_uri.port)
+            /* check that server-port is default port if no port present */
+            || (d_uri.hostname && d_uri.hostname[0] != '\0'
+                && !d_uri.port_str && r_uri.port != ap_default_port(r))
+            /* check that path matches */
+            || (d_uri.path != r_uri.path
+                /* either exact match */
+                && (!d_uri.path || !r_uri.path
+                    || strcmp(d_uri.path, r_uri.path))
+                /* or '*' matches empty path in scheme://host */
+                && !(d_uri.path && !r_uri.path && resp->psd_request_uri->hostname
+                    && d_uri.path[0] == '*' && d_uri.path[1] == '\0'))
+            /* check that query matches */
+            || (d_uri.query != r_uri.query
+                && (!d_uri.query || !r_uri.query
+                    || strcmp(d_uri.query, r_uri.query)))
+            ) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Digest: uri mismatch - <%s> does not match "
+                          "request-uri <%s>", resp->uri, resp->raw_request_uri);
             return HTTP_BAD_REQUEST;
         }
     }
+
+    if (resp->opaque && resp->opaque_num == 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Digest: received invalid opaque - got `%s'",
+                      resp->opaque);
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
+    }
+
+    if (strcmp(resp->realm, conf->realm)) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Digest: realm mismatch - got `%s' but expected `%s'",
+                      resp->realm, conf->realm);
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
+    }
+
+    if (resp->algorithm != NULL
+        && strcasecmp(resp->algorithm, "MD5")
+        && strcasecmp(resp->algorithm, "MD5-sess")) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Digest: unknown algorithm `%s' received: %s",
+                      resp->algorithm, r->uri);
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
+    }
+
+    return_code = get_hash(r, r->user, conf);
+
+    if (return_code == AUTH_USER_NOT_FOUND) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Digest: user `%s' in realm `%s' not found: %s",
+                      r->user, conf->realm, r->uri);
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
+    }
+    else if (return_code == AUTH_USER_FOUND) {
+        /* we have a password, so continue */
+    }
+    else if (return_code == AUTH_DENIED) {
+        /* authentication denied in the provider before attempting a match */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Digest: user `%s' in realm `%s' denied by provider: %s",
+                      r->user, conf->realm, r->uri);
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
+    }
     else {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "The \"update\" element does not contain "
-                      "a \"label-name\" or \"version\" element.");
-        return HTTP_BAD_REQUEST;
+        /* AUTH_GENERAL_ERROR (or worse)
+         * We'll assume that the module has already said what its error
+         * was in the logs.
+         */
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    /* a depth greater than zero is only allowed for a label */
-    if (!is_label && depth != 0) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Depth must be zero for UPDATE with a version");
-        return HTTP_BAD_REQUEST;
+    if (resp->message_qop == NULL) {
+        /* old (rfc-2069) style digest */
+        if (strcmp(resp->digest, old_digest(r, resp, conf->ha1))) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Digest: user %s: password mismatch: %s", r->user,
+                          r->uri);
+            note_digest_auth_failure(r, conf, resp, 0);
+            return HTTP_UNAUTHORIZED;
+        }
     }
-
-    /* get the target value (a label or a version URI) */
-    apr_xml_to_text(r->pool, child, APR_XML_X2T_INNER, NULL, NULL,
-                    &target, &tsize);
-    if (tsize == 0) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "A \"label-name\" or \"href\" element does not contain "
-                      "any content.");
-        return HTTP_BAD_REQUEST;
-    }
-
-    /* Ask repository module to resolve the resource */
-    err = dav_get_resource(r, 0 /* label_allowed */, 0 /* use_checked_in */,
-                           &resource);
-    if (err != NULL)
-        return dav_handle_err(r, err, NULL);
-
-    if (!resource->exists) {
-        /* Apache will supply a default error for this. */
-        return HTTP_NOT_FOUND;
-    }
-
-    /* ### need a general mechanism for reporting precondition violations
-     * ### (should be returning XML document for 403/409 responses)
-     */
-    if (resource->type != DAV_RESOURCE_TYPE_REGULAR
-        || !resource->versioned || resource->working) {
-        return dav_error_response(r, HTTP_CONFLICT,
-                                  "<DAV:must-be-checked-in-version-controlled-resource>");
-    }
-
-    /* if target is a version, resolve the version resource */
-    /* ### dav_lookup_uri only allows absolute URIs; is that OK? */
-    if (!is_label) {
-        lookup = dav_lookup_uri(target, r, 0 /* must_be_absolute */);
-        if (lookup.rnew == NULL) {
-            if (lookup.err.status == HTTP_BAD_REQUEST) {
-                /* This supplies additional information for the default message. */
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "%s", lookup.err.desc);
-                return HTTP_BAD_REQUEST;
+    else {
+        const char *exp_digest;
+        int match = 0, idx;
+        for (idx = 0; conf->qop_list[idx] != NULL; idx++) {
+            if (!strcasecmp(conf->qop_list[idx], resp->message_qop)) {
+                match = 1;
+                break;
             }
-
-            /* ### this assumes that dav_lookup_uri() only generates a status
-             * ### that Apache can provide a status line for!! */
-
-            return dav_error_response(r, lookup.err.status, lookup.err.desc);
-        }
-        if (lookup.rnew->status != HTTP_OK) {
-            /* ### how best to report this... */
-            return dav_error_response(r, lookup.rnew->status,
-                                      "Version URI had an error.");
         }
 
-        /* resolve version resource */
-        err = dav_get_resource(lookup.rnew, 0 /* label_allowed */,
-                               0 /* use_checked_in */, &version);
-        if (err != NULL)
-            return dav_handle_err(r, err, NULL);
+        if (!match
+            && !(conf->qop_list[0] == NULL
+                 && !strcasecmp(resp->message_qop, "auth"))) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Digest: invalid qop `%s' received: %s",
+                          resp->message_qop, r->uri);
+            note_digest_auth_failure(r, conf, resp, 0);
+            return HTTP_UNAUTHORIZED;
+        }
 
-        /* NULL out target, since we're using a version resource */
-        target = NULL;
+        exp_digest = new_digest(r, resp, conf);
+        if (!exp_digest) {
+            /* we failed to allocate a client struct */
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+        if (strcmp(resp->digest, exp_digest)) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Digest: user %s: password mismatch: %s", r->user,
+                          r->uri);
+            note_digest_auth_failure(r, conf, resp, 0);
+            return HTTP_UNAUTHORIZED;
+        }
     }
 
-    /* do the UPDATE operation */
-    err = (*vsn_hooks->update)(resource, version, target, depth, &multi_response);
-
-    if (err != NULL) {
-        err = dav_push_error(r->pool, err->status, 0,
-                             apr_psprintf(r->pool,
-                                          "Could not UPDATE %s.",
-                                          ap_escape_html(r->pool, r->uri)),
-                             err);
-        return dav_handle_err(r, err, multi_response);
+    if (check_nc(r, resp, conf) != OK) {
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
     }
 
-    /* set the Cache-Control header, per the spec */
-    apr_table_setn(r->headers_out, "Cache-Control", "no-cache");
+    /* Note: this check is done last so that a "stale=true" can be
+       generated if the nonce is old */
+    if ((res = check_nonce(r, resp, conf))) {
+        return res;
+    }
 
-    /* no body */
-    ap_set_content_length(r, 0);
-
-    return DONE;
+    return OK;
 }

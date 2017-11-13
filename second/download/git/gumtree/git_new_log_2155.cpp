@@ -1,1 +1,1 @@
-die("BUG: unknown %%(objectname) option");
+strbuf_addstr(&filename, path);

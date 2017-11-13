@@ -1,153 +1,25 @@
-static int lua_websocket_read(lua_State *L) 
+void h2_task_register_hooks(void)
 {
-    apr_socket_t *sock;
-    apr_status_t rv;
-    int n = 0;
-    apr_size_t len = 1;
-    apr_size_t plen = 0;
-    unsigned short payload_short = 0;
-    apr_uint64_t payload_long = 0;
-    unsigned char *mask_bytes;
-    char byte;
-    int plaintext;
-    
-    
-    request_rec *r = (request_rec *) lua_unboxpointer(L, 1);
-    plaintext = ap_lua_ssl_is_https(r->connection) ? 0 : 1;
+    /* This hook runs on new connections before mod_ssl has a say.
+     * Its purpose is to prevent mod_ssl from touching our pseudo-connections
+     * for streams.
+     */
+    ap_hook_pre_connection(h2_task_pre_conn,
+                           NULL, mod_ssl, APR_HOOK_FIRST);
+    /* When the connection processing actually starts, we might 
+     * take over, if the connection is for a task.
+     */
+    ap_hook_process_connection(h2_task_process_conn, 
+                               NULL, NULL, APR_HOOK_FIRST);
 
-    
-    mask_bytes = apr_pcalloc(r->pool, 4);
-    sock = ap_get_conn_socket(r->connection);
-
-    /* Get opcode and FIN bit */
-    if (plaintext) {
-        rv = apr_socket_recv(sock, &byte, &len);
-    }
-    else {
-        rv = lua_websocket_readbytes(r->connection, &byte, 1);
-    }
-    if (rv == APR_SUCCESS) {
-        unsigned char fin, opcode, mask, payload;
-        fin = byte >> 7;
-        opcode = (byte << 4) >> 4;
-        
-        /* Get the payload length and mask bit */
-        if (plaintext) {
-            rv = apr_socket_recv(sock, &byte, &len);
-        }
-        else {
-            rv = lua_websocket_readbytes(r->connection, &byte, 1);
-        }
-        if (rv == APR_SUCCESS) {
-            mask = byte >> 7;
-            payload = byte - 128;
-            plen = payload;
-            
-            /* Extended payload? */
-            if (payload == 126) {
-                len = 2;
-                if (plaintext) {
-                    rv = apr_socket_recv(sock, (char*) &payload_short, &len);
-                }
-                else {
-                    rv = lua_websocket_readbytes(r->connection, 
-                        (char*) &payload_short, 2);
-                }
-                payload_short = ntohs(payload_short);
-                
-                if (rv == APR_SUCCESS) {
-                    plen = payload_short;
-                }
-                else {
-                    return 0;
-                }
-            }
-            /* Super duper extended payload? */
-            if (payload == 127) {
-                len = 8;
-                if (plaintext) {
-                    rv = apr_socket_recv(sock, (char*) &payload_long, &len);
-                }
-                else {
-                    rv = lua_websocket_readbytes(r->connection, 
-                            (char*) &payload_long, 8);
-                }
-                if (rv == APR_SUCCESS) {
-                    plen = ap_ntoh64(&payload_long);
-                }
-                else {
-                    return 0;
-                }
-            }
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
-                    "Websocket: Reading %lu (%s) bytes, masking is %s. %s", 
-                    plen,
-                    (payload >= 126) ? "extra payload" : "no extra payload", 
-                    mask ? "on" : "off", 
-                    fin ? "This is a final frame" : "more to follow");
-            if (mask) {
-                len = 4;
-                if (plaintext) {
-                    rv = apr_socket_recv(sock, (char*) mask_bytes, &len);
-                }
-                else {
-                    rv = lua_websocket_readbytes(r->connection, 
-                            (char*) mask_bytes, 4);
-                }
-                if (rv != APR_SUCCESS) {
-                    return 0;
-                }
-            }
-            if (plen < (HUGE_STRING_LEN*1024) && plen > 0) {
-                apr_size_t remaining = plen;
-                apr_size_t received;
-                apr_off_t at = 0;
-                char *buffer = apr_palloc(r->pool, plen+1);
-                buffer[plen] = 0;
-                
-                if (plaintext) {
-                    while (remaining > 0) {
-                        received = remaining;
-                        rv = apr_socket_recv(sock, buffer+at, &received);
-                        if (received > 0 ) {
-                            remaining -= received;
-                            at += received;
-                        }
-                    }
-                    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
-                    "Websocket: Frame contained %lu bytes, pushed to Lua stack", 
-                        at);
-                }
-                else {
-                    rv = lua_websocket_readbytes(r->connection, buffer, 
-                            remaining);
-                    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
-                    "Websocket: SSL Frame contained %lu bytes, "\
-                            "pushed to Lua stack", 
-                        remaining);
-                }
-                if (mask) {
-                    for (n = 0; n < plen; n++) {
-                        buffer[n] ^= mask_bytes[n%4];
-                    }
-                }
-                
-                lua_pushlstring(L, buffer, (size_t) plen); /* push to stack */
-                lua_pushboolean(L, fin); /* push FIN bit to stack as boolean */
-                return 2;
-            }
-            
-            
-            /* Decide if we need to react to the opcode or not */
-            if (opcode == 0x09) { /* ping */
-                char frame[2];
-                plen = 2;
-                frame[0] = 0x8A;
-                frame[1] = 0;
-                apr_socket_send(sock, frame, &plen); /* Pong! */
-                lua_websocket_read(L); /* read the next frame instead */
-            }
-        }
-    }
-    return 0;
+    ap_register_output_filter("H2_RESPONSE", h2_response_output_filter,
+                              NULL, AP_FTYPE_PROTOCOL);
+    ap_register_input_filter("H2_TO_H1", h2_filter_stream_input,
+                             NULL, AP_FTYPE_NETWORK);
+    ap_register_output_filter("H1_TO_H2", h2_filter_stream_output,
+                              NULL, AP_FTYPE_NETWORK);
+    ap_register_output_filter("H1_TO_H2_RESP", h2_filter_read_response,
+                              NULL, AP_FTYPE_PROTOCOL);
+    ap_register_output_filter("H2_TRAILERS", h2_response_trailers_filter,
+                              NULL, AP_FTYPE_PROTOCOL);
 }

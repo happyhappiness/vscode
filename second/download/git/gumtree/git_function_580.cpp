@@ -1,23 +1,50 @@
-static int rollback_is_safe(void)
+int checkout_fast_forward(const unsigned char *head,
+			  const unsigned char *remote,
+			  int overwrite_ignore)
 {
-	struct strbuf sb = STRBUF_INIT;
-	struct object_id expected_head, actual_head;
+	struct tree *trees[MAX_UNPACK_TREES];
+	struct unpack_trees_options opts;
+	struct tree_desc t[MAX_UNPACK_TREES];
+	int i, nr_trees = 0;
+	struct dir_struct dir;
+	struct lock_file *lock_file = xcalloc(1, sizeof(struct lock_file));
 
-	if (strbuf_read_file(&sb, git_path_abort_safety_file(), 0) >= 0) {
-		strbuf_trim(&sb);
-		if (get_oid_hex(sb.buf, &expected_head)) {
-			strbuf_release(&sb);
-			die(_("could not parse %s"), git_path_abort_safety_file());
-		}
-		strbuf_release(&sb);
+	refresh_cache(REFRESH_QUIET);
+
+	hold_locked_index(lock_file, 1);
+
+	memset(&trees, 0, sizeof(trees));
+	memset(&opts, 0, sizeof(opts));
+	memset(&t, 0, sizeof(t));
+	if (overwrite_ignore) {
+		memset(&dir, 0, sizeof(dir));
+		dir.flags |= DIR_SHOW_IGNORED;
+		setup_standard_excludes(&dir);
+		opts.dir = &dir;
 	}
-	else if (errno == ENOENT)
-		oidclr(&expected_head);
-	else
-		die_errno(_("could not read '%s'"), git_path_abort_safety_file());
 
-	if (get_oid("HEAD", &actual_head))
-		oidclr(&actual_head);
+	opts.head_idx = 1;
+	opts.src_index = &the_index;
+	opts.dst_index = &the_index;
+	opts.update = 1;
+	opts.verbose_update = 1;
+	opts.merge = 1;
+	opts.fn = twoway_merge;
+	setup_unpack_trees_porcelain(&opts, "merge");
 
-	return !oidcmp(&actual_head, &expected_head);
+	trees[nr_trees] = parse_tree_indirect(head);
+	if (!trees[nr_trees++])
+		return -1;
+	trees[nr_trees] = parse_tree_indirect(remote);
+	if (!trees[nr_trees++])
+		return -1;
+	for (i = 0; i < nr_trees; i++) {
+		parse_tree(trees[i]);
+		init_tree_desc(t+i, trees[i]->buffer, trees[i]->size);
+	}
+	if (unpack_trees(nr_trees, t, &opts))
+		return -1;
+	if (write_locked_index(&the_index, lock_file, COMMIT_LOCK))
+		die(_("unable to write new index file"));
+	return 0;
 }

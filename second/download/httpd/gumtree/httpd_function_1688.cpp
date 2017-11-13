@@ -1,273 +1,374 @@
-static apr_status_t ajp_marshal_into_msgb(ajp_msg_t *msg,
-                                          request_rec *r,
-                                          apr_uri_t *uri)
+static int authz_ldap_check_user_access(request_rec *r)
 {
-    int method;
-    apr_uint32_t i, num_headers = 0;
-    apr_byte_t is_ssl;
-    char *remote_host;
-    const char *session_route, *envvar;
-    const apr_array_header_t *arr = apr_table_elts(r->subprocess_env);
-    const apr_table_entry_t *elts = (const apr_table_entry_t *)arr->elts;
+    int result = 0;
+    authn_ldap_request_t *req =
+        (authn_ldap_request_t *)ap_get_module_config(r->request_config, &authnz_ldap_module);
+    authn_ldap_config_t *sec =
+        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "Into ajp_marshal_into_msgb");
+    util_ldap_connection_t *ldc = NULL;
+    int m = r->method_number;
 
-    if ((method = sc_for_req_method_by_id(r)) == UNKNOWN_METHOD) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-               "ajp_marshal_into_msgb - Sending unknown method %s as request attribute",
-               r->method);
-        method = SC_M_JK_STORED;
+    const apr_array_header_t *reqs_arr = ap_requires(r);
+    require_line *reqs = reqs_arr ? (require_line *)reqs_arr->elts : NULL;
+
+    register int x;
+    const char *t;
+    char *w, *value;
+    int method_restricted = 0;
+    int required_ldap = 0;
+
+    char filtbuf[FILTER_LENGTH];
+    const char *dn = NULL;
+    const char **vals = NULL;
+
+/*
+    if (!sec->enabled) {
+        return DECLINED;
+    }
+*/
+
+    if (!sec->have_ldap_url) {
+        return DECLINED;
     }
 
-    is_ssl = (apr_byte_t) ap_proxy_conn_is_https(r->connection);
-
-    if (r->headers_in && apr_table_elts(r->headers_in)) {
-        const apr_array_header_t *t = apr_table_elts(r->headers_in);
-        num_headers = t->nelts;
-    }
-
-    remote_host = (char *)ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_HOST, NULL);
-
-    ajp_msg_reset(msg);
-
-    if (ajp_msg_append_uint8(msg, CMD_AJP13_FORWARD_REQUEST)     ||
-        ajp_msg_append_uint8(msg, method)                        ||
-        ajp_msg_append_string(msg, r->protocol)                  ||
-        ajp_msg_append_string(msg, uri->path)                    ||
-        ajp_msg_append_string(msg, r->connection->remote_ip)     ||
-        ajp_msg_append_string(msg, remote_host)                  ||
-        ajp_msg_append_string(msg, ap_get_server_name(r))        ||
-        ajp_msg_append_uint16(msg, (apr_uint16_t)r->connection->local_addr->port) ||
-        ajp_msg_append_uint8(msg, is_ssl)                        ||
-        ajp_msg_append_uint16(msg, (apr_uint16_t) num_headers)) {
-
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-               "ajp_marshal_into_msgb: "
-               "Error appending the message begining");
-        return APR_EGENERAL;
-    }
-
-    for (i = 0 ; i < num_headers ; i++) {
-        int sc;
-        const apr_array_header_t *t = apr_table_elts(r->headers_in);
-        const apr_table_entry_t *elts = (apr_table_entry_t *)t->elts;
-
-        if ((sc = sc_for_req_header(elts[i].key)) != UNKNOWN_METHOD) {
-            if (ajp_msg_append_uint16(msg, (apr_uint16_t)sc)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                       "ajp_marshal_into_msgb: "
-                       "Error appending the header name");
-                return AJP_EOVERFLOW;
-            }
-        }
-        else {
-            if (ajp_msg_append_string(msg, elts[i].key)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                       "ajp_marshal_into_msgb: "
-                       "Error appending the header name");
-                return AJP_EOVERFLOW;
-            }
+    /* pre-scan for ldap-* requirements so we can get out of the way early */
+    for(x=0; x < reqs_arr->nelts; x++) {
+        if (! (reqs[x].method_mask & (AP_METHOD_BIT << m))) {
+            continue;
         }
 
-        if (ajp_msg_append_string(msg, elts[i].val)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                   "ajp_marshal_into_msgb: "
-                   "Error appending the header value");
-            return AJP_EOVERFLOW;
+        t = reqs[x].requirement;
+        w = ap_getword_white(r->pool, &t);
+
+        if (strncmp(w, "ldap-",5) == 0) {
+            required_ldap = 1;
+            break;
         }
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                   "ajp_marshal_into_msgb: Header[%d] [%s] = [%s]",
-                   i, elts[i].key, elts[i].val);
     }
 
-/* XXXX need to figure out how to do this
-    if (s->secret) {
-        if (ajp_msg_append_uint8(msg, SC_A_SECRET) ||
-            ajp_msg_append_string(msg, s->secret)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                   "Error ajp_marshal_into_msgb - "
-                   "Error appending secret");
-            return APR_EGENERAL;
-        }
+    if (!required_ldap) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorise: declining to authorise (no ldap requirements)", getpid());
+        return DECLINED;
     }
- */
 
-    if (r->user) {
-        if (ajp_msg_append_uint8(msg, SC_A_REMOTE_USER) ||
-            ajp_msg_append_string(msg, r->user)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                   "ajp_marshal_into_msgb: "
-                   "Error appending the remote user");
-            return AJP_EOVERFLOW;
-        }
+
+
+    if (sec->host) {
+        ldc = util_ldap_connection_find(r, sec->host, sec->port,
+                                       sec->binddn, sec->bindpw, sec->deref,
+                                       sec->secure);
+        apr_pool_cleanup_register(r->pool, ldc,
+                                  authnz_ldap_cleanup_connection_close,
+                                  apr_pool_cleanup_null);
     }
-    if (r->ap_auth_type) {
-        if (ajp_msg_append_uint8(msg, SC_A_AUTH_TYPE) ||
-            ajp_msg_append_string(msg, r->ap_auth_type)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                   "ajp_marshal_into_msgb: "
-                   "Error appending the auth type");
-            return AJP_EOVERFLOW;
-        }
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorise: no sec->host - weird...?", getpid());
+        return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
     }
-    /* XXXX  ebcdic (args converted?) */
-    if (uri->query) {
-        if (ajp_msg_append_uint8(msg, SC_A_QUERY_STRING) ||
-            ajp_msg_append_string(msg, uri->query)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                   "ajp_marshal_into_msgb: "
-                   "Error appending the query string");
-            return AJP_EOVERFLOW;
-        }
-    }
-    if ((session_route = apr_table_get(r->notes, "session-route"))) {
-        if (ajp_msg_append_uint8(msg, SC_A_JVM_ROUTE) ||
-            ajp_msg_append_string(msg, session_route)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                   "ajp_marshal_into_msgb: "
-                   "Error appending the jvm route");
-            return AJP_EOVERFLOW;
-        }
-    }
-/* XXX: Is the subprocess_env a right place?
- * <Location /examples>
- *   ProxyPass ajp://remote:8009/servlets-examples
- *   SetEnv SSL_SESSION_ID CUSTOM_SSL_SESSION_ID
- * </Location>
- */
+
     /*
-     * Only lookup SSL variables if we are currently running HTTPS.
-     * Furthermore ensure that only variables get set in the AJP message
-     * that are not NULL and not empty.
+     * If there are no elements in the group attribute array, the default should be
+     * member and uniquemember; populate the array now.
      */
-    if (is_ssl) {
-        if ((envvar = ap_proxy_ssl_val(r->pool, r->server, r->connection, r,
-                                       AJP13_SSL_CLIENT_CERT_INDICATOR))
-            && envvar[0]) {
-            if (ajp_msg_append_uint8(msg, SC_A_SSL_CERT)
-                || ajp_msg_append_string(msg, envvar)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "ajp_marshal_into_msgb: "
-                             "Error appending the SSL certificates");
-                return AJP_EOVERFLOW;
-            }
-        }
-
-        if ((envvar = ap_proxy_ssl_val(r->pool, r->server, r->connection, r,
-                                       AJP13_SSL_CIPHER_INDICATOR))
-            && envvar[0]) {
-            if (ajp_msg_append_uint8(msg, SC_A_SSL_CIPHER)
-                || ajp_msg_append_string(msg, envvar)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "ajp_marshal_into_msgb: "
-                             "Error appending the SSL ciphers");
-                return AJP_EOVERFLOW;
-            }
-        }
-
-        if ((envvar = ap_proxy_ssl_val(r->pool, r->server, r->connection, r,
-                                       AJP13_SSL_SESSION_INDICATOR))
-            && envvar[0]) {
-            if (ajp_msg_append_uint8(msg, SC_A_SSL_SESSION)
-                || ajp_msg_append_string(msg, envvar)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "ajp_marshal_into_msgb: "
-                             "Error appending the SSL session");
-                return AJP_EOVERFLOW;
-            }
-        }
-
-        /* ssl_key_size is required by Servlet 2.3 API */
-        if ((envvar = ap_proxy_ssl_val(r->pool, r->server, r->connection, r,
-                                       AJP13_SSL_KEY_SIZE_INDICATOR))
-            && envvar[0]) {
-
-            if (ajp_msg_append_uint8(msg, SC_A_SSL_KEY_SIZE)
-                || ajp_msg_append_uint16(msg, (unsigned short) atoi(envvar))) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "Error ajp_marshal_into_msgb - "
-                             "Error appending the SSL key size");
-                return APR_EGENERAL;
-            }
-        }
+    if (sec->groupattr->nelts == 0) {
+        struct mod_auth_ldap_groupattr_entry_t *grp;
+#if APR_HAS_THREADS
+        apr_thread_mutex_lock(sec->lock);
+#endif
+        grp = apr_array_push(sec->groupattr);
+        grp->name = "member";
+        grp = apr_array_push(sec->groupattr);
+        grp->name = "uniquemember";
+#if APR_HAS_THREADS
+        apr_thread_mutex_unlock(sec->lock);
+#endif
     }
-    /* If the method was unrecognized, encode it as an attribute */
-    if (method == SC_M_JK_STORED) {
-        if (ajp_msg_append_uint8(msg, SC_A_STORED_METHOD)
-            || ajp_msg_append_string(msg, r->method)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                         "ajp_marshal_into_msgb: "
-                         "Error appending the method '%s' as request attribute",
-                         r->method);
-            return AJP_EOVERFLOW;
-        }
-    }
-    /* Forward the remote port information, which was forgotten
-     * from the builtin data of the AJP 13 protocol.
-     * Since the servlet spec allows to retrieve it via getRemotePort(),
-     * we provide the port to the Tomcat connector as a request
-     * attribute. Modern Tomcat versions know how to retrieve
-     * the remote port from this attribute.
+
+    /*
+     * If we have been authenticated by some other module than mod_auth_ldap,
+     * the req structure needed for authorization needs to be created
+     * and populated with the userid and DN of the account in LDAP
      */
-    {
-        const char *key = SC_A_REQ_REMOTE_PORT;
-        char *val = apr_itoa(r->pool, r->connection->remote_addr->port);
-        if (ajp_msg_append_uint8(msg, SC_A_REQ_ATTRIBUTE) ||
-            ajp_msg_append_string(msg, key)   ||
-            ajp_msg_append_string(msg, val)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                    "ajp_marshal_into_msgb: "
-                    "Error appending attribute %s=%s",
-                    key, val);
-            return AJP_EOVERFLOW;
-        }
+
+    /* Check that we have a userid to start with */
+    if ((!r->user) || (strlen(r->user) == 0)) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+            "ldap authorize: Userid is blank, AuthType=%s",
+            r->ap_auth_type);
     }
-    /* Forward the local ip address information, which was forgotten
-     * from the builtin data of the AJP 13 protocol.
-     * Since the servlet spec allows to retrieve it via getLocalAddr(),
-     * we provide the address to the Tomcat connector as a request
-     * attribute. Modern Tomcat versions know how to retrieve
-     * the local address from this attribute.
-     */
-    {
-        const char *key = SC_A_REQ_LOCAL_ADDR;
-        char *val = r->connection->local_ip;
-        if (ajp_msg_append_uint8(msg, SC_A_REQ_ATTRIBUTE) ||
-            ajp_msg_append_string(msg, key)   ||
-            ajp_msg_append_string(msg, val)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                    "ajp_marshal_into_msgb: "
-                    "Error appending attribute %s=%s",
-                    key, val);
-            return AJP_EOVERFLOW;
+
+    if(!req) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+            "ldap authorize: Creating LDAP req structure");
+
+        /* Build the username filter */
+        authn_ldap_build_filter(filtbuf, r, r->user, NULL, sec);
+
+        /* Search for the user DN */
+        result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
+             sec->scope, sec->attributes, filtbuf, &dn, &vals);
+
+        /* Search failed, log error and return failure */
+        if(result != LDAP_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                "auth_ldap authorise: User DN not found, %s", ldc->reason);
+            return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
         }
+
+        req = (authn_ldap_request_t *)apr_pcalloc(r->pool,
+            sizeof(authn_ldap_request_t));
+        ap_set_module_config(r->request_config, &authnz_ldap_module, req);
+        req->dn = apr_pstrdup(r->pool, dn);
+        req->user = r->user;
     }
-    /* Use the environment vars prefixed with AJP_
-     * and pass it to the header striping that prefix.
-     */
-    for (i = 0; i < (apr_uint32_t)arr->nelts; i++) {
-        if (!strncmp(elts[i].key, "AJP_", 4)) {
-            if (ajp_msg_append_uint8(msg, SC_A_REQ_ATTRIBUTE) ||
-                ajp_msg_append_string(msg, elts[i].key + 4)   ||
-                ajp_msg_append_string(msg, elts[i].val)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                        "ajp_marshal_into_msgb: "
-                        "Error appending attribute %s=%s",
-                        elts[i].key, elts[i].val);
-                return AJP_EOVERFLOW;
+
+    /* Loop through the requirements array until there's no elements
+     * left, or something causes a return from inside the loop */
+    for(x=0; x < reqs_arr->nelts; x++) {
+        if (! (reqs[x].method_mask & (AP_METHOD_BIT << m))) {
+            continue;
+        }
+        method_restricted = 1;
+
+        t = reqs[x].requirement;
+        w = ap_getword_white(r->pool, &t);
+
+        if (strcmp(w, "ldap-user") == 0) {
+            if (req->dn == NULL || strlen(req->dn) == 0) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                              "require user: user's DN has not been defined; failing authorisation",
+                              getpid());
+                return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
+            }
+            /*
+             * First do a whole-line compare, in case it's something like
+             *   require user Babs Jensen
+             */
+            result = util_ldap_cache_compare(r, ldc, sec->url, req->dn, sec->attribute, t);
+            switch(result) {
+                case LDAP_COMPARE_TRUE: {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                                  "require user: authorisation successful", getpid());
+                    return OK;
+                }
+                default: {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "[%" APR_PID_T_FMT "] auth_ldap authorise: require user: "
+                                  "authorisation failed [%s][%s]", getpid(),
+                                  ldc->reason, ldap_err2string(result));
+                }
+            }
+            /*
+             * Now break apart the line and compare each word on it
+             */
+            while (t[0]) {
+                w = ap_getword_conf(r->pool, &t);
+                result = util_ldap_cache_compare(r, ldc, sec->url, req->dn, sec->attribute, w);
+                switch(result) {
+                    case LDAP_COMPARE_TRUE: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                      "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                                      "require user: authorisation successful", getpid());
+                        return OK;
+                    }
+                    default: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                      "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                                      "require user: authorisation failed [%s][%s]",
+                                      getpid(), ldc->reason, ldap_err2string(result));
+                    }
+                }
+            }
+        }
+        else if (strcmp(w, "ldap-dn") == 0) {
+            if (req->dn == NULL || strlen(req->dn) == 0) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                              "require dn: user's DN has not been defined; failing authorisation",
+                              getpid());
+                return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
+            }
+
+            result = util_ldap_cache_comparedn(r, ldc, sec->url, req->dn, t, sec->compare_dn_on_server);
+            switch(result) {
+                case LDAP_COMPARE_TRUE: {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                                  "require dn: authorisation successful", getpid());
+                    return OK;
+                }
+                default: {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                                  "require dn \"%s\": LDAP error [%s][%s]",
+                                  getpid(), t, ldc->reason, ldap_err2string(result));
+                }
+            }
+        }
+        else if (strcmp(w, "ldap-group") == 0) {
+            struct mod_auth_ldap_groupattr_entry_t *ent = (struct mod_auth_ldap_groupattr_entry_t *) sec->groupattr->elts;
+            int i;
+
+            if (sec->group_attrib_is_dn) {
+                if (req->dn == NULL || strlen(req->dn) == 0) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "[%" APR_PID_T_FMT "] auth_ldap authorise: require group: "
+                                  "user's DN has not been defined; failing authorisation",
+                                  getpid());
+                    return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
+                }
+            }
+            else {
+                if (req->user == NULL || strlen(req->user) == 0) {
+                    /* We weren't called in the authentication phase, so we didn't have a
+                     * chance to set the user field. Do so now. */
+                    req->user = r->user;
+                }
+            }
+
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "[%" APR_PID_T_FMT "] auth_ldap authorise: require group: "
+                          "testing for group membership in \"%s\"",
+                          getpid(), t);
+
+            for (i = 0; i < sec->groupattr->nelts; i++) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "[%" APR_PID_T_FMT "] auth_ldap authorise: require group: "
+                              "testing for %s: %s (%s)", getpid(),
+                              ent[i].name, sec->group_attrib_is_dn ? req->dn : req->user, t);
+
+                result = util_ldap_cache_compare(r, ldc, sec->url, t, ent[i].name,
+                                     sec->group_attrib_is_dn ? req->dn : req->user);
+                switch(result) {
+                    case LDAP_COMPARE_TRUE: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                      "[%" APR_PID_T_FMT "] auth_ldap authorise: require group: "
+                                      "authorisation successful (attribute %s) [%s][%s]",
+                                      getpid(), ent[i].name, ldc->reason, ldap_err2string(result));
+                        return OK;
+                    }
+                    default: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                      "[%" APR_PID_T_FMT "] auth_ldap authorise: require group \"%s\": "
+                                      "authorisation failed [%s][%s]",
+                                      getpid(), t, ldc->reason, ldap_err2string(result));
+                    }
+                }
+            }
+        }
+        else if (strcmp(w, "ldap-attribute") == 0) {
+            if (req->dn == NULL || strlen(req->dn) == 0) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                              "require ldap-attribute: user's DN has not been defined; failing authorisation",
+                              getpid());
+                return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
+            }
+            while (t[0]) {
+                w = ap_getword(r->pool, &t, '=');
+                value = ap_getword_conf(r->pool, &t);
+
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "[%" APR_PID_T_FMT "] auth_ldap authorise: checking attribute"
+                              " %s has value %s", getpid(), w, value);
+                result = util_ldap_cache_compare(r, ldc, sec->url, req->dn,
+                                                 w, value);
+                switch(result) {
+                    case LDAP_COMPARE_TRUE: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
+                                      0, r, "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                                      "require attribute: authorisation "
+                                      "successful", getpid());
+                        return OK;
+                    }
+                    default: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
+                                      0, r, "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                                      "require attribute: authorisation "
+                                      "failed [%s][%s]", getpid(),
+                                      ldc->reason, ldap_err2string(result));
+                    }
+                }
+            }
+        }
+        else if (strcmp(w, "ldap-filter") == 0) {
+            if (req->dn == NULL || strlen(req->dn) == 0) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                              "require ldap-filter: user's DN has not been defined; failing authorisation",
+                              getpid());
+                return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
+            }
+            if (t[0]) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "[%" APR_PID_T_FMT "] auth_ldap authorise: checking filter %s",
+                              getpid(), t);
+
+                /* Build the username filter */
+                authn_ldap_build_filter(filtbuf, r, req->user, t, sec);
+
+                /* Search for the user DN */
+                result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
+                     sec->scope, sec->attributes, filtbuf, &dn, &vals);
+
+                /* Make sure that the filtered search returned the correct user dn */
+                if (result == LDAP_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "[%" APR_PID_T_FMT "] auth_ldap authorise: checking dn match %s",
+                                  getpid(), dn);
+                    result = util_ldap_cache_comparedn(r, ldc, sec->url, req->dn, dn,
+                         sec->compare_dn_on_server);
+                }
+
+                switch(result) {
+                    case LDAP_COMPARE_TRUE: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
+                                      0, r, "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                                      "require ldap-filter: authorisation "
+                                      "successful", getpid());
+                        return OK;
+                    }
+                    case LDAP_FILTER_ERROR: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
+                                      0, r, "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                                      "require ldap-filter: %s authorisation "
+                                      "failed [%s][%s]", getpid(),
+                                      filtbuf, ldc->reason, ldap_err2string(result));
+                        break;
+                    }
+                    default: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
+                                      0, r, "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                                      "require ldap-filter: authorisation "
+                                      "failed [%s][%s]", getpid(),
+                                      ldc->reason, ldap_err2string(result));
+                    }
+                }
             }
         }
     }
 
-    if (ajp_msg_append_uint8(msg, SC_A_ARE_DONE)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-               "ajp_marshal_into_msgb: "
-               "Error appending the message end");
-        return AJP_EOVERFLOW;
+    if (!method_restricted) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorise: agreeing because non-restricted",
+                      getpid());
+        return OK;
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-            "ajp_marshal_into_msgb: Done");
-    return APR_SUCCESS;
+    if (!sec->auth_authoritative) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorise: declining to authorise (not authoritative)", getpid());
+        return DECLINED;
+    }
+
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "[%" APR_PID_T_FMT "] auth_ldap authorise: authorisation denied", getpid());
+    ap_note_basic_auth_failure (r);
+
+    return HTTP_UNAUTHORIZED;
 }

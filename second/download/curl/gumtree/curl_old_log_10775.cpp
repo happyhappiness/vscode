@@ -1,11 +1,11 @@
 fputs(
-"              deliver a document, it  returns  an  HTML  document  stating  so\n"
-"              (which  often  also describes why and more). This flag will pre-\n"
-"              vent curl from outputting that and return error 22.\n"
+"              cation  scheme  that  prevents the password from being sent over\n"
+"              the wire in clear text. Use this in combination with the  normal\n"
+"              -u,  --user  option  to  set  user  name  and password. See also\n"
+"              --ntlm, --negotiate and --anyauth for related options.\n"
 "\n"
-"              This method is not fail-safe and there are occasions where  non-\n"
-"              successful  response  codes  will  slip through, especially when\n"
-"              authentication is involved (response codes 401 and 407).\n"
+"              If this option is used several times,  only  the  first  one  is\n"
+"              used.\n"
 "\n"
-"       -F, --form <name=content>\n"
+"       --disable-eprt\n"
 , stdout);

@@ -1,2 +1,1 @@
-die(_("Pathspec '%s' is in submodule '%.*s'"),
-			    item->original, ce_len, ce->name);
+die("Could not run 'git status --porcelain=2' in submodule %s", path);

@@ -1,21 +1,26 @@
-static void show_worktree(struct worktree *wt, int path_maxlen, int abbrev_len)
+static const char *get_upstream_branch(const char *branch_buf, int len)
 {
-	struct strbuf sb = STRBUF_INIT;
-	int cur_path_len = strlen(wt->path);
-	int path_adj = cur_path_len - utf8_strwidth(wt->path);
+	char *branch = xstrndup(branch_buf, len);
+	struct branch *upstream = branch_get(*branch ? branch : NULL);
 
-	strbuf_addf(&sb, "%-*s ", 1 + path_maxlen + path_adj, wt->path);
-	if (wt->is_bare)
-		strbuf_addstr(&sb, "(bare)");
-	else {
-		strbuf_addf(&sb, "%-*s ", abbrev_len,
-				find_unique_abbrev(wt->head_sha1, DEFAULT_ABBREV));
-		if (!wt->is_detached)
-			strbuf_addf(&sb, "[%s]", shorten_unambiguous_ref(wt->head_ref, 0));
-		else
-			strbuf_addstr(&sb, "(detached HEAD)");
+	/*
+	 * Upstream can be NULL only if branch refers to HEAD and HEAD
+	 * points to something different than a branch.
+	 */
+	if (!upstream)
+		die(_("HEAD does not point to a branch"));
+	if (!upstream->merge || !upstream->merge[0]->dst) {
+		if (!ref_exists(upstream->refname))
+			die(_("No such branch: '%s'"), branch);
+		if (!upstream->merge) {
+			die(_("No upstream configured for branch '%s'"),
+				upstream->name);
+		}
+		die(
+			_("Upstream branch '%s' not stored as a remote-tracking branch"),
+			upstream->merge[0]->src);
 	}
-	printf("%s\n", sb.buf);
+	free(branch);
 
-	strbuf_release(&sb);
+	return upstream->merge[0]->dst;
 }

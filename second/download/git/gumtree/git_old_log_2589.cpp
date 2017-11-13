@@ -1,1 +1,1 @@
-error("object %s: %s", oid_to_hex(&obj->oid), message);
+die("update_treesame %s", sha1_to_hex(commit->object.sha1));

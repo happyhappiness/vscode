@@ -1,1 +1,1 @@
-fprintf(stderr, "   -p   Do not encrypt the password (plaintext).\n");
+fprintf(stderr, "   -s   Force SHA encryption of the password.\n");

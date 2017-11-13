@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Digest: invalid nc %s received - not a number", snc);
+ap_log_perror(APLOG_MARK, APLOG_ERR, rv, pool,
+                      "DBD[%s] Error: %s", svr->name, errmsg );

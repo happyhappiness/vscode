@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0,
-                         c->base_server,
-                         "SSL Proxy connect failed");
+ap_register_output_filter("CHUNK", chunk_filter,
+                                  NULL, AP_FTYPE_TRANSCODE);

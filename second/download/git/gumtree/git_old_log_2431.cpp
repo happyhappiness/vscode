@@ -1,1 +1,1 @@
-printf("Launching default browser to display HTML ...\n");
+die("failed to write object %s", sha1_to_hex(obj->sha1));

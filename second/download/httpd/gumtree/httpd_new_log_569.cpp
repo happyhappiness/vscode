@@ -1,6 +1,10 @@
-ap_log_rerror(APLOG_MARK,
-                      (!(ctx->if_nesting_level)) ? APLOG_ERR : APLOG_WARNING,
-                      0, r, (ctx->argc)
-                                ? "too many arguments for if element in %s"
-                                : "missing expr argument for if element in %s",
-                      r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "Performing full renegotiation: complete handshake "
+                          "protocol (%s support secure renegotiation)",
+#if defined(SSL_get_secure_renegotiation_support)
+                          SSL_get_secure_renegotiation_support(ssl) ? 
+                          "client does" : "client does not"
+#else
+                          "server does not"
+#endif
+                );

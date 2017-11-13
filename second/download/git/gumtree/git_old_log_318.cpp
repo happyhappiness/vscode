@@ -1,2 +1,2 @@
-fprintf(stderr, "%s: unmerged (%s)\n",
-				ce->name, sha1_to_hex(ce->sha1));
+printf(" mode change %06o => %06o\n",
+			       p->old_mode, p->new_mode);

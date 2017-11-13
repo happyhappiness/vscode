@@ -1,1 +1,1 @@
-printf("  ctime: %d:%d\n", sd->sd_ctime.sec, sd->sd_ctime.nsec);
+die("not a commit? can't happen: %s", oid_to_hex(&oid));

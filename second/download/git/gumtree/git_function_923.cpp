@@ -1,81 +1,64 @@
-const char *get_superproject_working_tree(void)
+static int git_config_parse_key_1(const char *key, char **store_key, int *baselen_, int quiet)
 {
-	struct child_process cp = CHILD_PROCESS_INIT;
-	struct strbuf sb = STRBUF_INIT;
-	const char *one_up = real_path_if_valid("../");
-	const char *cwd = xgetcwd();
-	const char *ret = NULL;
-	const char *subpath;
-	int code;
-	ssize_t len;
+	int i, dot, baselen;
+	const char *last_dot = strrchr(key, '.');
 
-	if (!is_inside_work_tree())
-		/*
-		 * FIXME:
-		 * We might have a superproject, but it is harder
-		 * to determine.
-		 */
-		return NULL;
+	/*
+	 * Since "key" actually contains the section name and the real
+	 * key name separated by a dot, we have to know where the dot is.
+	 */
 
-	if (!one_up)
-		return NULL;
-
-	subpath = relative_path(cwd, one_up, &sb);
-
-	prepare_submodule_repo_env(&cp.env_array);
-	argv_array_pop(&cp.env_array);
-
-	argv_array_pushl(&cp.args, "--literal-pathspecs", "-C", "..",
-			"ls-files", "-z", "--stage", "--full-name", "--",
-			subpath, NULL);
-	strbuf_reset(&sb);
-
-	cp.no_stdin = 1;
-	cp.no_stderr = 1;
-	cp.out = -1;
-	cp.git_cmd = 1;
-
-	if (start_command(&cp))
-		die(_("could not start ls-files in .."));
-
-	len = strbuf_read(&sb, cp.out, PATH_MAX);
-	close(cp.out);
-
-	if (starts_with(sb.buf, "160000")) {
-		int super_sub_len;
-		int cwd_len = strlen(cwd);
-		char *super_sub, *super_wt;
-
-		/*
-		 * There is a superproject having this repo as a submodule.
-		 * The format is <mode> SP <hash> SP <stage> TAB <full name> \0,
-		 * We're only interested in the name after the tab.
-		 */
-		super_sub = strchr(sb.buf, '\t') + 1;
-		super_sub_len = sb.buf + sb.len - super_sub - 1;
-
-		if (super_sub_len > cwd_len ||
-		    strcmp(&cwd[cwd_len - super_sub_len], super_sub))
-			die (_("BUG: returned path string doesn't match cwd?"));
-
-		super_wt = xstrdup(cwd);
-		super_wt[cwd_len - super_sub_len] = '\0';
-
-		ret = real_path(super_wt);
-		free(super_wt);
+	if (last_dot == NULL || last_dot == key) {
+		if (!quiet)
+			error("key does not contain a section: %s", key);
+		return -CONFIG_NO_SECTION_OR_NAME;
 	}
-	strbuf_release(&sb);
 
-	code = finish_command(&cp);
+	if (!last_dot[1]) {
+		if (!quiet)
+			error("key does not contain variable name: %s", key);
+		return -CONFIG_NO_SECTION_OR_NAME;
+	}
 
-	if (code == 128)
-		/* '../' is not a git repository */
-		return NULL;
-	if (code == 0 && len == 0)
-		/* There is an unrelated git repository at '../' */
-		return NULL;
-	if (code)
-		die(_("ls-tree returned unexpected return code %d"), code);
+	baselen = last_dot - key;
+	if (baselen_)
+		*baselen_ = baselen;
 
-	return ret;
+	/*
+	 * Validate the key and while at it, lower case it for matching.
+	 */
+	if (store_key)
+		*store_key = xmallocz(strlen(key));
+
+	dot = 0;
+	for (i = 0; key[i]; i++) {
+		unsigned char c = key[i];
+		if (c == '.')
+			dot = 1;
+		/* Leave the extended basename untouched.. */
+		if (!dot || i > baselen) {
+			if (!iskeychar(c) ||
+			    (i == baselen + 1 && !isalpha(c))) {
+				if (!quiet)
+					error("invalid key: %s", key);
+				goto out_free_ret_1;
+			}
+			c = tolower(c);
+		} else if (c == '\n') {
+			if (!quiet)
+				error("invalid key (newline): %s", key);
+			goto out_free_ret_1;
+		}
+		if (store_key)
+			(*store_key)[i] = c;
+	}
+
+	return 0;
+
+out_free_ret_1:
+	if (store_key) {
+		free(*store_key);
+		*store_key = NULL;
+	}
+	return -CONFIG_INVALID_KEY;
 }

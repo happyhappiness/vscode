@@ -1,26 +1,27 @@
-void die_in_unpopulated_submodule(const struct index_state *istate,
-				  const char *prefix)
+static void submodule_push_check(const char *path, const struct remote *remote,
+				 const char **refspec, int refspec_nr)
 {
-	int i, prefixlen;
+	struct child_process cp = CHILD_PROCESS_INIT;
+	int i;
 
-	if (!prefix)
-		return;
+	argv_array_push(&cp.args, "submodule--helper");
+	argv_array_push(&cp.args, "push-check");
+	argv_array_push(&cp.args, remote->name);
 
-	prefixlen = strlen(prefix);
+	for (i = 0; i < refspec_nr; i++)
+		argv_array_push(&cp.args, refspec[i]);
 
-	for (i = 0; i < istate->cache_nr; i++) {
-		struct cache_entry *ce = istate->cache[i];
-		int ce_len = ce_namelen(ce);
+	prepare_submodule_repo_env(&cp.env_array);
+	cp.git_cmd = 1;
+	cp.no_stdin = 1;
+	cp.no_stdout = 1;
+	cp.dir = path;
 
-		if (!S_ISGITLINK(ce->ce_mode))
-			continue;
-		if (prefixlen <= ce_len)
-			continue;
-		if (strncmp(ce->name, prefix, ce_len))
-			continue;
-		if (prefix[ce_len] != '/')
-			continue;
-
-		die(_("in unpopulated submodule '%s'"), ce->name);
-	}
+	/*
+	 * Simply indicate if 'submodule--helper push-check' failed.
+	 * More detailed error information will be provided by the
+	 * child process.
+	 */
+	if (run_command(&cp))
+		die("process for submodule '%s' failed", path);
 }

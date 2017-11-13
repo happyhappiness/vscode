@@ -1,84 +1,81 @@
-static int add(int argc, const char **argv, const char *prefix)
+static struct packed_ref_cache *read_packed_refs(const char *packed_refs_file)
 {
-	int force = 0, allow_empty = 0;
-	const char *object_ref;
-	struct notes_tree *t;
-	unsigned char object[20], new_note[20];
-	const unsigned char *note;
-	struct note_data d = { 0, 0, NULL, STRBUF_INIT };
-	struct option options[] = {
-		{ OPTION_CALLBACK, 'm', "message", &d, N_("message"),
-			N_("note contents as a string"), PARSE_OPT_NONEG,
-			parse_msg_arg},
-		{ OPTION_CALLBACK, 'F', "file", &d, N_("file"),
-			N_("note contents in a file"), PARSE_OPT_NONEG,
-			parse_file_arg},
-		{ OPTION_CALLBACK, 'c', "reedit-message", &d, N_("object"),
-			N_("reuse and edit specified note object"), PARSE_OPT_NONEG,
-			parse_reedit_arg},
-		{ OPTION_CALLBACK, 'C', "reuse-message", &d, N_("object"),
-			N_("reuse specified note object"), PARSE_OPT_NONEG,
-			parse_reuse_arg},
-		OPT_BOOL(0, "allow-empty", &allow_empty,
-			N_("allow storing empty note")),
-		OPT__FORCE(&force, N_("replace existing notes")),
-		OPT_END()
-	};
+	FILE *f;
+	struct packed_ref_cache *packed_refs = xcalloc(1, sizeof(*packed_refs));
+	struct ref_entry *last = NULL;
+	struct strbuf line = STRBUF_INIT;
+	enum { PEELED_NONE, PEELED_TAGS, PEELED_FULLY } peeled = PEELED_NONE;
+	struct ref_dir *dir;
 
-	argc = parse_options(argc, argv, prefix, options, git_notes_add_usage,
-			     PARSE_OPT_KEEP_ARGV0);
+	acquire_packed_ref_cache(packed_refs);
+	packed_refs->cache = create_ref_cache(NULL, NULL);
+	packed_refs->cache->root->flag &= ~REF_INCOMPLETE;
 
-	if (2 < argc) {
-		error(_("too many parameters"));
-		usage_with_options(git_notes_add_usage, options);
-	}
-
-	object_ref = argc > 1 ? argv[1] : "HEAD";
-
-	if (get_sha1(object_ref, object))
-		die(_("Failed to resolve '%s' as a valid ref."), object_ref);
-
-	t = init_notes_check("add");
-	note = get_note(t, object);
-
-	if (note) {
-		if (!force) {
-			free_notes(t);
-			if (d.given) {
-				free_note_data(&d);
-				return error(_("Cannot add notes. "
-					"Found existing notes for object %s. "
-					"Use '-f' to overwrite existing notes"),
-					sha1_to_hex(object));
-			}
+	f = fopen(packed_refs_file, "r");
+	if (!f) {
+		if (errno == ENOENT) {
 			/*
-			 * Redirect to "edit" subcommand.
-			 *
-			 * We only end up here if none of -m/-F/-c/-C or -f are
-			 * given. The original args are therefore still in
-			 * argv[0-1].
+			 * This is OK; it just means that no
+			 * "packed-refs" file has been written yet,
+			 * which is equivalent to it being empty.
 			 */
-			argv[0] = "edit";
-			return append_edit(argc, argv, prefix);
+			return packed_refs;
+		} else {
+			die_errno("couldn't read %s", packed_refs_file);
 		}
-		fprintf(stderr, _("Overwriting existing notes for object %s\n"),
-			sha1_to_hex(object));
 	}
 
-	prepare_note_data(object, &d, note);
-	if (d.buf.len || allow_empty) {
-		write_note_data(&d, new_note);
-		if (add_note(t, object, new_note, combine_notes_overwrite))
-			die("BUG: combine_notes_overwrite failed");
-		commit_notes(t, "Notes added by 'git notes add'");
-	} else {
-		fprintf(stderr, _("Removing note for object %s\n"),
-			sha1_to_hex(object));
-		remove_note(t, object);
-		commit_notes(t, "Notes removed by 'git notes add'");
+	stat_validity_update(&packed_refs->validity, fileno(f));
+
+	dir = get_ref_dir(packed_refs->cache->root);
+	while (strbuf_getwholeline(&line, f, '\n') != EOF) {
+		struct object_id oid;
+		const char *refname;
+		const char *traits;
+
+		if (skip_prefix(line.buf, "# pack-refs with:", &traits)) {
+			if (strstr(traits, " fully-peeled "))
+				peeled = PEELED_FULLY;
+			else if (strstr(traits, " peeled "))
+				peeled = PEELED_TAGS;
+			/* perhaps other traits later as well */
+			continue;
+		}
+
+		refname = parse_ref_line(&line, &oid);
+		if (refname) {
+			int flag = REF_ISPACKED;
+
+			if (check_refname_format(refname, REFNAME_ALLOW_ONELEVEL)) {
+				if (!refname_is_safe(refname))
+					die("packed refname is dangerous: %s", refname);
+				oidclr(&oid);
+				flag |= REF_BAD_NAME | REF_ISBROKEN;
+			}
+			last = create_ref_entry(refname, &oid, flag);
+			if (peeled == PEELED_FULLY ||
+			    (peeled == PEELED_TAGS && starts_with(refname, "refs/tags/")))
+				last->flag |= REF_KNOWS_PEELED;
+			add_ref_entry(dir, last);
+			continue;
+		}
+		if (last &&
+		    line.buf[0] == '^' &&
+		    line.len == PEELED_LINE_LENGTH &&
+		    line.buf[PEELED_LINE_LENGTH - 1] == '\n' &&
+		    !get_oid_hex(line.buf + 1, &oid)) {
+			oidcpy(&last->u.value.peeled, &oid);
+			/*
+			 * Regardless of what the file header said,
+			 * we definitely know the value of *this*
+			 * reference:
+			 */
+			last->flag |= REF_KNOWS_PEELED;
+		}
 	}
 
-	free_note_data(&d);
-	free_notes(t);
-	return 0;
+	fclose(f);
+	strbuf_release(&line);
+
+	return packed_refs;
 }

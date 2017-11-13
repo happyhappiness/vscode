@@ -1,12 +1,8 @@
 fputs(
-"              mkdir directory_name\n"
-"                     The  mkdir  command  creates  the  directory named by the\n"
-"                     directory_name operand.\n"
-"\n"
-"              pwd    The pwd command returns the absolute pathname of the cur-\n"
-"                     rent working directory.\n"
-"\n"
-"              rename source target\n"
-"                     The rename command renames the file or directory named by\n"
-"                     the source operand to the destination path named  by  the\n"
+"              ported for FTP). You may specify any number of commands. If  the\n"
+"              server returns failure for one of the commands, the entire oper-\n"
+"              ation will be aborted. You must send syntactically  correct  FTP\n"
+"              commands  as  RFC 959 defines to FTP servers, or one of the com-\n"
+"              mands listed below to SFTP servers.  This  option  can  be  used\n"
+"              multiple  times. When speaking to an FTP server, prefix the com-\n"
 , stdout);

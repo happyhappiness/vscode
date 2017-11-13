@@ -1,1 +1,1 @@
-out_of_memory("send_file_list");
+rprintf(FERROR,"Failed to dup/close : %s\n",strerror(errno));

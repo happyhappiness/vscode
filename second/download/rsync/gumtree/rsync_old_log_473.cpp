@@ -1,1 +1,1 @@
-fprintf(FERROR,"ERROR: symbolic links not supported\n");
+fprintf(f,"-a, --archive            archive mode (same as -rlptDog)\n");

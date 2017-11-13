@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-               "ajp_handle_cping_cpong: invalid CPONG message");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Zlib: Checksum of inflated stream invalid");

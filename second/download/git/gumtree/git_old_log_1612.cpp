@@ -1,1 +1,2 @@
-error("unable to lock %s for rollback", oldrefname);
+error("cannot fix permission bits on %s",
+			      lk->filename);

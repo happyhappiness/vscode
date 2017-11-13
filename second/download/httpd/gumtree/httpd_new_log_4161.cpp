@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02232)
-                 "Configuring %s server certificate", type);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01010)
+               "ajp_handle_cping_cpong: apr_socket_timeout_get failed");

@@ -1,11 +1,9 @@
 fputs(
-"       Since  7.19.5,  you  can  append  \":[start]-[end]\"  to the right of the\n"
-"       address, to tell curl what TCP port range to use. That means you  spec-\n"
-"       ify  a  port  range,  from  a lower to a higher number. A single number\n"
-"       works as well, but do note that it increases the risk of failure  since\n"
-"       the port may not be available.\n"
+"                    -F '=)' -F '=@textfile.txt' ...  smtp://example.com\n"
 "\n"
-"       See also --ftp-pasv and --disable-eprt.\n"
-"\n"
-"       --ftp-pret\n"
+"              Data  can  be  encoded  for  transfer  using encoder=. Available\n"
+"              encodings are binary and 8bit that do nothing else  than  adding\n"
+"              the  corresponding  Content-Transfer-Encoding  header, 7bit that\n"
+"              only rejects 8-bit characters with  a  transfer  error,  quoted-\n"
+"              printable  and  base64 that encodes data according to the corre-\n"
 , stdout);

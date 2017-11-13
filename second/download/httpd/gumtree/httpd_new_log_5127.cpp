@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02650)
-                              "Inflated content ratio is larger than the "
-                              "configured limit %i by %i time(s)",
-                              dc->ratio_limit, dc->ratio_burst);
+ap_log_error(APLOG_MARK, APLOG_ERR, APR_FROM_OS_ERROR(rc), ap_server_conf, APLOGNO(00196)
+                     "unable to open work queue, exiting");

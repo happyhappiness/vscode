@@ -1,1 +1,1 @@
-die("submodule--helper relative_path takes exactly 2 arguments, got %d", argc);
+printf("%s", relative_path(argv[1], argv[2], &sb));

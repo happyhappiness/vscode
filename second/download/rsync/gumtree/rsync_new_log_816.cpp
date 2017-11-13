@@ -1,1 +1,1 @@
-path_failure(f_out, strstr(module_dir, "/./"), False);
+out_of_memory("set_compression");

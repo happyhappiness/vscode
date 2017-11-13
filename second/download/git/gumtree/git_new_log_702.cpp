@@ -1,2 +1,1 @@
-die(_("could not start 'git status in submodule '%s'"),
-				path);
+packet_write_fmt(1, "ACK %s continue\n", hex);

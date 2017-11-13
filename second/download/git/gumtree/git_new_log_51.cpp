@@ -1,1 +1,1 @@
-die("unable to get object type for %s", sha1_to_hex(old));
+die_errno("unable to open %s for writing", filename);

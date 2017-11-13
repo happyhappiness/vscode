@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, pServ, APLOGNO(02204)
-                                 "Init: Pass phrase incorrect for key of %s",
-                                 cpVHostID);
+ap_rvputs(r, "value='", ap_escape_uri(r->pool, wsel->s->name), "'>\n", NULL);

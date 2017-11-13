@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_EMERG, rv,
-                          ap_server_conf, APLOGNO(02291)
-                         "Cannot access directory '%s' for %s", dir, desc);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r, "start body send");

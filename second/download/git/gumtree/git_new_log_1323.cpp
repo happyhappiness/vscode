@@ -1,1 +1,0 @@
-die("unordered stage entries in index");

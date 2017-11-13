@@ -1,1 +1,1 @@
-printf("Diag: protocol=%s\n", prot_name(protocol));
+die_errno("BUG: unexpected fast_export_ls error");

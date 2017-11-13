@@ -1,46 +1,54 @@
-static apr_status_t on_stream_resume(void *ctx, h2_stream *stream)
+static int core_override_type(request_rec *r)
 {
-    h2_session *session = ctx;
-    apr_status_t status = APR_EAGAIN;
-    int rv;
-    apr_off_t len = 0;
-    int eos = 0;
-    h2_headers *headers;
-    
-    ap_assert(stream);
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
-                  "h2_stream(%ld-%d): on_resume", session->id, stream->id);
-        
-send_headers:
-    headers = NULL;
-    status = h2_stream_out_prepare(stream, &len, &eos, &headers);
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, session->c, 
-                  "h2_stream(%ld-%d): prepared len=%ld, eos=%d", 
-                  session->id, stream->id, (long)len, eos);
-    if (headers) {
-        status = on_stream_headers(session, stream, headers, len, eos);
-        if (status != APR_SUCCESS || stream->rst_error) {
-            return status;
+    core_dir_config *conf =
+        (core_dir_config *)ap_get_core_module_config(r->per_dir_config);
+
+    /* Check for overrides with ForceType / SetHandler
+     */
+    if (conf->mime_type && strcmp(conf->mime_type, "none"))
+        ap_set_content_type(r, (char*) conf->mime_type);
+
+    if (conf->expr_handler) { 
+        const char *err;
+        const char *val;
+        val = ap_expr_str_exec(r, conf->expr_handler, &err);
+        if (err) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(03154)
+                          "Can't evaluate handler expression: %s", err);
+            return HTTP_INTERNAL_SERVER_ERROR;
         }
-        goto send_headers;
+
+        if (val != ap_strstr_c(val, "proxy:unix")) { 
+            /* Retained for compatibility --  but not for UDS */
+            char *tmp = apr_pstrdup(r->pool, val);
+            ap_str_tolower(tmp);
+            val = tmp;
+        }
+
+        if (strcmp(val, "none")) { 
+            r->handler = val;
+        }
     }
-    else if (status != APR_EAGAIN) {
-        if (!stream->has_response) {
-            int err = H2_STREAM_RST(stream, H2_ERR_PROTOCOL_ERROR);
-            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03466)
-                          "h2_stream(%ld-%d): no response, RST_STREAM, err=%d",
-                          session->id, stream->id, err);
-            nghttp2_submit_rst_stream(session->ngh2, NGHTTP2_FLAG_NONE,
-                                      stream->id, err);
-            return APR_SUCCESS;
-        } 
-        rv = nghttp2_session_resume_data(session->ngh2, stream->id);
-        session->have_written = 1;
-        ap_log_cerror(APLOG_MARK, nghttp2_is_fatal(rv)?
-                      APLOG_ERR : APLOG_DEBUG, 0, session->c,
-                      APLOGNO(02936) 
-                      "h2_stream(%ld-%d): resuming %s",
-                      session->id, stream->id, rv? nghttp2_strerror(rv) : "");
+    else if (conf->handler && strcmp(conf->handler, "none")) { 
+        r->handler = conf->handler;
     }
-    return status;
+
+    /* Deal with the poor soul who is trying to force path_info to be
+     * accepted within the core_handler, where they will let the subreq
+     * address its contents.  This is toggled by the user in the very
+     * beginning of the fixup phase (here!), so modules should override the user's
+     * discretion in their own module fixup phase.  It is tristate, if
+     * the user doesn't specify, the result is AP_REQ_DEFAULT_PATH_INFO.
+     * (which the module may interpret to its own customary behavior.)
+     * It won't be touched if the value is no longer AP_ACCEPT_PATHINFO_UNSET,
+     * so any module changing the value prior to the fixup phase
+     * OVERRIDES the user's choice.
+     */
+    if ((r->used_path_info == AP_REQ_DEFAULT_PATH_INFO)
+        && (conf->accept_path_info != AP_ACCEPT_PATHINFO_UNSET)) {
+        /* No module knew better, and the user coded AcceptPathInfo */
+        r->used_path_info = conf->accept_path_info;
+    }
+
+    return OK;
 }

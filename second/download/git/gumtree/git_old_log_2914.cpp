@@ -1,2 +1,2 @@
-error("opening %s: %s", config_filename,
-			      strerror(errno));
+error("unable to mmap '%s': %s",
+			      config_filename, strerror(errno));

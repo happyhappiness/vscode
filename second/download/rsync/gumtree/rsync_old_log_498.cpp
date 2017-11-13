@@ -1,2 +1,1 @@
-fprintf(FINFO,"count=%d rem=%d n=%d flength=%d\n",
-	    s->count,s->remainder,s->n,(int)s->flength);
+fprintf(f,"-I, --ignore-times       don't exclude files that match length and time\n");

@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02376)
-                    "in-headers didn't fit in buffer %s",
-                    sobj->key);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c, 
+                  H2_SSSN_LOG(APLOGNO(03201), session, 
+                  "start, INITIAL_WINDOW_SIZE=%ld, MAX_CONCURRENT_STREAMS=%d"), 
+                  (long)win_size, (int)session->max_stream_count);

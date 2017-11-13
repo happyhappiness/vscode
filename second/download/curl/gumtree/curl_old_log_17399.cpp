@@ -1,8 +1,15 @@
-puts(" -h/--help          This help text\n"
-       " -H/--header <line> Custom header to pass to server. (H)\n"
-       " -i/--include       Include the HTTP-header in the output (H)\n"
-       " -I/--head          Fetch document info only (HTTP HEAD/FTP SIZE)\n"
-       "    --interface <interface> Specify the interface to be used\n"
-       "    --krb4 <level>  Enable krb4 with specified security level (F)\n"
-       " -K/--config        Specify which config file to read\n"
-       " -l/--list-only     List only names of an FTP directory (F)");
+puts(
+"  installed and used at curl build time for it to be used.\n"
+"\n"
+"  First, get the krb-ticket the normal way, like with the kauth tool. Then use\n"
+"  curl in way similar to:\n"
+"\n"
+"        curl --krb4 private ftp://krb4site.com -u username:fakepwd\n"
+"\n"
+"  There's no use for a password on the -u switch, but a blank one will make\n"
+"  curl ask for one and you already entered the real password to kauth.\n"
+"\n"
+"TELNET\n"
+"\n"
+"  The curl telnet support is basic and very easy to use. Curl passes all data\n"
+);

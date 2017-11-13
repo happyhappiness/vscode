@@ -1,206 +1,205 @@
-static content_type *analyze_ct(request_rec *r, const char *s)
+static int cache_handler(request_rec *r)
 {
-    const char *cp, *mp;
-    char *attribute, *value;
-    int quoted = 0;
-    server_rec * ss = r->server;
-    apr_pool_t * p = r->pool;
+    apr_status_t rv;
+    cache_provider_list *providers;
+    cache_request_rec *cache;
+    apr_bucket_brigade *out;
+    ap_filter_t *next;
+    ap_filter_rec_t *cache_out_handle;
+    ap_filter_rec_t *cache_save_handle;
+    cache_server_conf *conf;
 
-    content_type *ctp;
-    param *pp, *npp;
-
-    /* initialize ctp */
-    ctp = (content_type *)apr_palloc(p, sizeof(content_type));
-    ctp->type = NULL;
-    ctp->subtype = NULL;
-    ctp->param = NULL;
-
-    mp = s;
-
-    /* getting a type */
-    cp = mp;
-    while (apr_isspace(*cp)) {
-        cp++;
-    }
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                     "mod_mime: analyze_ct: cannot get media type from '%s'",
-                     (const char *) mp);
-        return (NULL);
-    }
-    ctp->type = cp;
-    do {
-        cp++;
-    } while (*cp && (*cp != '/') && !apr_isspace(*cp) && (*cp != ';'));
-    if (!*cp || (*cp == ';')) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                     "Cannot get media type from '%s'",
-                     (const char *) mp);
-        return (NULL);
-    }
-    while (apr_isspace(*cp)) {
-        cp++;
-    }
-    if (*cp != '/') {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                     "mod_mime: analyze_ct: cannot get media type from '%s'",
-                     (const char *) mp);
-        return (NULL);
-    }
-    ctp->type_len = cp - ctp->type;
-
-    cp++; /* skip the '/' */
-
-    /* getting a subtype */
-    while (apr_isspace(*cp)) {
-        cp++;
-    }
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                     "Cannot get media subtype.");
-        return (NULL);
-    }
-    ctp->subtype = cp;
-    do {
-        cp++;
-    } while (*cp && !apr_isspace(*cp) && (*cp != ';'));
-    ctp->subtype_len = cp - ctp->subtype;
-    while (apr_isspace(*cp)) {
-        cp++;
+    /* Delay initialization until we know we are handling a GET */
+    if (r->method_number != M_GET) {
+        return DECLINED;
     }
 
-    if (*cp == '\0') {
-        return (ctp);
+    conf = (cache_server_conf *) ap_get_module_config(r->server->module_config,
+                                                      &cache_module);
+
+    /* only run if the quick handler is disabled */
+    if (conf->quick) {
+        return DECLINED;
     }
 
-    /* getting parameters */
-    cp++; /* skip the ';' */
-    cp = zap_sp(cp);
-    if (cp == NULL || *cp == '\0') {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                     "Cannot get media parameter.");
-        return (NULL);
+    /*
+     * Which cache module (if any) should handle this request?
+     */
+    if (!(providers = ap_cache_get_providers(r, conf, r->parsed_uri))) {
+        return DECLINED;
     }
-    mp = cp;
-    attribute = NULL;
-    value = NULL;
 
-    while (cp != NULL && *cp != '\0') {
-        if (attribute == NULL) {
-            if (is_token(*cp) > 0) {
-                cp++;
-                continue;
-            }
-            else if (*cp == ' ' || *cp == '\t' || *cp == '\n') {
-                cp++;
-                continue;
-            }
-            else if (*cp == '=') {
-                attribute = zap_sp_and_dup(p, mp, cp, NULL);
-                if (attribute == NULL || *attribute == '\0') {
-                    ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                                 "Cannot get media parameter.");
-                    return (NULL);
+    /* make space for the per request config */
+    cache = (cache_request_rec *) ap_get_module_config(r->request_config,
+                                                       &cache_module);
+    if (!cache) {
+        cache = apr_pcalloc(r->pool, sizeof(cache_request_rec));
+        ap_set_module_config(r->request_config, &cache_module, cache);
+    }
+
+    /* save away the possible providers */
+    cache->providers = providers;
+
+    /*
+     * Try to serve this request from the cache.
+     *
+     * If no existing cache file (DECLINED)
+     *   add cache_save filter
+     * If cached file (OK)
+     *   clear filter stack
+     *   add cache_out filter
+     *   return OK
+     */
+    rv = cache_select(r);
+    if (rv != OK) {
+        if (rv == DECLINED) {
+
+            /* try to obtain a cache lock at this point. if we succeed,
+             * we are the first to try and cache this url. if we fail,
+             * it means someone else is already trying to cache this
+             * url, and we should just let the request through to the
+             * backend without any attempt to cache. this stops
+             * duplicated simultaneous attempts to cache an entity.
+             */
+            rv = ap_cache_try_lock(conf, r, NULL);
+            if (APR_SUCCESS == rv) {
+
+                /*
+                 * Add cache_save filter to cache this request. Choose
+                 * the correct filter by checking if we are a subrequest
+                 * or not.
+                 */
+                if (r->main) {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                            r->server,
+                            "Adding CACHE_SAVE_SUBREQ filter for %s",
+                            r->uri);
+                    cache_save_handle = cache_save_subreq_filter_handle;
                 }
-                cp++;
-                cp = zap_sp(cp);
-                if (cp == NULL || *cp == '\0') {
-                    ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                                 "Cannot get media parameter.");
-                    return (NULL);
+                else {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                            r->server, "Adding CACHE_SAVE filter for %s",
+                            r->uri);
+                    cache_save_handle = cache_save_filter_handle;
                 }
-                mp = cp;
-                continue;
+                ap_add_output_filter_handle(cache_save_handle,
+                        NULL, r, r->connection);
+
+                /*
+                 * Did the user indicate the precise location of the
+                 * CACHE_SAVE filter by inserting the CACHE filter as a
+                 * marker?
+                 *
+                 * If so, we get cunning and replace CACHE with the
+                 * CACHE_SAVE filter. This has the effect of inserting
+                 * the CACHE_SAVE filter at the precise location where
+                 * the admin wants to cache the content. All filters that
+                 * lie before and after the original location of the CACHE
+                 * filter will remain in place.
+                 */
+                if (cache_replace_filter(r->output_filters,
+                        cache_filter_handle, cache_save_handle)) {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                            r->server, "Replacing CACHE with CACHE_SAVE "
+                            "filter for %s", r->uri);
+                }
+
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
+                        "Adding CACHE_REMOVE_URL filter for %s",
+                        r->uri);
+
+                /* Add cache_remove_url filter to this request to remove a
+                 * stale cache entry if needed. Also put the current cache
+                 * request rec in the filter context, as the request that
+                 * is available later during running the filter may be
+                 * different due to an internal redirect.
+                 */
+                cache->remove_url_filter =
+                    ap_add_output_filter_handle(cache_remove_url_filter_handle,
+                            cache, r, r->connection);
+
             }
             else {
-                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                             "Cannot get media parameter.");
-                return (NULL);
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, rv,
+                             r->server, "Cache locked for url, not caching "
+                             "response: %s", r->uri);
             }
         }
         else {
-            if (mp == cp) {
-                if (*cp == '"') {
-                    quoted = 1;
-                    cp++;
-                }
-                else {
-                    quoted = 0;
-                }
-            }
-            if (quoted > 0) {
-                while (quoted && *cp != '\0') {
-                    if (is_qtext(*cp) > 0) {
-                        cp++;
-                    }
-                    else if (is_quoted_pair(cp) > 0) {
-                        cp += 2;
-                    }
-                    else if (*cp == '"') {
-                        cp++;
-                        while (*cp == ' ' || *cp == '\t' || *cp == '\n') {
-                            cp++;
-                        }
-                        if (*cp != ';' && *cp != '\0') {
-                            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                                         "Cannot get media parameter.");
-                            return(NULL);
-                        }
-                        quoted = 0;
-                    }
-                    else {
-                        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                                     "Cannot get media parameter.");
-                        return (NULL);
-                    }
-                }
-            }
-            else {
-                while (1) {
-                    if (is_token(*cp) > 0) {
-                        cp++;
-                    }
-                    else if (*cp == '\0' || *cp == ';') {
-                        break;
-                    }
-                    else {
-                        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                                     "Cannot get media parameter.");
-                        return (NULL);
-                    }
-                }
-            }
-            value = zap_sp_and_dup(p, mp, cp, NULL);
-            if (value == NULL || *value == '\0') {
-                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                             "Cannot get media parameter.");
-                return (NULL);
-            }
-
-            pp = apr_palloc(p, sizeof(param));
-            pp->attr = attribute;
-            pp->val = value;
-            pp->next = NULL;
-
-            if (ctp->param == NULL) {
-                ctp->param = pp;
-            }
-            else {
-                npp = ctp->param;
-                while (npp->next) {
-                    npp = npp->next;
-                }
-                npp->next = pp;
-            }
-            quoted = 0;
-            attribute = NULL;
-            value = NULL;
-            if (*cp == '\0') {
-                break;
-            }
-            cp++;
-            mp = cp;
+            /* error */
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                         "cache: error returned while checking for cached "
+                         "file by %s cache", cache->provider_name);
         }
+        return DECLINED;
     }
-    return (ctp);
+
+    rv = ap_meets_conditions(r);
+    if (rv != OK) {
+        return rv;
+    }
+
+    /* Serve up the content */
+
+    /*
+     * Add cache_out filter to serve this request. Choose
+     * the correct filter by checking if we are a subrequest
+     * or not.
+     */
+    if (r->main) {
+        cache_out_handle = cache_out_subreq_filter_handle;
+    }
+    else {
+        cache_out_handle = cache_out_filter_handle;
+    }
+    ap_add_output_filter_handle(cache_out_handle, NULL, r, r->connection);
+
+    /*
+     * Did the user indicate the precise location of the CACHE_OUT filter by
+     * inserting the CACHE filter as a marker?
+     *
+     * If so, we get cunning and replace CACHE with the CACHE_OUT filters.
+     * This has the effect of inserting the CACHE_OUT filter at the precise
+     * location where the admin wants to cache the content. All filters that
+     * lie *after* the original location of the CACHE filter will remain in
+     * place.
+     */
+    if (cache_replace_filter(r->output_filters, cache_filter_handle, cache_out_handle)) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                r->server, "Replacing CACHE with CACHE_OUT filter for %s",
+                r->uri);
+    }
+
+    /*
+     * Remove all filters that are before the cache_out filter. This ensures
+     * that we kick off the filter stack with our cache_out filter being the
+     * first in the chain. This make sense because we want to restore things
+     * in the same manner as we saved them.
+     * There may be filters before our cache_out filter, because
+     *
+     * 1. We call ap_set_content_type during cache_select. This causes
+     *    Content-Type specific filters to be added.
+     * 2. We call the insert_filter hook. This causes filters e.g. like
+     *    the ones set with SetOutputFilter to be added.
+     */
+    next = r->output_filters;
+    while (next && (next->frec != cache_out_handle)) {
+        ap_remove_output_filter(next);
+        next = next->next;
+    }
+
+    /* kick off the filter stack */
+    out = apr_brigade_create(r->pool, r->connection->bucket_alloc);
+    rv = ap_pass_brigade(r->output_filters, out);
+    if (rv != APR_SUCCESS) {
+        if (rv != AP_FILTER_ERROR) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                         "cache: error returned while trying to return %s "
+                         "cached data",
+                         cache->provider_name);
+        }
+        return rv;
+    }
+
+    return OK;
 }

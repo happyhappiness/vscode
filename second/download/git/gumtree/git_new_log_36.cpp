@@ -1,1 +1,1 @@
-die_errno(_("unable to read signature file '%s'"), signature_file);
+die(_("invalid date format: %s"), force_date);

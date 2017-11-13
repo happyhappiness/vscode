@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01874)
-                     "Could not initialize session cache. Exiting.");
+ap_rputs("<tr><td>Sticky Session:</td><td><input name='b_ss' id='b_ss' size=64 type=text ", r);

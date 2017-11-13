@@ -1,0 +1,1 @@
+fprintf(rpt, "    at %s\n", show_date(time(NULL), 0, DATE_LOCAL));

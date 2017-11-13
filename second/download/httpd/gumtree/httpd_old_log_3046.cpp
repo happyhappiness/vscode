@@ -1,5 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "finished insert, subcache: idx_pos/idx_used=%d/%d, "
-                 "data_pos/data_used=%d/%d",
-                 subcache->idx_pos, subcache->idx_used,
-                 subcache->data_pos, subcache->data_used);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "[%" APR_PID_T_FMT "]"
+                          " util_ldap: user %s not found in subgroup (%s) at"
+                          " level %d of %d.", getpid(), r->user, group,
+                          cur_subgroup_depth+1, max_subgroup_depth);

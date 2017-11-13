@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01487)
-                              "request_rec->dispatching %s -> lua_CFunction",
-                              name);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00791)
+                         "scache_mc: 'retrieve' FAIL");

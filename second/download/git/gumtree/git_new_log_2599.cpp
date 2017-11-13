@@ -1,1 +1,2 @@
-die("BUG: buffer too small. Please report a bug.");
+error(_("Mainline was specified but commit %s is not a merge."),
+			oid_to_hex(&commit->object.oid));

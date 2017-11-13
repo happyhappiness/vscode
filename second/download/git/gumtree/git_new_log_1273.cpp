@@ -1,1 +1,0 @@
-die("%s: clean filter '%s' failed", path, ca.drv->name);

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, srv, APLOGNO(01495)
-                     "rfc1413: error setting query socket timeout");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02090)
+                             "Unable to listen for connections!");

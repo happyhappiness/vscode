@@ -1,9 +1,11 @@
 fputs(
-"              is  mostly done to better enable scripts etc to better deal with\n"
-"              failed attempts. In normal cases when an HTTP  server  fails  to\n"
-"              deliver  a  document,  it  returns  an  HTML document stating so\n"
-"              (which often also describes why and more). This flag  will  pre-\n"
-"              vent curl from outputting that and return error 22.\n"
+"              available:  \\\\, \\\", \\t, \\n, \\r and \\v. A backslash preceding any\n"
+"              other letter is ignored. If the first column of a config line is\n"
+"              a  '#' character, the rest of the line will be treated as a com-\n"
+"              ment. Only write one option per  physical  line  in  the  config\n"
+"              file.\n"
 "\n"
-"              This  method is not fail-safe and there are occasions where non-\n"
+"              Specify  the  filename  to -K, --config as '-' to make curl read\n"
+"              the file from stdin.\n"
+"\n"
 , stdout);

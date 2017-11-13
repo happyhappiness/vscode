@@ -1,84 +1,76 @@
-static apr_status_t rfc1413_query(apr_socket_t *sock, conn_rec *conn,
-                                  server_rec *srv)
+static apr_status_t hm_watchdog_callback(int state, void *data,
+                                         apr_pool_t *pool)
 {
-    apr_port_t rmt_port, our_port;
-    apr_port_t sav_rmt_port, sav_our_port;
-    apr_size_t i;
-    char *cp;
-    char buffer[RFC1413_MAXDATA + 1];
-    char user[RFC1413_USERLEN + 1];     /* XXX */
-    apr_size_t buflen;
+    apr_status_t rv = APR_SUCCESS;
+    apr_time_t cur, now;
+    hm_ctx_t *ctx = (hm_ctx_t *)data;
 
-    sav_our_port = conn->local_addr->port;
-    sav_rmt_port = conn->remote_addr->port;
-
-    /* send the data */
-    buflen = apr_snprintf(buffer, sizeof(buffer), "%hu,%hu\r\n", sav_rmt_port,
-                          sav_our_port);
-    ap_xlate_proto_to_ascii(buffer, buflen);
-
-    /* send query to server. Handle short write. */
-    i = 0;
-    while (i < buflen) {
-        apr_size_t j = strlen(buffer + i);
-        apr_status_t status;
-        status  = apr_socket_send(sock, buffer+i, &j);
-        if (status != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, status, srv,
-                         "write: rfc1413: error sending request");
-            return status;
-        }
-        else if (j > 0) {
-            i+=j;
-        }
+    if (!ctx->active) {
+        return rv;
     }
 
-    /*
-     * Read response from server. - the response should be newline
-     * terminated according to rfc - make sure it doesn't stomp its
-     * way out of the buffer.
-     */
+    switch (state) {
+        case AP_WATCHDOG_STATE_STARTING:
+            rv = hm_listen(ctx);
+            if (rv) {
+                ctx->status = rv;
+                ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
+                             "Heartmonitor: Unable to listen for connections!");
+            }
+            else {
+                ctx->keep_running = 1;
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ctx->s,
+                             "Heartmonitor: %s listener started.",
+                             HM_WATHCHDOG_NAME);
+            }
+        break;
+        case AP_WATCHDOG_STATE_RUNNING:
+            /* store in the slotmem or in the file depending on configuration */
+            hm_update_stats(ctx, pool);
+            cur = now = apr_time_sec(apr_time_now());
+            /* TODO: Insted HN_UPDATE_SEC use
+             * the ctx->interval
+             */
+            while ((now - cur) < apr_time_sec(ctx->interval)) {
+                int n;
+                apr_status_t rc;
+                apr_pool_t *p;
+                apr_pollfd_t pfd;
+                apr_interval_time_t timeout;
 
-    i = 0;
-    memset(buffer, '\0', sizeof(buffer));
-    /*
-     * Note that the strchr function below checks for \012 instead of '\n'
-     * this allows it to work on both ASCII and EBCDIC machines.
-     */
-    while((cp = strchr(buffer, '\012')) == NULL && i < sizeof(buffer) - 1) {
-        apr_size_t j = sizeof(buffer) - 1 - i;
-        apr_status_t status;
-        status = apr_socket_recv(sock, buffer+i, &j);
-        if (status != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, status, srv,
-                         "read: rfc1413: error reading response");
-            return status;
-        }
-        else if (j > 0) {
-            i+=j;
-        }
-        else if (status == APR_SUCCESS && j == 0) {
-            /* Oops... we ran out of data before finding newline */
-            return APR_EINVAL;
-        }
+                apr_pool_create(&p, pool);
+
+                pfd.desc_type = APR_POLL_SOCKET;
+                pfd.desc.s = ctx->sock;
+                pfd.p = p;
+                pfd.reqevents = APR_POLLIN;
+
+                timeout = apr_time_from_sec(1);
+
+                rc = apr_poll(&pfd, 1, &n, timeout);
+
+                if (!ctx->keep_running) {
+                    apr_pool_destroy(p);
+                    break;
+                }
+                if (rc == APR_SUCCESS && (pfd.rtnevents & APR_POLLIN)) {
+                    hm_recv(ctx, p);
+                }
+                now = apr_time_sec(apr_time_now());
+                apr_pool_destroy(p);
+            }
+        break;
+        case AP_WATCHDOG_STATE_STOPPING:
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ctx->s,
+                         "Heartmonitor: stopping %s listener.",
+                         HM_WATHCHDOG_NAME);
+
+            ctx->keep_running = 0;
+            if (ctx->sock) {
+                apr_socket_close(ctx->sock);
+                ctx->sock = NULL;
+            }
+        break;
     }
-
-/* RFC1413_USERLEN = 512 */
-    ap_xlate_proto_from_ascii(buffer, i);
-    if (sscanf(buffer, "%hu , %hu : USERID :%*[^:]:%512s", &rmt_port, &our_port,
-               user) != 3 || sav_rmt_port != rmt_port
-        || sav_our_port != our_port)
-        return APR_EINVAL;
-
-    /*
-     * Strip trailing carriage return. It is part of the
-     * protocol, not part of the data.
-     */
-
-    if ((cp = strchr(user, '\r')))
-        *cp = '\0';
-
-    conn->remote_logname = apr_pstrdup(conn->pool, user);
-
-    return APR_SUCCESS;
+    return rv;
 }

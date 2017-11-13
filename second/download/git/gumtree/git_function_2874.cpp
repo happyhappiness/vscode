@@ -1,89 +1,115 @@
-int cmd_merge_file(int argc, const char **argv, const char *prefix)
+static int merge(int argc, const char **argv, const char *prefix)
 {
-	const char *names[3] = { NULL, NULL, NULL };
-	mmfile_t mmfs[3];
-	mmbuffer_t result = {NULL, 0};
-	xmparam_t xmp = {{0}};
-	int ret = 0, i = 0, to_stdout = 0;
-	int quiet = 0;
-	int prefixlen = 0;
+	struct strbuf remote_ref = STRBUF_INIT, msg = STRBUF_INIT;
+	unsigned char result_sha1[20];
+	struct notes_tree *t;
+	struct notes_merge_options o;
+	int do_merge = 0, do_commit = 0, do_abort = 0;
+	int verbosity = 0, result;
+	const char *strategy = NULL;
 	struct option options[] = {
-		OPT_BOOL('p', "stdout", &to_stdout, N_("send results to standard output")),
-		OPT_SET_INT(0, "diff3", &xmp.style, N_("use a diff3 based merge"), XDL_MERGE_DIFF3),
-		OPT_SET_INT(0, "ours", &xmp.favor, N_("for conflicts, use our version"),
-			    XDL_MERGE_FAVOR_OURS),
-		OPT_SET_INT(0, "theirs", &xmp.favor, N_("for conflicts, use their version"),
-			    XDL_MERGE_FAVOR_THEIRS),
-		OPT_SET_INT(0, "union", &xmp.favor, N_("for conflicts, use a union version"),
-			    XDL_MERGE_FAVOR_UNION),
-		OPT_INTEGER(0, "marker-size", &xmp.marker_size,
-			    N_("for conflicts, use this marker size")),
-		OPT__QUIET(&quiet, N_("do not warn about conflicts")),
-		OPT_CALLBACK('L', NULL, names, N_("name"),
-			     N_("set labels for file1/orig-file/file2"), &label_cb),
-		OPT_END(),
+		OPT_GROUP(N_("General options")),
+		OPT__VERBOSITY(&verbosity),
+		OPT_GROUP(N_("Merge options")),
+		OPT_STRING('s', "strategy", &strategy, N_("strategy"),
+			   N_("resolve notes conflicts using the given strategy "
+			      "(manual/ours/theirs/union/cat_sort_uniq)")),
+		OPT_GROUP(N_("Committing unmerged notes")),
+		{ OPTION_SET_INT, 0, "commit", &do_commit, NULL,
+			N_("finalize notes merge by committing unmerged notes"),
+			PARSE_OPT_NOARG | PARSE_OPT_NONEG, NULL, 1},
+		OPT_GROUP(N_("Aborting notes merge resolution")),
+		{ OPTION_SET_INT, 0, "abort", &do_abort, NULL,
+			N_("abort notes merge"),
+			PARSE_OPT_NOARG | PARSE_OPT_NONEG, NULL, 1},
+		OPT_END()
 	};
 
-	xmp.level = XDL_MERGE_ZEALOUS_ALNUM;
-	xmp.style = 0;
-	xmp.favor = 0;
+	argc = parse_options(argc, argv, prefix, options,
+			     git_notes_merge_usage, 0);
 
-	if (startup_info->have_repository) {
-		/* Read the configuration file */
-		git_config(git_xmerge_config, NULL);
-		if (0 <= git_xmerge_style)
-			xmp.style = git_xmerge_style;
+	if (strategy || do_commit + do_abort == 0)
+		do_merge = 1;
+	if (do_merge + do_commit + do_abort != 1) {
+		error("cannot mix --commit, --abort or -s/--strategy");
+		usage_with_options(git_notes_merge_usage, options);
 	}
 
-	argc = parse_options(argc, argv, prefix, options, merge_file_usage, 0);
-	if (argc != 3)
-		usage_with_options(merge_file_usage, options);
-	if (quiet) {
-		if (!freopen("/dev/null", "w", stderr))
-			return error("failed to redirect stderr to /dev/null: "
-				     "%s", strerror(errno));
+	if (do_merge && argc != 1) {
+		error("Must specify a notes ref to merge");
+		usage_with_options(git_notes_merge_usage, options);
+	} else if (!do_merge && argc) {
+		error("too many parameters");
+		usage_with_options(git_notes_merge_usage, options);
 	}
 
-	if (prefix)
-		prefixlen = strlen(prefix);
+	init_notes_merge_options(&o);
+	o.verbosity = verbosity + NOTES_MERGE_VERBOSITY_DEFAULT;
 
-	for (i = 0; i < 3; i++) {
-		const char *fname = prefix_filename(prefix, prefixlen, argv[i]);
-		if (!names[i])
-			names[i] = argv[i];
-		if (read_mmfile(mmfs + i, fname))
-			return -1;
-		if (mmfs[i].size > MAX_XDIFF_SIZE ||
-		    buffer_is_binary(mmfs[i].ptr, mmfs[i].size))
-			return error("Cannot merge binary files: %s",
-					argv[i]);
+	if (do_abort)
+		return merge_abort(&o);
+	if (do_commit)
+		return merge_commit(&o);
+
+	o.local_ref = default_notes_ref();
+	strbuf_addstr(&remote_ref, argv[0]);
+	expand_loose_notes_ref(&remote_ref);
+	o.remote_ref = remote_ref.buf;
+
+	t = init_notes_check("merge", NOTES_INIT_WRITABLE);
+
+	if (strategy) {
+		if (parse_notes_merge_strategy(strategy, &o.strategy)) {
+			error("Unknown -s/--strategy: %s", strategy);
+			usage_with_options(git_notes_merge_usage, options);
+		}
+	} else {
+		struct strbuf merge_key = STRBUF_INIT;
+		const char *short_ref = NULL;
+
+		if (!skip_prefix(o.local_ref, "refs/notes/", &short_ref))
+			die("BUG: local ref %s is outside of refs/notes/",
+			    o.local_ref);
+
+		strbuf_addf(&merge_key, "notes.%s.mergeStrategy", short_ref);
+
+		if (git_config_get_notes_strategy(merge_key.buf, &o.strategy))
+			git_config_get_notes_strategy("notes.mergeStrategy", &o.strategy);
+
+		strbuf_release(&merge_key);
 	}
 
-	xmp.ancestor = names[1];
-	xmp.file1 = names[0];
-	xmp.file2 = names[2];
-	ret = xdl_merge(mmfs + 1, mmfs + 0, mmfs + 2, &xmp, &result);
+	strbuf_addf(&msg, "notes: Merged notes from %s into %s",
+		    remote_ref.buf, default_notes_ref());
+	strbuf_add(&(o.commit_msg), msg.buf + 7, msg.len - 7); /* skip "notes: " */
 
-	for (i = 0; i < 3; i++)
-		free(mmfs[i].ptr);
+	result = notes_merge(&o, t, result_sha1);
 
-	if (ret >= 0) {
-		const char *filename = argv[0];
-		const char *fpath = prefix_filename(prefix, prefixlen, argv[0]);
-		FILE *f = to_stdout ? stdout : fopen(fpath, "wb");
-
-		if (!f)
-			ret = error("Could not open %s for writing", filename);
-		else if (result.size &&
-			 fwrite(result.ptr, result.size, 1, f) != 1)
-			ret = error("Could not write to %s", filename);
-		else if (fclose(f))
-			ret = error("Could not close %s", filename);
-		free(result.ptr);
+	if (result >= 0) /* Merge resulted (trivially) in result_sha1 */
+		/* Update default notes ref with new commit */
+		update_ref(msg.buf, default_notes_ref(), result_sha1, NULL,
+			   0, UPDATE_REFS_DIE_ON_ERR);
+	else { /* Merge has unresolved conflicts */
+		char *existing;
+		/* Update .git/NOTES_MERGE_PARTIAL with partial merge result */
+		update_ref(msg.buf, "NOTES_MERGE_PARTIAL", result_sha1, NULL,
+			   0, UPDATE_REFS_DIE_ON_ERR);
+		/* Store ref-to-be-updated into .git/NOTES_MERGE_REF */
+		existing = find_shared_symref("NOTES_MERGE_REF", default_notes_ref());
+		if (existing)
+			die(_("A notes merge into %s is already in-progress at %s"),
+			    default_notes_ref(), existing);
+		if (create_symref("NOTES_MERGE_REF", default_notes_ref(), NULL))
+			die("Failed to store link to current notes ref (%s)",
+			    default_notes_ref());
+		printf("Automatic notes merge failed. Fix conflicts in %s and "
+		       "commit the result with 'git notes merge --commit', or "
+		       "abort the merge with 'git notes merge --abort'.\n",
+		       git_path(NOTES_MERGE_WORKTREE));
 	}
 
-	if (ret > 127)
-		ret = 127;
-
-	return ret;
+	free_notes(t);
+	strbuf_release(&remote_ref);
+	strbuf_release(&msg);
+	return result < 0; /* return non-zero on conflicts */
 }

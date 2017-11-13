@@ -1,11 +1,11 @@
 fputs(
-"              A  quick  and  very  simple  example of how to setup a .netrc to\n"
-"              allow curl to FTP to the machine host.domain.com with user  name\n"
-"              'myself' and password 'secret' should look similar to:\n"
+"              To use a Metalink file in the local file system, use FILE proto-\n"
+"              col (file://):\n"
 "\n"
-"              machine host.domain.com login myself password secret\n"
+"               curl --metalink file://example.metalink\n"
 "\n"
-"       -:, --next\n"
-"              Tells curl to use a separate operation for the following URL and\n"
-"              associated  options.  This  allows  you  to  send  several   URL\n"
+"              Please note that if FILE protocol is disabled, there is  no  way\n"
+"              to  use  a local Metalink file at the time of this writing. Also\n"
+"              note that if --metalink and -i,  --include  are  used  together,\n"
+"              --include  will be ignored. This is because including headers in\n"
 , stdout);

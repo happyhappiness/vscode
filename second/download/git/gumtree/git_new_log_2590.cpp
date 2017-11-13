@@ -1,1 +1,3 @@
-die("BUG: a non-header pattern in grep header list.");
+die("cannot simplify commit %s (because of %s)",
+			    oid_to_hex(&commit->object.oid),
+			    oid_to_hex(&p->object.oid));

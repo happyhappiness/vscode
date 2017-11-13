@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02236)
-                 "Configuring %s server private key", type);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01014)
+               "ajp_handle_cping_cpong: awaited CPONG, received %d ",
+               result);

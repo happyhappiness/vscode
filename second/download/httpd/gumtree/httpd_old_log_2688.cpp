@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "No AuthDBDUserRealmQuery has been specified");
+fprintf(stderr, "apr_table_mergen: key not in ancestor pool of t\n");

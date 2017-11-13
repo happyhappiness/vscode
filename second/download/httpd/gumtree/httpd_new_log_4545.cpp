@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0,
-                         ap_server_conf, APLOGNO(00491) "caught SIGTERM, shutting down");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00929)
+                         "can not create connection pool");

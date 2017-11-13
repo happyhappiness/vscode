@@ -1,87 +1,123 @@
-int cmd_check_attr(int argc, const char **argv, const char *prefix)
+char *strbuf_realpath(struct strbuf *resolved, const char *path,
+		      int die_on_error)
 {
-	struct git_attr_check *check;
-	int cnt, i, doubledash, filei;
+	struct strbuf remaining = STRBUF_INIT;
+	struct strbuf next = STRBUF_INIT;
+	struct strbuf symlink = STRBUF_INIT;
+	char *retval = NULL;
+	int num_symlinks = 0;
+	struct stat st;
 
-	if (!is_bare_repository())
-		setup_work_tree();
-
-	git_config(git_default_config, NULL);
-
-	argc = parse_options(argc, argv, prefix, check_attr_options,
-			     check_attr_usage, PARSE_OPT_KEEP_DASHDASH);
-
-	if (read_cache() < 0) {
-		die("invalid cache");
+	if (!*path) {
+		if (die_on_error)
+			die("The empty string is not a valid path");
+		else
+			goto error_out;
 	}
 
-	if (cached_attrs)
-		git_attr_set_direction(GIT_ATTR_INDEX, NULL);
+	strbuf_addstr(&remaining, path);
+	get_root_part(resolved, &remaining);
 
-	doubledash = -1;
-	for (i = 0; doubledash < 0 && i < argc; i++) {
-		if (!strcmp(argv[i], "--"))
-			doubledash = i;
-	}
-
-	/* Process --all and/or attribute arguments: */
-	if (all_attrs) {
-		if (doubledash >= 1)
-			error_with_usage("Attributes and --all both specified");
-
-		cnt = 0;
-		filei = doubledash + 1;
-	} else if (doubledash == 0) {
-		error_with_usage("No attribute specified");
-	} else if (doubledash < 0) {
-		if (!argc)
-			error_with_usage("No attribute specified");
-
-		if (stdin_paths) {
-			/* Treat all arguments as attribute names. */
-			cnt = argc;
-			filei = argc;
-		} else {
-			/* Treat exactly one argument as an attribute name. */
-			cnt = 1;
-			filei = 1;
-		}
-	} else {
-		cnt = doubledash;
-		filei = doubledash + 1;
-	}
-
-	/* Check file argument(s): */
-	if (stdin_paths) {
-		if (filei < argc)
-			error_with_usage("Can't specify files with --stdin");
-	} else {
-		if (filei >= argc)
-			error_with_usage("No file specified");
-	}
-
-	if (all_attrs) {
-		check = NULL;
-	} else {
-		check = xcalloc(cnt, sizeof(*check));
-		for (i = 0; i < cnt; i++) {
-			const char *name;
-			struct git_attr *a;
-			name = argv[i];
-			a = git_attr(name);
-			if (!a)
-				return error("%s: not a valid attribute name",
-					name);
-			check[i].attr = a;
+	if (!resolved->len) {
+		/* relative path; can use CWD as the initial resolved path */
+		if (strbuf_getcwd(resolved)) {
+			if (die_on_error)
+				die_errno("unable to get current working directory");
+			else
+				goto error_out;
 		}
 	}
 
-	if (stdin_paths)
-		check_attr_stdin_paths(prefix, cnt, check);
-	else {
-		for (i = filei; i < argc; i++)
-			check_attr(prefix, cnt, check, argv[i]);
-		maybe_flush_or_die(stdout, "attribute to stdout");
+	/* Iterate over the remaining path components */
+	while (remaining.len > 0) {
+		get_next_component(&next, &remaining);
+
+		if (next.len == 0) {
+			continue; /* empty component */
+		} else if (next.len == 1 && !strcmp(next.buf, ".")) {
+			continue; /* '.' component */
+		} else if (next.len == 2 && !strcmp(next.buf, "..")) {
+			/* '..' component; strip the last path component */
+			strip_last_component(resolved);
+			continue;
+		}
+
+		/* append the next component and resolve resultant path */
+		if (!is_dir_sep(resolved->buf[resolved->len - 1]))
+			strbuf_addch(resolved, '/');
+		strbuf_addbuf(resolved, &next);
+
+		if (lstat(resolved->buf, &st)) {
+			/* error out unless this was the last component */
+			if (errno != ENOENT || remaining.len) {
+				if (die_on_error)
+					die_errno("Invalid path '%s'",
+						  resolved->buf);
+				else
+					goto error_out;
+			}
+		} else if (S_ISLNK(st.st_mode)) {
+			ssize_t len;
+			strbuf_reset(&symlink);
+
+			if (num_symlinks++ > MAXSYMLINKS) {
+				errno = ELOOP;
+
+				if (die_on_error)
+					die("More than %d nested symlinks "
+					    "on path '%s'", MAXSYMLINKS, path);
+				else
+					goto error_out;
+			}
+
+			len = strbuf_readlink(&symlink, resolved->buf,
+					      st.st_size);
+			if (len < 0) {
+				if (die_on_error)
+					die_errno("Invalid symlink '%s'",
+						  resolved->buf);
+				else
+					goto error_out;
+			}
+
+			if (is_absolute_path(symlink.buf)) {
+				/* absolute symlink; set resolved to root */
+				get_root_part(resolved, &symlink);
+			} else {
+				/*
+				 * relative symlink
+				 * strip off the last component since it will
+				 * be replaced with the contents of the symlink
+				 */
+				strip_last_component(resolved);
+			}
+
+			/*
+			 * if there are still remaining components to resolve
+			 * then append them to symlink
+			 */
+			if (remaining.len) {
+				strbuf_addch(&symlink, '/');
+				strbuf_addbuf(&symlink, &remaining);
+			}
+
+			/*
+			 * use the symlink as the remaining components that
+			 * need to be resloved
+			 */
+			strbuf_swap(&symlink, &remaining);
+		}
 	}
-	return 0;
+
+	retval = resolved->buf;
+
+error_out:
+	strbuf_release(&remaining);
+	strbuf_release(&next);
+	strbuf_release(&symlink);
+
+	if (!retval)
+		strbuf_reset(resolved);
+
+	return retval;
 }

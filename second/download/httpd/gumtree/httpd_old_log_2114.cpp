@@ -1,3 +1,2 @@
-apr_file_printf(errfile,
-            "On other systems than Windows, NetWare and TPF the '-p' flag will "
-            "probably not work." NL);
+ap_log_perror(file, line, APLOG_DEBUG, rv, l->pool, 
+                      "Mutex %s:%d released!", l->file, l->line);

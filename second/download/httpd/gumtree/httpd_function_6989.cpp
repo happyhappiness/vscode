@@ -1,201 +1,268 @@
-static apr_status_t ssl_init_ctx_protocol(server_rec *s,
+static apr_status_t ssl_init_server_certs(server_rec *s,
                                           apr_pool_t *p,
                                           apr_pool_t *ptemp,
-                                          modssl_ctx_t *mctx)
+                                          modssl_ctx_t *mctx,
+                                          apr_array_header_t *pphrases)
 {
-    SSL_CTX *ctx = NULL;
-    MODSSL_SSL_METHOD_CONST SSL_METHOD *method = NULL;
-    char *cp;
-    int protocol = mctx->protocol;
-    SSLSrvConfigRec *sc = mySrvConfig(s);
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L
-    int prot;
-#endif
-
-    /*
-     *  Create the new per-server SSL context
-     */
-    if (protocol == SSL_PROTOCOL_NONE) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02231)
-                "No SSL protocols available [hint: SSLProtocol]");
-        return ssl_die(s);
-    }
-
-    cp = apr_pstrcat(p,
-#ifndef OPENSSL_NO_SSL3
-                     (protocol & SSL_PROTOCOL_SSLV3 ? "SSLv3, " : ""),
-#endif
-                     (protocol & SSL_PROTOCOL_TLSV1 ? "TLSv1, " : ""),
-#ifdef HAVE_TLSV1_X
-                     (protocol & SSL_PROTOCOL_TLSV1_1 ? "TLSv1.1, " : ""),
-                     (protocol & SSL_PROTOCOL_TLSV1_2 ? "TLSv1.2, " : ""),
-#endif
-                     NULL);
-    cp[strlen(cp)-2] = NUL;
-
-    ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, s,
-                 "Creating new SSL context (protocols: %s)", cp);
-
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-#ifndef OPENSSL_NO_SSL3
-    if (protocol == SSL_PROTOCOL_SSLV3) {
-        method = mctx->pkp ?
-            SSLv3_client_method() : /* proxy */
-            SSLv3_server_method();  /* server */
-    }
-    else
-#endif
-    if (protocol == SSL_PROTOCOL_TLSV1) {
-        method = mctx->pkp ?
-            TLSv1_client_method() : /* proxy */
-            TLSv1_server_method();  /* server */
-    }
-#ifdef HAVE_TLSV1_X
-    else if (protocol == SSL_PROTOCOL_TLSV1_1) {
-        method = mctx->pkp ?
-            TLSv1_1_client_method() : /* proxy */
-            TLSv1_1_server_method();  /* server */
-    }
-    else if (protocol == SSL_PROTOCOL_TLSV1_2) {
-        method = mctx->pkp ?
-            TLSv1_2_client_method() : /* proxy */
-            TLSv1_2_server_method();  /* server */
-    }
-#endif
-    else { /* For multiple protocols, we need a flexible method */
-        method = mctx->pkp ?
-            SSLv23_client_method() : /* proxy */
-            SSLv23_server_method();  /* server */
-    }
-#else
-    method = mctx->pkp ?
-        TLS_client_method() : /* proxy */
-        TLS_server_method();  /* server */
-#endif
-    ctx = SSL_CTX_new(method);
-
-    mctx->ssl_ctx = ctx;
-
-    SSL_CTX_set_options(ctx, SSL_OP_ALL);
-
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-    /* always disable SSLv2, as per RFC 6176 */
-    SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2);
-
-#ifndef OPENSSL_NO_SSL3
-    if (!(protocol & SSL_PROTOCOL_SSLV3)) {
-        SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv3);
-    }
-#endif
-
-    if (!(protocol & SSL_PROTOCOL_TLSV1)) {
-        SSL_CTX_set_options(ctx, SSL_OP_NO_TLSv1);
-    }
-
-#ifdef HAVE_TLSV1_X
-    if (!(protocol & SSL_PROTOCOL_TLSV1_1)) {
-        SSL_CTX_set_options(ctx, SSL_OP_NO_TLSv1_1);
-    }
-
-    if (!(protocol & SSL_PROTOCOL_TLSV1_2)) {
-        SSL_CTX_set_options(ctx, SSL_OP_NO_TLSv1_2);
-    }
-#endif
-
-#else /* #if OPENSSL_VERSION_NUMBER < 0x10100000L */
-    /* We first determine the maximum protocol version we should provide */
-    if (protocol & SSL_PROTOCOL_TLSV1_2) {
-        prot = TLS1_2_VERSION;
-    } else if (protocol & SSL_PROTOCOL_TLSV1_1) {
-        prot = TLS1_1_VERSION;
-    } else if (protocol & SSL_PROTOCOL_TLSV1) {
-        prot = TLS1_VERSION;
-#ifndef OPENSSL_NO_SSL3
-    } else if (protocol & SSL_PROTOCOL_SSLV3) {
-        prot = SSL3_VERSION;
-#endif
-    } else {
-        SSL_CTX_free(ctx);
-        mctx->ssl_ctx = NULL;
-        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(03378)
-                "No SSL protocols available [hint: SSLProtocol]");
-        return ssl_die(s);
-    }
-    SSL_CTX_set_max_proto_version(ctx, prot);
-
-    /* Next we scan for the minimal protocol version we should provide,
-     * but we do not allow holes between max and min */
-    if (prot == TLS1_2_VERSION && protocol & SSL_PROTOCOL_TLSV1_1) {
-        prot = TLS1_1_VERSION;
-    }
-    if (prot == TLS1_1_VERSION && protocol & SSL_PROTOCOL_TLSV1) {
-        prot = TLS1_VERSION;
-    }
-#ifndef OPENSSL_NO_SSL3
-    if (prot == TLS1_VERSION && protocol & SSL_PROTOCOL_SSLV3) {
-        prot = SSL3_VERSION;
-    }
-#endif
-    SSL_CTX_set_min_proto_version(ctx, prot);
-#endif /* if OPENSSL_VERSION_NUMBER < 0x10100000L */
-
-#ifdef SSL_OP_CIPHER_SERVER_PREFERENCE
-    if (sc->cipher_server_pref == TRUE) {
-        SSL_CTX_set_options(ctx, SSL_OP_CIPHER_SERVER_PREFERENCE);
-    }
-#endif
-
-
-#ifndef OPENSSL_NO_COMP
-    if (sc->compression != TRUE) {
-#ifdef SSL_OP_NO_COMPRESSION
-        /* OpenSSL >= 1.0 only */
-        SSL_CTX_set_options(ctx, SSL_OP_NO_COMPRESSION);
-#else
-        sk_SSL_COMP_zero(SSL_COMP_get_compression_methods());
-#endif
-    }
-#endif
-
-#ifdef SSL_OP_NO_TICKET
-    /*
-     * Configure using RFC 5077 TLS session tickets
-     * for session resumption.
-     */
-    if (sc->session_tickets == FALSE) {
-        SSL_CTX_set_options(ctx, SSL_OP_NO_TICKET);
-    }
-#endif
-
-#ifdef SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION
-    if (sc->insecure_reneg == TRUE) {
-        SSL_CTX_set_options(ctx, SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION);
-    }
-#endif
-
-    SSL_CTX_set_app_data(ctx, s);
-
-    /*
-     * Configure additional context ingredients
-     */
-    SSL_CTX_set_options(ctx, SSL_OP_SINGLE_DH_USE);
+    SSLModConfigRec *mc = myModConfig(s);
+    const char *vhost_id = mctx->sc->vhost_id, *key_id, *certfile, *keyfile;
+    int i;
+    X509 *cert;
+    DH *dhparams;
 #ifdef HAVE_ECC
-    SSL_CTX_set_options(ctx, SSL_OP_SINGLE_ECDH_USE);
+    EC_GROUP *ecparams = NULL;
+    int nid;
+    EC_KEY *eckey = NULL;
+#endif
+#ifndef HAVE_SSL_CONF_CMD
+    SSL *ssl;
 #endif
 
-#ifdef SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION
+    /* no OpenSSL default prompts for any of the SSL_CTX_use_* calls, please */
+    SSL_CTX_set_default_passwd_cb(mctx->ssl_ctx, ssl_no_passwd_prompt_cb);
+
+    /* Iterate over the SSLCertificateFile array */
+    for (i = 0; (i < mctx->pks->cert_files->nelts) &&
+                (certfile = APR_ARRAY_IDX(mctx->pks->cert_files, i,
+                                          const char *));
+         i++) {
+        key_id = apr_psprintf(ptemp, "%s:%d", vhost_id, i);
+
+        ERR_clear_error();
+
+        /* first the certificate (public key) */
+        if (mctx->cert_chain) {
+            if ((SSL_CTX_use_certificate_file(mctx->ssl_ctx, certfile,
+                                              SSL_FILETYPE_PEM) < 1)) {
+                ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02561)
+                             "Failed to configure certificate %s, check %s",
+                             key_id, certfile);
+                ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
+                return APR_EGENERAL;
+            }
+        } else {
+            if ((SSL_CTX_use_certificate_chain_file(mctx->ssl_ctx,
+                                                    certfile) < 1)) {
+                ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02562)
+                             "Failed to configure certificate %s (with chain),"
+                             " check %s", key_id, certfile);
+                ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
+                return APR_EGENERAL;
+            }
+        }
+
+        /* and second, the private key */
+        if (i < mctx->pks->key_files->nelts) {
+            keyfile = APR_ARRAY_IDX(mctx->pks->key_files, i, const char *);
+        } else {
+            keyfile = certfile;
+        }
+
+        ERR_clear_error();
+
+        if ((SSL_CTX_use_PrivateKey_file(mctx->ssl_ctx, keyfile,
+                                         SSL_FILETYPE_PEM) < 1) &&
+            (ERR_GET_FUNC(ERR_peek_last_error())
+                != X509_F_X509_CHECK_PRIVATE_KEY)) {
+            ssl_asn1_t *asn1;
+            EVP_PKEY *pkey;
+            const unsigned char *ptr;
+
+            ERR_clear_error();
+
+            /* perhaps it's an encrypted private key, so try again */
+            ssl_load_encrypted_pkey(s, ptemp, i, keyfile, &pphrases);
+
+            if (!(asn1 = ssl_asn1_table_get(mc->tPrivateKey, key_id)) ||
+                !(ptr = asn1->cpData) ||
+                !(pkey = d2i_AutoPrivateKey(NULL, &ptr, asn1->nData)) ||
+                (SSL_CTX_use_PrivateKey(mctx->ssl_ctx, pkey) < 1)) {
+                ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02564)
+                             "Failed to configure encrypted (?) private key %s,"
+                             " check %s", key_id, keyfile);
+                ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
+                return APR_EGENERAL;
+            }
+        }
+
+        if (SSL_CTX_check_private_key(mctx->ssl_ctx) < 1) {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02565)
+                         "Certificate and private key %s from %s and %s "
+                         "do not match", key_id, certfile, keyfile);
+            return APR_EGENERAL;
+        }
+
+#ifdef HAVE_SSL_CONF_CMD
+        /* 
+         * workaround for those OpenSSL versions where SSL_CTX_get0_certificate
+         * is not yet available: create an SSL struct which we dispose of
+         * as soon as we no longer need access to the cert. (Strictly speaking,
+         * SSL_CTX_get0_certificate does not depend on the SSL_CONF stuff,
+         * but there's no reliable way to check for its existence, so we
+         * assume that if SSL_CONF is available, it's OpenSSL 1.0.2 or later,
+         * and SSL_CTX_get0_certificate is implemented.)
+         */
+        if (!(cert = SSL_CTX_get0_certificate(mctx->ssl_ctx))) {
+#else
+        ssl = SSL_new(mctx->ssl_ctx);
+        if (ssl) {
+            /* Workaround bug in SSL_get_certificate in OpenSSL 0.9.8y */
+            SSL_set_connect_state(ssl);
+            cert = SSL_get_certificate(ssl);
+        }
+        if (!ssl || !cert) {
+#endif
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02566)
+                         "Unable to retrieve certificate %s", key_id);
+#ifndef HAVE_SSL_CONF_CMD
+            if (ssl)
+                SSL_free(ssl);
+#endif
+            return APR_EGENERAL;
+        }
+
+        /* warn about potential cert issues */
+        ssl_check_public_cert(s, ptemp, cert, key_id);
+
+#if defined(HAVE_OCSP_STAPLING) && !defined(SSL_CTRL_SET_CURRENT_CERT)
+        /* 
+         * OpenSSL up to 1.0.1: configure stapling as we go. In 1.0.2
+         * and later, there's SSL_CTX_set_current_cert, which allows
+         * iterating over all certs in an SSL_CTX (including those possibly
+         * loaded via SSLOpenSSLConfCmd Certificate), so for 1.0.2 and
+         * later, we defer to the code in ssl_init_server_ctx.
+         */
+        if ((mctx->stapling_enabled == TRUE) &&
+            !ssl_stapling_init_cert(s, p, ptemp, mctx, cert)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02567)
+                         "Unable to configure certificate %s for stapling",
+                         key_id);
+        }
+#endif
+
+#ifndef HAVE_SSL_CONF_CMD
+        SSL_free(ssl);
+#endif
+
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(02568)
+                     "Certificate and private key %s configured from %s and %s",
+                     key_id, certfile, keyfile);
+    }
+
     /*
-     * Disallow a session from being resumed during a renegotiation,
-     * so that an acceptable cipher suite can be negotiated.
+     * Try to read DH parameters from the (first) SSLCertificateFile
      */
-    SSL_CTX_set_options(ctx, SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION);
-#endif
+    if ((certfile = APR_ARRAY_IDX(mctx->pks->cert_files, 0, const char *)) &&
+        (dhparams = ssl_dh_GetParamFromFile(certfile))) {
+        SSL_CTX_set_tmp_dh(mctx->ssl_ctx, dhparams);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02540)
+                     "Custom DH parameters (%d bits) for %s loaded from %s",
+                     BN_num_bits(dhparams->p), vhost_id, certfile);
+        DH_free(dhparams);
+    }
 
-#ifdef SSL_MODE_RELEASE_BUFFERS
-    /* If httpd is configured to reduce mem usage, ask openssl to do so, too */
-    if (ap_max_mem_free != APR_ALLOCATOR_MAX_FREE_UNLIMITED)
-        SSL_CTX_set_mode(ctx, SSL_MODE_RELEASE_BUFFERS);
+#ifdef HAVE_ECC
+    /*
+     * Similarly, try to read the ECDH curve name from SSLCertificateFile...
+     */
+    if ((certfile != NULL) && 
+        (ecparams = ssl_ec_GetParamFromFile(certfile)) &&
+        (nid = EC_GROUP_get_curve_name(ecparams)) &&
+        (eckey = EC_KEY_new_by_curve_name(nid))) {
+        SSL_CTX_set_tmp_ecdh(mctx->ssl_ctx, eckey);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02541)
+                     "ECDH curve %s for %s specified in %s",
+                     OBJ_nid2sn(nid), vhost_id, certfile);
+    }
+    /*
+     * ...otherwise, enable auto curve selection (OpenSSL 1.0.2 and later)
+     * or configure NIST P-256 (required to enable ECDHE for earlier versions)
+     */
+    else {
+#if defined(SSL_CTX_set_ecdh_auto)
+        SSL_CTX_set_ecdh_auto(mctx->ssl_ctx, 1);
+#else
+        SSL_CTX_set_tmp_ecdh(mctx->ssl_ctx,
+                             EC_KEY_new_by_curve_name(NID_X9_62_prime256v1));
+#endif
+    }
+    EC_KEY_free(eckey);
+    EC_GROUP_free(ecparams);
 #endif
 
     return APR_SUCCESS;
 }
+
+#ifdef HAVE_TLS_SESSION_TICKETS
+static apr_status_t ssl_init_ticket_key(server_rec *s,
+                                        apr_pool_t *p,
+                                        apr_pool_t *ptemp,
+                                        modssl_ctx_t *mctx)
+{
+    apr_status_t rv;
+    apr_file_t *fp;
+    apr_size_t len;
+    char buf[TLSEXT_TICKET_KEY_LEN];
+    char *path;
+    modssl_ticket_key_t *ticket_key = mctx->ticket_key;
+
+    if (!ticket_key->file_path) {
+        return APR_SUCCESS;
+    }
+
+    path = ap_server_root_relative(p, ticket_key->file_path);
+
+    rv = apr_file_open(&fp, path, APR_READ|APR_BINARY,
+                       APR_OS_DEFAULT, ptemp);
+
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02286)
+                     "Failed to open ticket key file %s: (%d) %pm",
+                     path, rv, &rv);
+        return ssl_die(s);
+    }
+
+    rv = apr_file_read_full(fp, &buf[0], TLSEXT_TICKET_KEY_LEN, &len);
+
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02287)
+                     "Failed to read %d bytes from %s: (%d) %pm",
+                     TLSEXT_TICKET_KEY_LEN, path, rv, &rv);
+        return ssl_die(s);
+    }
+
+    memcpy(ticket_key->key_name, buf, 16);
+    memcpy(ticket_key->hmac_secret, buf + 16, 16);
+    memcpy(ticket_key->aes_key, buf + 32, 16);
+
+    if (!SSL_CTX_set_tlsext_ticket_key_cb(mctx->ssl_ctx,
+                                          ssl_callback_SessionTicket)) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01913)
+                     "Unable to initialize TLS session ticket key callback "
+                     "(incompatible OpenSSL version?)");
+        ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
+        return ssl_die(s);
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(02288)
+                 "TLS session ticket key for %s successfully loaded from %s",
+                 (mySrvConfig(s))->vhost_id, path);
+
+    return APR_SUCCESS;
+}
+#endif
+
+static BOOL load_x509_info(apr_pool_t *ptemp,
+                           STACK_OF(X509_INFO) *sk,
+                           const char *filename)
+{
+    BIO *in;
+
+    if (!(in = BIO_new(BIO_s_file()))) {
+        return FALSE;
+    }
+
+    if (BIO_read_filename(in, filename) <= 0) {
+        BIO_free(in);
+        return FALSE;
+    }

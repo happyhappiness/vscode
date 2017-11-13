@@ -1,347 +1,325 @@
-void child_main(apr_pool_t *pconf)
+int
+ssl_expr_yyparse (YYPARSE_PARAM_ARG)
+    YYPARSE_PARAM_DECL
 {
-    apr_status_t status;
-    apr_hash_t *ht;
-    ap_listen_rec *lr;
-    HANDLE child_events[2];
-    HANDLE *child_handles;
-    int listener_started = 0;
-    int threads_created = 0;
-    int watch_thread;
-    int time_remains;
-    int cld;
-    int tid;
-    int rv;
-    int i;
+    register int ssl_expr_yym, ssl_expr_yyn, ssl_expr_yystate;
+#if YYDEBUG
+    register const char *ssl_expr_yys;
 
-    apr_pool_create(&pchild, pconf);
-    apr_pool_tag(pchild, "pchild");
-
-    ap_run_child_init(pchild, ap_server_conf);
-    ht = apr_hash_make(pchild);
-
-    /* Initialize the child_events */
-    max_requests_per_child_event = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (!max_requests_per_child_event) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Child %d: Failed to create a max_requests event.", my_pid);
-        exit(APEXIT_CHILDINIT);
-    }
-    child_events[0] = exit_event;
-    child_events[1] = max_requests_per_child_event;
-
-    allowed_globals.jobsemaphore = CreateSemaphore(NULL, 0, 1000000, NULL);
-    apr_thread_mutex_create(&allowed_globals.jobmutex, 
-                            APR_THREAD_MUTEX_DEFAULT, pchild);
-
-    /*
-     * Wait until we have permission to start accepting connections.
-     * start_mutex is used to ensure that only one child ever
-     * goes into the listen/accept loop at once.
-     */
-    status = apr_proc_mutex_lock(start_mutex);
-    if (status != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK,APLOG_ERR, status, ap_server_conf,
-                     "Child %d: Failed to acquire the start_mutex. Process will exit.", my_pid);
-        exit(APEXIT_CHILDINIT);
-    }
-    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
-                 "Child %d: Acquired the start mutex.", my_pid);
-
-    /*
-     * Create the worker thread dispatch IOCompletionPort
-     * on Windows NT/2000
-     */
-    if (use_acceptex) {
-        /* Create the worker thread dispatch IOCP */
-        ThreadDispatchIOCP = CreateIoCompletionPort(INVALID_HANDLE_VALUE,
-                                                    NULL,
-                                                    0,
-                                                    0); /* CONCURRENT ACTIVE THREADS */
-        apr_thread_mutex_create(&qlock, APR_THREAD_MUTEX_DEFAULT, pchild);
-        qwait_event = CreateEvent(NULL, TRUE, FALSE, NULL);
-        if (!qwait_event) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                         "Child %d: Failed to create a qwait event.", my_pid);
-            exit(APEXIT_CHILDINIT);
-        }
-    }
-
-    /* 
-     * Create the pool of worker threads
-     */
-    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
-                 "Child %d: Starting %d worker threads.", my_pid, ap_threads_per_child);
-    child_handles = (HANDLE) apr_pcalloc(pchild, ap_threads_per_child * sizeof(int));
-    apr_thread_mutex_create(&child_lock, APR_THREAD_MUTEX_DEFAULT, pchild);
-
-    while (1) {
-        for (i = 0; i < ap_threads_per_child; i++) {
-            int *score_idx;
-            int status = ap_scoreboard_image->servers[0][i].status;
-            if (status != SERVER_GRACEFUL && status != SERVER_DEAD) {
-                continue;
-            }
-            ap_update_child_status_from_indexes(0, i, SERVER_STARTING, NULL);
-            child_handles[i] = (HANDLE) _beginthreadex(NULL, 0, worker_main,
-                                                       (void *) i, 0, &tid);
-            if (child_handles[i] == 0) {
-                ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                             "Child %d: _beginthreadex failed. Unable to create all worker threads. "
-                             "Created %d of the %d threads requested with the ThreadsPerChild configuration directive.", 
-                             my_pid, threads_created, ap_threads_per_child);
-                ap_signal_parent(SIGNAL_PARENT_SHUTDOWN);
-                goto shutdown;
-            }
-            threads_created++;
-            /* Save the score board index in ht keyed to the thread handle. We need this 
-             * when cleaning up threads down below...
-             */
-            apr_thread_mutex_lock(child_lock);
-            score_idx = apr_pcalloc(pchild, sizeof(int));
-            *score_idx = i;
-            apr_hash_set(ht, &child_handles[i], sizeof(HANDLE), score_idx);
-            apr_thread_mutex_unlock(child_lock);
-        }
-        /* Start the listener only when workers are available */
-        if (!listener_started && threads_created) {
-            create_listener_thread();
-            listener_started = 1;
-            winnt_mpm_state = AP_MPMQ_RUNNING;
-        }
-        if (threads_created == ap_threads_per_child) {
-            break;
-        }
-        /* Check to see if the child has been told to exit */
-        if (WaitForSingleObject(exit_event, 0) != WAIT_TIMEOUT) {
-            break;
-        }
-        /* wait for previous generation to clean up an entry in the scoreboard */
-        apr_sleep(1 * APR_USEC_PER_SEC);
-    }
-
-    /* Wait for one of three events:
-     * exit_event: 
-     *    The exit_event is signaled by the parent process to notify 
-     *    the child that it is time to exit.
-     *
-     * max_requests_per_child_event: 
-     *    This event is signaled by the worker threads to indicate that
-     *    the process has handled MaxRequestsPerChild connections.
-     *
-     * TIMEOUT:
-     *    To do periodic maintenance on the server (check for thread exits,
-     *    number of completion contexts, etc.)
-     *
-     * XXX: thread exits *aren't* being checked.
-     *
-     * XXX: other_child - we need the process handles to the other children
-     *      in order to map them to apr_proc_other_child_read (which is not
-     *      named well, it's more like a_p_o_c_died.)
-     *
-     * XXX: however - if we get a_p_o_c handle inheritance working, and
-     *      the parent process creates other children and passes the pipes 
-     *      to our worker processes, then we have no business doing such 
-     *      things in the child_main loop, but should happen in master_main.
-     */
-    while (1) {
-#if !APR_HAS_OTHER_CHILD
-        rv = WaitForMultipleObjects(2, (HANDLE *) child_events, FALSE, INFINITE);
-        cld = rv - WAIT_OBJECT_0;
-#else
-        rv = WaitForMultipleObjects(2, (HANDLE *) child_events, FALSE, 1000);
-        cld = rv - WAIT_OBJECT_0;
-        if (rv == WAIT_TIMEOUT) {
-            apr_proc_other_child_check();
-        }
-        else 
-#endif
-            if (rv == WAIT_FAILED) {
-            /* Something serious is wrong */
-            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                         "Child %d: WAIT_FAILED -- shutting down server", my_pid);
-            break;
-        }
-        else if (cld == 0) {
-            /* Exit event was signaled */
-            ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                         "Child %d: Exit event signaled. Child process is ending.", my_pid);
-            break;
-        }
-        else {
-            /* MaxRequestsPerChild event set by the worker threads.
-             * Signal the parent to restart
-             */
-            ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                         "Child %d: Process exiting because it reached "
-                         "MaxRequestsPerChild. Signaling the parent to "
-                         "restart a new child process.", my_pid);
-            ap_signal_parent(SIGNAL_PARENT_RESTART);
-            break;
-        }
-    }
-
-    /* 
-     * Time to shutdown the child process 
-     */
-
- shutdown:
-
-    winnt_mpm_state = AP_MPMQ_STOPPING;
-    /* Setting is_graceful will cause threads handling keep-alive connections 
-     * to close the connection after handling the current request.
-     */
-    is_graceful = 1;
-
-    /* Close the listening sockets. Note, we must close the listeners
-     * before closing any accept sockets pending in AcceptEx to prevent
-     * memory leaks in the kernel.
-     */
-    for (lr = ap_listeners; lr ; lr = lr->next) {
-        apr_socket_close(lr->sd);
-    }
-
-    /* Shutdown listener threads and pending AcceptEx socksts 
-     * but allow the worker threads to continue consuming from
-     * the queue of accepted connections.
-     */
-    shutdown_in_progress = 1;
-
-    Sleep(1000);
-
-    /* Tell the worker threads to exit */
-    workers_may_exit = 1;
-
-    /* Release the start_mutex to let the new process (in the restart
-     * scenario) a chance to begin accepting and servicing requests 
-     */
-    rv = apr_proc_mutex_unlock(start_mutex);
-    if (rv == APR_SUCCESS) {
-        ap_log_error(APLOG_MARK,APLOG_NOTICE, rv, ap_server_conf, 
-                     "Child %d: Released the start mutex", my_pid);
-    }
-    else {
-        ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf, 
-                     "Child %d: Failure releasing the start mutex", my_pid);
-    }
-
-    /* Shutdown the worker threads */
-    if (!use_acceptex) {
-        for (i = 0; i < threads_created; i++) {
-            add_job(INVALID_SOCKET);
-        }
-    }
-    else { /* Windows NT/2000 */
-        /* Post worker threads blocked on the ThreadDispatch IOCompletion port */
-        while (g_blocked_threads > 0) {
-            ap_log_error(APLOG_MARK,APLOG_INFO, APR_SUCCESS, ap_server_conf, 
-                         "Child %d: %d threads blocked on the completion port", my_pid, g_blocked_threads);
-            for (i=g_blocked_threads; i > 0; i--) {
-                PostQueuedCompletionStatus(ThreadDispatchIOCP, 0, IOCP_SHUTDOWN, NULL);
-            }
-            Sleep(1000);
-        }
-        /* Empty the accept queue of completion contexts */
-        apr_thread_mutex_lock(qlock);
-        while (qhead) {
-            CloseHandle(qhead->Overlapped.hEvent);
-            closesocket(qhead->accept_socket);
-            qhead = qhead->next;
-        }
-        apr_thread_mutex_unlock(qlock);
-    }
-
-    /* Give busy threads a chance to service their connections,
-     * (no more than the global server timeout period which 
-     * we track in msec remaining).
-     */
-    watch_thread = 0;
-    time_remains = (int)(ap_server_conf->timeout / APR_TIME_C(1000));
-
-    while (threads_created)
+    if ((ssl_expr_yys = getenv("YYDEBUG")))
     {
-        int nFailsafe = MAXIMUM_WAIT_OBJECTS;
-        DWORD dwRet;
+        ssl_expr_yyn = *ssl_expr_yys;
+        if (ssl_expr_yyn >= '0' && ssl_expr_yyn <= '9')
+            ssl_expr_yydebug = ssl_expr_yyn - '0';
+    }
+#endif
 
-        /* Every time we roll over to wait on the first group
-         * of MAXIMUM_WAIT_OBJECTS threads, take a breather,
-         * and infrequently update the error log.
-         */
-        if (watch_thread >= threads_created) {
-            if ((time_remains -= 100) < 0)
-                break;
+    ssl_expr_yynerrs = 0;
+    ssl_expr_yyerrflag = 0;
+    ssl_expr_yychar = (-1);
 
-            /* Every 30 seconds give an update */
-            if ((time_remains % 30000) == 0) {
-                ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, 
-                             ap_server_conf,
-                             "Child %d: Waiting %d more seconds "
-                             "for %d worker threads to finish.", 
-                             my_pid, time_remains / 1000, threads_created);
+    if (ssl_expr_yyss == NULL && ssl_expr_yygrowstack()) goto ssl_expr_yyoverflow;
+    ssl_expr_yyssp = ssl_expr_yyss;
+    ssl_expr_yyvsp = ssl_expr_yyvs;
+    *ssl_expr_yyssp = ssl_expr_yystate = 0;
+
+ssl_expr_yyloop:
+    if ((ssl_expr_yyn = ssl_expr_yydefred[ssl_expr_yystate])) goto ssl_expr_yyreduce;
+    if (ssl_expr_yychar < 0)
+    {
+        if ((ssl_expr_yychar = ssl_expr_yylex()) < 0) ssl_expr_yychar = 0;
+#if YYDEBUG
+        if (ssl_expr_yydebug)
+        {
+            ssl_expr_yys = 0;
+            if (ssl_expr_yychar <= YYMAXTOKEN) ssl_expr_yys = ssl_expr_yyname[ssl_expr_yychar];
+            if (!ssl_expr_yys) ssl_expr_yys = "illegal-symbol";
+            printf("%sdebug: state %d, reading %d (%s)\n",
+                    YYPREFIX, ssl_expr_yystate, ssl_expr_yychar, ssl_expr_yys);
+        }
+#endif
+    }
+    if ((ssl_expr_yyn = ssl_expr_yysindex[ssl_expr_yystate]) && (ssl_expr_yyn += ssl_expr_yychar) >= 0 &&
+            ssl_expr_yyn <= YYTABLESIZE && ssl_expr_yycheck[ssl_expr_yyn] == ssl_expr_yychar)
+    {
+#if YYDEBUG
+        if (ssl_expr_yydebug)
+            printf("%sdebug: state %d, shifting to state %d\n",
+                    YYPREFIX, ssl_expr_yystate, ssl_expr_yytable[ssl_expr_yyn]);
+#endif
+        if (ssl_expr_yyssp >= ssl_expr_yysslim && ssl_expr_yygrowstack())
+        {
+            goto ssl_expr_yyoverflow;
+        }
+        *++ssl_expr_yyssp = ssl_expr_yystate = ssl_expr_yytable[ssl_expr_yyn];
+        *++ssl_expr_yyvsp = ssl_expr_yylval;
+        ssl_expr_yychar = (-1);
+        if (ssl_expr_yyerrflag > 0)  --ssl_expr_yyerrflag;
+        goto ssl_expr_yyloop;
+    }
+    if ((ssl_expr_yyn = ssl_expr_yyrindex[ssl_expr_yystate]) && (ssl_expr_yyn += ssl_expr_yychar) >= 0 &&
+            ssl_expr_yyn <= YYTABLESIZE && ssl_expr_yycheck[ssl_expr_yyn] == ssl_expr_yychar)
+    {
+        ssl_expr_yyn = ssl_expr_yytable[ssl_expr_yyn];
+        goto ssl_expr_yyreduce;
+    }
+    if (ssl_expr_yyerrflag) goto ssl_expr_yyinrecovery;
+#if defined(lint) || defined(__GNUC__)
+    goto ssl_expr_yynewerror;
+#endif
+ssl_expr_yynewerror:
+    ssl_expr_yyerror("syntax error");
+#if defined(lint) || defined(__GNUC__)
+    goto ssl_expr_yyerrlab;
+#endif
+ssl_expr_yyerrlab:
+    ++ssl_expr_yynerrs;
+ssl_expr_yyinrecovery:
+    if (ssl_expr_yyerrflag < 3)
+    {
+        ssl_expr_yyerrflag = 3;
+        for (;;)
+        {
+            if ((ssl_expr_yyn = ssl_expr_yysindex[*ssl_expr_yyssp]) && (ssl_expr_yyn += YYERRCODE) >= 0 &&
+                    ssl_expr_yyn <= YYTABLESIZE && ssl_expr_yycheck[ssl_expr_yyn] == YYERRCODE)
+            {
+#if YYDEBUG
+                if (ssl_expr_yydebug)
+                    printf("%sdebug: state %d, error recovery shifting\
+ to state %d\n", YYPREFIX, *ssl_expr_yyssp, ssl_expr_yytable[ssl_expr_yyn]);
+#endif
+                if (ssl_expr_yyssp >= ssl_expr_yysslim && ssl_expr_yygrowstack())
+                {
+                    goto ssl_expr_yyoverflow;
+                }
+                *++ssl_expr_yyssp = ssl_expr_yystate = ssl_expr_yytable[ssl_expr_yyn];
+                *++ssl_expr_yyvsp = ssl_expr_yylval;
+                goto ssl_expr_yyloop;
             }
-            /* We'll poll from the top, 10 times per second */
-            Sleep(100);
-            watch_thread = 0;
-        }
-
-        /* Fairness, on each iteration we will pick up with the thread
-         * after the one we just removed, even if it's a single thread.
-         * We don't block here.
-         */
-        dwRet = WaitForMultipleObjects(min(threads_created - watch_thread,
-                                           MAXIMUM_WAIT_OBJECTS),
-                                       child_handles + watch_thread, 0, 0);
-
-        if (dwRet == WAIT_FAILED) {
-            break;
-        }
-        if (dwRet == WAIT_TIMEOUT) {
-            /* none ready */
-            watch_thread += MAXIMUM_WAIT_OBJECTS;
-            continue;
-        }
-        else if (dwRet >= WAIT_ABANDONED_0) {
-            /* We just got the ownership of the object, which
-             * should happen at most MAXIMUM_WAIT_OBJECTS times.
-             * It does NOT mean that the object is signaled.
-             */
-            if ((nFailsafe--) < 1)
-                break;
-        }
-        else {
-            watch_thread += (dwRet - WAIT_OBJECT_0);
-            if (watch_thread >= threads_created)
-                break;
-            cleanup_thread(child_handles, &threads_created, watch_thread);
+            else
+            {
+#if YYDEBUG
+                if (ssl_expr_yydebug)
+                    printf("%sdebug: error recovery discarding state %d\n",
+                            YYPREFIX, *ssl_expr_yyssp);
+#endif
+                if (ssl_expr_yyssp <= ssl_expr_yyss) goto ssl_expr_yyabort;
+                --ssl_expr_yyssp;
+                --ssl_expr_yyvsp;
+            }
         }
     }
-
-    /* Kill remaining threads off the hard way */
-    if (threads_created) {
-        ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
-                     "Child %d: Terminating %d threads that failed to exit.", 
-                     my_pid, threads_created);
+    else
+    {
+        if (ssl_expr_yychar == 0) goto ssl_expr_yyabort;
+#if YYDEBUG
+        if (ssl_expr_yydebug)
+        {
+            ssl_expr_yys = 0;
+            if (ssl_expr_yychar <= YYMAXTOKEN) ssl_expr_yys = ssl_expr_yyname[ssl_expr_yychar];
+            if (!ssl_expr_yys) ssl_expr_yys = "illegal-symbol";
+            printf("%sdebug: state %d, error recovery discards token %d (%s)\n",
+                    YYPREFIX, ssl_expr_yystate, ssl_expr_yychar, ssl_expr_yys);
+        }
+#endif
+        ssl_expr_yychar = (-1);
+        goto ssl_expr_yyloop;
     }
-    for (i = 0; i < threads_created; i++) {
-        int *score_idx;
-        TerminateThread(child_handles[i], 1);
-        CloseHandle(child_handles[i]);
-        /* Reset the scoreboard entry for the thread we just whacked */
-        score_idx = apr_hash_get(ht, &child_handles[i], sizeof(HANDLE));
-        ap_update_child_status_from_indexes(0, *score_idx, SERVER_DEAD, NULL);        
+ssl_expr_yyreduce:
+#if YYDEBUG
+    if (ssl_expr_yydebug)
+        printf("%sdebug: state %d, reducing by rule %d (%s)\n",
+                YYPREFIX, ssl_expr_yystate, ssl_expr_yyn, ssl_expr_yyrule[ssl_expr_yyn]);
+#endif
+    ssl_expr_yym = ssl_expr_yylen[ssl_expr_yyn];
+    ssl_expr_yyval = ssl_expr_yyvsp[1-ssl_expr_yym];
+    switch (ssl_expr_yyn)
+    {
+case 1:
+#line 84 "ssl_expr_parse.y"
+{ ssl_expr_info.expr = ssl_expr_yyvsp[0].exVal; }
+break;
+case 2:
+#line 87 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_True,  NULL, NULL); }
+break;
+case 3:
+#line 88 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_False, NULL, NULL); }
+break;
+case 4:
+#line 89 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_Not,   ssl_expr_yyvsp[0].exVal,   NULL); }
+break;
+case 5:
+#line 90 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_Or,    ssl_expr_yyvsp[-2].exVal,   ssl_expr_yyvsp[0].exVal);   }
+break;
+case 6:
+#line 91 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_And,   ssl_expr_yyvsp[-2].exVal,   ssl_expr_yyvsp[0].exVal);   }
+break;
+case 7:
+#line 92 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_Comp,  ssl_expr_yyvsp[0].exVal,   NULL); }
+break;
+case 8:
+#line 93 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_yyvsp[-1].exVal; }
+break;
+case 9:
+#line 96 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_EQ,  ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
+break;
+case 10:
+#line 97 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_NE,  ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
+break;
+case 11:
+#line 98 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_LT,  ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
+break;
+case 12:
+#line 99 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_LE,  ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
+break;
+case 13:
+#line 100 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_GT,  ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
+break;
+case 14:
+#line 101 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_GE,  ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
+break;
+case 15:
+#line 102 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_IN,  ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
+break;
+case 16:
+#line 103 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_REG, ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
+break;
+case 17:
+#line 104 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_NRE, ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
+break;
+case 18:
+#line 107 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_OidListElement, ssl_expr_yyvsp[-1].exVal, NULL); }
+break;
+case 19:
+#line 108 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_yyvsp[-1].exVal ; }
+break;
+case 20:
+#line 111 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_ListElement, ssl_expr_yyvsp[0].exVal, NULL); }
+break;
+case 21:
+#line 112 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_ListElement, ssl_expr_yyvsp[0].exVal, ssl_expr_yyvsp[-2].exVal);   }
+break;
+case 22:
+#line 115 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_Digit,  ssl_expr_yyvsp[0].cpVal, NULL); }
+break;
+case 23:
+#line 116 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_String, ssl_expr_yyvsp[0].cpVal, NULL); }
+break;
+case 24:
+#line 117 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_Var,    ssl_expr_yyvsp[-1].cpVal, NULL); }
+break;
+case 25:
+#line 118 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_yyvsp[0].exVal; }
+break;
+case 26:
+#line 121 "ssl_expr_parse.y"
+{
+                ap_regex_t *regex;
+                if ((regex = ap_pregcomp(ssl_expr_info.pool, ssl_expr_yyvsp[0].cpVal,
+                                         AP_REG_EXTENDED|AP_REG_NOSUB)) == NULL) {
+                    ssl_expr_error = "Failed to compile regular expression";
+                    YYERROR;
+                }
+                ssl_expr_yyval.exVal = ssl_expr_make(op_Regex, regex, NULL);
+            }
+break;
+case 27:
+#line 130 "ssl_expr_parse.y"
+{
+                ap_regex_t *regex;
+                if ((regex = ap_pregcomp(ssl_expr_info.pool, ssl_expr_yyvsp[0].cpVal,
+                                         AP_REG_EXTENDED|AP_REG_NOSUB|AP_REG_ICASE)) == NULL) {
+                    ssl_expr_error = "Failed to compile regular expression";
+                    YYERROR;
+                }
+                ssl_expr_yyval.exVal = ssl_expr_make(op_Regex, regex, NULL);
+            }
+break;
+case 28:
+#line 141 "ssl_expr_parse.y"
+{
+               ssl_expr *args = ssl_expr_make(op_ListElement, ssl_expr_yyvsp[-1].cpVal, NULL);
+               ssl_expr_yyval.exVal = ssl_expr_make(op_Func, "file", args);
+            }
+break;
+#line 563 "y.tab.c"
     }
-    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
-                 "Child %d: All worker threads have exited.", my_pid);
-
-    CloseHandle(allowed_globals.jobsemaphore);
-    apr_thread_mutex_destroy(allowed_globals.jobmutex);
-    apr_thread_mutex_destroy(child_lock);
-
-    if (use_acceptex) {
-        apr_thread_mutex_destroy(qlock);
-        CloseHandle(qwait_event);
+    ssl_expr_yyssp -= ssl_expr_yym;
+    ssl_expr_yystate = *ssl_expr_yyssp;
+    ssl_expr_yyvsp -= ssl_expr_yym;
+    ssl_expr_yym = ssl_expr_yylhs[ssl_expr_yyn];
+    if (ssl_expr_yystate == 0 && ssl_expr_yym == 0)
+    {
+#if YYDEBUG
+        if (ssl_expr_yydebug)
+            printf("%sdebug: after reduction, shifting from state 0 to\
+ state %d\n", YYPREFIX, YYFINAL);
+#endif
+        ssl_expr_yystate = YYFINAL;
+        *++ssl_expr_yyssp = YYFINAL;
+        *++ssl_expr_yyvsp = ssl_expr_yyval;
+        if (ssl_expr_yychar < 0)
+        {
+            if ((ssl_expr_yychar = ssl_expr_yylex()) < 0) ssl_expr_yychar = 0;
+#if YYDEBUG
+            if (ssl_expr_yydebug)
+            {
+                ssl_expr_yys = 0;
+                if (ssl_expr_yychar <= YYMAXTOKEN) ssl_expr_yys = ssl_expr_yyname[ssl_expr_yychar];
+                if (!ssl_expr_yys) ssl_expr_yys = "illegal-symbol";
+                printf("%sdebug: state %d, reading %d (%s)\n",
+                        YYPREFIX, YYFINAL, ssl_expr_yychar, ssl_expr_yys);
+            }
+#endif
+        }
+        if (ssl_expr_yychar == 0) goto ssl_expr_yyaccept;
+        goto ssl_expr_yyloop;
     }
-
-    apr_pool_destroy(pchild);
-    CloseHandle(exit_event);
+    if ((ssl_expr_yyn = ssl_expr_yygindex[ssl_expr_yym]) && (ssl_expr_yyn += ssl_expr_yystate) >= 0 &&
+            ssl_expr_yyn <= YYTABLESIZE && ssl_expr_yycheck[ssl_expr_yyn] == ssl_expr_yystate)
+        ssl_expr_yystate = ssl_expr_yytable[ssl_expr_yyn];
+    else
+        ssl_expr_yystate = ssl_expr_yydgoto[ssl_expr_yym];
+#if YYDEBUG
+    if (ssl_expr_yydebug)
+        printf("%sdebug: after reduction, shifting from state %d \
+to state %d\n", YYPREFIX, *ssl_expr_yyssp, ssl_expr_yystate);
+#endif
+    if (ssl_expr_yyssp >= ssl_expr_yysslim && ssl_expr_yygrowstack())
+    {
+        goto ssl_expr_yyoverflow;
+    }
+    *++ssl_expr_yyssp = ssl_expr_yystate;
+    *++ssl_expr_yyvsp = ssl_expr_yyval;
+    goto ssl_expr_yyloop;
+ssl_expr_yyoverflow:
+    ssl_expr_yyerror("yacc stack overflow");
+ssl_expr_yyabort:
+    return (1);
+ssl_expr_yyaccept:
+    return (0);
 }

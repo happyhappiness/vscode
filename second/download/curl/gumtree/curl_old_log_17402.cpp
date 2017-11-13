@@ -1,8 +1,10 @@
-puts(" -u/--user <user[:password]> Specify user and password to use\n"
-       " -U/--proxy-user <user[:password]> Specify Proxy authentication\n"
-       " -v/--verbose       Makes the operation more talkative\n"
-       " -V/--version       Outputs version number then quits\n"
-       " -w/--write-out [format] What to output after completion\n"
-       " -x/--proxy <host[:port]>  Use proxy. (Default port is 1080)\n"
-       "    --random-file <file> File to use for reading random data from (SSL)\n"
-       " -X/--request <command> Specific request command to use");
+puts(
+"  already initiated and was left open in the previous transfer. This greatly\n"
+"  decreases connection time for all but the first transfer and it makes a far\n"
+"  better use of the network.\n"
+"\n"
+"  Note that curl cannot use persistant connections for transfers that are used\n"
+"  in subsequence curl invokes. Try to stuff as many URLs as possible on the\n"
+"  same command line if they are using the same host, as that'll make the\n"
+"  transfers faster. If you use a http proxy for file transfers, practicly\n"
+);

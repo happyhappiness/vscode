@@ -1,1 +1,1 @@
-die(_("expected format: %%(color:<color>)"));
+die(_("unable to parse format"));

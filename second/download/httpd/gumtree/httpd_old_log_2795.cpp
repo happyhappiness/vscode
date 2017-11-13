@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Error retrieving query for dbd-group!");
+printf("Failed requests:        %ld\n", bad);

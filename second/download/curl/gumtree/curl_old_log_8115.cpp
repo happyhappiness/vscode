@@ -1,11 +1,12 @@
 fputs(
-"              should  ever  get  hurt  by attempting to reuse SSL session-IDs,\n"
-"              there seem to be broken SSL implementations in the wild that may\n"
-"              require  you to disable this in order for you to succeed. (Added\n"
-"              in 7.16.0)\n"
+"       --no-keepalive\n"
+"              Disables the use of keepalive messages on the TCP connection, as\n"
+"              by default curl enables them.\n"
 "\n"
 "              Note that this is the negated option name  documented.  You  can\n"
-"              thus use --sessionid to enforce session-ID caching.\n"
+"              thus use --keepalive to enforce keepalive.\n"
 "\n"
-"       --noproxy <no-proxy-list>\n"
+"       --no-sessionid\n"
+"              (SSL)  Disable curl's use of SSL session-ID caching.  By default\n"
+"              all transfers are done using the cache. Note that while  nothing\n"
 , stdout);

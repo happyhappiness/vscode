@@ -1,32 +1,74 @@
-int ref_transaction_create(struct ref_transaction *transaction,
-			   const char *refname,
-			   const unsigned char *new_sha1,
-			   int flags, const char *msg,
-			   struct strbuf *err)
+static void end_packfile(void)
 {
-	struct ref_update *update;
+	static int running;
 
-	assert(err);
+	if (running || !pack_data)
+		return;
 
-	if (transaction->state != REF_TRANSACTION_OPEN)
-		die("BUG: create called for transaction that is not open");
+	running = 1;
+	clear_delta_base_cache();
+	if (object_count) {
+		struct packed_git *new_p;
+		unsigned char cur_pack_sha1[20];
+		char *idx_name;
+		int i;
+		struct branch *b;
+		struct tag *t;
 
-	if (!new_sha1 || is_null_sha1(new_sha1))
-		die("BUG: create ref with null new_sha1");
+		close_pack_windows(pack_data);
+		sha1close(pack_file, cur_pack_sha1, 0);
+		fixup_pack_header_footer(pack_data->pack_fd, pack_data->sha1,
+				    pack_data->pack_name, object_count,
+				    cur_pack_sha1, pack_size);
 
-	if (check_refname_format(refname, REFNAME_ALLOW_ONELEVEL)) {
-		strbuf_addf(err, "refusing to create ref with bad name %s",
-			    refname);
-		return -1;
+		if (object_count <= unpack_limit) {
+			if (!loosen_small_pack(pack_data)) {
+				invalidate_pack_id(pack_id);
+				goto discard_pack;
+			}
+		}
+
+		close(pack_data->pack_fd);
+		idx_name = keep_pack(create_index());
+
+		/* Register the packfile with core git's machinery. */
+		new_p = add_packed_git(idx_name, strlen(idx_name), 1);
+		if (!new_p)
+			die("core git rejected index %s", idx_name);
+		all_packs[pack_id] = new_p;
+		install_packed_git(new_p);
+		free(idx_name);
+
+		/* Print the boundary */
+		if (pack_edges) {
+			fprintf(pack_edges, "%s:", new_p->pack_name);
+			for (i = 0; i < branch_table_sz; i++) {
+				for (b = branch_table[i]; b; b = b->table_next_branch) {
+					if (b->pack_id == pack_id)
+						fprintf(pack_edges, " %s", sha1_to_hex(b->sha1));
+				}
+			}
+			for (t = first_tag; t; t = t->next_tag) {
+				if (t->pack_id == pack_id)
+					fprintf(pack_edges, " %s", sha1_to_hex(t->sha1));
+			}
+			fputc('\n', pack_edges);
+			fflush(pack_edges);
+		}
+
+		pack_id++;
 	}
+	else {
+discard_pack:
+		close(pack_data->pack_fd);
+		unlink_or_warn(pack_data->pack_name);
+	}
+	free(pack_data);
+	pack_data = NULL;
+	running = 0;
 
-	update = add_update(transaction, refname);
-
-	hashcpy(update->new_sha1, new_sha1);
-	hashclr(update->old_sha1);
-	update->flags = flags;
-	update->have_old = 1;
-	if (msg)
-		update->msg = xstrdup(msg);
-	return 0;
+	/* We can't carry a delta across packfiles. */
+	strbuf_release(&last_blob.data);
+	last_blob.offset = 0;
+	last_blob.depth = 0;
 }

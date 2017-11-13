@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK,APLOG_CRIT, service_to_start_success, NULL,
-                     "%s: Unable to start the service manager.",
-                     service_name);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "Found CRL is expired - "
+                         "revoking all certificates until you get updated CRL");

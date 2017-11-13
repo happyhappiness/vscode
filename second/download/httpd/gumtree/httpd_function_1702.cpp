@@ -1,162 +1,118 @@
-static int proxy_balancer_pre_request(proxy_worker **worker,
-                                      proxy_balancer **balancer,
-                                      request_rec *r,
-                                      proxy_server_conf *conf, char **url)
+static authz_status ldapattribute_check_authorization(request_rec *r,
+                                             const char *require_args)
 {
-    int access_status;
-    proxy_worker *runtime;
-    char *route = NULL;
-    const char *sticky = NULL;
-    apr_status_t rv;
+    int result = 0;
+    authn_ldap_request_t *req =
+        (authn_ldap_request_t *)ap_get_module_config(r->request_config, &authnz_ldap_module);
+    authn_ldap_config_t *sec =
+        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
 
-    *worker = NULL;
-    /* Step 1: check if the url is for us
-     * The url we can handle starts with 'balancer://'
-     * If balancer is already provided skip the search
-     * for balancer, because this is failover attempt.
+    util_ldap_connection_t *ldc = NULL;
+
+    const char *t;
+    char *w, *value;
+
+    char filtbuf[FILTER_LENGTH];
+    const char *dn = NULL;
+
+    if (!sec->have_ldap_url) {
+        return AUTHZ_DENIED;
+    }
+
+    if (sec->host) {
+        ldc = get_connection_for_authz(r, LDAP_COMPARE);
+        apr_pool_cleanup_register(r->pool, ldc,
+                                  authnz_ldap_cleanup_connection_close,
+                                  apr_pool_cleanup_null);
+    }
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorize: no sec->host - weird...?", getpid());
+        return AUTHZ_DENIED;
+    }
+
+    /*
+     * If we have been authenticated by some other module than mod_auth_ldap,
+     * the req structure needed for authorization needs to be created
+     * and populated with the userid and DN of the account in LDAP
      */
-    if (!*balancer &&
-        !(*balancer = ap_proxy_get_balancer(r->pool, conf, *url)))
-        return DECLINED;
 
-    /* Step 2: Lock the LoadBalancer
-     * XXX: perhaps we need the process lock here
-     */
-    if ((rv = PROXY_THREAD_LOCK(*balancer)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-                     "proxy: BALANCER: (%s). Lock failed for pre_request",
-                     (*balancer)->name);
-        return DECLINED;
+    /* Check that we have a userid to start with */
+    if (!r->user) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+            "access to %s failed, reason: no authenticated user", r->uri);
+        return AUTHZ_DENIED;
     }
 
-    /* Step 3: force recovery */
-    force_recovery(*balancer, r->server);
+    if (!strlen(r->user)) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+            "ldap authorize: Userid is blank, AuthType=%s",
+            r->ap_auth_type);
+    }
 
-    /* Step 4: find the session route */
-    runtime = find_session_route(*balancer, r, &route, &sticky, url);
-    if (runtime) {
-        if ((*balancer)->lbmethod && (*balancer)->lbmethod->updatelbstatus) {
-            /* Call the LB implementation */
-            (*balancer)->lbmethod->updatelbstatus(*balancer, runtime, r->server);
+    if(!req) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+            "ldap authorize: Creating LDAP req structure");
+
+        /* Build the username filter */
+        authn_ldap_build_filter(filtbuf, r, r->user, NULL, sec);
+
+        /* Search for the user DN */
+        result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
+             sec->scope, sec->attributes, filtbuf, &dn, &(req->vals));
+
+        /* Search failed, log error and return failure */
+        if(result != LDAP_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                "auth_ldap authorise: User DN not found, %s", ldc->reason);
+            return AUTHZ_DENIED;
         }
-        else { /* Use the default one */
-            int i, total_factor = 0;
-            proxy_worker **workers;
-            /* We have a sticky load balancer
-             * Update the workers status
-             * so that even session routes get
-             * into account.
-             */
-            workers = (proxy_worker **)(*balancer)->workers->elts;
-            for (i = 0; i < (*balancer)->workers->nelts; i++) {
-                /* Take into calculation only the workers that are
-                 * not in error state or not disabled.
-                 */
-                if (PROXY_WORKER_IS_USABLE(*workers)) {
-                    (*workers)->s->lbstatus += (*workers)->s->lbfactor;
-                    total_factor += (*workers)->s->lbfactor;
-                }
-                workers++;
+
+        req = (authn_ldap_request_t *)apr_pcalloc(r->pool,
+            sizeof(authn_ldap_request_t));
+        ap_set_module_config(r->request_config, &authnz_ldap_module, req);
+        req->dn = apr_pstrdup(r->pool, dn);
+        req->user = r->user;
+    }
+
+    if (req->dn == NULL || strlen(req->dn) == 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorize: "
+                      "require ldap-attribute: user's DN has not been defined; failing authorization",
+                      getpid());
+        return AUTHZ_DENIED;
+    }
+
+    t = require_args;
+    while (t[0]) {
+        w = ap_getword(r->pool, &t, '=');
+        value = ap_getword_conf(r->pool, &t);
+
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorize: checking attribute"
+                      " %s has value %s", getpid(), w, value);
+        result = util_ldap_cache_compare(r, ldc, sec->url, req->dn, w, value);
+        switch(result) {
+            case LDAP_COMPARE_TRUE: {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
+                              0, r, "[%" APR_PID_T_FMT "] auth_ldap authorize: "
+                              "require attribute: authorization successful", 
+                              getpid());
+                set_request_vars(r, LDAP_AUTHZ);
+                return AUTHZ_GRANTED;
             }
-            runtime->s->lbstatus -= total_factor;
-        }
-        runtime->s->elected++;
-
-        *worker = runtime;
-    }
-    else if (route && (*balancer)->sticky_force) {
-        int i, member_of = 0;
-        proxy_worker **workers;
-        /*
-         * We have a route provided that doesn't match the
-         * balancer name. See if the provider route is the
-         * member of the same balancer in which case return 503
-         */
-        workers = (proxy_worker **)(*balancer)->workers->elts;
-        for (i = 0; i < (*balancer)->workers->nelts; i++) {
-            if (*((*workers)->s->route) && strcmp((*workers)->s->route, route) == 0) {
-                member_of = 1;
-                break;
+            default: {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
+                              0, r, "[%" APR_PID_T_FMT "] auth_ldap authorize: "
+                              "require attribute: authorization failed [%s][%s]", 
+                              getpid(), ldc->reason, ldap_err2string(result));
             }
-            workers++;
-        }
-        if (member_of) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                         "proxy: BALANCER: (%s). All workers are in error state for route (%s)",
-                         (*balancer)->name, route);
-            if ((rv = PROXY_THREAD_UNLOCK(*balancer)) != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-                             "proxy: BALANCER: (%s). Unlock failed for pre_request",
-                             (*balancer)->name);
-            }
-            return HTTP_SERVICE_UNAVAILABLE;
         }
     }
 
-    if ((rv = PROXY_THREAD_UNLOCK(*balancer)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-                     "proxy: BALANCER: (%s). Unlock failed for pre_request",
-                     (*balancer)->name);
-    }
-    if (!*worker) {
-        runtime = find_best_worker(*balancer, r);
-        if (!runtime) {
-            if ((*balancer)->workers->nelts) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                            "proxy: BALANCER: (%s). All workers are in error state",
-                            (*balancer)->name);
-            } else {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                            "proxy: BALANCER: (%s). No workers in balancer",
-                            (*balancer)->name);
-            }
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "[%" APR_PID_T_FMT "] auth_ldap authorize attribute: authorization denied for user %s to %s",
+                  getpid(), r->user, r->uri);
 
-            return HTTP_SERVICE_UNAVAILABLE;
-        }
-        if ((*balancer)->sticky && runtime) {
-            /*
-             * This balancer has sticky sessions and the client either has not
-             * supplied any routing information or all workers for this route
-             * including possible redirect and hotstandby workers are in error
-             * state, but we have found another working worker for this
-             * balancer where we can send the request. Thus notice that we have
-             * changed the route to the backend.
-             */
-            apr_table_setn(r->subprocess_env, "BALANCER_ROUTE_CHANGED", "1");
-        }
-        *worker = runtime;
-    }
-
-    (*worker)->s->busy++;
-
-    /* Add balancer/worker info to env. */
-    apr_table_setn(r->subprocess_env,
-                   "BALANCER_NAME", (*balancer)->name);
-    apr_table_setn(r->subprocess_env,
-                   "BALANCER_WORKER_NAME", (*worker)->name);
-    apr_table_setn(r->subprocess_env,
-                   "BALANCER_WORKER_ROUTE", (*worker)->s->route);
-
-    /* Rewrite the url from 'balancer://url'
-     * to the 'worker_scheme://worker_hostname[:worker_port]/url'
-     * This replaces the balancers fictional name with the
-     * real hostname of the elected worker.
-     */
-    access_status = rewrite_url(r, *worker, url);
-    /* Add the session route to request notes if present */
-    if (route) {
-        apr_table_setn(r->notes, "session-sticky", sticky);
-        apr_table_setn(r->notes, "session-route", route);
-
-        /* Add session info to env. */
-        apr_table_setn(r->subprocess_env,
-                       "BALANCER_SESSION_STICKY", sticky);
-        apr_table_setn(r->subprocess_env,
-                       "BALANCER_SESSION_ROUTE", route);
-    }
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "proxy: BALANCER (%s) worker (%s) rewritten to %s",
-                 (*balancer)->name, (*worker)->name, *url);
-
-    return access_status;
+    return AUTHZ_DENIED;
 }

@@ -1,54 +1,65 @@
-static BOOL shmcb_store_session(
-    server_rec *s, void *shm_segment, UCHAR *id,
-    int idlen, SSL_SESSION * pSession,
-    time_t timeout)
+apr_status_t ap_fatal_signal_setup(server_rec *s, apr_pool_t *in_pconf)
 {
-    SHMCBHeader *header;
-    SHMCBQueue queue;
-    SHMCBCache cache;
-    unsigned char masked_index;
-    unsigned char encoded[SSL_SESSION_MAX_DER];
-    unsigned char *ptr_encoded;
-    unsigned int len_encoded;
-    time_t expiry_time;
-    unsigned char *session_id = SSL_SESSION_get_session_id(pSession);
+#ifndef NO_USE_SIGACTION
+    struct sigaction sa;
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "inside shmcb_store_session");
+    sigemptyset(&sa.sa_mask);
 
-    /* Get the header structure, which division this session will fall into etc. */
-    shmcb_get_header(shm_segment, &header);
-    masked_index = session_id[0] & header->division_mask;
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "session_id[0]=%u, masked index=%u",
-                 session_id[0], masked_index);
-    if (!shmcb_get_division(header, &queue, &cache, (unsigned int)masked_index)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "shmcb_store_session internal error");
-        return FALSE;
-    }
+#if defined(SA_ONESHOT)
+    sa.sa_flags = SA_ONESHOT;
+#elif defined(SA_RESETHAND)
+    sa.sa_flags = SA_RESETHAND;
+#else
+    sa.sa_flags = 0;
+#endif
 
-    /* Serialise the session, work out how much we're dealing
-     * with. NB: This check could be removed if we're not paranoid
-     * or we find some assurance that it will never be necessary. */
-    len_encoded = i2d_SSL_SESSION(pSession, NULL);
-    if (len_encoded > SSL_SESSION_MAX_DER) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "session is too big (%u bytes)", len_encoded);
-        return FALSE;
-    }
-    ptr_encoded = encoded;
-    len_encoded = i2d_SSL_SESSION(pSession, &ptr_encoded);
-    expiry_time = timeout;
-    if (!shmcb_insert_encoded_session(s, &queue, &cache, encoded,
-                                     len_encoded, session_id,
-                                     expiry_time)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "can't store a session!");
-        return FALSE;
-    }
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "leaving shmcb_store successfully");
-    header->num_stores++;
-    return TRUE;
+    sa.sa_handler = sig_coredump;
+    if (sigaction(SIGSEGV, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGSEGV)");
+#ifdef SIGBUS
+    if (sigaction(SIGBUS, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGBUS)");
+#endif
+#ifdef SIGABORT
+    if (sigaction(SIGABORT, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGABORT)");
+#endif
+#ifdef SIGABRT
+    if (sigaction(SIGABRT, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGABRT)");
+#endif
+#ifdef SIGILL
+    if (sigaction(SIGILL, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGILL)");
+#endif
+#ifdef SIGFPE
+    if (sigaction(SIGFPE, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGFPE)");
+#endif
+
+#else /* NO_USE_SIGACTION */
+
+    apr_signal(SIGSEGV, sig_coredump);
+#ifdef SIGBUS
+    apr_signal(SIGBUS, sig_coredump);
+#endif /* SIGBUS */
+#ifdef SIGABORT
+    apr_signal(SIGABORT, sig_coredump);
+#endif /* SIGABORT */
+#ifdef SIGABRT
+    apr_signal(SIGABRT, sig_coredump);
+#endif /* SIGABRT */
+#ifdef SIGILL
+    apr_signal(SIGILL, sig_coredump);
+#endif /* SIGILL */
+#ifdef SIGFPE
+    apr_signal(SIGFPE, sig_coredump);
+#endif /* SIGFPE */
+
+#endif /* NO_USE_SIGACTION */
+
+    pconf = in_pconf;
+    parent_pid = my_pid = getpid();
+
+    return APR_SUCCESS;
 }

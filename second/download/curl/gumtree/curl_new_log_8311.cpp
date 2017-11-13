@@ -1,9 +1,11 @@
 fputs(
-"              sign.  Long  option  names can optionally be given in the config\n"
-"              file without the initial double dashes and if so, the  colon  or\n"
-"              equals  characters  can  be used as separators. If the option is\n"
-"              specified with one or two dashes,  there  can  be  no  colon  or\n"
-"              equals character between the option and its parameter.\n"
+"              SSL connections and transfers. All SSL connections are attempted\n"
+"              to  be  made secure by using the CA certificate bundle installed\n"
+"              by default. This makes  all  connections  considered  \"insecure\"\n"
+"              fail unless -k, --insecure is used.\n"
 "\n"
-"              If the parameter is to contain whitespace, the parameter must be\n"
+"              See     this    online    resource    for    further    details:\n"
+"              http://curl.haxx.se/docs/sslcerts.html\n"
+"\n"
+"       -K, --config <config file>\n"
 , stdout);

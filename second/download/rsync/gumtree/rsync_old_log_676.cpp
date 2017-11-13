@@ -1,1 +1,1 @@
-io_printf(f_out, "@RSYNCD: %d\n", PROTOCOL_VERSION);
+out_of_memory("send_file_list");

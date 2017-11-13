@@ -1,1 +1,1 @@
-fprintf(FINFO, "sum=%.8x k=%d\n", sum, k);
+out_of_memory("receive_file_entry");

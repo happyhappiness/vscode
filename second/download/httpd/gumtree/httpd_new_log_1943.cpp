@@ -1,4 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
-                 "Child %d: Accept thread listening on %s:%d using %s", my_pid,
-                 lr->bind_addr->hostname ? lr->bind_addr->hostname : "*",
-                 lr->bind_addr->port, accf_name);
+ap_rvputs(r, "<tr>\n<td><a href=\"", r->uri, "?b=",
+                          balancer->name + sizeof("balancer://") - 1, "&w=",
+                          ap_escape_uri(r->pool, worker->name),
+                          "&nonce=", balancer_nonce, 
+                          "\">", NULL);

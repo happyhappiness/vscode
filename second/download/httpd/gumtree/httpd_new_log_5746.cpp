@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00968)
-               "ajp_marshal_into_msgb: "
-               "Error appending the message beginning");
+ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(02838)
+                          "ALPN protocol identifier too long");

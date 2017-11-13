@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), ap_server_conf, APLOGNO(00405)
-                         "Child: WSASocket failed to open the inherited socket");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server, APLOGNO(02031)
+                        "Hostname %s provided via SNI, but no hostname"
+                        " provided in HTTP request", servername);

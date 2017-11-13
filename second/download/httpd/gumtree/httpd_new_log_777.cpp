@@ -1,2 +1,3 @@
-printf("%sdebug: state %d, error recovery discards token %d (%s)\n",
-                    YYPREFIX, ssl_expr_yystate, ssl_expr_yychar, ssl_expr_yys);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "Running scheme %s handler (attempt %d)",
+                     scheme, attempts);

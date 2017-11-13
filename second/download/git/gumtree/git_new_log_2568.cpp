@@ -1,2 +1,0 @@
-die(_("bad numeric config value '%s' for '%s': %s"),
-		    value, name, error_type);

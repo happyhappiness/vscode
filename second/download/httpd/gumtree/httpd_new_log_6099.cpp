@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02423)
-                      "HTTP Request Line; Unrecognized HTTP method: '%.*s' "
-                      "(disallowed by RegisteredMethods)",
-                      field_name_len(r->method), r->method);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_EGENERAL, c,
+                              APLOGNO(03080)
+                              "h2_session(%ld): unknown state %d", session->id, session->state);

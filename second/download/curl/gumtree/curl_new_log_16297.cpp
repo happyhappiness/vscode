@@ -1,11 +1,11 @@
 fputs(
-"              This is currently only implemented in the NSS and Secure  Trans-\n"
-"              port (on iOS 7.0 or later, or OS X 10.9 or later) backends.\n"
+"              See  also  --dns-interface  and --dns-ipv6-addr. --dns-ipv4-addr\n"
+"              requires that the underlying libcurl was  built  to  support  c-\n"
+"              ares. Added in 7.33.0.\n"
 "\n"
-"              Added in 7.42.0.\n"
+"       --dns-ipv6-addr <address>\n"
+"              (DNS)  Tell  curl  to  bind to <ip-address> when making IPv6 DNS\n"
+"              requests, so that the DNS requests originate from this  address.\n"
+"              The argument should be a single IPv6 address.\n"
 "\n"
-"       --form-string <name=string>\n"
-"              (HTTP  SMTP  IMAP)  Similar  to -F, --form except that the value\n"
-"              string for the named parameter is used  literally.  Leading  '@'\n"
-"              and '<' characters, and the ';type=' string in the value have no\n"
 , stdout);

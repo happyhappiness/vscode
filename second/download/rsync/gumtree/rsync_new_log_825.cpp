@@ -1,1 +1,1 @@
-io_printf(f_out, "@ERROR: no path setting.\n");
+out_of_memory("fix_basis_dirs");

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02598)
-                     "apr_shm_attach() succeeded");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, 
+                      H2_STRM_LOG(APLOGNO(10026), stream, "remote close missing"));

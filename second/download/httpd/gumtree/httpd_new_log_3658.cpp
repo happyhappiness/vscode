@@ -1,4 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00997)
-               "ajp_parse_data: wrong type %s (0x%02x) expecting %s (0x%02x)",
-               ajp_type_str(result), result,
-               ajp_type_str(CMD_AJP13_SEND_BODY_CHUNK), CMD_AJP13_SEND_BODY_CHUNK);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE6, 0, f->r,
+                 "xlate_in_filter() - "
+                 "charset_source: %s charset_default: %s",
+                 dc && dc->charset_source ? dc->charset_source : "(none)",
+                 dc && dc->charset_default ? dc->charset_default : "(none)");

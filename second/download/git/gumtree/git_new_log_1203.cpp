@@ -1,1 +1,0 @@
-printf("reset %s\n", refname);

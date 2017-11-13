@@ -1,1 +1,1 @@
-fputs("~\n", ecbdata->opt->file);
+die("Log %s is corrupt.", logfile);

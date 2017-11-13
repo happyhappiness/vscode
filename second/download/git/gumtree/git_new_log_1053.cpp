@@ -1,2 +1,1 @@
-fprintf(rpt, "  cur tree    : %s\n",
-		oid_to_hex(&b->branch_tree.versions[1].oid));
+warning(_("negative value for http.postbuffer; defaulting to %d"), LARGE_PACKET_MAX);

@@ -1,1 +1,1 @@
-printf(" (%s) in %s\n", tag->tag, oid_to_hex(&tag->object.oid));
+die_errno(_("failed to create file %s"), path);

@@ -1,2 +1,1 @@
-error("in tree %s: entry %s has bad mode %.6o",
-					oid_to_hex(&tree->object.oid), entry.path, entry.mode);
+packet_write(1, "%s %s^{}\n", oid_to_hex(&peeled), refname_nons);

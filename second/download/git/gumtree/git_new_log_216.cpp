@@ -1,1 +1,1 @@
-die("object %s disappeared", oid_to_hex(oid));
+die("strange port '%s' blocked", port);

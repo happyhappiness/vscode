@@ -1,55 +1,36 @@
-static int do_recursive_merge(struct commit *base, struct commit *next,
-			      const char *base_label, const char *next_label,
-			      unsigned char *head, struct strbuf *msgbuf,
-			      struct replay_opts *opts)
+static int read_populate_todo(struct todo_list *todo_list,
+			struct replay_opts *opts)
 {
-	struct merge_options o;
-	struct tree *result, *next_tree, *base_tree, *head_tree;
-	int clean;
-	char **xopt;
-	static struct lock_file index_lock;
+	const char *todo_file = get_todo_path(opts);
+	int fd, res;
 
-	hold_locked_index(&index_lock, LOCK_DIE_ON_ERROR);
+	strbuf_reset(&todo_list->buf);
+	fd = open(todo_file, O_RDONLY);
+	if (fd < 0)
+		return error_errno(_("could not open '%s'"), todo_file);
+	if (strbuf_read(&todo_list->buf, fd, 0) < 0) {
+		close(fd);
+		return error(_("could not read '%s'."), todo_file);
+	}
+	close(fd);
 
-	read_cache();
+	res = parse_insn_buffer(todo_list->buf.buf, todo_list);
+	if (res)
+		return error(_("unusable instruction sheet: '%s'"), todo_file);
 
-	init_merge_options(&o);
-	o.ancestor = base ? base_label : "(empty tree)";
-	o.branch1 = "HEAD";
-	o.branch2 = next ? next_label : "(empty tree)";
-	if (is_rebase_i(opts))
-		o.buffer_output = 2;
+	if (!is_rebase_i(opts)) {
+		enum todo_command valid =
+			opts->action == REPLAY_PICK ? TODO_PICK : TODO_REVERT;
+		int i;
 
-	head_tree = parse_tree_indirect(head);
-	next_tree = next ? next->tree : empty_tree();
-	base_tree = base ? base->tree : empty_tree();
+		for (i = 0; i < todo_list->nr; i++)
+			if (valid == todo_list->items[i].command)
+				continue;
+			else if (valid == TODO_PICK)
+				return error(_("cannot cherry-pick during a revert."));
+			else
+				return error(_("cannot revert during a cherry-pick."));
+	}
 
-	for (xopt = opts->xopts; xopt != opts->xopts + opts->xopts_nr; xopt++)
-		parse_merge_opt(&o, *xopt);
-
-	clean = merge_trees(&o,
-			    head_tree,
-			    next_tree, base_tree, &result);
-	if (is_rebase_i(opts) && clean <= 0)
-		fputs(o.obuf.buf, stdout);
-	strbuf_release(&o.obuf);
-	if (clean < 0)
-		return clean;
-
-	if (active_cache_changed &&
-	    write_locked_index(&the_index, &index_lock, COMMIT_LOCK))
-		/* TRANSLATORS: %s will be "revert", "cherry-pick" or
-		 * "rebase -i".
-		 */
-		return error(_("%s: Unable to write new index file"),
-			_(action_name(opts)));
-	rollback_lock_file(&index_lock);
-
-	if (opts->signoff)
-		append_signoff(msgbuf, 0, 0);
-
-	if (!clean)
-		append_conflicts_hint(msgbuf);
-
-	return !clean;
+	return 0;
 }

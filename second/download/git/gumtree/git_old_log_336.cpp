@@ -1,1 +1,1 @@
-error("read from external filter %s failed", cmd);
+fprintf(rej, "%.*s", frag->size, frag->patch);

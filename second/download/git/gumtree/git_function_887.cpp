@@ -1,41 +1,56 @@
-static int commit_packed_refs(struct files_ref_store *refs)
+static int check_stream_sha1(git_zstream *stream,
+			     const char *hdr,
+			     unsigned long size,
+			     const char *path,
+			     const unsigned char *expected_sha1)
 {
-	struct packed_ref_cache *packed_ref_cache =
-		get_packed_ref_cache(refs);
-	int ok, error = 0;
-	int save_errno = 0;
-	FILE *out;
-	struct ref_iterator *iter;
+	git_SHA_CTX c;
+	unsigned char real_sha1[GIT_SHA1_RAWSZ];
+	unsigned char buf[4096];
+	unsigned long total_read;
+	int status = Z_OK;
 
-	files_assert_main_repository(refs, "commit_packed_refs");
+	git_SHA1_Init(&c);
+	git_SHA1_Update(&c, hdr, stream->total_out);
 
-	if (!packed_ref_cache->lock)
-		die("internal error: packed-refs not locked");
+	/*
+	 * We already read some bytes into hdr, but the ones up to the NUL
+	 * do not count against the object's content size.
+	 */
+	total_read = stream->total_out - strlen(hdr) - 1;
 
-	out = fdopen_lock_file(packed_ref_cache->lock, "w");
-	if (!out)
-		die_errno("unable to fdopen packed-refs descriptor");
+	/*
+	 * This size comparison must be "<=" to read the final zlib packets;
+	 * see the comment in unpack_sha1_rest for details.
+	 */
+	while (total_read <= size &&
+	       (status == Z_OK || status == Z_BUF_ERROR)) {
+		stream->next_out = buf;
+		stream->avail_out = sizeof(buf);
+		if (size - total_read < stream->avail_out)
+			stream->avail_out = size - total_read;
+		status = git_inflate(stream, Z_FINISH);
+		git_SHA1_Update(&c, buf, stream->next_out - buf);
+		total_read += stream->next_out - buf;
+	}
+	git_inflate_end(stream);
 
-	fprintf_or_die(out, "%s", PACKED_REFS_HEADER);
-
-	iter = cache_ref_iterator_begin(packed_ref_cache->cache, NULL, 0);
-	while ((ok = ref_iterator_advance(iter)) == ITER_OK) {
-		struct object_id peeled;
-		int peel_error = ref_iterator_peel(iter, &peeled);
-
-		write_packed_entry(out, iter->refname, iter->oid->hash,
-				   peel_error ? NULL : peeled.hash);
+	if (status != Z_STREAM_END) {
+		error("corrupt loose object '%s'", sha1_to_hex(expected_sha1));
+		return -1;
+	}
+	if (stream->avail_in) {
+		error("garbage at end of loose object '%s'",
+		      sha1_to_hex(expected_sha1));
+		return -1;
 	}
 
-	if (ok != ITER_DONE)
-		die("error while iterating over references");
-
-	if (commit_lock_file(packed_ref_cache->lock)) {
-		save_errno = errno;
-		error = -1;
+	git_SHA1_Final(real_sha1, &c);
+	if (hashcmp(expected_sha1, real_sha1)) {
+		error("sha1 mismatch for %s (expected %s)", path,
+		      sha1_to_hex(expected_sha1));
+		return -1;
 	}
-	packed_ref_cache->lock = NULL;
-	release_packed_ref_cache(packed_ref_cache);
-	errno = save_errno;
-	return error;
+
+	return 0;
 }

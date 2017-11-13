@@ -1,2 +1,2 @@
-die("unable to pack objects reachable from tag %s",
-			    oid_to_hex(oid));
+warning("Log for ref %s has gap after %s.",
+					cb->refname, show_date(cb->date, cb->tz, DATE_RFC2822));

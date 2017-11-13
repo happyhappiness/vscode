@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(00083)
-                              "ap_pass_brigade returned %d", rv);
+ap_log_error(APLOG_MARK, APLOG_INFO, rv, server, APLOGNO(00137)
+                     "apr_socket_addr_get(APR_LOCAL)");

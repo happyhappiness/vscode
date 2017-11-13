@@ -1,12 +1,10 @@
 fputs(
-"              part can be passed to curl using one of the following syntaxes:\n"
+"              application/x-www-form-urlencoded.  Compare to -F, --form.\n"
 "\n"
-"              content\n"
-"                     This  will make curl URL-encode the content and pass that\n"
-"                     on. Just be careful so that the content  doesn't  contain\n"
-"                     any  =  or  @  symbols, as that will then make the syntax\n"
-"                     match one of the other cases below!\n"
+"              -d, --data is the same as --data-ascii. --data-raw is almost the\n"
+"              same but does not have a special interpretation of the @ charac-\n"
+"              ter.  To  post  data  purely  binary, you should instead use the\n"
+"              --data-binary option.  To URL-encode the value of a  form  field\n"
+"              you may use --data-urlencode.\n"
 "\n"
-"              =content\n"
-"                     This will make curl URL-encode the content and pass  that\n"
 , stdout);

@@ -1,33 +1,26 @@
-static int ask_each_cmd(void)
+void die_in_unpopulated_submodule(const struct index_state *istate,
+				  const char *prefix)
 {
-	struct strbuf confirm = STRBUF_INIT;
-	struct strbuf buf = STRBUF_INIT;
-	struct string_list_item *item;
-	const char *qname;
-	int changed = 0, eof = 0;
+	int i, prefixlen;
 
-	for_each_string_list_item(item, &del_list) {
-		/* Ctrl-D should stop removing files */
-		if (!eof) {
-			qname = quote_path_relative(item->string, NULL, &buf);
-			printf(_("remove %s? "), qname);
-			if (strbuf_getline(&confirm, stdin, '\n') != EOF) {
-				strbuf_trim(&confirm);
-			} else {
-				putchar('\n');
-				eof = 1;
-			}
-		}
-		if (!confirm.len || strncasecmp(confirm.buf, "yes", confirm.len)) {
-			*item->string = '\0';
-			changed++;
-		}
+	if (!prefix)
+		return;
+
+	prefixlen = strlen(prefix);
+
+	for (i = 0; i < istate->cache_nr; i++) {
+		struct cache_entry *ce = istate->cache[i];
+		int ce_len = ce_namelen(ce);
+
+		if (!S_ISGITLINK(ce->ce_mode))
+			continue;
+		if (prefixlen <= ce_len)
+			continue;
+		if (strncmp(ce->name, prefix, ce_len))
+			continue;
+		if (prefix[ce_len] != '/')
+			continue;
+
+		die(_("in unpopulated submodule '%s'"), ce->name);
 	}
-
-	if (changed)
-		string_list_remove_empty_items(&del_list, 0);
-
-	strbuf_release(&buf);
-	strbuf_release(&confirm);
-	return MENU_RETURN_NO_LOOP;
 }

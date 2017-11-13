@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
-                    "Websocket: Frame contained %lu bytes, pushed to Lua stack", 
-                        at);
+ap_register_output_filter("H2_RESPONSE", h2_filter_headers_out,
+                              NULL, AP_FTYPE_PROTOCOL);

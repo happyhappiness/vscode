@@ -1,1 +1,1 @@
-fprintf(stderr, "%s" "Continuing without compression.\n\n", err_buf);
+out_of_memory("check_alt_basis_dirs");

@@ -1,24 +1,18 @@
-static int reqtimeout_init(conn_rec *c)
+void ap_sock_disable_nagle(apr_socket_t *s)
 {
-    reqtimeout_con_cfg *ccfg;
-    reqtimeout_srv_cfg *cfg;
+    /* The Nagle algorithm says that we should delay sending partial
+     * packets in hopes of getting more data.  We don't want to do
+     * this; we are not telnet.  There are bad interactions between
+     * persistent connections and Nagle's algorithm that have very severe
+     * performance penalties.  (Failing to disable Nagle is not much of a
+     * problem with simple HTTP.)
+     *
+     * In spite of these problems, failure here is not a shooting offense.
+     */
+    apr_status_t status = apr_socket_opt_set(s, APR_TCP_NODELAY, 1);
 
-    cfg = ap_get_module_config(c->base_server->module_config,
-                               &reqtimeout_module);
-    AP_DEBUG_ASSERT(cfg != NULL);
-    if (cfg->header_timeout == 0 && cfg->body_timeout == 0) {
-        /* disabled for this vhost */
-        return DECLINED;
+    if (status != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, status, ap_server_conf,
+                     "apr_socket_opt_set: (TCP_NODELAY)");
     }
-
-    ccfg = ap_get_module_config(c->conn_config, &reqtimeout_module);
-    if (ccfg == NULL) {
-        ccfg = apr_pcalloc(c->pool, sizeof(reqtimeout_con_cfg));
-        ap_set_module_config(c->conn_config, &reqtimeout_module, ccfg);
-        ap_add_output_filter(reqtimeout_filter_name, ccfg, NULL, c);
-        ap_add_input_filter(reqtimeout_filter_name, ccfg, NULL, c);
-    }
-
-    /* we are not handling the connection, we just do initialization */
-    return DECLINED;
 }

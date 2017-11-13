@@ -1,57 +1,56 @@
-static int open_rewritelog(server_rec *s, apr_pool_t *p)
+static apr_status_t cgi_bucket_read(apr_bucket *b, const char **str,
+                                    apr_size_t *len, apr_read_type_e block)
 {
-    rewrite_server_conf *conf;
-    const char *fname;
+    struct cgi_bucket_data *data = b->data;
+    apr_interval_time_t timeout;
+    apr_status_t rv;
+    int gotdata = 0;
 
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
+    timeout = block == APR_NONBLOCK_READ ? 0 : data->r->server->timeout;
 
-    /* - no logfile configured
-     * - logfilename empty
-     * - virtual log shared w/ main server
-     */
-    if (!conf->rewritelogfile || !*conf->rewritelogfile || conf->rewritelogfp) {
-        return 1;
-    }
+    do {
+        const apr_pollfd_t *results;
+        apr_int32_t num;
 
-    if (*conf->rewritelogfile == '|') {
-        piped_log *pl;
-
-        fname = ap_server_root_relative(p, conf->rewritelogfile+1);
-        if (!fname) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
-                         "mod_rewrite: Invalid RewriteLog "
-                         "path %s", conf->rewritelogfile+1);
-            return 0;
+        rv = apr_pollset_poll(data->pollset, timeout, &num, &results);
+        if (APR_STATUS_IS_TIMEUP(rv)) {
+            if (timeout) {
+                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, data->r,
+                              "Timeout waiting for output from CGI script %s",
+                              data->r->filename);
+                return rv;
+            }
+            else {
+                return APR_EAGAIN;
+            }
+        }
+        else if (APR_STATUS_IS_EINTR(rv)) {
+            continue;
+        }
+        else if (rv != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, data->r,
+                          "poll failed waiting for CGI child");
+            return rv;
         }
 
-        if ((pl = ap_open_piped_log(p, fname)) == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                         "mod_rewrite: could not open reliable pipe "
-                         "to RewriteLog filter %s", fname);
-            return 0;
-        }
-        conf->rewritelogfp = ap_piped_log_write_fd(pl);
-    }
-    else {
-        apr_status_t rc;
-
-        fname = ap_server_root_relative(p, conf->rewritelogfile);
-        if (!fname) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
-                         "mod_rewrite: Invalid RewriteLog "
-                         "path %s", conf->rewritelogfile);
-            return 0;
+        for (; num; num--, results++) {
+            if (results[0].client_data == (void *)1) {
+                /* stdout */
+                rv = cgi_read_stdout(b, results[0].desc.f, str, len);
+                if (APR_STATUS_IS_EOF(rv)) {
+                    rv = APR_SUCCESS;
+                }
+                gotdata = 1;
+            } else {
+                /* stderr */
+                apr_status_t rv2 = log_script_err(data->r, results[0].desc.f);
+                if (APR_STATUS_IS_EOF(rv2)) {
+                    apr_pollset_remove(data->pollset, &results[0]);
+                }
+            }
         }
 
-        if ((rc = apr_file_open(&conf->rewritelogfp, fname,
-                                REWRITELOG_FLAGS, REWRITELOG_MODE, p))
-                != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, rc, s,
-                         "mod_rewrite: could not open RewriteLog "
-                         "file %s", fname);
-            return 0;
-        }
-    }
+    } while (!gotdata);
 
-    return 1;
+    return rv;
 }

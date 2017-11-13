@@ -1,9 +1,9 @@
 fputs(
-"              name + password to all hosts that the site may redirect to. This\n"
-"              may or may not introduce a security breach if the site redirects\n"
-"              you to a site to which  you'll  send  your  authentication  info\n"
-"              (which is plaintext in the case of HTTP Basic authentication).\n"
+"              tion-trusted  on how to change this. You can limit the amount of\n"
+"              redirects to follow by using the --max-redirs option.\n"
 "\n"
-"       -m, --max-time <seconds>\n"
-"              Maximum  time  in  seconds that you allow the whole operation to\n"
+"              When curl follows a redirect and the request is not a plain  GET\n"
+"              (for example POST or PUT), it will do the following request with\n"
+"              a GET if the HTTP response was 301, 302, or 303. If the response\n"
+"              code  was  any  other  3xx code, curl will re-send the following\n"
 , stdout);

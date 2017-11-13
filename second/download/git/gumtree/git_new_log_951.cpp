@@ -1,1 +1,1 @@
-child_die(CHILD_ERR_SILENT);
+die(_("name consists only of disallowed characters: %s"), name);

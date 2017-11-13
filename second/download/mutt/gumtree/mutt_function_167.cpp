@@ -1,121 +1,95 @@
-static int show_sig_summary (unsigned long sum,
-                              gpgme_ctx_t ctx, gpgme_key_t key, int idx,
-                              STATE *s, gpgme_signature_t sig)
+int
+mutt_copy_header (FILE *in, HEADER *h, FILE *out, int flags, const char *prefix)
 {
-  int severe = 0;
+  char buffer[SHORT_STRING];
 
-  if ((sum & GPGME_SIGSUM_KEY_REVOKED))
+  if (h->env)
+    flags |= (h->env->irt_changed ? CH_UPDATE_IRT : 0)
+      | (h->env->refs_changed ? CH_UPDATE_REFS : 0);
+  
+  if (mutt_copy_hdr (in, out, h->offset, h->content->offset, flags, prefix) == -1)
+    return -1;
+
+  if (flags & CH_TXTPLAIN)
+  {
+    char chsbuf[SHORT_STRING];
+    fputs ("MIME-Version: 1.0\n", out);
+    fputs ("Content-Transfer-Encoding: 8bit\n", out);
+    fputs ("Content-Type: text/plain; charset=", out);
+    mutt_canonical_charset (chsbuf, sizeof (chsbuf), Charset ? Charset : "us-ascii");
+    rfc822_cat(buffer, sizeof(buffer), chsbuf, MimeSpecials);
+    fputs(buffer, out);
+    fputc('\n', out);
+  }
+
+  if ((flags & CH_UPDATE_IRT) && h->env->in_reply_to)
+  {
+    LIST *listp = h->env->in_reply_to;
+    fputs ("In-Reply-To:", out);
+    for (; listp; listp = listp->next)
     {
-      state_attach_puts (_("Warning: One of the keys has been revoked\n"),s);
-      severe = 1;
+      fputc (' ', out);
+      fputs (listp->data, out);
+    }
+    fputc ('\n', out);
+  }
+
+  if ((flags & CH_UPDATE_REFS) && h->env->references)
+  {
+    fputs ("References:", out);
+    mutt_write_references (h->env->references, out, 0);
+    fputc ('\n', out);
+  }
+
+  if ((flags & CH_UPDATE) && (flags & CH_NOSTATUS) == 0)
+  {
+    if (h->old || h->read)
+    {
+      fputs ("Status: ", out);
+      if (h->read)
+	fputs ("RO", out);
+      else if (h->old)
+	fputc ('O', out);
+      fputc ('\n', out);
     }
 
-  if ((sum & GPGME_SIGSUM_KEY_EXPIRED))
+    if (h->flagged || h->replied)
     {
-      time_t at = key->subkeys->expires ? key->subkeys->expires : 0;
-      if (at)
-        {
-          state_attach_puts (_("Warning: The key used to create the "
-                               "signature expired at: "), s);
-          print_time (at , s);
-          state_attach_puts ("\n", s);
-        }
-      else
-        state_attach_puts (_("Warning: At least one certification key "
-                             "has expired\n"), s);
+      fputs ("X-Status: ", out);
+      if (h->replied)
+	fputc ('A', out);
+      if (h->flagged)
+	fputc ('F', out);
+      fputc ('\n', out);
     }
+  }
 
-  if ((sum & GPGME_SIGSUM_SIG_EXPIRED))
-    {
-      gpgme_verify_result_t result;
-      gpgme_signature_t sig;
-      unsigned int i;
-      
-      result = gpgme_op_verify_result (ctx);
+  if (flags & CH_UPDATE_LEN &&
+      (flags & CH_NOLEN) == 0)
+  {
+    fprintf (out, "Content-Length: " OFF_T_FMT "\n", h->content->length);
+    if (h->lines != 0 || h->content->length == 0)
+      fprintf (out, "Lines: %d\n", h->lines);
+  }
 
-      for (sig = result->signatures, i = 0; sig && (i < idx);
-           sig = sig->next, i++)
-        ;
-      
-      state_attach_puts (_("Warning: The signature expired at: "), s);
-      print_time (sig ? sig->exp_timestamp : 0, s);
-      state_attach_puts ("\n", s);
-    }
+  if (flags & CH_UPDATE_LABEL)
+  {
+    h->xlabel_changed = 0;
+    if (h->env->x_label != NULL)
+      if (fprintf(out, "X-Label: %s\n", h->env->x_label) !=
+		  10 + strlen(h->env->x_label))
+        return -1;
+  }
 
-  if ((sum & GPGME_SIGSUM_KEY_MISSING))
-    state_attach_puts (_("Can't verify due to a missing "
-                         "key or certificate\n"), s);
+  if ((flags & CH_NONEWLINE) == 0)
+  {
+    if (flags & CH_PREFIX)
+      fputs(prefix, out);
+    fputc ('\n', out); /* add header terminator */
+  }
 
-  if ((sum & GPGME_SIGSUM_CRL_MISSING))
-    {
-      state_attach_puts (_("The CRL is not available\n"), s);
-      severe = 1;
-    }
-
-  if ((sum & GPGME_SIGSUM_CRL_TOO_OLD))
-    {
-      state_attach_puts (_("Available CRL is too old\n"), s);
-      severe = 1;
-    }
-
-  if ((sum & GPGME_SIGSUM_BAD_POLICY))
-    state_attach_puts (_("A policy requirement was not met\n"), s);
-
-  if ((sum & GPGME_SIGSUM_SYS_ERROR))
-    {
-      const char *t0 = NULL, *t1 = NULL;
-      gpgme_verify_result_t result;
-      gpgme_signature_t sig;
-      unsigned int i;
-
-      state_attach_puts (_("A system error occurred"), s );
-
-      /* Try to figure out some more detailed system error information. */
-      result = gpgme_op_verify_result (ctx);
-      for (sig = result->signatures, i = 0; sig && (i < idx);
-           sig = sig->next, i++)
-        ;
-      if (sig)
-	{
-	  t0 = "";
-	  t1 = sig->wrong_key_usage ? "Wrong_Key_Usage" : "";
-	}
-
-      if (t0 || t1)
-        {
-          state_attach_puts (": ", s);
-          if (t0)
-              state_attach_puts (t0, s);
-          if (t1 && !(t0 && !strcmp (t0, t1)))
-            {
-              if (t0)
-                state_attach_puts (",", s);
-              state_attach_puts (t1, s);
-            }
-        }
-      state_attach_puts ("\n", s);
-    }
-
-#ifdef HAVE_GPGME_PKA_TRUST
-
-  if (option (OPTCRYPTUSEPKA))
-    {
-      if (sig->pka_trust == 1 && sig->pka_address)
-	{
-	  state_attach_puts (_("WARNING: PKA entry does not match "
-			       "signer's address: "), s);
-	  state_attach_puts (sig->pka_address, s);
-	  state_attach_puts ("\n", s);
-	}
-      else if (sig->pka_trust == 2 && sig->pka_address)
-	{
-	  state_attach_puts (_("PKA verified signer's address is: "), s);
-	  state_attach_puts (sig->pka_address, s);
-	  state_attach_puts ("\n", s);
-	}
-    }
-
-#endif
-
-  return severe;
+  if (ferror (out) || feof (out))
+    return -1;
+  
+  return 0;
 }

@@ -1,7 +1,13 @@
-static void init_delayed_bits(int max_ndx)
+void poptPrintHelp(poptContext con, FILE * fp, /*@unused@*/ int flags)
 {
-	delayed_slot_cnt = (max_ndx + PER_SLOT_BITS - 1) / PER_SLOT_BITS;
+    int leftColWidth;
 
-	if (!(delayed_bits = (uint32**)calloc(delayed_slot_cnt, sizeof (uint32*))))
-		out_of_memory("set_delayed_bit");
+    (void) showHelpIntro(con, fp);
+    if (con->otherHelp)
+	fprintf(fp, " %s\n", con->otherHelp);
+    else
+	fprintf(fp, " %s\n", POPT_("[OPTION...]"));
+
+    leftColWidth = maxArgWidth(con->options, NULL);
+    singleTableHelp(con, fp, con->options, leftColWidth, NULL);
 }

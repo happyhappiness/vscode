@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                     "mod_mime: analyze_ct: cannot get media type from '%s'",
-                     (const char *) mp);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                                r->server, "Adding CACHE_SAVE filter for %s",
+                                r->uri);

@@ -1,1 +1,2 @@
-die(_("Error wrapping up %s."), head_file);
+die("unable to generate combined diff for %s",
+		    sha1_to_hex(parent));

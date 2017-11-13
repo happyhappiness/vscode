@@ -1,1 +1,1 @@
-error_errno("unable to create temporary file");
+warning_errno("failed utime() on %s", tmp_file.buf);

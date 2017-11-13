@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, f->c,
-                      "h2_task(%s): read returned", task->id);
+ap_log_perror(APLOG_MARK, APLOG_DEBUG, APR_EINVAL, pool,
+                      "h2_request(%d): pseudo header in trailer",
+                      req->id);

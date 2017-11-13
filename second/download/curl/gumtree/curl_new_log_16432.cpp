@@ -1,9 +1,10 @@
 fputs(
-"              address and prevent the otherwise normally resolved  address  to\n"
-"              be  used.  Consider it a sort of /etc/hosts alternative provided\n"
-"              on the command line. The port number should be the  number  used\n"
-"              for  the  specific  protocol the host will be used for. It means\n"
-"              you need several entries if you want to provide address for  the\n"
-"              same host but different ports.\n"
+"              extracting a filename from the URL.\n"
 "\n"
+"              If the server specifies a file name and a file  with  that  name\n"
+"              already  exists  in the current working directory it will not be\n"
+"              overwritten and an error will occur. If the server doesn't spec-\n"
+"              ify a file name then this option has no effect.\n"
+"\n"
+"              There's  no  attempt to decode %-sequences (yet) in the provided\n"
 , stdout);

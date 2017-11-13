@@ -1,9 +1,9 @@
 fputs(
-"              (which is plaintext in the case of HTTP Basic authentication).\n"
+"              authentication  is  used, curl only sends its credentials to the\n"
+"              initial host. If a redirect takes curl to a different  host,  it\n"
+"              won't  be  able to intercept the user+password. See also --loca-\n"
+"              tion-trusted on how to change this. You can limit the amount  of\n"
+"              redirects to follow by using the --max-redirs option.\n"
 "\n"
-"       -m, --max-time <seconds>\n"
-"              Maximum time in seconds that you allow the  whole  operation  to\n"
-"              take.   This is useful for preventing your batch jobs from hang-\n"
-"              ing for hours due to slow networks or links going  down.   Since\n"
-"              7.32.0, this option accepts decimal values, but the actual time-\n"
+"              When  curl follows a redirect and the request is not a plain GET\n"
 , stdout);

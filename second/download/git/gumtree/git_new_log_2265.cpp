@@ -1,1 +1,1 @@
-die(_("Failed to find exact merge base"));
+die("unable to generate diff for %s", one->path);

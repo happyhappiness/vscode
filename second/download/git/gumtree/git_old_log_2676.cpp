@@ -1,1 +1,1 @@
-die(_("Error wrapping up %s"), filename);
+insert_one_record(log, author, !*buffer ? "<none>" : buffer);

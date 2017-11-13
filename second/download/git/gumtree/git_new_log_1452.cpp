@@ -1,2 +1,1 @@
-print_ref_status('!', "[rejected]", ref, ref->peer_ref,
-						 "atomic push failed", porcelain);
+die("cannot combine --walk-reflogs with history-limiting options");

@@ -1,16 +1,23 @@
-static void set_signals()
+static apr_status_t session_crypto_encode(request_rec * r, session_rec * z)
 {
-    struct sigaction sa;
 
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
-    sa.sa_handler = sig_term;
+    char *encoded = NULL;
+    apr_status_t res;
+    const apr_crypto_t *f = NULL;
+    session_crypto_dir_conf *dconf = ap_get_module_config(r->per_dir_config,
+            &session_crypto_module);
 
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGTERM)");
+    if (dconf->passphrases_set && z->encoded && *z->encoded) {
+        apr_pool_userdata_get((void **)&f, CRYPTO_KEY, r->server->process->pconf);
+        res = encrypt_string(r, f, dconf, z->encoded, &encoded);
+        if (res != OK) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, res, r, APLOGNO(01841)
+                    "encrypt session failed");
+            return res;
+        }
+        z->encoded = encoded;
+    }
 
-    sa.sa_handler = sig_hup;
+    return OK;
 
-    if (sigaction(SIGHUP, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGHUP)");
 }

@@ -1,4 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                      "[%" APR_PID_T_FMT "] auth_ldap authorise: "
-                                      "require user: authorisation failed [%s][%s]",
-                                      getpid(), ldc->reason, ldap_err2string(result));
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                              "incomplete redirection target of '%s' for "
+                              "URI '%s' modified to '%s'",
+                              orig_target, r->uri, ret);

@@ -1,1 +1,1 @@
-io_printf(f_out, "@ERROR: protocol startup error\n");
+out_of_memory("is_in_group");

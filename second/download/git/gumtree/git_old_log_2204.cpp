@@ -1,1 +1,1 @@
-error("Could not expand include path '%s'", path);
+die(_("Malformed options sheet: %s"), opts_file);

@@ -1,56 +1,72 @@
-static apr_status_t cgi_bucket_read(apr_bucket *b, const char **str,
-                                    apr_size_t *len, apr_read_type_e block)
+static apr_status_t ap_cgi_build_command(const char **cmd, const char ***argv,
+                                         request_rec *r, apr_pool_t *p,
+                                         cgi_exec_info_t *e_info)
 {
-    struct cgi_bucket_data *data = b->data;
-    apr_interval_time_t timeout;
-    apr_status_t rv;
-    int gotdata = 0;
+    char *ext = NULL;
+    char *cmd_only, *ptr;
+    const char *new_cmd;
+    netware_dir_config *d;
+    const char *args = "";
 
-    timeout = block == APR_NONBLOCK_READ ? 0 : data->r->server->timeout;
+    d = (netware_dir_config *)ap_get_module_config(r->per_dir_config,
+                                               &netware_module);
 
-    do {
-        const apr_pollfd_t *results;
-        apr_int32_t num;
-
-        rv = apr_pollset_poll(data->pollset, timeout, &num, &results);
-        if (APR_STATUS_IS_TIMEUP(rv)) {
-            if (timeout) {
-                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, data->r,
-                              "Timeout waiting for output from CGI script %s",
-                              data->r->filename);
-                return rv;
-            }
-            else {
-                return APR_EAGAIN;
-            }
+    if (e_info->process_cgi) {
+        /* Handle the complete file name, we DON'T want to follow suexec, since
+         * an unrooted command is as predictable as shooting craps in Win32.
+         *
+         * Notice that unlike most mime extension parsing, we have to use the
+         * win32 parsing here, therefore the final extension is the only one
+         * we will consider
+         */
+        *cmd = r->filename;
+        if (r->args && r->args[0] && !ap_strchr_c(r->args, '=')) {
+            args = r->args;
         }
-        else if (APR_STATUS_IS_EINTR(rv)) {
-            continue;
-        }
-        else if (rv != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, data->r,
-                          "poll failed waiting for CGI child");
-            return rv;
-        }
+    }
 
-        for (; num; num--, results++) {
-            if (results[0].client_data == (void *)1) {
-                /* stdout */
-                rv = cgi_read_stdout(b, results[0].desc.f, str, len);
-                if (APR_STATUS_IS_EOF(rv)) {
-                    rv = APR_SUCCESS;
-                }
-                gotdata = 1;
-            } else {
-                /* stderr */
-                apr_status_t rv2 = log_script_err(data->r, results[0].desc.f);
-                if (APR_STATUS_IS_EOF(rv2)) {
-                    apr_pollset_remove(data->pollset, &results[0]);
-                }
-            }
-        }
+    cmd_only = apr_pstrdup(p, *cmd);
+    e_info->cmd_type = APR_PROGRAM;
 
-    } while (!gotdata);
+    /* truncate any arguments from the cmd */
+    for (ptr = cmd_only; *ptr && (*ptr != ' '); ptr++);
+    *ptr = '\0';
 
-    return rv;
+    /* Figure out what the extension is so that we can matche it. */
+    ext = strrchr(apr_filepath_name_get(cmd_only), '.');
+
+    /* If there isn't an extension then give it an empty string */
+    if (!ext) {
+        ext = "";
+    }
+
+    /* eliminate the '.' if there is one */
+    if (*ext == '.')
+        ++ext;
+
+    /* check if we have a registered command for the extension*/
+    new_cmd = apr_table_get(d->file_type_handlers, ext);
+    e_info->detached = 1;
+    if (new_cmd == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                  "Could not find a command associated with the %s extension", ext);
+        return APR_EBADF;
+    }
+    if (stricmp(new_cmd, "OS")) {
+        /* If we have a registered command then add the file that was passed in as a
+          parameter to the registered command. */
+        *cmd = apr_pstrcat (p, new_cmd, " ", cmd_only, NULL);
+
+        /* Run in its own address space if specified */
+        if(apr_table_get(d->file_handler_mode, ext))
+            e_info->addrspace = 1;
+    }
+
+    /* Tokenize the full command string into its arguments */
+    apr_tokenize_to_argv(*cmd, (char***)argv, p);
+
+    /* The first argument should be the executible */
+    *cmd = ap_server_root_relative(p, *argv[0]);
+
+    return APR_SUCCESS;
 }

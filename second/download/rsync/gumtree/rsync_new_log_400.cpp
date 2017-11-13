@@ -1,1 +1,1 @@
-rprintf(FINFO,"recv_file_name(%s)\n",f_name(flist->files[i]));
+fprintf(FINFO,"recv_file_list done\n");

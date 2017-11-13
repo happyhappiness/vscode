@@ -1,41 +1,21 @@
-static int fsck_obj(struct object *obj)
+static void end_atom_handler(struct atom_value *atomv, struct ref_formatting_state *state)
 {
-	if (obj->flags & SEEN)
-		return 0;
-	obj->flags |= SEEN;
+	struct ref_formatting_stack *current = state->stack;
+	struct strbuf s = STRBUF_INIT;
 
-	if (verbose)
-		fprintf(stderr, "Checking %s %s\n",
-			typename(obj->type), oid_to_hex(&obj->oid));
+	if (!current->at_end)
+		die(_("format: %%(end) atom used without corresponding atom"));
+	current->at_end(current);
 
-	if (fsck_walk(obj, NULL, &fsck_obj_options))
-		objerror(obj, "broken links");
-	if (fsck_object(obj, NULL, 0, &fsck_obj_options))
-		return -1;
-
-	if (obj->type == OBJ_TREE) {
-		struct tree *item = (struct tree *) obj;
-
-		free_tree_buffer(item);
+	/*
+	 * Perform quote formatting when the stack element is that of
+	 * a supporting atom. If nested then perform quote formatting
+	 * only on the topmost supporting atom.
+	 */
+	if (!state->stack->prev->prev) {
+		quote_formatting(&s, current->output.buf, state->quote_style);
+		strbuf_swap(&current->output, &s);
 	}
-
-	if (obj->type == OBJ_COMMIT) {
-		struct commit *commit = (struct commit *) obj;
-
-		free_commit_buffer(commit);
-
-		if (!commit->parents && show_root)
-			printf("root %s\n", oid_to_hex(&commit->object.oid));
-	}
-
-	if (obj->type == OBJ_TAG) {
-		struct tag *tag = (struct tag *) obj;
-
-		if (show_tags && tag->tagged) {
-			printf("tagged %s %s", typename(tag->tagged->type), oid_to_hex(&tag->tagged->oid));
-			printf(" (%s) in %s\n", tag->tag, oid_to_hex(&tag->object.oid));
-		}
-	}
-
-	return 0;
+	strbuf_release(&s);
+	pop_stack_element(&state->stack);
 }

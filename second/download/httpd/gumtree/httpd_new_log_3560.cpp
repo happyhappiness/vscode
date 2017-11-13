@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, status, srv, APLOGNO(01497)
-                         "write: rfc1413: error sending request");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ctx->s, APLOGNO(02092)
+                         "stopping %s listener.",
+                         HM_WATHCHDOG_NAME);

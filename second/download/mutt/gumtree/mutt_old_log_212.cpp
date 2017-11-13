@@ -1,1 +1,1 @@
-mutt_window_mvprintw (MuttIndexWindow, HDR_FCC, 0, TITLE_FMT, Prompts[HDR_FCC]);
+state_attach_puts ("\n", s);

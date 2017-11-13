@@ -1,1 +1,1 @@
-error("bogus commit object %s", oid_to_hex(&item->object.oid));
+die("BUG: incompatible flags for get_sha1_with_context");

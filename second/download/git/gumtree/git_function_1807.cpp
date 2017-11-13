@@ -1,51 +1,50 @@
-static void show_rebase_information(struct wt_status *s,
-					struct wt_status_state *state,
-					const char *color)
+static void wt_status_print_verbose(struct wt_status *s)
 {
-	if (state->rebase_interactive_in_progress) {
-		int i;
-		int nr_lines_to_show = 2;
+	struct rev_info rev;
+	struct setup_revision_opt opt;
+	int dirty_submodules;
+	const char *c = color(WT_STATUS_HEADER, s);
 
-		struct string_list have_done = STRING_LIST_INIT_DUP;
-		struct string_list yet_to_do = STRING_LIST_INIT_DUP;
+	init_revisions(&rev, NULL);
+	DIFF_OPT_SET(&rev.diffopt, ALLOW_TEXTCONV);
 
-		read_rebase_todolist("rebase-merge/done", &have_done);
-		read_rebase_todolist("rebase-merge/git-rebase-todo", &yet_to_do);
+	memset(&opt, 0, sizeof(opt));
+	opt.def = s->is_initial ? EMPTY_TREE_SHA1_HEX : s->reference;
+	setup_revisions(0, NULL, &rev, &opt);
 
-		if (have_done.nr == 0)
-			status_printf_ln(s, color, _("No commands done."));
-		else {
-			status_printf_ln(s, color,
-				Q_("Last command done (%d command done):",
-					"Last commands done (%d commands done):",
-					have_done.nr),
-				have_done.nr);
-			for (i = (have_done.nr > nr_lines_to_show)
-				? have_done.nr - nr_lines_to_show : 0;
-				i < have_done.nr;
-				i++)
-				status_printf_ln(s, color, "   %s", have_done.items[i].string);
-			if (have_done.nr > nr_lines_to_show && s->hints)
-				status_printf_ln(s, color,
-					_("  (see more in file %s)"), git_path("rebase-merge/done"));
-		}
-
-		if (yet_to_do.nr == 0)
-			status_printf_ln(s, color,
-					 _("No commands remaining."));
-		else {
-			status_printf_ln(s, color,
-				Q_("Next command to do (%d remaining command):",
-					"Next commands to do (%d remaining commands):",
-					yet_to_do.nr),
-				yet_to_do.nr);
-			for (i = 0; i < nr_lines_to_show && i < yet_to_do.nr; i++)
-				status_printf_ln(s, color, "   %s", yet_to_do.items[i].string);
-			if (s->hints)
-				status_printf_ln(s, color,
-					_("  (use \"git rebase --edit-todo\" to view and edit)"));
-		}
-		string_list_clear(&yet_to_do, 0);
-		string_list_clear(&have_done, 0);
+	rev.diffopt.output_format |= DIFF_FORMAT_PATCH;
+	rev.diffopt.detect_rename = 1;
+	rev.diffopt.file = s->fp;
+	rev.diffopt.close_file = 0;
+	/*
+	 * If we're not going to stdout, then we definitely don't
+	 * want color, since we are going to the commit message
+	 * file (and even the "auto" setting won't work, since it
+	 * will have checked isatty on stdout). But we then do want
+	 * to insert the scissor line here to reliably remove the
+	 * diff before committing.
+	 */
+	if (s->fp != stdout) {
+		rev.diffopt.use_color = 0;
+		wt_status_add_cut_line(s->fp);
+	}
+	if (s->verbose > 1 && s->commitable) {
+		/* print_updated() printed a header, so do we */
+		if (s->fp != stdout)
+			wt_status_print_trailer(s);
+		status_printf_ln(s, c, _("Changes to be committed:"));
+		rev.diffopt.a_prefix = "c/";
+		rev.diffopt.b_prefix = "i/";
+	} /* else use prefix as per user config */
+	run_diff_index(&rev, 1);
+	if (s->verbose > 1 &&
+	    wt_status_check_worktree_changes(s, &dirty_submodules)) {
+		status_printf_ln(s, c,
+			"--------------------------------------------------");
+		status_printf_ln(s, c, _("Changes not staged for commit:"));
+		setup_work_tree();
+		rev.diffopt.a_prefix = "i/";
+		rev.diffopt.b_prefix = "w/";
+		run_diff_files(&rev, 0);
 	}
 }

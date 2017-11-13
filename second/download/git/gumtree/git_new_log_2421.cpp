@@ -1,1 +1,1 @@
-fprintf(stderr, "fixed %s\n", sb.buf);
+verify_ref_format(format);

@@ -1,85 +1,65 @@
-static authn_status authn_dbd_realm(request_rec *r, const char *user,
-                                    const char *realm, char **rethash)
+apr_status_t ap_fatal_signal_setup(server_rec *s, apr_pool_t *in_pconf)
 {
-    apr_status_t rv;
-    const char *dbd_hash = NULL;
-    apr_dbd_prepared_t *statement;
-    apr_dbd_results_t *res = NULL;
-    apr_dbd_row_t *row = NULL;
+#ifndef NO_USE_SIGACTION
+    struct sigaction sa;
 
-    authn_dbd_conf *conf = ap_get_module_config(r->per_dir_config,
-                                                &authn_dbd_module);
-    ap_dbd_t *dbd = authn_dbd_acquire_fn(r);
-    if (dbd == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Failed to acquire database connection to look up "
-                      "user '%s:%s'", user, realm);
-        return AUTH_GENERAL_ERROR;
-    }
-    if (conf->realm == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "No AuthDBDUserRealmQuery has been specified");
-        return AUTH_GENERAL_ERROR;
-    }
-    statement = apr_hash_get(dbd->prepared, conf->realm, APR_HASH_KEY_STRING);
-    if (statement == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "A prepared statement could not be found for "
-                      "AuthDBDUserRealmQuery with the key '%s'", conf->realm);
-        return AUTH_GENERAL_ERROR;
-    }
-    if (apr_dbd_pvselect(dbd->driver, r->pool, dbd->handle, &res, statement,
-                              0, user, realm, NULL) != 0) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Query execution error looking up '%s:%s' "
-                      "in database", user, realm);
-        return AUTH_GENERAL_ERROR;
-    }
-    for (rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1);
-         rv != -1;
-         rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1)) {
-        if (rv != 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "Error retrieving results while looking up '%s:%s' "
-                          "in database", user, realm);
-            return AUTH_GENERAL_ERROR;
-        }
-        if (dbd_hash == NULL) {
-#if APU_MAJOR_VERSION > 1 || (APU_MAJOR_VERSION == 1 && APU_MINOR_VERSION >= 3)
-            /* add the rest of the columns to the environment */
-            int i = 1;
-            const char *name;
-            for (name = apr_dbd_get_name(dbd->driver, res, i);
-                 name != NULL;
-                 name = apr_dbd_get_name(dbd->driver, res, i)) {
+    sigemptyset(&sa.sa_mask);
 
-                char *str = apr_pstrcat(r->pool, AUTHN_PREFIX,
-                                        name,
-                                        NULL);
-                int j = sizeof(AUTHN_PREFIX)-1; /* string length of "AUTHENTICATE_", excluding the trailing NIL */
-                while (str[j]) {
-                    if (!apr_isalnum(str[j])) {
-                        str[j] = '_';
-                    }
-                    else {
-                        str[j] = apr_toupper(str[j]);
-                    }
-                    j++;
-                }
-                apr_table_set(r->subprocess_env, str,
-                              apr_dbd_get_entry(dbd->driver, row, i));
-                i++;
-            }
+#if defined(SA_ONESHOT)
+    sa.sa_flags = SA_ONESHOT;
+#elif defined(SA_RESETHAND)
+    sa.sa_flags = SA_RESETHAND;
+#else
+    sa.sa_flags = 0;
 #endif
-            dbd_hash = apr_dbd_get_entry(dbd->driver, row, 0);
-        }
-        /* we can't break out here or row won't get cleaned up */
-    }
 
-    if (!dbd_hash) {
-        return AUTH_USER_NOT_FOUND;
-    }
-    AUTHN_CACHE_STORE(r, user, realm, dbd_hash);
-    *rethash = apr_pstrdup(r->pool, dbd_hash);
-    return AUTH_USER_FOUND;
+    sa.sa_handler = sig_coredump;
+    if (sigaction(SIGSEGV, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGSEGV)");
+#ifdef SIGBUS
+    if (sigaction(SIGBUS, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGBUS)");
+#endif
+#ifdef SIGABORT
+    if (sigaction(SIGABORT, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGABORT)");
+#endif
+#ifdef SIGABRT
+    if (sigaction(SIGABRT, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGABRT)");
+#endif
+#ifdef SIGILL
+    if (sigaction(SIGILL, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGILL)");
+#endif
+#ifdef SIGFPE
+    if (sigaction(SIGFPE, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGFPE)");
+#endif
+
+#else /* NO_USE_SIGACTION */
+
+    apr_signal(SIGSEGV, sig_coredump);
+#ifdef SIGBUS
+    apr_signal(SIGBUS, sig_coredump);
+#endif /* SIGBUS */
+#ifdef SIGABORT
+    apr_signal(SIGABORT, sig_coredump);
+#endif /* SIGABORT */
+#ifdef SIGABRT
+    apr_signal(SIGABRT, sig_coredump);
+#endif /* SIGABRT */
+#ifdef SIGILL
+    apr_signal(SIGILL, sig_coredump);
+#endif /* SIGILL */
+#ifdef SIGFPE
+    apr_signal(SIGFPE, sig_coredump);
+#endif /* SIGFPE */
+
+#endif /* NO_USE_SIGACTION */
+
+    pconf = in_pconf;
+    parent_pid = my_pid = getpid();
+
+    return APR_SUCCESS;
 }

@@ -1,1 +1,1 @@
-die("bad %s argument: %s", opt, arg);
+error("invalid key (newline): %s", key);

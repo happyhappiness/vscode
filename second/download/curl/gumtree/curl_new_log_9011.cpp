@@ -1,8 +1,12 @@
 fputs(
-"              Options  and their parameters must be specified on the same con-\n"
-"              fig file line, separated by whitespace,  colon,  or  the  equals\n"
-"              sign.  Long  option  names can optionally be given in the config\n"
-"              file without the initial double dashes and if so, the  colon  or\n"
-"              equals  characters  can  be used as separators. If the option is\n"
-"              specified with one or two dashes,  there  can  be  no  colon  or\n"
+"              like:\n"
+"\n"
+"               curl --interface eth0:1 http://www.netscape.com/\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -j, --junk-session-cookies\n"
+"              (HTTP) When curl is told to read cookies from a given file, this\n"
+"              option will make it discard all  \"session  cookies\".  This  will\n"
+"              basically  have  the same effect as if a new session is started.\n"
 , stdout);

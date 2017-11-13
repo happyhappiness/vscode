@@ -1,1 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE7, 0, c, "mod_dumpio: %s", f->frec->name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01754)
+                      "could not open dbm (type %s) auth file: %s",
+                      conf->dbmtype, conf->pwfile);

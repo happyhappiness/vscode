@@ -1,10 +1,11 @@
-static void check_object(struct object *obj)
+void safe_create_dir(const char *dir, int share)
 {
-	if (verbose)
-		fprintf(stderr, "Checking %s\n", oid_to_hex(&obj->oid));
-
-	if (obj->flags & REACHABLE)
-		check_reachable_object(obj);
-	else
-		check_unreachable_object(obj);
+	if (mkdir(dir, 0777) < 0) {
+		if (errno != EEXIST) {
+			perror(dir);
+			exit(1);
+		}
+	}
+	else if (share && adjust_shared_perm(dir))
+		die(_("Could not make %s writable by group"), dir);
 }

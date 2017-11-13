@@ -1,1 +1,1 @@
-packet_buf_write(req_buf, "push-cert-end\n");
+die("Can't read object %s", oid_to_hex(oid));

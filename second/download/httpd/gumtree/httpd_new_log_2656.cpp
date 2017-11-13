@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01780)
-                      "need AuthName: %s", r->uri);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv2, s,
+                         "DBD: Failed to create reslist cleanup memory pool");

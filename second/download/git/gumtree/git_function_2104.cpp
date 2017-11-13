@@ -1,15 +1,12 @@
-static int option_parse_stage(const struct option *opt,
-			      const char *arg, int unset)
+static int git_config_get_notes_strategy(const char *key,
+					 enum notes_merge_strategy *strategy)
 {
-	if (!strcmp(arg, "all")) {
-		to_tempfile = 1;
-		checkout_stage = CHECKOUT_ALL;
-	} else {
-		int ch = arg[0];
-		if ('1' <= ch && ch <= '3')
-			checkout_stage = arg[0] - '0';
-		else
-			die("stage should be between 1 and 3 or all");
-	}
+	const char *value;
+
+	if (git_config_get_string_const(key, &value))
+		return 1;
+	if (parse_notes_merge_strategy(value, strategy))
+		git_die_config(key, "unknown notes merge strategy %s", value);
+
 	return 0;
 }

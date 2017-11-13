@@ -1,10 +1,10 @@
 fputs(
-"              bandwidth. To make it slower than it otherwise would be.\n"
+"              Note: Some FTP servers list only  files  in  their  response  to\n"
+"              NLST; they do not include sub-directories and symbolic links.\n"
 "\n"
-"              The given speed is measured in bytes/second, unless a suffix  is\n"
-"              appended.   Appending  'k' or 'K' will count the number as kilo-\n"
-"              bytes, 'm' or M' makes it megabytes, while 'g' or 'G'  makes  it\n"
-"              gigabytes. Examples: 200K, 3m and 1G.\n"
+"              (POP3)  When  retrieving a specific email from POP3, this switch\n"
+"              forces a LIST command to be performed instead of RETR.  This  is\n"
+"              particularly  useful if the user wants to see if a specific mes-\n"
+"              sage id exists on the server and what size it is.\n"
 "\n"
-"              The  given  rate  is the average speed counted during the entire\n"
 , stdout);

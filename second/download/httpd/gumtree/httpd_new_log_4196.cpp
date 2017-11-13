@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, outctx->rc, c, APLOGNO(01993)
-                          "SSL output filter write failed.");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r, APLOGNO(00879)
+                                      "APR_BUCKET_IS_EOS");

@@ -1,8 +1,11 @@
 fputs(
-"              Options  and their parameters must be specified on the same con-\n"
-"              fig file line, separated by whitespace,  colon,  or  the  equals\n"
-"              sign.  Long  option  names can optionally be given in the config\n"
-"              file without the initial double dashes and if so, the  colon  or\n"
-"              equals  characters  can  be used as separators. If the option is\n"
-"              specified with one or two dashes,  there  can  be  no  colon  or\n"
+"  formatted certificates to PEM formatted ones. This kind of converter is\n"
+"  included in recent versions of OpenSSL, and for older versions Dr Stephen\n"
+"  N. Henson has written a patch for SSLeay that adds this functionality. You\n"
+"  can get his patch (that requires an SSLeay installation) from his site at:\n"
+"  http://www.drh-consultancy.demon.co.uk/\n"
+"\n"
+"  Example on how to automatically retrieve a document using a certificate with\n"
+"  a personal password:\n"
+"\n"
 , stdout);

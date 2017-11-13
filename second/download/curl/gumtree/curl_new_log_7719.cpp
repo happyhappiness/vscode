@@ -1,12 +1,9 @@
 fputs(
-"                             tion lasted. The time will be displayed with mil-\n"
-"                             lisecond resolution.\n"
+"                             The  time,  in  seconds,  it  took from the start\n"
+"                             until the first byte was just about to be  trans-\n"
+"                             ferred.  This  includes time_pretransfer and also\n"
+"                             the time  the  server  needed  to  calculate  the\n"
+"                             result.\n"
 "\n"
-"              url_effective  The URL that was fetched last. This is most mean-\n"
-"                             ingful if you've told curl  to  follow  location:\n"
-"                             headers.\n"
-"\n"
-"       If this option is used several times, the last one will be used.\n"
-"\n"
-"       -x, --proxy <[protocol://][user:password@]proxyhost[:port]>\n"
+"              time_total     The  total time, in seconds, that the full opera-\n"
 , stdout);

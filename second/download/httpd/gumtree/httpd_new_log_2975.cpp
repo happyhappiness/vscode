@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(00797)
-                     "%s is too large to cache, skipping", fspec);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "auth_ldap authorize: require user: "
+                          "authorization failed [%s][%s]",
+                          ldc->reason, ldap_err2string(result));

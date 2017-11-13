@@ -1,2 +1,1 @@
-fprintf(stderr, "%s:%d: %s.\n%.*s\n",
-		patch_input_file, linenr, err, len, line);
+die("bad tree object %s", sha1_to_hex(obj->sha1));

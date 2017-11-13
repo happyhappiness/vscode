@@ -1,3 +1,4 @@
-ap_log_rerror(SCRIPT_LOG_MARK, APLOG_TRACE1, 0, r,
-                              "Status line from script '%s': %s",
-                              apr_filepath_name_get(r->filename), w);
+ap_log_perror(APLOG_MARK, APLOG_WARNING, stat, p, APLOGNO(00070)
+                          "make_sock: failed to set SendBufferSize for "
+                          "address %pI, using default",
+                          server->bind_addr);

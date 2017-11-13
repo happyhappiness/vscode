@@ -1,1 +1,1 @@
-fprintf(stderr,"%s : not a regular file\n",fname);
+fprintf(stderr,"hash search b=%d len=%d\n",s->n,(int)len);

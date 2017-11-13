@@ -1,1 +1,2 @@
-die("Object not in bitmap: %s\n", oid_to_hex(&commit->object.oid));
+die("unable to generate diff (%s)",
+		    sha1_to_hex(parent->commit->object.sha1));

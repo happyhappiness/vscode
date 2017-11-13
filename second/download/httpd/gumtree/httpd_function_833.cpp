@@ -1,98 +1,93 @@
-int ap_open_logs(apr_pool_t *pconf, apr_pool_t *p /* plog */, 
-                 apr_pool_t *ptemp, server_rec *s_main)
+static int ssl_hook_pre_connection(conn_rec *c, void *csd)
 {
-    apr_pool_t *stderr_p;
-    server_rec *virt, *q;
-    int replace_stderr;
+    SSLSrvConfigRec *sc = mySrvConfig(c->base_server);
+    SSL *ssl;
+    SSLConnRec *sslconn = myConnConfig(c);
+    char *vhost_md5;
+    modssl_ctx_t *mctx;
 
-
-    /* Register to throw away the read_handles list when we
-     * cleanup plog.  Upon fork() for the apache children,
-     * this read_handles list is closed so only the parent
-     * can relaunch a lost log child.  These read handles 
-     * are always closed on exec.
-     * We won't care what happens to our stderr log child 
-     * between log phases, so we don't mind losing stderr's 
-     * read_handle a little bit early.
+    /*
+     * Immediately stop processing if SSL is disabled for this connection
      */
-    apr_pool_cleanup_register(p, NULL, clear_handle_list,
-                              apr_pool_cleanup_null);
+    if (!(sc && (sc->enabled ||
+                 (sslconn && sslconn->is_proxy))))
+    {
+        return DECLINED;
+    }
 
-    /* HERE we need a stdout log that outlives plog.
-     * We *presume* the parent of plog is a process 
-     * or global pool which spans server restarts.
-     * Create our stderr_pool as a child of the plog's
-     * parent pool.
+    /*
+     * Create SSL context
      */
-    apr_pool_create(&stderr_p, apr_pool_parent_get(p));
-    apr_pool_tag(stderr_p, "stderr_pool");
-    
-    if (open_error_log(s_main, 1, stderr_p) != OK) {
-        return DONE;
+    if (!sslconn) {
+        sslconn = ssl_init_connection_ctx(c);
     }
 
-    replace_stderr = 1;
-    if (s_main->error_log) {
-        apr_status_t rv;
-        
-        /* Replace existing stderr with new log. */
-        apr_file_flush(s_main->error_log);
-        rv = apr_file_dup2(stderr_log, s_main->error_log, stderr_p);
-        if (rv != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s_main,
-                         "unable to replace stderr with error_log");
-        }
-        else {
-            /* We are done with stderr_pool, close it, killing
-             * the previous generation's stderr logger
-             */
-            if (stderr_pool)
-                apr_pool_destroy(stderr_pool);
-            stderr_pool = stderr_p;
-            replace_stderr = 0;
-            /*
-             * Now that we have dup'ed s_main->error_log to stderr_log
-             * close it and set s_main->error_log to stderr_log. This avoids
-             * this fd being inherited by the next piped logger who would
-             * keep open the writing end of the pipe that this one uses
-             * as stdin. This in turn would prevent the piped logger from
-             * exiting.
-             */
-             apr_file_close(s_main->error_log);
-             s_main->error_log = stderr_log;
-        }
+    if (sslconn->disabled) {
+        return DECLINED;
     }
-    /* note that stderr may still need to be replaced with something
-     * because it points to the old error log, or back to the tty
-     * of the submitter.
-     * XXX: This is BS - /dev/null is non-portable
+
+    /*
+     * Remember the connection information for
+     * later access inside callback functions
      */
-    if (replace_stderr && freopen("/dev/null", "w", stderr) == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, errno, s_main,
-                     "unable to replace stderr with /dev/null");
+
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, c->base_server,
+                 "Connection to child %ld established "
+                 "(server %s, client %s)", c->id, sc->vhost_id, 
+                 c->remote_ip ? c->remote_ip : "unknown");
+
+    /*
+     * Seed the Pseudo Random Number Generator (PRNG)
+     */
+    ssl_rand_seed(c->base_server, c->pool, SSL_RSCTX_CONNECT, "");
+
+    mctx = sslconn->is_proxy ? sc->proxy : sc->server;
+
+    /*
+     * Create a new SSL connection with the configured server SSL context and
+     * attach this to the socket. Additionally we register this attachment
+     * so we can detach later.
+     */
+    if (!(ssl = SSL_new(mctx->ssl_ctx))) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
+                     "Unable to create a new SSL connection from the SSL "
+                     "context");
+        ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, c->base_server);
+
+        c->aborted = 1;
+
+        return DECLINED; /* XXX */
     }
 
-    for (virt = s_main->next; virt; virt = virt->next) {
-        if (virt->error_fname) {
-            for (q=s_main; q != virt; q = q->next) {
-                if (q->error_fname != NULL
-                    && strcmp(q->error_fname, virt->error_fname) == 0) {
-                    break;
-                }
-            }
+    vhost_md5 = ap_md5_binary(c->pool, (unsigned char *)sc->vhost_id,
+                              sc->vhost_id_len);
 
-            if (q == virt) {
-                if (open_error_log(virt, 0, p) != OK) {
-                    return DONE;
-                }
-            }
-            else {
-                virt->error_log = q->error_log;
-            }
-        }
-        else {
-            virt->error_log = s_main->error_log;
-        }
+    if (!SSL_set_session_id_context(ssl, (unsigned char *)vhost_md5,
+                                    MD5_DIGESTSIZE*2))
+    {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
+                     "Unable to set session id context to `%s'", vhost_md5);
+        ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, c->base_server);
+
+        c->aborted = 1;
+
+        return DECLINED; /* XXX */
     }
-    return OK;
+
+    SSL_set_app_data(ssl, c);
+    SSL_set_app_data2(ssl, NULL); /* will be request_rec */
+
+    sslconn->ssl = ssl;
+
+    /*
+     *  Configure callbacks for SSL connection
+     */
+    SSL_set_tmp_rsa_callback(ssl, ssl_callback_TmpRSA);
+    SSL_set_tmp_dh_callback(ssl,  ssl_callback_TmpDH);
+
+    SSL_set_verify_result(ssl, X509_V_OK);
+
+    ssl_io_filter_init(c, ssl);
+
+    return APR_SUCCESS;
 }

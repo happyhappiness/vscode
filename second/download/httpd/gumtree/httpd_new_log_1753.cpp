@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE4, 0, r->server,
-                     "proxy: FTP: RETR failed, trying LIST instead");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                  "access to %s failed, reason: user '%s' does not meet "
+                  "'require'ments for user to be allowed access",
+                  r->uri, r->user);

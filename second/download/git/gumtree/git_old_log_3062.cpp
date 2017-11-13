@@ -1,0 +1,1 @@
+die("Not a valid commit name %s", sha1_to_hex(sha1));

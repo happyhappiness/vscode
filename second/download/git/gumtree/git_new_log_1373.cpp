@@ -1,2 +1,2 @@
-error("Out of memory, malloc failed (tried to allocate %lu bytes)",
-				      (unsigned long)size);
+printf("One merge base found (%.7s)\n",
+			       oid_to_hex(base_oid));

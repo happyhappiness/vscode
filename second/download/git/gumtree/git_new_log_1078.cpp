@@ -1,1 +1,1 @@
-die("Couldn't allocate PCRE2 JIT stack");
+warning("could not freshen shared index '%s'", shared_index);

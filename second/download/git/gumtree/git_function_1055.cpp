@@ -1,74 +1,61 @@
-static void end_packfile(void)
+static int handle_change_delete(struct merge_options *o,
+				 const char *path,
+				 const struct object_id *o_oid, int o_mode,
+				 const struct object_id *a_oid, int a_mode,
+				 const struct object_id *b_oid, int b_mode,
+				 const char *change, const char *change_past)
 {
-	static int running;
-
-	if (running || !pack_data)
-		return;
-
-	running = 1;
-	clear_delta_base_cache();
-	if (object_count) {
-		struct packed_git *new_p;
-		unsigned char cur_pack_sha1[20];
-		char *idx_name;
-		int i;
-		struct branch *b;
-		struct tag *t;
-
-		close_pack_windows(pack_data);
-		sha1close(pack_file, cur_pack_sha1, 0);
-		fixup_pack_header_footer(pack_data->pack_fd, pack_data->sha1,
-				    pack_data->pack_name, object_count,
-				    cur_pack_sha1, pack_size);
-
-		if (object_count <= unpack_limit) {
-			if (!loosen_small_pack(pack_data)) {
-				invalidate_pack_id(pack_id);
-				goto discard_pack;
-			}
-		}
-
-		close(pack_data->pack_fd);
-		idx_name = keep_pack(create_index());
-
-		/* Register the packfile with core git's machinery. */
-		new_p = add_packed_git(idx_name, strlen(idx_name), 1);
-		if (!new_p)
-			die("core git rejected index %s", idx_name);
-		all_packs[pack_id] = new_p;
-		install_packed_git(new_p);
-		free(idx_name);
-
-		/* Print the boundary */
-		if (pack_edges) {
-			fprintf(pack_edges, "%s:", new_p->pack_name);
-			for (i = 0; i < branch_table_sz; i++) {
-				for (b = branch_table[i]; b; b = b->table_next_branch) {
-					if (b->pack_id == pack_id)
-						fprintf(pack_edges, " %s", sha1_to_hex(b->sha1));
-				}
-			}
-			for (t = first_tag; t; t = t->next_tag) {
-				if (t->pack_id == pack_id)
-					fprintf(pack_edges, " %s", sha1_to_hex(t->sha1));
-			}
-			fputc('\n', pack_edges);
-			fflush(pack_edges);
-		}
-
-		pack_id++;
+	char *renamed = NULL;
+	int ret = 0;
+	if (dir_in_way(path, !o->call_depth, 0)) {
+		renamed = unique_path(o, path, a_oid ? o->branch1 : o->branch2);
 	}
-	else {
-discard_pack:
-		close(pack_data->pack_fd);
-		unlink_or_warn(pack_data->pack_name);
-	}
-	free(pack_data);
-	pack_data = NULL;
-	running = 0;
 
-	/* We can't carry a delta across packfiles. */
-	strbuf_release(&last_blob.data);
-	last_blob.offset = 0;
-	last_blob.depth = 0;
+	if (o->call_depth) {
+		/*
+		 * We cannot arbitrarily accept either a_sha or b_sha as
+		 * correct; since there is no true "middle point" between
+		 * them, simply reuse the base version for virtual merge base.
+		 */
+		ret = remove_file_from_cache(path);
+		if (!ret)
+			ret = update_file(o, 0, o_oid, o_mode,
+					  renamed ? renamed : path);
+	} else if (!a_oid) {
+		if (!renamed) {
+			output(o, 1, _("CONFLICT (%s/delete): %s deleted in %s "
+			       "and %s in %s. Version %s of %s left in tree."),
+			       change, path, o->branch1, change_past,
+			       o->branch2, o->branch2, path);
+			ret = update_file(o, 0, b_oid, b_mode, path);
+		} else {
+			output(o, 1, _("CONFLICT (%s/delete): %s deleted in %s "
+			       "and %s in %s. Version %s of %s left in tree at %s."),
+			       change, path, o->branch1, change_past,
+			       o->branch2, o->branch2, path, renamed);
+			ret = update_file(o, 0, b_oid, b_mode, renamed);
+		}
+	} else {
+		if (!renamed) {
+			output(o, 1, _("CONFLICT (%s/delete): %s deleted in %s "
+			       "and %s in %s. Version %s of %s left in tree."),
+			       change, path, o->branch2, change_past,
+			       o->branch1, o->branch1, path);
+		} else {
+			output(o, 1, _("CONFLICT (%s/delete): %s deleted in %s "
+			       "and %s in %s. Version %s of %s left in tree at %s."),
+			       change, path, o->branch2, change_past,
+			       o->branch1, o->branch1, path, renamed);
+			ret = update_file(o, 0, a_oid, a_mode, renamed);
+		}
+		/*
+		 * No need to call update_file() on path when !renamed, since
+		 * that would needlessly touch path.  We could call
+		 * update_file_flags() with update_cache=0 and update_wd=0,
+		 * but that's a no-op.
+		 */
+	}
+	free(renamed);
+
+	return ret;
 }

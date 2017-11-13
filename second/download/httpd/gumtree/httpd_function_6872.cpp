@@ -1,92 +1,27 @@
-static int lua_map_handler(request_rec *r)
+static void transit(h2_session *session, const char *action, h2_session_state nstate)
 {
-    int rc, n = 0;
-    apr_pool_t *pool;
-    lua_State *L;
-    const char *filename, *function_name;
-    const char *values[10];
-    ap_lua_vm_spec *spec;
-    ap_regmatch_t match[10];
-    ap_lua_server_cfg *server_cfg = ap_get_module_config(r->server->module_config,
-                                                         &lua_module);
-    const ap_lua_dir_cfg *cfg = ap_get_module_config(r->per_dir_config,
-                                                     &lua_module);
-    for (n = 0; n < cfg->mapped_handlers->nelts; n++) {
-        ap_lua_mapped_handler_spec *hook_spec =
-            ((ap_lua_mapped_handler_spec **) cfg->mapped_handlers->elts)[n];
-
-        if (hook_spec == NULL) {
-            continue;
+    if (session->state != nstate) {
+        int loglvl = APLOG_DEBUG;
+        if ((session->state == H2_SESSION_ST_BUSY && nstate == H2_SESSION_ST_WAIT)
+            || (session->state == H2_SESSION_ST_WAIT && nstate == H2_SESSION_ST_BUSY)){
+            loglvl = APLOG_TRACE1;
         }
-        if (!ap_regexec(hook_spec->uri_pattern, r->uri, 10, match, 0)) {
-            int i;
-            for (i=0 ; i < 10; i++) {
-                if (match[i].rm_eo >= 0) {
-                    values[i] = apr_pstrndup(r->pool, r->uri+match[i].rm_so, match[i].rm_eo - match[i].rm_so);
-                }
-                else values[i] = "";
-            }
-            filename = ap_lua_interpolate_string(r->pool, hook_spec->file_name, values);
-            function_name = ap_lua_interpolate_string(r->pool, hook_spec->function_name, values);
-            spec = create_vm_spec(&pool, r, cfg, server_cfg,
-                                    filename,
-                                    hook_spec->bytecode,
-                                    hook_spec->bytecode_len,
-                                    function_name,
-                                    "mapped handler");
-            L = ap_lua_get_lua_state(pool, spec, r);
-
-            if (!L) {
-                ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(02330)
-                                "lua: Failed to obtain lua interpreter for %s %s",
-                                function_name, filename);
-                ap_lua_release_state(L, spec, r);
-                return HTTP_INTERNAL_SERVER_ERROR;
-            }
-
-            if (function_name != NULL) {
-                lua_getglobal(L, function_name);
-                if (!lua_isfunction(L, -1)) {
-                    ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(02331)
-                                    "lua: Unable to find function %s in %s",
-                                    function_name,
-                                    filename);
-                    ap_lua_release_state(L, spec, r);
-                    return HTTP_INTERNAL_SERVER_ERROR;
-                }
-
-                ap_lua_run_lua_request(L, r);
-            }
-            else {
-                int t;
-                ap_lua_run_lua_request(L, r);
-
-                t = lua_gettop(L);
-                lua_setglobal(L, "r");
-                lua_settop(L, t);
-            }
-
-            if (lua_pcall(L, 1, 1, 0)) {
-                report_lua_error(L, r);
-                ap_lua_release_state(L, spec, r);
-                return HTTP_INTERNAL_SERVER_ERROR;
-            }
-            rc = DECLINED;
-            if (lua_isnumber(L, -1)) {
-                rc = lua_tointeger(L, -1);
-            }
-            else { 
-                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02483)
-                              "lua: Lua handler %s in %s did not return a value, assuming apache2.OK",
-                              function_name,
-                              filename);
-                rc = OK;
-            }
-            ap_lua_release_state(L, spec, r);
-            if (rc != DECLINED) {
-                return rc;
-            }
+        ap_log_cerror(APLOG_MARK, loglvl, 0, session->c, APLOGNO(03078)
+                      "h2_session(%ld): transit [%s] -- %s --> [%s]", session->id,
+                      state_name(session->state), action, state_name(nstate));
+        session->state = nstate;
+        switch (session->state) {
+            case H2_SESSION_ST_IDLE:
+                update_child_status(session, (session->open_streams == 0? 
+                                              SERVER_BUSY_KEEPALIVE
+                                              : SERVER_BUSY_READ), "idle");
+                break;
+            case H2_SESSION_ST_DONE:
+                update_child_status(session, SERVER_CLOSING, "done");
+                break;
+            default:
+                /* nop */
+                break;
         }
     }
-    return DECLINED;
 }

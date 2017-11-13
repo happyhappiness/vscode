@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c, 
-                  H2_STRM_MSG(stream, "transit to [%s]"), h2_ss_str(new_state));
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00201)
+                         "caught %s, shutting down",
+                         (rc == DONE) ? "SIGTERM" : "error");

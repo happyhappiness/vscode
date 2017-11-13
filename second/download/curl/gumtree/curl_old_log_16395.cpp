@@ -1,12 +1,9 @@
 fputs(
-"              Protocols  are evaluated left to right, are comma separated, and\n"
-"              are each a protocol name or\n"
+"              hashes) to verify the peer. This can be a path to a  file  which\n"
+"              contains a single public key in PEM or DER format, or any number\n"
+"              of base64 encoded sha256 hashes preceded by 'sha256//' and sepa-\n"
+"              rated by ';'\n"
 "\n"
-"              +  Permit this protocol in addition to protocols already permit-\n"
-"                 ted (this is the default if no modifier is used).\n"
-"\n"
-"              -  Deny  this  protocol,  removing it from the list of protocols\n"
-"                 already permitted.\n"
-"\n"
-"              =  Permit only this protocol (ignoring the list already  permit-\n"
+"              When  negotiating  a  TLS  or SSL connection, the server sends a\n"
+"              certificate indicating its identity. A public key  is  extracted\n"
 , stdout);

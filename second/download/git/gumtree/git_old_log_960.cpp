@@ -1,5 +1,3 @@
-fprintf_ln(stderr,
-			   _("WARNING: You called a Git command named '%s', "
-			     "which does not exist.\n"
-			     "Continuing under the assumption that you meant '%s'"),
-			cmd, assumed);
+fprintf(stderr,
+				"%.*s is not a valid attribute name: %s:%d\n",
+				len, cp, src, lineno);

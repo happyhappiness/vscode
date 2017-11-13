@@ -1,10 +1,10 @@
 fputs(
-"       --mail-rcpt <address>\n"
-"              (SMTP) Specify a single address, user name or mailing list name.\n"
-"              Repeat this option several times to send to multiple recipients.\n"
-"              When performing a mail transfer, the recipient should specify  a\n"
-"              valid email address to send the mail to.\n"
+"              appended.  Appending 'k' or 'K' will count the number  as  kilo-\n"
+"              bytes,  'm'  or M' makes it megabytes, while 'g' or 'G' makes it\n"
+"              gigabytes. Examples: 200K, 3m and 1G.\n"
 "\n"
-"              When  performing  an  address  verification  (VRFY command), the\n"
-"              recipient should be specified as the user name or user name  and\n"
+"              If you also use the -Y, --speed-limit option, that  option  will\n"
+"              take precedence and might cripple the rate-limiting slightly, to\n"
+"              help keeping the speed-limit logic working.\n"
+"\n"
 , stdout);

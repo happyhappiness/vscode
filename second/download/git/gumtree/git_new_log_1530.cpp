@@ -1,1 +1,1 @@
-die("--git-path requires an argument");
+printf("rm -f %s\n", path);

@@ -1,67 +1,78 @@
-unsigned is_submodule_modified(const char *path, int ignore_untracked)
+int versioncmp(const char *s1, const char *s2)
 {
-	ssize_t len;
-	struct child_process cp = CHILD_PROCESS_INIT;
-	const char *argv[] = {
-		"status",
-		"--porcelain",
-		NULL,
-		NULL,
-	};
-	struct strbuf buf = STRBUF_INIT;
-	unsigned dirty_submodule = 0;
-	const char *line, *next_line;
-	const char *git_dir;
+	const unsigned char *p1 = (const unsigned char *) s1;
+	const unsigned char *p2 = (const unsigned char *) s2;
+	unsigned char c1, c2;
+	int state, diff;
 
-	strbuf_addf(&buf, "%s/.git", path);
-	git_dir = read_gitfile(buf.buf);
-	if (!git_dir)
-		git_dir = buf.buf;
-	if (!is_directory(git_dir)) {
-		strbuf_release(&buf);
-		/* The submodule is not checked out, so it is not modified */
+	/*
+	 * Symbol(s)    0       [1-9]   others
+	 * Transition   (10) 0  (01) d  (00) x
+	 */
+	static const uint8_t next_state[] = {
+		/* state    x    d    0  */
+		/* S_N */  S_N, S_I, S_Z,
+		/* S_I */  S_N, S_I, S_I,
+		/* S_F */  S_N, S_F, S_F,
+		/* S_Z */  S_N, S_F, S_Z
+	};
+
+	static const int8_t result_type[] = {
+		/* state   x/x  x/d  x/0  d/x  d/d  d/0  0/x  0/d  0/0  */
+
+		/* S_N */  CMP, CMP, CMP, CMP, LEN, CMP, CMP, CMP, CMP,
+		/* S_I */  CMP, -1,  -1,  +1,  LEN, LEN, +1,  LEN, LEN,
+		/* S_F */  CMP, CMP, CMP, CMP, CMP, CMP, CMP, CMP, CMP,
+		/* S_Z */  CMP, +1,  +1,  -1,  CMP, CMP, -1,  CMP, CMP
+	};
+
+	if (p1 == p2)
 		return 0;
 
+	c1 = *p1++;
+	c2 = *p2++;
+	/* Hint: '0' is a digit too.  */
+	state = S_N + ((c1 == '0') + (isdigit (c1) != 0));
+
+	while ((diff = c1 - c2) == 0) {
+		if (c1 == '\0')
+			return diff;
+
+		state = next_state[state];
+		c1 = *p1++;
+		c2 = *p2++;
+		state += (c1 == '0') + (isdigit (c1) != 0);
 	}
-	strbuf_reset(&buf);
 
-	if (ignore_untracked)
-		argv[2] = "-uno";
-
-	cp.argv = argv;
-	prepare_submodule_repo_env(&cp.env_array);
-	cp.git_cmd = 1;
-	cp.no_stdin = 1;
-	cp.out = -1;
-	cp.dir = path;
-	if (start_command(&cp))
-		die("Could not run 'git status --porcelain' in submodule %s", path);
-
-	len = strbuf_read(&buf, cp.out, 1024);
-	line = buf.buf;
-	while (len > 2) {
-		if ((line[0] == '?') && (line[1] == '?')) {
-			dirty_submodule |= DIRTY_SUBMODULE_UNTRACKED;
-			if (dirty_submodule & DIRTY_SUBMODULE_MODIFIED)
-				break;
-		} else {
-			dirty_submodule |= DIRTY_SUBMODULE_MODIFIED;
-			if (ignore_untracked ||
-			    (dirty_submodule & DIRTY_SUBMODULE_UNTRACKED))
-				break;
-		}
-		next_line = strchr(line, '\n');
-		if (!next_line)
-			break;
-		next_line++;
-		len -= (next_line - line);
-		line = next_line;
+	if (!initialized) {
+		const struct string_list *deprecated_prereleases;
+		initialized = 1;
+		prereleases = git_config_get_value_multi("versionsort.suffix");
+		deprecated_prereleases = git_config_get_value_multi("versionsort.prereleasesuffix");
+		if (prereleases) {
+			if (deprecated_prereleases)
+				warning("ignoring versionsort.prereleasesuffix because versionsort.suffix is set");
+		} else
+			prereleases = deprecated_prereleases;
 	}
-	close(cp.out);
+	if (prereleases && swap_prereleases(s1, s2, (const char *) p1 - s1 - 1,
+					    &diff))
+		return diff;
 
-	if (finish_command(&cp))
-		die("'git status --porcelain' failed in submodule %s", path);
+	state = result_type[state * 3 + (((c2 == '0') + (isdigit (c2) != 0)))];
 
-	strbuf_release(&buf);
-	return dirty_submodule;
+	switch (state) {
+	case CMP:
+		return diff;
+
+	case LEN:
+		while (isdigit (*p1++))
+			if (!isdigit (*p2++))
+				return 1;
+
+		return isdigit (*p2) ? -1 : diff;
+
+	default:
+		return state;
+	}
 }

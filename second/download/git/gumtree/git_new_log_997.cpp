@@ -1,1 +1,2 @@
-printf("  uid: %d\tgid: %d\n", sd->sd_uid, sd->sd_gid);
+fprintf(stderr, "Checking reflog %s->%s\n",
+			oid_to_hex(ooid), oid_to_hex(noid));

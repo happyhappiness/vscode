@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "Parsed mask %s", inet_ntoa(New->mask));
+fprintf(stderr,"The %s service has been removed successfully.\n", mpm_display_name);

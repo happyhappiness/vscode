@@ -1,130 +1,27 @@
-static int match_headers(request_rec *r)
+int ssl_callback_ServerNameIndication(SSL *ssl, int *al, modssl_ctx_t *mctx)
 {
-    sei_cfg_rec *sconf;
-    sei_entry *entries;
-    const apr_table_entry_t *elts;
-    const char *val;
-    apr_size_t val_len = 0;
-    int i, j;
-    char *last_name;
-    ap_regmatch_t regm[AP_MAX_REG_MATCH];
+    const char *servername =
+                SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
 
-    if (!ap_get_module_config(r->request_config, &setenvif_module)) {
-        ap_set_module_config(r->request_config, &setenvif_module,
-                             SEI_MAGIC_HEIRLOOM);
-        sconf  = (sei_cfg_rec *) ap_get_module_config(r->server->module_config,
-                                                      &setenvif_module);
-    }
-    else {
-        sconf = (sei_cfg_rec *) ap_get_module_config(r->per_dir_config,
-                                                     &setenvif_module);
-    }
-    entries = (sei_entry *) sconf->conditionals->elts;
-    last_name = NULL;
-    val = NULL;
-    for (i = 0; i < sconf->conditionals->nelts; ++i) {
-        sei_entry *b = &entries[i];
-
-        /* Optimize the case where a bunch of directives in a row use the
-         * same header.  Remember we don't need to strcmp the two header
-         * names because we made sure the pointers were equal during
-         * configuration.
-         */
-        if (b->name != last_name) {
-            last_name = b->name;
-            switch (b->special_type) {
-            case SPECIAL_REMOTE_ADDR:
-                val = r->connection->remote_ip;
-                break;
-            case SPECIAL_SERVER_ADDR:
-                val = r->connection->local_ip;
-                break;
-            case SPECIAL_REMOTE_HOST:
-                val =  ap_get_remote_host(r->connection, r->per_dir_config,
-                                          REMOTE_NAME, NULL);
-                break;
-            case SPECIAL_REQUEST_URI:
-                val = r->uri;
-                break;
-            case SPECIAL_REQUEST_METHOD:
-                val = r->method;
-                break;
-            case SPECIAL_REQUEST_PROTOCOL:
-                val = r->protocol;
-                break;
-            case SPECIAL_NOT:
-                if (b->pnamereg) {
-                    /* Matching headers_in against a regex. Iterate through
-                     * the headers_in until we find a match or run out of
-                     * headers.
-                     */
-                    const apr_array_header_t
-                        *arr = apr_table_elts(r->headers_in);
-
-                    elts = (const apr_table_entry_t *) arr->elts;
-                    val = NULL;
-                    for (j = 0; j < arr->nelts; ++j) {
-                        if (!ap_regexec(b->pnamereg, elts[j].key, 0, NULL, 0)) {
-                            val = elts[j].val;
-                        }
-                    }
-                }
-                else {
-                    /* Not matching against a regex */
-                    val = apr_table_get(r->headers_in, b->name);
-                    if (val == NULL) {
-                        val = apr_table_get(r->subprocess_env, b->name);
-                    }
-                }
+    if (servername) {
+        conn_rec *c = (conn_rec *)SSL_get_app_data(ssl);
+        if (c) {
+            if (ap_vhost_iterate_given_conn(c, ssl_find_vhost,
+                                            (void *)servername)) {
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                              "SSL virtual host for servername %s found",
+                              servername);
+                return SSL_TLSEXT_ERR_OK;
             }
-            val_len = val ? strlen(val) : 0;
-        }
-
-        /*
-         * A NULL value indicates that the header field or special entity
-         * wasn't present or is undefined.  Represent that as an empty string
-         * so that REs like "^$" will work and allow envariable setting
-         * based on missing or empty field.
-         */
-        if (val == NULL) {
-            val = "";
-            val_len = 0;
-        }
-
-        if ((b->pattern && apr_strmatch(b->pattern, val, val_len)) ||
-            (!b->pattern && !ap_regexec(b->preg, val, AP_MAX_REG_MATCH, regm,
-                                        0))) {
-            const apr_array_header_t *arr = apr_table_elts(b->features);
-            elts = (const apr_table_entry_t *) arr->elts;
-
-            for (j = 0; j < arr->nelts; ++j) {
-                if (*(elts[j].val) == '!') {
-                    apr_table_unset(r->subprocess_env, elts[j].key);
-                }
-                else {
-                    if (!b->pattern) {
-                        char *replaced = ap_pregsub(r->pool, elts[j].val, val,
-                                                    AP_MAX_REG_MATCH, regm);
-                        if (replaced) {
-                            apr_table_setn(r->subprocess_env, elts[j].key,
-                                           replaced);
-                        }
-                        else {
-                            ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r,
-                                          "Regular expression replacement "
-                                          "failed for '%s', value too long?",
-                                          elts[j].key);
-                            return HTTP_INTERNAL_SERVER_ERROR;
-                        }
-                    }
-                    else {
-                        apr_table_setn(r->subprocess_env, elts[j].key,
-                                       elts[j].val);
-                    }
-                }
+            else {
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                              "No matching SSL virtual host for servername "
+                              "%s found (using default/first virtual host)",
+                              servername);
+                return SSL_TLSEXT_ERR_ALERT_WARNING;
             }
         }
     }
 
-    return DECLINED;
+    return SSL_TLSEXT_ERR_NOACK;
 }

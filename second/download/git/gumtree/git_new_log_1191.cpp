@@ -1,1 +1,1 @@
-die(_("commit '%s' has malformed author line"), author_message);
+error("cannot fix permission bits on %s", get_tempfile_path(&temporary_sharedindex));

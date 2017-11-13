@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: data to read (max %" APR_SIZE_T_FMT
-                     " at %" APR_SIZE_T_FMT ")", bufsiz, msg->pos);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "ef_unified_filter() failed");

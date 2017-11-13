@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-k start|restart|graceful|graceful-stop|stop]",
-                 pad);
+apr_file_printf(errfile, "User %s not found\n", user);

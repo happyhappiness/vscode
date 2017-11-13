@@ -1,43 +1,37 @@
-static void task_destroy(h2_mplx *m, h2_task *task, int called_from_master)
+static apr_status_t open_response(h2_task_output *output, ap_filter_t *f,
+                                  apr_bucket_brigade *bb, const char *caller)
 {
-    conn_rec *slave = NULL;
-    int reuse_slave = 0;
-    
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, m->c, 
-                  "h2_task(%s): destroy", task->id);
-    if (called_from_master) {
-        /* Process outstanding events before destruction */
-        h2_stream *stream = h2_ihash_get(m->streams, task->stream_id);
-        if (stream) {
-            input_consumed_signal(m, stream);
+    h2_response *response;
+    response = h2_from_h1_get_response(output->from_h1);
+    if (!response) {
+        if (f) {
+            /* This happens currently when ap_die(status, r) is invoked
+             * by a read request filter. */
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, output->task->c, APLOGNO(03204)
+                          "h2_task_output(%s): write without response by %s "
+                          "for %s %s %s",
+                          output->task->id, caller, 
+                          output->task->request->method, 
+                          output->task->request->authority, 
+                          output->task->request->path);
+            output->task->c->aborted = 1;
         }
+        if (output->task->io) {
+            apr_thread_cond_broadcast(output->task->io);
+        }
+        return APR_ECONNABORTED;
     }
     
-    h2_beam_on_produced(task->output.beam, NULL, NULL);
-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, 
-                  APLOGNO(03385) "h2_task(%s): destroy "
-                  "output beam empty=%d, holds proxies=%d", 
-                  task->id,
-                  h2_beam_empty(task->output.beam),
-                  h2_beam_holds_proxies(task->output.beam));
-    
-    slave = task->c;
-    reuse_slave = ((m->spare_slaves->nelts < m->spare_slaves->nalloc)
-                   && !task->rst_error);
-    
-    h2_ihash_remove(m->tasks, task->stream_id);
-    h2_ihash_remove(m->redo_tasks, task->stream_id);
-    h2_task_destroy(task);
-
-    if (slave) {
-        if (reuse_slave && slave->keepalive == AP_CONN_KEEPALIVE) {
-            APR_ARRAY_PUSH(m->spare_slaves, conn_rec*) = slave;
-        }
-        else {
-            slave->sbh = NULL;
-            h2_slave_destroy(slave);
-        }
+    if (h2_task_logio_add_bytes_out) {
+        /* count headers as if we'd do a HTTP/1.1 serialization */
+        output->written = h2_util_table_bytes(response->headers, 3)+1;
+        h2_task_logio_add_bytes_out(output->task->c, output->written);
     }
-    
-    check_tx_free(m);
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, output->task->c, APLOGNO(03348)
+                  "h2_task(%s): open response to %s %s %s",
+                  output->task->id, output->task->request->method, 
+                  output->task->request->authority, 
+                  output->task->request->path);
+    return h2_mplx_out_open(output->task->mplx, output->task->stream_id, 
+                            response, f, bb, output->task->io);
 }

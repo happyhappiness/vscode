@@ -1,1 +1,1 @@
-die_errno(_("Could not open %s"), git_path_todo_file());
+packet_write(stdin_fd, "%s %s%c", serv, repo, 0);

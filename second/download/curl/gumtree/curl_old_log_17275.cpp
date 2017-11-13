@@ -1,10 +1,11 @@
 puts(
-"          files etc. To force the 'content' part to be be a file,\n"
-"          prefix the file name with an @ sign. To  just  get  the\n"
-"          content part from a file, prefix the file name with the\n"
-"          letter <. The difference between @ and < is then that @\n"
-"          makes a file get attached in the post as a file upload,\n"
-"          while the < makes a text field and just  get  the  con�\n"
-"          tents for that text field from a file.\n"
+"          If this option is used several times, the last one will\n"
+"          be used.\n"
 "\n"
+"     -c/--cookie-jar <file name>\n"
+"          Specify  to which file you want curl to write all cook�\n"
+"          ies after a completed operation. Curl writes all  cook�\n"
+"          ies  previously  read  from a specified file as well as\n"
+"          all cookies received from remote server(s). If no cook�\n"
+"          ies  are  known, no file will be written. The file will\n"
 );

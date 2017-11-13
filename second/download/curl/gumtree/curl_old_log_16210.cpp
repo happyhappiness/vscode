@@ -1,11 +1,9 @@
 fputs(
-"              requires  that  the  underlying  libcurl was built to support c-\n"
-"              ares. Added in 7.33.0.\n"
+"              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
+"              'name=daniel&skill=lousy'.\n"
 "\n"
-"       --dns-servers <addresses>\n"
-"              Set the list of DNS servers to be used  instead  of  the  system\n"
-"              default.  The list of IP addresses should be separated with com-\n"
-"              mas. Port numbers may also optionally be given as :<port-number>\n"
-"              after each IP address.\n"
-"\n"
+"              If you start the data with the letter @, the rest  should  be  a\n"
+"              file  name  to read the data from, or - if you want curl to read\n"
+"              the data from stdin. Multiple files can also be specified. Post-\n"
+"              ing  data  from  a  file  named  from a file like that, carriage\n"
 , stdout);

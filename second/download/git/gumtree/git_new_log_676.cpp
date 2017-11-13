@@ -1,2 +1,2 @@
-fprintf(stderr, "Successfully rebased and updated %s.\n",
-			head_ref.buf);
+print_ref_status('X', "[no match]", ref, NULL, NULL,
+				 porcelain, summary_width);

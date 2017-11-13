@@ -1,2 +1,1 @@
-fprintf(stderr,"mkdir %s : %s\n",
-		flist->files[i].name,strerror(errno));
+fprintf(stderr,"write failed on %s : %s\n",fname,strerror(errno));

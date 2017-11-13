@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
-            "ISAPI: not a regular file, skipping %s", fspec);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "division_mask = 0x%02X", header->division_mask);

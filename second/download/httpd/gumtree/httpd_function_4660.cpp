@@ -1,121 +1,95 @@
-static int prefork_check_config(apr_pool_t *p, apr_pool_t *plog,
-                                apr_pool_t *ptemp, server_rec *s)
+static void ssl_init_ctx_protocol(server_rec *s,
+                                  apr_pool_t *p,
+                                  apr_pool_t *ptemp,
+                                  modssl_ctx_t *mctx)
 {
-    int startup = 0;
+    SSL_CTX *ctx = NULL;
+    MODSSL_SSL_METHOD_CONST SSL_METHOD *method = NULL;
+    char *cp;
+    int protocol = mctx->protocol;
+    SSLSrvConfigRec *sc = mySrvConfig(s);
 
-    /* the reverse of pre_config, we want this only the first time around */
-    if (retained->module_loads == 1) {
-        startup = 1;
-    }
-
-    if (server_limit > MAX_SERVER_LIMIT) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ServerLimit of %d exceeds compile-time "
-                         "limit of", server_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d servers, decreasing to %d.",
-                         MAX_SERVER_LIMIT, MAX_SERVER_LIMIT);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ServerLimit of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         server_limit, MAX_SERVER_LIMIT);
-        }
-        server_limit = MAX_SERVER_LIMIT;
-    }
-    else if (server_limit < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ServerLimit of %d not allowed, "
-                         "increasing to 1.", server_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ServerLimit of %d not allowed, increasing to 1",
-                         server_limit);
-        }
-        server_limit = 1;
-    }
-
-    /* you cannot change ServerLimit across a restart; ignore
-     * any such attempts
+    /*
+     *  Create the new per-server SSL context
      */
-    if (!retained->first_server_limit) {
-        retained->first_server_limit = server_limit;
-    }
-    else if (server_limit != retained->first_server_limit) {
-        /* don't need a startup console version here */
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                     "changing ServerLimit to %d from original value of %d "
-                     "not allowed during restart",
-                     server_limit, retained->first_server_limit);
-        server_limit = retained->first_server_limit;
+    if (protocol == SSL_PROTOCOL_NONE) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                "No SSL protocols available [hint: SSLProtocol]");
+        ssl_die();
     }
 
-    if (ap_daemons_limit > server_limit) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MaxClients of %d exceeds ServerLimit "
-                         "value of", ap_daemons_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d servers, decreasing MaxClients to %d.",
-                         server_limit, server_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " To increase, please see the ServerLimit "
-                         "directive.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MaxClients of %d exceeds ServerLimit value "
-                         "of %d, decreasing to match",
-                         ap_daemons_limit, server_limit);
-        }
-        ap_daemons_limit = server_limit;
-    }
-    else if (ap_daemons_limit < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MaxClients of %d not allowed, "
-                         "increasing to 1.", ap_daemons_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MaxClients of %d not allowed, increasing to 1",
-                         ap_daemons_limit);
-        }
-        ap_daemons_limit = 1;
-    }
+    cp = apr_pstrcat(p,
+                     (protocol & SSL_PROTOCOL_SSLV2 ? "SSLv2, " : ""),
+                     (protocol & SSL_PROTOCOL_SSLV3 ? "SSLv3, " : ""),
+                     (protocol & SSL_PROTOCOL_TLSV1 ? "TLSv1, " : ""),
+                     NULL);
+    cp[strlen(cp)-2] = NUL;
 
-    /* ap_daemons_to_start > ap_daemons_limit checked in prefork_run() */
-    if (ap_daemons_to_start < 0) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: StartServers of %d not allowed, "
-                         "increasing to 1.", ap_daemons_to_start);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "StartServers of %d not allowed, increasing to 1",
-                         ap_daemons_to_start);
-        }
-        ap_daemons_to_start = 1;
+    ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, s,
+                 "Creating new SSL context (protocols: %s)", cp);
+
+    if (protocol == SSL_PROTOCOL_SSLV2) {
+        method = mctx->pkp ?
+            SSLv2_client_method() : /* proxy */
+            SSLv2_server_method();  /* server */
+    }
+    else if (protocol == SSL_PROTOCOL_SSLV3) {
+        method = mctx->pkp ?
+            SSLv3_client_method() : /* proxy */
+            SSLv3_server_method();  /* server */
+    }
+    else if (protocol == SSL_PROTOCOL_TLSV1) {
+        method = mctx->pkp ?
+            TLSv1_client_method() : /* proxy */
+            TLSv1_server_method();  /* server */
+    }
+    else { /* For multiple protocols, we need a flexible method */
+        method = mctx->pkp ?
+            SSLv23_client_method() : /* proxy */
+            SSLv23_server_method();  /* server */
+    }
+    ctx = SSL_CTX_new(method);
+
+    mctx->ssl_ctx = ctx;
+
+    SSL_CTX_set_options(ctx, SSL_OP_ALL);
+
+    if (!(protocol & SSL_PROTOCOL_SSLV2)) {
+        SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2);
     }
 
-    if (ap_daemons_min_free < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MinSpareServers of %d not allowed, "
-                         "increasing to 1", ap_daemons_min_free);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " to avoid almost certain server failure.");
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " Please read the documentation.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MinSpareServers of %d not allowed, increasing to 1",
-                         ap_daemons_min_free);
-        }
-        ap_daemons_min_free = 1;
+    if (!(protocol & SSL_PROTOCOL_SSLV3)) {
+        SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv3);
     }
 
-    /* ap_daemons_max_free < ap_daemons_min_free + 1 checked in prefork_run() */
+    if (!(protocol & SSL_PROTOCOL_TLSV1)) {
+        SSL_CTX_set_options(ctx, SSL_OP_NO_TLSv1);
+    }
 
-    return OK;
+#ifdef SSL_OP_CIPHER_SERVER_PREFERENCE
+    if (sc->cipher_server_pref == TRUE) {
+        SSL_CTX_set_options(ctx, SSL_OP_CIPHER_SERVER_PREFERENCE);
+    }
+#endif
+
+#ifdef SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION
+    if (sc->insecure_reneg == TRUE) {
+        SSL_CTX_set_options(ctx, SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION);
+    }
+#endif
+
+    SSL_CTX_set_app_data(ctx, s);
+
+    /*
+     * Configure additional context ingredients
+     */
+    SSL_CTX_set_options(ctx, SSL_OP_SINGLE_DH_USE);
+
+#ifdef SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION
+    /*
+     * Disallow a session from being resumed during a renegotiation,
+     * so that an acceptable cipher suite can be negotiated.
+     */
+    SSL_CTX_set_options(ctx, SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION);
+#endif
 }

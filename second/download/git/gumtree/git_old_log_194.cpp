@@ -1,1 +1,1 @@
-die_errno(_("unable to write file '%s' mode %o"), path, mode);
+status_printf_ln(s, GIT_COLOR_NORMAL, "");

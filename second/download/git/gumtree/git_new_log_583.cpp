@@ -1,2 +1,2 @@
-die("BUG: pool size too small for %d in paint_alloc()",
-			    size);
+die(_("You have not concluded your notes merge "
+				    "(%s exists)."), git_path("NOTES_MERGE_*"));

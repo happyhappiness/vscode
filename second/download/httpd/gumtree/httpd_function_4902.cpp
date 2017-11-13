@@ -1,65 +1,33 @@
-apr_status_t ap_fatal_signal_setup(server_rec *s, apr_pool_t *in_pconf)
+void modssl_init_stapling(server_rec *s, apr_pool_t *p, apr_pool_t *ptemp,
+                          modssl_ctx_t *mctx)
 {
-#ifndef NO_USE_SIGACTION
-    struct sigaction sa;
+    SSL_CTX *ctx = mctx->ssl_ctx;
+    SSLModConfigRec *mc = myModConfig(s);
 
-    sigemptyset(&sa.sa_mask);
-
-#if defined(SA_ONESHOT)
-    sa.sa_flags = SA_ONESHOT;
-#elif defined(SA_RESETHAND)
-    sa.sa_flags = SA_RESETHAND;
-#else
-    sa.sa_flags = 0;
-#endif
-
-    sa.sa_handler = sig_coredump;
-    if (sigaction(SIGSEGV, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGSEGV)");
-#ifdef SIGBUS
-    if (sigaction(SIGBUS, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGBUS)");
-#endif
-#ifdef SIGABORT
-    if (sigaction(SIGABORT, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGABORT)");
-#endif
-#ifdef SIGABRT
-    if (sigaction(SIGABRT, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGABRT)");
-#endif
-#ifdef SIGILL
-    if (sigaction(SIGILL, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGILL)");
-#endif
-#ifdef SIGFPE
-    if (sigaction(SIGFPE, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGFPE)");
-#endif
-
-#else /* NO_USE_SIGACTION */
-
-    apr_signal(SIGSEGV, sig_coredump);
-#ifdef SIGBUS
-    apr_signal(SIGBUS, sig_coredump);
-#endif /* SIGBUS */
-#ifdef SIGABORT
-    apr_signal(SIGABORT, sig_coredump);
-#endif /* SIGABORT */
-#ifdef SIGABRT
-    apr_signal(SIGABRT, sig_coredump);
-#endif /* SIGABRT */
-#ifdef SIGILL
-    apr_signal(SIGILL, sig_coredump);
-#endif /* SIGILL */
-#ifdef SIGFPE
-    apr_signal(SIGFPE, sig_coredump);
-#endif /* SIGFPE */
-
-#endif /* NO_USE_SIGACTION */
-
-    pconf = in_pconf;
-    parent_pid = my_pid = getpid();
-
-    return APR_SUCCESS;
+    if (mc->stapling_cache == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "SSLStapling: no stapling cache available");
+        ssl_die();
+    }
+    /* Set some default values for parameters if they are not set */
+    if (mctx->stapling_resptime_skew == UNSET) {
+        mctx->stapling_resptime_skew = 60 * 5;
+    }
+    if (mctx->stapling_cache_timeout == UNSET) {
+        mctx->stapling_cache_timeout = 3600;
+    }
+    if (mctx->stapling_return_errors == UNSET) {
+        mctx->stapling_return_errors = TRUE;
+    }
+    if (mctx->stapling_fake_trylater == UNSET) {
+        mctx->stapling_fake_trylater = TRUE;
+    }
+    if (mctx->stapling_errcache_timeout == UNSET) {
+        mctx->stapling_errcache_timeout = 600;
+    }
+    if (mctx->stapling_responder_timeout == UNSET) {
+        mctx->stapling_responder_timeout = 10 * APR_USEC_PER_SEC;
+    }
+    SSL_CTX_set_tlsext_status_cb(ctx, stapling_cb);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "OCSP stapling initialized");
 }

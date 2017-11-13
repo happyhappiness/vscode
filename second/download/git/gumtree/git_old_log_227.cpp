@@ -1,1 +1,1 @@
-die(_("reference repository '%s' is shallow"), item->string);
+error(_("Could not parse object '%s'."), sha1_to_hex(remote));

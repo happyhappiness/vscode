@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -f file            : specify an alternate ServerConfigFile");
+ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                         "SSL client authentication failed: %s",
+                         error ? error : "unknown");

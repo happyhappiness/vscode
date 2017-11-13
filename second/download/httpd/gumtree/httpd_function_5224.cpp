@@ -1,183 +1,341 @@
-static int worker_run(apr_pool_t *_pconf, apr_pool_t *plog, server_rec *s)
+void child_main(apr_pool_t *pconf)
 {
-    int remaining_children_to_start;
-    apr_status_t rv;
+    apr_status_t status;
+    apr_hash_t *ht;
+    ap_listen_rec *lr;
+    HANDLE child_events[2];
+    HANDLE *child_handles;
+    int listener_started = 0;
+    int threads_created = 0;
+    int watch_thread;
+    int time_remains;
+    int cld;
+    int tid;
+    int rv;
+    int i;
 
-    ap_log_pid(pconf, ap_pid_fname);
+    apr_pool_create(&pchild, pconf);
+    apr_pool_tag(pchild, "pchild");
 
-    /* Initialize cross-process accept lock */
-    rv = ap_proc_mutex_create(&accept_mutex, NULL, AP_ACCEPT_MUTEX_TYPE, NULL,
-                              s, _pconf, 0);
-    if (rv != APR_SUCCESS) {
-        mpm_state = AP_MPMQ_STOPPING;
-        return DONE;
+    ap_run_child_init(pchild, ap_server_conf);
+    ht = apr_hash_make(pchild);
+
+    /* Initialize the child_events */
+    max_requests_per_child_event = CreateEvent(NULL, TRUE, FALSE, NULL);
+    if (!max_requests_per_child_event) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %d: Failed to create a max_requests event.", 
+                     my_pid);
+        exit(APEXIT_CHILDINIT);
     }
+    child_events[0] = exit_event;
+    child_events[1] = max_requests_per_child_event;
 
-    if (!retained->is_graceful) {
-        if (ap_run_pre_mpm(s->process->pool, SB_SHARED) != OK) {
-            mpm_state = AP_MPMQ_STOPPING;
-            return DONE;
-        }
-        /* fix the generation number in the global score; we just got a new,
-         * cleared scoreboard
-         */
-        ap_scoreboard_image->global->running_generation = retained->my_generation;
-    }
-
-    restart_pending = shutdown_pending = 0;
-    set_signals();
-    /* Don't thrash... */
-    if (max_spare_threads < min_spare_threads + threads_per_child)
-        max_spare_threads = min_spare_threads + threads_per_child;
-
-    /* If we're doing a graceful_restart then we're going to see a lot
-     * of children exiting immediately when we get into the main loop
-     * below (because we just sent them AP_SIG_GRACEFUL).  This happens pretty
-     * rapidly... and for each one that exits we may start a new one, until
-     * there are at least min_spare_threads idle threads, counting across
-     * all children.  But we may be permitted to start more children than
-     * that, so we'll just keep track of how many we're
-     * supposed to start up without the 1 second penalty between each fork.
+    /*
+     * Wait until we have permission to start accepting connections.
+     * start_mutex is used to ensure that only one child ever
+     * goes into the listen/accept loop at once.
      */
-    remaining_children_to_start = ap_daemons_to_start;
-    if (remaining_children_to_start > ap_daemons_limit) {
-        remaining_children_to_start = ap_daemons_limit;
+    status = apr_proc_mutex_lock(start_mutex);
+    if (status != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, ap_server_conf,
+                     "Child %d: Failed to acquire the start_mutex. "
+                     "Process will exit.", my_pid);
+        exit(APEXIT_CHILDINIT);
     }
-    if (!retained->is_graceful) {
-        startup_children(remaining_children_to_start);
-        remaining_children_to_start = 0;
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                 "Child %d: Acquired the start mutex.", my_pid);
+
+    /*
+     * Create the worker thread dispatch IOCompletionPort
+     */
+    /* Create the worker thread dispatch IOCP */
+    ThreadDispatchIOCP = CreateIoCompletionPort(INVALID_HANDLE_VALUE,
+                                                NULL, 0, 0); 
+    apr_thread_mutex_create(&qlock, APR_THREAD_MUTEX_DEFAULT, pchild);
+    qwait_event = CreateEvent(NULL, TRUE, FALSE, NULL);
+    if (!qwait_event) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), 
+                     ap_server_conf,
+                     "Child %d: Failed to create a qwait event.", my_pid);
+        exit(APEXIT_CHILDINIT);
     }
-    else {
-        /* give the system some time to recover before kicking into
-            * exponential mode */
-        retained->hold_off_on_exponential_spawning = 10;
-    }
 
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00292)
-                "%s configured -- resuming normal operations",
-                ap_get_server_description());
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf, APLOGNO(00293)
-                "Server built: %s", ap_get_server_built());
-    ap_log_command_line(plog, s);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(00294)
-                "Accept mutex: %s (default: %s)",
-                apr_proc_mutex_name(accept_mutex),
-                apr_proc_mutex_defname());
-    mpm_state = AP_MPMQ_RUNNING;
+    /*
+     * Create the pool of worker threads
+     */
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                 "Child %d: Starting %d worker threads.",
+                 my_pid, ap_threads_per_child);
+    child_handles = (HANDLE) apr_pcalloc(pchild, ap_threads_per_child
+                                                  * sizeof(HANDLE));
+    apr_thread_mutex_create(&child_lock, APR_THREAD_MUTEX_DEFAULT, pchild);
 
-    server_main_loop(remaining_children_to_start);
-    mpm_state = AP_MPMQ_STOPPING;
-
-    if (shutdown_pending && !retained->is_graceful) {
-        /* Time to shut down:
-         * Kill child processes, tell them to call child_exit, etc...
-         */
-        ap_mpm_podx_killpg(pod, ap_daemons_limit, AP_MPM_PODX_RESTART);
-        ap_reclaim_child_processes(1, /* Start with SIGTERM */
-                                   worker_note_child_killed);
-
-        if (!child_fatal) {
-            /* cleanup pid file on normal shutdown */
-            ap_remove_pid(pconf, ap_pid_fname);
-            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0,
-                         ap_server_conf, APLOGNO(00295) "caught SIGTERM, shutting down");
-        }
-        return DONE;
-    } else if (shutdown_pending) {
-        /* Time to gracefully shut down:
-         * Kill child processes, tell them to call child_exit, etc...
-         */
-        int active_children;
-        int index;
-        apr_time_t cutoff = 0;
-
-        /* Close our listeners, and then ask our children to do same */
-        ap_close_listeners();
-        ap_mpm_podx_killpg(pod, ap_daemons_limit, AP_MPM_PODX_GRACEFUL);
-        ap_relieve_child_processes(worker_note_child_killed);
-
-        if (!child_fatal) {
-            /* cleanup pid file on normal shutdown */
-            ap_remove_pid(pconf, ap_pid_fname);
-            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00296)
-                         "caught " AP_SIG_GRACEFUL_STOP_STRING
-                         ", shutting down gracefully");
-        }
-
-        if (ap_graceful_shutdown_timeout) {
-            cutoff = apr_time_now() +
-                     apr_time_from_sec(ap_graceful_shutdown_timeout);
-        }
-
-        /* Don't really exit until each child has finished */
-        shutdown_pending = 0;
-        do {
-            /* Pause for a second */
-            apr_sleep(apr_time_from_sec(1));
-
-            /* Relieve any children which have now exited */
-            ap_relieve_child_processes(worker_note_child_killed);
-
-            active_children = 0;
-            for (index = 0; index < ap_daemons_limit; ++index) {
-                if (ap_mpm_safe_kill(MPM_CHILD_PID(index), 0) == APR_SUCCESS) {
-                    active_children = 1;
-                    /* Having just one child is enough to stay around */
-                    break;
-                }
+    while (1) {
+        for (i = 0; i < ap_threads_per_child; i++) {
+            int *score_idx;
+            int status = ap_scoreboard_image->servers[0][i].status;
+            if (status != SERVER_GRACEFUL && status != SERVER_DEAD) {
+                continue;
             }
-        } while (!shutdown_pending && active_children &&
-                 (!ap_graceful_shutdown_timeout || apr_time_now() < cutoff));
-
-        /* We might be here because we received SIGTERM, either
-         * way, try and make sure that all of our processes are
-         * really dead.
+            ap_update_child_status_from_indexes(0, i, SERVER_STARTING, NULL);
+        
+            child_handles[i] = CreateThread(NULL, ap_thread_stacksize,
+                                            worker_main, (void *) i,
+                                            stack_res_flag, &tid);
+            if (child_handles[i] == 0) {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(),
+                             ap_server_conf,
+                             "Child %d: CreateThread failed. Unable to "
+                             "create all worker threads. Created %d of the %d "
+                             "threads requested with the ThreadsPerChild "
+                             "configuration directive.",
+                             my_pid, threads_created, ap_threads_per_child);
+                ap_signal_parent(SIGNAL_PARENT_SHUTDOWN);
+                goto shutdown;
+            }
+            threads_created++;
+            /* Save the score board index in ht keyed to the thread handle. 
+             * We need this when cleaning up threads down below...
+             */
+            apr_thread_mutex_lock(child_lock);
+            score_idx = apr_pcalloc(pchild, sizeof(int));
+            *score_idx = i;
+            apr_hash_set(ht, &child_handles[i], sizeof(HANDLE), score_idx);
+            apr_thread_mutex_unlock(child_lock);
+        }
+        /* Start the listener only when workers are available */
+        if (!listener_started && threads_created) {
+            create_listener_thread();
+            listener_started = 1;
+            winnt_mpm_state = AP_MPMQ_RUNNING;
+        }
+        if (threads_created == ap_threads_per_child) {
+            break;
+        }
+        /* Check to see if the child has been told to exit */
+        if (WaitForSingleObject(exit_event, 0) != WAIT_TIMEOUT) {
+            break;
+        }
+        /* wait for previous generation to clean up an entry in the scoreboard
          */
-        ap_mpm_podx_killpg(pod, ap_daemons_limit, AP_MPM_PODX_RESTART);
-        ap_reclaim_child_processes(1, worker_note_child_killed);
-
-        return DONE;
+        apr_sleep(1 * APR_USEC_PER_SEC);
     }
 
-    /* we've been told to restart */
-    apr_signal(SIGHUP, SIG_IGN);
-
-    if (one_process) {
-        /* not worth thinking about */
-        return DONE;
-    }
-
-    /* advance to the next generation */
-    /* XXX: we really need to make sure this new generation number isn't in
-     * use by any of the children.
+    /* Wait for one of three events:
+     * exit_event:
+     *    The exit_event is signaled by the parent process to notify
+     *    the child that it is time to exit.
+     *
+     * max_requests_per_child_event:
+     *    This event is signaled by the worker threads to indicate that
+     *    the process has handled MaxRequestsPerChild connections.
+     *
+     * TIMEOUT:
+     *    To do periodic maintenance on the server (check for thread exits,
+     *    number of completion contexts, etc.)
+     *
+     * XXX: thread exits *aren't* being checked.
+     *
+     * XXX: other_child - we need the process handles to the other children
+     *      in order to map them to apr_proc_other_child_read (which is not
+     *      named well, it's more like a_p_o_c_died.)
+     *
+     * XXX: however - if we get a_p_o_c handle inheritance working, and
+     *      the parent process creates other children and passes the pipes
+     *      to our worker processes, then we have no business doing such
+     *      things in the child_main loop, but should happen in master_main.
      */
-    ++retained->my_generation;
-    ap_scoreboard_image->global->running_generation = retained->my_generation;
+    while (1) {
+#if !APR_HAS_OTHER_CHILD
+        rv = WaitForMultipleObjects(2, (HANDLE *)child_events, FALSE, INFINITE);
+        cld = rv - WAIT_OBJECT_0;
+#else
+        rv = WaitForMultipleObjects(2, (HANDLE *)child_events, FALSE, 1000);
+        cld = rv - WAIT_OBJECT_0;
+        if (rv == WAIT_TIMEOUT) {
+            apr_proc_other_child_refresh_all(APR_OC_REASON_RUNNING);
+        }
+        else
+#endif
+            if (rv == WAIT_FAILED) {
+            /* Something serious is wrong */
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(),
+                         ap_server_conf,
+                         "Child %d: WAIT_FAILED -- shutting down server", 
+                         my_pid);
+            break;
+        }
+        else if (cld == 0) {
+            /* Exit event was signaled */
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                         "Child %d: Exit event signaled. Child process is "
+                         "ending.", my_pid);
+            break;
+        }
+        else {
+            /* MaxRequestsPerChild event set by the worker threads.
+             * Signal the parent to restart
+             */
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                         "Child %d: Process exiting because it reached "
+                         "MaxRequestsPerChild. Signaling the parent to "
+                         "restart a new child process.", my_pid);
+            ap_signal_parent(SIGNAL_PARENT_RESTART);
+            break;
+        }
+    }
 
-    if (retained->is_graceful) {
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00297)
-                     AP_SIG_GRACEFUL_STRING " received.  Doing graceful restart");
-        /* wake up the children...time to die.  But we'll have more soon */
-        ap_mpm_podx_killpg(pod, ap_daemons_limit, AP_MPM_PODX_GRACEFUL);
+    /*
+     * Time to shutdown the child process
+     */
 
+ shutdown:
 
-        /* This is mostly for debugging... so that we know what is still
-         * gracefully dealing with existing request.
-         */
+    winnt_mpm_state = AP_MPMQ_STOPPING;
 
+    /* Close the listening sockets. Note, we must close the listeners
+     * before closing any accept sockets pending in AcceptEx to prevent
+     * memory leaks in the kernel.
+     */
+    for (lr = ap_listeners; lr ; lr = lr->next) {
+        apr_socket_close(lr->sd);
+    }
+
+    /* Shutdown listener threads and pending AcceptEx socksts
+     * but allow the worker threads to continue consuming from
+     * the queue of accepted connections.
+     */
+    shutdown_in_progress = 1;
+
+    Sleep(1000);
+
+    /* Tell the worker threads to exit */
+    workers_may_exit = 1;
+
+    /* Release the start_mutex to let the new process (in the restart
+     * scenario) a chance to begin accepting and servicing requests
+     */
+    rv = apr_proc_mutex_unlock(start_mutex);
+    if (rv == APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, rv, ap_server_conf,
+                     "Child %d: Released the start mutex", my_pid);
     }
     else {
-        /* Kill 'em all.  Since the child acts the same on the parents SIGTERM
-         * and a SIGHUP, we may as well use the same signal, because some user
-         * pthreads are stealing signals from us left and right.
-         */
-        ap_mpm_podx_killpg(pod, ap_daemons_limit, AP_MPM_PODX_RESTART);
-
-        ap_reclaim_child_processes(1, /* Start with SIGTERM */
-                                   worker_note_child_killed);
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00298)
-                    "SIGHUP received.  Attempting to restart");
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                     "Child %d: Failure releasing the start mutex", my_pid);
     }
 
-    return OK;
+    /* Shutdown the worker threads
+     * Post worker threads blocked on the ThreadDispatch IOCompletion port
+     */
+    while (g_blocked_threads > 0) {
+        ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, ap_server_conf,
+                     "Child %d: %d threads blocked on the completion port",
+                     my_pid, g_blocked_threads);
+        for (i=g_blocked_threads; i > 0; i--) {
+            PostQueuedCompletionStatus(ThreadDispatchIOCP, 0, 
+                                       IOCP_SHUTDOWN, NULL);
+        }
+        Sleep(1000);
+    }
+    /* Empty the accept queue of completion contexts */
+    apr_thread_mutex_lock(qlock);
+    while (qhead) {
+        CloseHandle(qhead->overlapped.hEvent);
+        closesocket(qhead->accept_socket);
+        qhead = qhead->next;
+    }
+    apr_thread_mutex_unlock(qlock);
+
+    /* Give busy threads a chance to service their connections,
+     * (no more than the global server timeout period which 
+     * we track in msec remaining).
+     */
+    watch_thread = 0;
+    time_remains = (int)(ap_server_conf->timeout / APR_TIME_C(1000));
+
+    while (threads_created)
+    {
+        int nFailsafe = MAXIMUM_WAIT_OBJECTS;
+        DWORD dwRet;
+
+        /* Every time we roll over to wait on the first group
+         * of MAXIMUM_WAIT_OBJECTS threads, take a breather,
+         * and infrequently update the error log.
+         */
+        if (watch_thread >= threads_created) {
+            if ((time_remains -= 100) < 0)
+                break;
+
+            /* Every 30 seconds give an update */
+            if ((time_remains % 30000) == 0) {
+                ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, 
+                             ap_server_conf,
+                             "Child %d: Waiting %d more seconds "
+                             "for %d worker threads to finish.", 
+                             my_pid, time_remains / 1000, threads_created);
+            }
+            /* We'll poll from the top, 10 times per second */
+            Sleep(100);
+            watch_thread = 0;
+        }
+
+        /* Fairness, on each iteration we will pick up with the thread
+         * after the one we just removed, even if it's a single thread.
+         * We don't block here.
+         */
+        dwRet = WaitForMultipleObjects(min(threads_created - watch_thread,
+                                           MAXIMUM_WAIT_OBJECTS),
+                                       child_handles + watch_thread, 0, 0);
+
+        if (dwRet == WAIT_FAILED) {
+            break;
+        }
+        if (dwRet == WAIT_TIMEOUT) {
+            /* none ready */
+            watch_thread += MAXIMUM_WAIT_OBJECTS;
+            continue;
+        }
+        else if (dwRet >= WAIT_ABANDONED_0) {
+            /* We just got the ownership of the object, which
+             * should happen at most MAXIMUM_WAIT_OBJECTS times.
+             * It does NOT mean that the object is signaled.
+             */
+            if ((nFailsafe--) < 1)
+                break;
+        }
+        else {
+            watch_thread += (dwRet - WAIT_OBJECT_0);
+            if (watch_thread >= threads_created)
+                break;
+            cleanup_thread(child_handles, &threads_created, watch_thread);
+        }
+    }
+
+    /* Kill remaining threads off the hard way */
+    if (threads_created) {
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                     "Child %d: Terminating %d threads that failed to exit.",
+                     my_pid, threads_created);
+    }
+    for (i = 0; i < threads_created; i++) {
+        int *score_idx;
+        TerminateThread(child_handles[i], 1);
+        CloseHandle(child_handles[i]);
+        /* Reset the scoreboard entry for the thread we just whacked */
+        score_idx = apr_hash_get(ht, &child_handles[i], sizeof(HANDLE));
+        if (score_idx) {
+            ap_update_child_status_from_indexes(0, *score_idx, SERVER_DEAD, NULL);
+        }
+    }
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                 "Child %d: All worker threads have exited.", my_pid);
+
+    apr_thread_mutex_destroy(child_lock);
+    apr_thread_mutex_destroy(qlock);
+    CloseHandle(qwait_event);
+
+    apr_pool_destroy(pchild);
+    CloseHandle(exit_event);
 }

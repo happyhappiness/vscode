@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                                  "proxy: FTP: error creating EPSV socket");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "no cached SGL for %s, retrieving from LDAP", dn);

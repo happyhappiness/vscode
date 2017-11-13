@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s, APLOGNO(00426)
-                         "Parent: SetEvent for child process event %pp failed.",
-                         event_handles[CHILD_HANDLE]);
+ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ap_server_conf, APLOGNO(00427)
+                         "Parent: child process %lu exited with status %lu -- Aborting.",
+                         child_pid, exitcode);

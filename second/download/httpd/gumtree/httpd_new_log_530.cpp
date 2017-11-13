@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Insufficient data for inflate");
+apr_vformatter(file_printf_flush,
+                           (apr_vformatter_buff_t *)&data, format, ap);

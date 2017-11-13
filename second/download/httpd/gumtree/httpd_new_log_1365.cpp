@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                  "Encountered extra data after compressed data");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                                 "mem_cache: URL %s didn't receive complete response, not caching",
+                                 h->cache_obj->key);

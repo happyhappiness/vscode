@@ -1,1 +1,2 @@
-error("short read %s", strerror(errno));
+error("open(\"%s\"): %s", path,
+				     strerror(errno));

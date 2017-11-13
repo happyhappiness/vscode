@@ -1,1 +1,2 @@
-receive_unpack_status(in);
+error(_("cannot %s: Your index contains uncommitted changes."),
+			      _(action));

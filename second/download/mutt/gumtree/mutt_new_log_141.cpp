@@ -1,1 +1,1 @@
-(mutt_yesorno (msg, MUTT_YES);
+mutt_yesorno(msg, MUTT_YES);

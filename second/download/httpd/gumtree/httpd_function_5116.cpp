@@ -1,70 +1,43 @@
-static authz_status group_check_authorization(request_rec *r,
-                                              const char *require_args,
-                                              const void *parsed_require_args)
+static int mpmt_os2_check_config(apr_pool_t *p, apr_pool_t *plog,
+                                 apr_pool_t *ptemp, server_rec *s)
 {
-    authz_groupfile_config_rec *conf = ap_get_module_config(r->per_dir_config,
-            &authz_groupfile_module);
-    char *user = r->user;
+    static int restart_num = 0;
+    int startup = 0;
 
-    const char *err = NULL;
-    const ap_expr_info_t *expr = parsed_require_args;
-    const char *require;
-
-    const char *t, *w;
-    apr_table_t *grpstatus = NULL;
-    apr_status_t status;
-
-    if (!user) {
-        return AUTHZ_DENIED_NO_USER;
+    /* we want this only the first time around */
+    if (restart_num++ == 0) {
+        startup = 1;
     }
 
-    /* If there is no group file - then we are not
-     * configured. So decline.
-     */
-    if (!(conf->groupfile)) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01664)
-                        "No group file was specified in the configuration");
-        return AUTHZ_DENIED;
-    }
-
-    status = groups_for_user(r->pool, user, conf->groupfile,
-                                &grpstatus);
-
-    if (status != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01665)
-                        "Could not open group file: %s",
-                        conf->groupfile);
-        return AUTHZ_DENIED;
-    }
-
-    if (apr_is_empty_table(grpstatus)) {
-        /* no groups available, so exit immediately */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01666)
-                      "Authorization of user %s to access %s failed, reason: "
-                      "user doesn't appear in group file (%s).",
-                      r->user, r->uri, conf->groupfile);
-        return AUTHZ_DENIED;
-    }
-
-    require = ap_expr_str_exec(r, expr, &err);
-    if (err) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02592)
-                      "authz_groupfile authorize: require group: Can't "
-                      "evaluate require expression: %s", err);
-        return AUTHZ_DENIED;
-    }
-
-    t = require;
-    while ((w = ap_getword_conf(r->pool, &t)) && w[0]) {
-        if (apr_table_get(grpstatus, w)) {
-            return AUTHZ_GRANTED;
+    if (ap_daemons_to_start < 0) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: StartServers of %d not allowed, "
+                         "increasing to 1.", ap_daemons_to_start);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "StartServers of %d not allowed, increasing to 1",
+                         ap_daemons_to_start);
         }
+        ap_daemons_to_start = 1;
     }
 
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01667)
-                    "Authorization of user %s to access %s failed, reason: "
-                    "user is not part of the 'require'ed group(s).",
-                    r->user, r->uri);
+    if (ap_min_spare_threads < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MinSpareThreads of %d not allowed, "
+                         "increasing to 1", ap_min_spare_threads);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " to avoid almost certain server failure.");
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " Please read the documentation.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MinSpareThreads of %d not allowed, increasing to 1",
+                         ap_min_spare_threads);
+        }
+        ap_min_spare_threads = 1;
+    }
 
-    return AUTHZ_DENIED;
+    return OK;
 }

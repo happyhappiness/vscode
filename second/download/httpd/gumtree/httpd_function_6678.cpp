@@ -1,50 +1,25 @@
-static int lua_websocket_write(lua_State *L) 
+void h2_task_register_hooks(void)
 {
-    const char *string;
-    apr_status_t rv;
-    size_t len;
-    int raw = 0;
-    char prelude;
-    request_rec *r = (request_rec *) lua_unboxpointer(L, 1);
-    
-    if (lua_isboolean(L, 3)) {
-        raw = lua_toboolean(L, 3);
-    }
-    string = lua_tolstring(L, 2, &len);
-    
-    if (raw != 1) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
-                        "Websocket: Writing framed message to client");
-        
-        prelude = 0x81; /* text frame, FIN */
-        ap_rputc(prelude, r);
-        if (len < 126) {
-            ap_rputc(len, r);
-        } 
-        else if (len < 65535) {
-            apr_uint16_t slen = len;
-            ap_rputc(126, r); 
-            slen = htons(slen);
-            ap_rwrite((char*) &slen, 2, r);
-        }
-        else {
-            apr_uint64_t llen = len;
-            ap_rputc(127, r);
-            llen = ap_ntoh64(&llen); /* ntoh doubles as hton */
-            ap_rwrite((char*) &llen, 8, r);
-        }
-    }
-    else {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
-                        "Websocket: Writing raw message to client");
-    }
-    ap_rwrite(string, len, r);
-    rv = ap_rflush(r);
-    if (rv == APR_SUCCESS) {
-        lua_pushboolean(L, 1);
-    }
-    else {
-        lua_pushboolean(L, 0);
-    }
-    return 1;
+    /* This hook runs on new connections before mod_ssl has a say.
+     * Its purpose is to prevent mod_ssl from touching our pseudo-connections
+     * for streams.
+     */
+    ap_hook_pre_connection(h2_task_pre_conn,
+                           NULL, mod_ssl, APR_HOOK_FIRST);
+    /* When the connection processing actually starts, we might 
+     * take over, if the connection is for a task.
+     */
+    ap_hook_process_connection(h2_task_process_conn, 
+                               NULL, NULL, APR_HOOK_FIRST);
+
+    ap_register_output_filter("H2_RESPONSE", h2_response_output_filter,
+                              NULL, AP_FTYPE_PROTOCOL);
+    ap_register_input_filter("H2_TO_H1", h2_filter_stream_input,
+                             NULL, AP_FTYPE_NETWORK);
+    ap_register_output_filter("H1_TO_H2", h2_filter_stream_output,
+                              NULL, AP_FTYPE_NETWORK);
+    ap_register_output_filter("H1_TO_H2_RESP", h2_filter_read_response,
+                              NULL, AP_FTYPE_PROTOCOL);
+    ap_register_output_filter("H2_TRAILERS", h2_response_trailers_filter,
+                              NULL, AP_FTYPE_PROTOCOL);
 }

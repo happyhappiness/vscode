@@ -1,1 +1,1 @@
-fprintf(FERROR,"file list sent\n");
+out_of_memory("receive_file_entry");

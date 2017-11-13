@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
-                             "apr_proc_mutex_unlock failed. Attempting to "
-                             "shutdown process gracefully.");
+ap_register_output_filter("CACHE_CONDITIONAL", 
+                                  cache_conditional_filter, 
+                                  NULL,
+                                  AP_FTYPE_CONTENT_SET);

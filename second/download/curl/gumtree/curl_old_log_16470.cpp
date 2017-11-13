@@ -1,11 +1,10 @@
 fputs(
-"              will not transcode nor encode it further in any way.\n"
+"              given time and date, or one that has been modified  before  that\n"
+"              time.  The <date expression> can be all sorts of date strings or\n"
+"              if it doesn't match any internal ones, it is taken as a filename\n"
+"              and  tries  to  get  the  modification  date (mtime) from <file>\n"
+"              instead. See the curl_getdate(3) man pages for  date  expression\n"
+"              details.\n"
 "\n"
-"       --url <url>\n"
-"              Specify  a  URL  to  fetch. This option is mostly handy when you\n"
-"              want to specify URL(s) in a config file.\n"
-"\n"
-"              If the given URL is missing a scheme name (such as \"http://\"  or\n"
-"              \"ftp://\"  etc) then curl will make a guess based on the host. If\n"
-"              the outermost sub-domain name matches  DICT,  FTP,  IMAP,  LDAP,\n"
+"              Start the date expression with a dash (-) to make it request for\n"
 , stdout);

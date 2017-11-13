@@ -1,1 +1,1 @@
-die(_("expected format: %%(align:<width>,<position>)"));
+die(_("improper format entered align:%s"), s[0]->buf);

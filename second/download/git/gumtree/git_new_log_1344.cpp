@@ -1,1 +1,1 @@
-die(_("failed to sign the push certificate"));
+die("object not found: %s", oid_to_hex(&oid));

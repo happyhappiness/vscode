@@ -1,10 +1,9 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              gigabytes. Examples: 200K, 3m and 1G.\n"
 "\n"
-"       --login-options <options>\n"
-"              Specify the login options to use during server authentication.\n"
-"\n"
-"              You can use the  login  options  to  specify  protocol  specific\n"
-"              options  that may be used during authentication. At present only\n"
-"              IMAP, POP3 and SMTP support login options. For more  information\n"
+"              The  given  rate  is the average speed counted during the entire\n"
+"              transfer. It means that curl might use higher transfer speeds in\n"
+"              short bursts, but over time it uses no more than the given rate.\n"
+"              If  you  also use the -Y, --speed-limit option, that option will\n"
+"              take precedence and might cripple the rate-limiting slightly, to\n"
 , stdout);

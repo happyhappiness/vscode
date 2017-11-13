@@ -1,1 +1,1 @@
-error("%s: object corrupt or missing", sha1_to_hex(sha1));
+warning(_(msg_warn_remove_failed), qname);

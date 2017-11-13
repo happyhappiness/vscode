@@ -1,95 +1,67 @@
-void mpm_signal_service(apr_pool_t *ptemp, int signal)
+apr_status_t h2_mplx_release_and_join(h2_mplx *m, apr_thread_cond_t *wait)
 {
-    int success = FALSE;
-    SC_HANDLE   schService;
-    SC_HANDLE   schSCManager;
+    apr_status_t status;
+    int acquired;
 
-    schSCManager = OpenSCManager(NULL, NULL, /* default machine & database */
-                                 SC_MANAGER_CONNECT);
-
-    if (!schSCManager) {
-        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP,
-                     apr_get_os_error(), NULL,
-                     APLOGNO(00369)  "Failed to open the Windows service "
-                     "manager, perhaps you forgot to log in as Adminstrator?");
-        return;
+    h2_workers_unregister(m->workers, m);
+    
+    if ((status = enter_mutex(m, &acquired)) == APR_SUCCESS) {
+        int i, wait_secs = 5;
+        
+        /* disable WINDOW_UPDATE callbacks */
+        h2_mplx_set_consumed_cb(m, NULL, NULL);
+        
+        h2_iq_clear(m->q);
+        apr_thread_cond_broadcast(m->task_thawed);
+        while (!h2_io_set_iter(m->stream_ios, stream_done_iter, m)) {
+            /* iterate until all ios have been orphaned or destroyed */
+        }
+    
+        /* If we still have busy workers, we cannot release our memory
+         * pool yet, as slave connections have child pools of their respective
+         * h2_io's.
+         * Any remaining ios are processed in these workers. Any operation 
+         * they do on their input/outputs will be errored ECONNRESET/ABORTED, 
+         * so processing them should fail and workers *should* return.
+         */
+        for (i = 0; m->workers_busy > 0; ++i) {
+            m->join_wait = wait;
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
+                          "h2_mplx(%ld): release_join, waiting on %d worker to report back", 
+                          m->id, (int)h2_io_set_size(m->stream_ios));
+                          
+            status = apr_thread_cond_timedwait(wait, m->lock, apr_time_from_sec(wait_secs));
+            if (APR_STATUS_IS_TIMEUP(status)) {
+                if (i > 0) {
+                    /* Oh, oh. Still we wait for assigned  workers to report that 
+                     * they are done. Unless we have a bug, a worker seems to be hanging. 
+                     * If we exit now, all will be deallocated and the worker, once 
+                     * it does return, will walk all over freed memory...
+                     */
+                    ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, APLOGNO(03198)
+                                  "h2_mplx(%ld): release, waiting for %d seconds now for "
+                                  "%d h2_workers to return, have still %d requests outstanding", 
+                                  m->id, i*wait_secs, m->workers_busy,
+                                  (int)h2_io_set_size(m->stream_ios));
+                    if (i == 1) {
+                        h2_io_set_iter(m->stream_ios, stream_print, m);
+                    }
+                }
+                h2_mplx_abort(m);
+                apr_thread_cond_broadcast(m->task_thawed);
+            }
+        }
+        
+        if (!h2_io_set_is_empty(m->stream_ios)) {
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, m->c, 
+                          "h2_mplx(%ld): release_join, %d streams still open", 
+                          m->id, (int)h2_io_set_size(m->stream_ios));
+        }
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, APLOGNO(03056)
+                      "h2_mplx(%ld): release_join -> destroy", m->id);
+        leave_mutex(m, acquired);
+        h2_mplx_destroy(m);
+        /* all gone */
     }
-
-#if APR_HAS_UNICODE_FS
-    IF_WIN_OS_IS_UNICODE
-    {
-        schService = OpenServiceW(schSCManager, mpm_service_name_w,
-                                  SERVICE_INTERROGATE | SERVICE_QUERY_STATUS |
-                                  SERVICE_USER_DEFINED_CONTROL |
-                                  SERVICE_START | SERVICE_STOP);
-    }
-#endif /* APR_HAS_UNICODE_FS */
-#if APR_HAS_ANSI_FS
-    ELSE_WIN_OS_IS_ANSI
-    {
-        schService = OpenService(schSCManager, mpm_service_name,
-                                 SERVICE_INTERROGATE | SERVICE_QUERY_STATUS |
-                                 SERVICE_USER_DEFINED_CONTROL |
-                                 SERVICE_START | SERVICE_STOP);
-    }
-#endif
-    if (schService == NULL) {
-        /* Could not open the service */
-        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP,
-                     apr_get_os_error(), NULL,
-                     APLOGNO(00373) "Failed to open the '%s' service",
-                     mpm_display_name);
-        CloseServiceHandle(schSCManager);
-        return;
-    }
-
-    if (!QueryServiceStatus(schService, &globdat.ssStatus)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP,
-                     apr_get_os_error(), NULL,
-                     APLOGNO(00381) "Query of the '%s' service failed",
-                     mpm_display_name);
-        CloseServiceHandle(schService);
-        CloseServiceHandle(schSCManager);
-        return;
-    }
-
-    if (!signal && (globdat.ssStatus.dwCurrentState == SERVICE_STOPPED)) {
-        fprintf(stderr, "The '%s' service is not started.\n", mpm_display_name);
-        CloseServiceHandle(schService);
-        CloseServiceHandle(schSCManager);
-        return;
-    }
-
-    fprintf(stderr, signal ? "The '%s' service is restarting.\n"
-                           : "The '%s' service is stopping.\n",
-                    mpm_display_name);
-
-    if (!signal)
-        success = signal_service_transition(schService,
-                                            SERVICE_CONTROL_STOP,
-                                            SERVICE_STOP_PENDING,
-                                            SERVICE_STOPPED);
-    else if (globdat.ssStatus.dwCurrentState == SERVICE_STOPPED) {
-        mpm_service_start(ptemp, 0, NULL);
-        CloseServiceHandle(schService);
-        CloseServiceHandle(schSCManager);
-        return;
-    }
-    else
-        success = signal_service_transition(schService,
-                                            SERVICE_APACHE_RESTART,
-                                            SERVICE_START_PENDING,
-                                            SERVICE_RUNNING);
-
-    CloseServiceHandle(schService);
-    CloseServiceHandle(schSCManager);
-
-    if (success)
-        fprintf(stderr, signal ? "The '%s' service has restarted.\n"
-                               : "The '%s' service has stopped.\n",
-                        mpm_display_name);
-    else
-        fprintf(stderr, signal ? "Failed to restart the '%s' service.\n"
-                               : "Failed to stop the '%s' service.\n",
-                        mpm_display_name);
+    return status;
 }

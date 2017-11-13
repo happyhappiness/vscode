@@ -1,6 +1,3 @@
-ap_rvputs(r, "<tr>\n<td><a href=\"",
-                          ap_escape_uri(r->pool, r->uri), "?b=",
-                          balancer->s->name + sizeof(BALANCER_PREFIX) - 1, "&w=",
-                          ap_escape_uri(r->pool, worker->s->name),
-                          "&nonce=", balancer->s->nonce,
-                          "\">", NULL);
+ap_log_perror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, stream_pool,
+                      APLOGNO(02941) "h2_task(%ld-%d): create stream task", 
+                      session_id, stream_id);

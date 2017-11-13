@@ -1,1 +1,1 @@
-error_errno("ftell error");
+error_errno("seek error");

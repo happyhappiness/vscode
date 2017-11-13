@@ -1,1 +1,2 @@
-die(_("could not read symlink file %s"), path);
+printf("tagged %s %s", printable_type(tag->tagged),
+				describe_object(tag->tagged));

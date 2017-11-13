@@ -1,2 +1,2 @@
-printf("Added resolved note for object %s: %s\n",
-				sha1_to_hex(obj_sha1), sha1_to_hex(blob_sha1));
+die(_("ref '%s' does not have %ld components to :strip"),
+			    refname, nr);

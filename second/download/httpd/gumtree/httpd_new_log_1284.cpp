@@ -1,1 +1,0 @@
-copy_brigade_range(bb, tmpbb, range_start, range_end);

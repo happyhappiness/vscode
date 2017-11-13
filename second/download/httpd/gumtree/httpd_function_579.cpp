@@ -1,56 +1,30 @@
-static apr_status_t cgi_bucket_read(apr_bucket *b, const char **str,
-                                    apr_size_t *len, apr_read_type_e block)
+static const char *get_hash(request_rec *r, const char *user,
+                            const char *realm, const char *auth_pwfile)
 {
-    struct cgi_bucket_data *data = b->data;
-    apr_interval_time_t timeout;
-    apr_status_t rv;
-    int gotdata = 0;
+    ap_configfile_t *f;
+    char l[MAX_STRING_LEN];
+    const char *rpw;
+    char *w, *x;
+    apr_status_t sts;
 
-    timeout = block == APR_NONBLOCK_READ ? 0 : data->r->server->timeout;
-
-    do {
-        const apr_pollfd_t *results;
-        apr_int32_t num;
-
-        rv = apr_pollset_poll(data->pollset, timeout, &num, &results);
-        if (APR_STATUS_IS_TIMEUP(rv)) {
-            if (timeout) {
-                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, data->r,
-                              "Timeout waiting for output from CGI script %s",
-                              data->r->filename);
-                return rv;
-            }
-            else {
-                return APR_EAGAIN;
-            }
-        }
-        else if (APR_STATUS_IS_EINTR(rv)) {
+    if ((sts = ap_pcfg_openfile(&f, r->pool, auth_pwfile)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, sts, r,
+                      "Digest: Could not open password file: %s", auth_pwfile);
+        return NULL;
+    }
+    while (!(ap_cfg_getline(l, MAX_STRING_LEN, f))) {
+        if ((l[0] == '#') || (!l[0])) {
             continue;
         }
-        else if (rv != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, data->r,
-                          "poll failed waiting for CGI child");
-            return rv;
+        rpw = l;
+        w = ap_getword(r->pool, &rpw, ':');
+        x = ap_getword(r->pool, &rpw, ':');
+
+        if (x && w && !strcmp(user, w) && !strcmp(realm, x)) {
+            ap_cfg_closefile(f);
+            return apr_pstrdup(r->pool, rpw);
         }
-
-        for (; num; num--, results++) {
-            if (results[0].client_data == (void *)1) {
-                /* stdout */
-                rv = cgi_read_stdout(b, results[0].desc.f, str, len);
-                if (APR_STATUS_IS_EOF(rv)) {
-                    rv = APR_SUCCESS;
-                }
-                gotdata = 1;
-            } else {
-                /* stderr */
-                apr_status_t rv2 = log_script_err(data->r, results[0].desc.f);
-                if (APR_STATUS_IS_EOF(rv2)) {
-                    apr_pollset_remove(data->pollset, &results[0]);
-                }
-            }
-        }
-
-    } while (!gotdata);
-
-    return rv;
+    }
+    ap_cfg_closefile(f);
+    return NULL;
 }

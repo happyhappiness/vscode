@@ -1,12 +1,9 @@
 fputs(
-"              expired) response, if the response suggests that the server cer-\n"
-"              tificate has been revoked, or no response at  all  is  received,\n"
-"              the verification fails.\n"
+"              (iOS and macOS only) If curl is built against Secure  Transport,\n"
+"              then the certificate string can either be the name of a certifi-\n"
+"              cate/private key in the system or user keychain, or the path  to\n"
+"              a  PKCS#12-encoded  certificate  and private key. If you want to\n"
+"              use a file from the current directory, please  precede  it  with\n"
+"              \"./\" prefix, in order to avoid confusion with a nickname.\n"
 "\n"
-"              This  is  currently  only implemented in the OpenSSL, GnuTLS and\n"
-"              NSS backends.  (Added in 7.41.0)\n"
-"\n"
-"       --false-start\n"
-"\n"
-"              (SSL) Tells curl to use false start during  the  TLS  handshake.\n"
 , stdout);

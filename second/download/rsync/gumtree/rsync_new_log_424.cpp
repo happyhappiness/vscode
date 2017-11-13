@@ -1,1 +1,1 @@
-rprintf(FERROR,"chdir %s : %s (2)\n",name,strerror(errno));
+rprintf(FERROR,"skipping long-named directory %s\n",fname);

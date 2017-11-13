@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02077)
-                   "Unable to flush file: %s", path);
+ap_log_error(APLOG_MARK, APLOG_INFO, status, r->server,
+                             "proxy: HTTP: 100-Continue failed to %pI (%s)",
+                             worker->cp->addr, worker->hostname);

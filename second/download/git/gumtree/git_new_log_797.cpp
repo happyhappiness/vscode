@@ -1,1 +1,1 @@
-error("Object %s already has a mark", oid_to_hex(&oid));
+die(_("could not remove '%s'"), path);

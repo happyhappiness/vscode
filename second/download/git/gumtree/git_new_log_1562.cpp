@@ -1,1 +1,1 @@
-die("failed to prepare '%s' for appending", path);
+die(_("bad numeric config value '%s' for '%s': %s"), value, name, reason);

@@ -1,1 +1,1 @@
-state_attach_puts (buf, s);
+state_attach_puts (" ", s);

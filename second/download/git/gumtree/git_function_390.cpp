@@ -1,98 +1,83 @@
-static struct ref *do_fetch_pack(struct fetch_pack_args *args,
-				 int fd[2],
-				 const struct ref *orig_ref,
-				 struct ref **sought, int nr_sought,
-				 struct shallow_info *si,
-				 char **pack_lockfile)
+int cmd_status(int argc, const char **argv, const char *prefix)
 {
-	struct ref *ref = copy_ref_list(orig_ref);
+	static struct wt_status s;
+	int fd;
 	unsigned char sha1[20];
-	const char *agent_feature;
-	int agent_len;
+	static struct option builtin_status_options[] = {
+		OPT__VERBOSE(&verbose, N_("be verbose")),
+		OPT_SET_INT('s', "short", &status_format,
+			    N_("show status concisely"), STATUS_FORMAT_SHORT),
+		OPT_BOOL('b', "branch", &s.show_branch,
+			 N_("show branch information")),
+		OPT_SET_INT(0, "porcelain", &status_format,
+			    N_("machine-readable output"),
+			    STATUS_FORMAT_PORCELAIN),
+		OPT_SET_INT(0, "long", &status_format,
+			    N_("show status in long format (default)"),
+			    STATUS_FORMAT_LONG),
+		OPT_BOOL('z', "null", &s.null_termination,
+			 N_("terminate entries with NUL")),
+		{ OPTION_STRING, 'u', "untracked-files", &untracked_files_arg,
+		  N_("mode"),
+		  N_("show untracked files, optional modes: all, normal, no. (Default: all)"),
+		  PARSE_OPT_OPTARG, NULL, (intptr_t)"all" },
+		OPT_BOOL(0, "ignored", &show_ignored_in_status,
+			 N_("show ignored files")),
+		{ OPTION_STRING, 0, "ignore-submodules", &ignore_submodule_arg, N_("when"),
+		  N_("ignore changes to submodules, optional when: all, dirty, untracked. (Default: all)"),
+		  PARSE_OPT_OPTARG, NULL, (intptr_t)"all" },
+		OPT_COLUMN(0, "column", &s.colopts, N_("list untracked files in columns")),
+		OPT_END(),
+	};
 
-	sort_ref_list(&ref, ref_compare_name);
-	qsort(sought, nr_sought, sizeof(*sought), cmp_ref_by_name);
+	if (argc == 2 && !strcmp(argv[1], "-h"))
+		usage_with_options(builtin_status_usage, builtin_status_options);
 
-	if ((args->depth > 0 || is_repository_shallow()) && !server_supports("shallow"))
-		die("Server does not support shallow clients");
-	if (server_supports("multi_ack_detailed")) {
-		if (args->verbose)
-			fprintf(stderr, "Server supports multi_ack_detailed\n");
-		multi_ack = 2;
-		if (server_supports("no-done")) {
-			if (args->verbose)
-				fprintf(stderr, "Server supports no-done\n");
-			if (args->stateless_rpc)
-				no_done = 1;
-		}
-	}
-	else if (server_supports("multi_ack")) {
-		if (args->verbose)
-			fprintf(stderr, "Server supports multi_ack\n");
-		multi_ack = 1;
-	}
-	if (server_supports("side-band-64k")) {
-		if (args->verbose)
-			fprintf(stderr, "Server supports side-band-64k\n");
-		use_sideband = 2;
-	}
-	else if (server_supports("side-band")) {
-		if (args->verbose)
-			fprintf(stderr, "Server supports side-band\n");
-		use_sideband = 1;
-	}
-	if (server_supports("allow-tip-sha1-in-want")) {
-		if (args->verbose)
-			fprintf(stderr, "Server supports allow-tip-sha1-in-want\n");
-		allow_unadvertised_object_request |= ALLOW_TIP_SHA1;
-	}
-	if (server_supports("allow-reachable-sha1-in-want")) {
-		if (args->verbose)
-			fprintf(stderr, "Server supports allow-reachable-sha1-in-want\n");
-		allow_unadvertised_object_request |= ALLOW_REACHABLE_SHA1;
-	}
-	if (!server_supports("thin-pack"))
-		args->use_thin_pack = 0;
-	if (!server_supports("no-progress"))
-		args->no_progress = 0;
-	if (!server_supports("include-tag"))
-		args->include_tag = 0;
-	if (server_supports("ofs-delta")) {
-		if (args->verbose)
-			fprintf(stderr, "Server supports ofs-delta\n");
-	} else
-		prefer_ofs_delta = 0;
+	status_init_config(&s, git_status_config);
+	argc = parse_options(argc, argv, prefix,
+			     builtin_status_options,
+			     builtin_status_usage, 0);
+	finalize_colopts(&s.colopts, -1);
+	finalize_deferred_config(&s);
 
-	if ((agent_feature = server_feature_value("agent", &agent_len))) {
-		agent_supported = 1;
-		if (args->verbose && agent_len)
-			fprintf(stderr, "Server version is %.*s\n",
-				agent_len, agent_feature);
+	handle_untracked_files_arg(&s);
+	if (show_ignored_in_status)
+		s.show_ignored_files = 1;
+	parse_pathspec(&s.pathspec, 0,
+		       PATHSPEC_PREFER_FULL,
+		       prefix, argv);
+
+	read_cache_preload(&s.pathspec);
+	refresh_index(&the_index, REFRESH_QUIET|REFRESH_UNMERGED, &s.pathspec, NULL, NULL);
+
+	fd = hold_locked_index(&index_lock, 0);
+
+	s.is_initial = get_sha1(s.reference, sha1) ? 1 : 0;
+	s.ignore_submodule_arg = ignore_submodule_arg;
+	wt_status_collect(&s);
+
+	if (0 <= fd)
+		update_index_if_able(&the_index, &index_lock);
+
+	if (s.relative_paths)
+		s.prefix = prefix;
+
+	switch (status_format) {
+	case STATUS_FORMAT_SHORT:
+		wt_shortstatus_print(&s);
+		break;
+	case STATUS_FORMAT_PORCELAIN:
+		wt_porcelain_print(&s);
+		break;
+	case STATUS_FORMAT_UNSPECIFIED:
+		die("BUG: finalize_deferred_config() should have been called");
+		break;
+	case STATUS_FORMAT_NONE:
+	case STATUS_FORMAT_LONG:
+		s.verbose = verbose;
+		s.ignore_submodule_arg = ignore_submodule_arg;
+		wt_status_print(&s);
+		break;
 	}
-
-	if (everything_local(args, &ref, sought, nr_sought)) {
-		packet_flush(fd[1]);
-		goto all_done;
-	}
-	if (find_common(args, fd, sha1, ref) < 0)
-		if (!args->keep_pack)
-			/* When cloning, it is not unusual to have
-			 * no common commit.
-			 */
-			warning("no common commits");
-
-	if (args->stateless_rpc)
-		packet_flush(fd[1]);
-	if (args->depth > 0)
-		setup_alternate_shallow(&shallow_lock, &alternate_shallow_file,
-					NULL);
-	else if (si->nr_ours || si->nr_theirs)
-		alternate_shallow_file = setup_temporary_shallow(si->shallow);
-	else
-		alternate_shallow_file = NULL;
-	if (get_pack(args, fd, pack_lockfile))
-		die("git fetch-pack: fetch failed.");
-
- all_done:
-	return ref;
+	return 0;
 }

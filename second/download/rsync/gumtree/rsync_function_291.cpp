@@ -1,19 +1,48 @@
-static void check_timeout(void)
+static void send_directory(int f,struct file_list *flist,char *dir)
 {
-	time_t t;
-	
-	if (!io_timeout) return;
+  DIR *d;
+  struct dirent *di;
+  char fname[MAXPATHLEN];
+  int l;
+  char *p;
 
-	if (!last_io) {
-		last_io = time(NULL);
-		return;
-	}
+  d = opendir(dir);
+  if (!d) {
+    fprintf(FERROR,"%s: %s\n",
+	    dir,strerror(errno));
+    return;
+  }
 
-	t = time(NULL);
+  strncpy(fname,dir,MAXPATHLEN-1);
+  fname[MAXPATHLEN-1]=0;
+  l = strlen(fname);
+  if (fname[l-1] != '/') {
+        if (l == MAXPATHLEN-1) {
+              fprintf(FERROR,"skipping long-named directory %s\n",fname);
+              closedir(d);
+              return;
+        }
+	  strcat(fname,"/");
+	  l++;
+  }
+  p = fname + strlen(fname);
 
-	if (last_io && io_timeout && (t-last_io)>io_timeout) {
-		fprintf(FERROR,"read timeout after %d second - exiting\n", 
-			(int)(t-last_io));
-		exit_cleanup(1);
-	}
+  if (cvs_exclude) {
+    if (strlen(fname) + strlen(".cvsignore") <= MAXPATHLEN-1) {
+      strcpy(p,".cvsignore");
+      local_exclude_list = make_exclude_list(fname,NULL,0);
+    } else {
+      fprintf(FERROR,"cannot cvs-exclude in long-named directory %s\n",fname);
+    }
+  }  
+
+  for (di=readdir(d); di; di=readdir(d)) {
+    if (strcmp(di->d_name,".")==0 ||
+	strcmp(di->d_name,"..")==0)
+      continue;
+    strncpy(p,di->d_name,MAXPATHLEN-(l+1));
+    send_file_name(f,flist,fname);
+  }
+
+  closedir(d);
 }

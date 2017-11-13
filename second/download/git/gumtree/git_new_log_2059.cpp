@@ -1,5 +1,4 @@
-die("Path '%s' is in the index, but not '%s'.\n"
-			    "Did you mean ':%d:%s' aka ':%d:./%s'?",
-			    fullname.buf, filename,
-			    ce_stage(ce), fullname.buf,
-			    ce_stage(ce), filename);
+fprintf(stderr, "Some %s revs are not ancestor of the %s rev.\n"
+		"git bisect cannot work properly in this case.\n"
+		"Maybe you mistook %s and %s revs?\n",
+		term_good, term_bad, term_good, term_bad);

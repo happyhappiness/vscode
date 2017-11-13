@@ -1,9 +1,12 @@
 fputs(
-"                             The ultimate filename that curl  writes  out  to.\n"
-"                             This  is only meaningful if curl is told to write\n"
-"                             to a file  with  the  --remote-name  or  --output\n"
-"                             option.  It's most useful in combination with the\n"
-"                             --remote-header-name option. (Added in 7.25.1)\n"
+"              curl, '<' means \"header data\" received by curl that is hidden in\n"
+"              normal cases, and a line starting with '*' means additional info\n"
+"              provided by curl.\n"
 "\n"
-"              ftp_entry_path The initial path curl ended up in when logging on\n"
+"              Note that if you only want  HTTP  headers  in  the  output,  -i,\n"
+"              --include might be the option you're looking for.\n"
+"\n"
+"              If  you think this option still doesn't give you enough details,\n"
+"              consider using --trace or --trace-ascii instead.\n"
+"\n"
 , stdout);

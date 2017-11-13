@@ -1,2 +1,2 @@
-error("open(\"%s\"): %s", path,
-				     strerror(errno));
+error("readlink(\"%s\"): %s", path,
+			             errstr);

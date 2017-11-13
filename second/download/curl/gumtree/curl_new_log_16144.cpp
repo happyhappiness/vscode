@@ -1,1 +1,1 @@
-warnf(config->global, "curl_mime_init failed!\n");
+warnf(config->global, "Illegally formatted content-type field!\n");

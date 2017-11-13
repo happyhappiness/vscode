@@ -1,27 +1,24 @@
-static int compare_objects(const unsigned char *buf, unsigned long size,
-			   void *cb_data)
+static char *get_symlink(const struct object_id *oid, const char *path)
 {
-	struct compare_data *data = cb_data;
+	char *data;
+	if (is_null_oid(oid)) {
+		/* The symlink is unknown to Git so read from the filesystem */
+		struct strbuf link = STRBUF_INIT;
+		if (has_symlinks) {
+			if (strbuf_readlink(&link, path, strlen(path)))
+				die(_("could not read symlink %s"), path);
+		} else if (strbuf_read_file(&link, path, 128))
+			die(_("could not read symlink file %s"), path);
 
-	if (data->buf_size < size) {
-		free(data->buf);
-		data->buf = xmalloc(size);
-		data->buf_size = size;
+		data = strbuf_detach(&link, NULL);
+	} else {
+		enum object_type type;
+		unsigned long size;
+		data = read_sha1_file(oid->hash, &type, &size);
+		if (!data)
+			die(_("could not read object %s for symlink %s"),
+				oid_to_hex(oid), path);
 	}
 
-	while (size) {
-		ssize_t len = read_istream(data->st, data->buf, size);
-		if (len == 0)
-			die(_("SHA1 COLLISION FOUND WITH %s !"),
-			    sha1_to_hex(data->entry->idx.sha1));
-		if (len < 0)
-			die(_("unable to read %s"),
-			    sha1_to_hex(data->entry->idx.sha1));
-		if (memcmp(buf, data->buf, len))
-			die(_("SHA1 COLLISION FOUND WITH %s !"),
-			    sha1_to_hex(data->entry->idx.sha1));
-		size -= len;
-		buf += len;
-	}
-	return 0;
+	return data;
 }

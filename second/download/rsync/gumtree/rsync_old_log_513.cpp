@@ -1,2 +1,1 @@
-fprintf(FINFO,"%s -> %s\n",
-		fname,file->link);
+fprintf(FINFO,"waiting on %d\n",pid);

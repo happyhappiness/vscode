@@ -1,1 +1,2 @@
-warnf(config->global, "curl_mime_addpart failed!\n");
+warnf(config->global, "Cannot read from %s: %s\n", hdrfile,
+                strerror(errno));

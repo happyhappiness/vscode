@@ -1,4 +1,2 @@
-error(_("Cannot add notes. "
-					"Found existing notes for object %s. "
-					"Use '-f' to overwrite existing notes"),
-					sha1_to_hex(object));
+printf("%s %s\n", sha1_to_hex(sha1),
+		       (type > 0) ? typename(type) : "unknown");

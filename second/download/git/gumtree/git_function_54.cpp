@@ -1,29 +1,48 @@
-static void replace_parents(struct strbuf *buf, int argc, const char **argv)
+static void import_object(unsigned char *sha1, enum object_type type,
+			  int raw, const char *filename)
 {
-	struct strbuf new_parents = STRBUF_INIT;
-	const char *parent_start, *parent_end;
-	int i;
+	int fd;
 
-	/* find existing parents */
-	parent_start = buf->buf;
-	parent_start += 46; /* "tree " + "hex sha1" + "\n" */
-	parent_end = parent_start;
+	fd = open(filename, O_RDONLY);
+	if (fd < 0)
+		die_errno("unable to open %s for reading", filename);
 
-	while (starts_with(parent_end, "parent "))
-		parent_end += 48; /* "parent " + "hex sha1" + "\n" */
+	if (!raw && type == OBJ_TREE) {
+		const char *argv[] = { "mktree", NULL };
+		struct child_process cmd = { argv };
+		struct strbuf result = STRBUF_INIT;
 
-	/* prepare new parents */
-	for (i = 0; i < argc; i++) {
-		unsigned char sha1[20];
-		if (get_sha1(argv[i], sha1) < 0)
-			die(_("Not a valid object name: '%s'"), argv[i]);
-		lookup_commit_or_die(sha1, argv[i]);
-		strbuf_addf(&new_parents, "parent %s\n", sha1_to_hex(sha1));
+		cmd.argv = argv;
+		cmd.git_cmd = 1;
+		cmd.in = fd;
+		cmd.out = -1;
+
+		if (start_command(&cmd))
+			die("unable to spawn mktree");
+
+		if (strbuf_read(&result, cmd.out, 41) < 0)
+			die_errno("unable to read from mktree");
+		close(cmd.out);
+
+		if (finish_command(&cmd))
+			die("mktree reported failure");
+		if (get_sha1_hex(result.buf, sha1) < 0)
+			die("mktree did not return an object name");
+
+		strbuf_release(&result);
+	} else {
+		struct stat st;
+		int flags = HASH_FORMAT_CHECK | HASH_WRITE_OBJECT;
+
+		if (fstat(fd, &st) < 0)
+			die_errno("unable to fstat %s", filename);
+		if (index_fd(sha1, fd, &st, type, NULL, flags) < 0)
+			die("unable to write object to database");
+		/* index_fd close()s fd for us */
 	}
 
-	/* replace existing parents with new ones */
-	strbuf_splice(buf, parent_start - buf->buf, parent_end - parent_start,
-		      new_parents.buf, new_parents.len);
-
-	strbuf_release(&new_parents);
+	/*
+	 * No need to close(fd) here; both run-command and index-fd
+	 * will have done it for us.
+	 */
 }

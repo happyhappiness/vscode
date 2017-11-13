@@ -1,1 +1,1 @@
-fprintf(FERROR,"clearing exclude list\n");
+out_of_memory("read check");

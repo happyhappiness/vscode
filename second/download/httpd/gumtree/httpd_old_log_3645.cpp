@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-               "ajp_unmarshal_response: ap_set_content_type done");
+ap_log_error(APLOG_MARK, APLOG_INFO, rv, c->base_server,
+                             "ProtocolEcho: Failure reading from %s",
+                             c->remote_ip);

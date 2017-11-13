@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s_main,
-                         "unable to replace stderr with error_log");
+ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, r->server,
+                         "proxy: header only");

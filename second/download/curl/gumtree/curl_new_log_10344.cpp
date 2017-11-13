@@ -1,11 +1,11 @@
 fputs(
-"              A  quick  and  very  simple  example of how to setup a .netrc to\n"
-"              allow curl to FTP to the machine host.domain.com with user  name\n"
-"              'myself' and password 'secret' should look similar to:\n"
+"              are errors (such as the file or server not being available).  It\n"
+"              will  also  verify  the hash of the file after the download com-\n"
+"              pletes. The Metalink file itself is downloaded and processed  in\n"
+"              memory and not stored in the local file system.\n"
 "\n"
-"              machine host.domain.com login myself password secret\n"
+"              Example to use a remote Metalink file:\n"
 "\n"
-"       -N, --no-buffer\n"
-"              Disables the buffering of the output stream. In normal work sit-\n"
-"              uations, curl will use a standard buffered  output  stream  that\n"
+"              curl --metalink http://www.example.com/example.metalink\n"
+"\n"
 , stdout);

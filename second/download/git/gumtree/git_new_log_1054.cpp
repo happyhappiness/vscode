@@ -1,1 +1,1 @@
-fputs(oid_to_hex(&tg->oid), rpt);
+die("Invalid proxy URL '%s'", curl_http_proxy);

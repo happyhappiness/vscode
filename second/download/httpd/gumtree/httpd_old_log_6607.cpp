@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r, APLOGNO(01456)
-                                  "rl: partition failed.");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, stream->r, APLOGNO(03359)
+                  "h2_proxy_session(%s): pass response data for "
+                  "stream %d, %d bytes", session->id, stream_id, (int)len);

@@ -1,1 +1,1 @@
-die("date format missing colon separator: %s", format);
+fprintf(fp, "--shallow %s\n", oid_to_hex(&graft->oid));

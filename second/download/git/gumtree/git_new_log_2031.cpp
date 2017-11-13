@@ -1,1 +1,2 @@
-!string_list_has_string(skip, extra_refname);
+die(_("your current branch '%s' does not have any commits yet"),
+	    refname);

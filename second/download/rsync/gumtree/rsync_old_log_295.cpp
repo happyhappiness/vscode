@@ -1,1 +1,1 @@
-fprintf(FERROR,"cmd=");
+fprintf(FINFO,"deleting in %s\n", last_name);

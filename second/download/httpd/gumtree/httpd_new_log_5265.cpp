@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, m->c,
-                                  "h2_mplx(%ld-%d): close, no response, no rst", 
-                                  m->id, io->id);
+ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), ap_server_conf, APLOGNO(00409)
+                         "Parent: WSADuplicateSocket failed for socket %d. Check the FAQ.", nsd);

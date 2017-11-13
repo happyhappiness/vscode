@@ -1,1 +1,2 @@
-error(_("failed to finalize '%s'."), git_path_head_file());
+die(_("submodule '%s' cannot add alternate: %s"),
+				    sas->submodule_name, err.buf);

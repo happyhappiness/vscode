@@ -1,1 +1,1 @@
-error("%s", hint);
+die(_("Server does not support --shallow-since"));

@@ -1,51 +1,37 @@
-static void show_rebase_information(struct wt_status *s,
-					struct wt_status_state *state,
-					const char *color)
+static int verify_absent_1(const struct cache_entry *ce,
+			   enum unpack_trees_error_types error_type,
+			   struct unpack_trees_options *o)
 {
-	if (state->rebase_interactive_in_progress) {
-		int i;
-		int nr_lines_to_show = 2;
+	int len;
+	struct stat st;
 
-		struct string_list have_done = STRING_LIST_INIT_DUP;
-		struct string_list yet_to_do = STRING_LIST_INIT_DUP;
+	if (o->index_only || o->reset || !o->update)
+		return 0;
 
-		read_rebase_todolist("rebase-merge/done", &have_done);
-		read_rebase_todolist("rebase-merge/git-rebase-todo", &yet_to_do);
+	len = check_leading_path(ce->name, ce_namelen(ce));
+	if (!len)
+		return 0;
+	else if (len > 0) {
+		char *path;
+		int ret;
 
-		if (have_done.nr == 0)
-			status_printf_ln(s, color, _("No commands done."));
-		else {
-			status_printf_ln(s, color,
-				Q_("Last command done (%d command done):",
-					"Last commands done (%d commands done):",
-					have_done.nr),
-				have_done.nr);
-			for (i = (have_done.nr > nr_lines_to_show)
-				? have_done.nr - nr_lines_to_show : 0;
-				i < have_done.nr;
-				i++)
-				status_printf_ln(s, color, "   %s", have_done.items[i].string);
-			if (have_done.nr > nr_lines_to_show && s->hints)
-				status_printf_ln(s, color,
-					_("  (see more in file %s)"), git_path("rebase-merge/done"));
-		}
-
-		if (yet_to_do.nr == 0)
-			status_printf_ln(s, color,
-					 _("No commands remaining."));
-		else {
-			status_printf_ln(s, color,
-				Q_("Next command to do (%d remaining command):",
-					"Next commands to do (%d remaining commands):",
-					yet_to_do.nr),
-				yet_to_do.nr);
-			for (i = 0; i < nr_lines_to_show && i < yet_to_do.nr; i++)
-				status_printf_ln(s, color, "   %s", yet_to_do.items[i].string);
-			if (s->hints)
-				status_printf_ln(s, color,
-					_("  (use \"git rebase --edit-todo\" to view and edit)"));
-		}
-		string_list_clear(&yet_to_do, 0);
-		string_list_clear(&have_done, 0);
+		path = xmemdupz(ce->name, len);
+		if (lstat(path, &st))
+			ret = error("cannot stat '%s': %s", path,
+					strerror(errno));
+		else
+			ret = check_ok_to_remove(path, len, DT_UNKNOWN, NULL,
+						 &st, error_type, o);
+		free(path);
+		return ret;
+	} else if (lstat(ce->name, &st)) {
+		if (errno != ENOENT)
+			return error("cannot stat '%s': %s", ce->name,
+				     strerror(errno));
+		return 0;
+	} else {
+		return check_ok_to_remove(ce->name, ce_namelen(ce),
+					  ce_to_dtype(ce), ce, &st,
+					  error_type, o);
 	}
 }

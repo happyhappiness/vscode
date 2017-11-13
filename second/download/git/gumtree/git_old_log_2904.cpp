@@ -1,2 +1,1 @@
-error("%s: cannot verify a non-tag object of type %s.",
-				name, typename(type));
+error("%s: unable to read file.", name);

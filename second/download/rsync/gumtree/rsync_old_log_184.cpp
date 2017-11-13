@@ -1,2 +1,1 @@
-fprintf(stderr,"rename %s -> %s : %s\n",
-		fnametmp,fname,strerror(errno));
+fprintf(stderr,"mknod %s : %s\n",fname,strerror(errno));

@@ -1,1 +1,1 @@
-fprintf(FERROR,"deleting directory %s\n",f->name);
+fprintf(FERROR, "sum=%.8x k=%d\n", sum, k);

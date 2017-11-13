@@ -1,27 +1,87 @@
-static int parse_reuse_arg(const struct option *opt, const char *arg, int unset)
+static void update_pre_post_images(struct image *preimage,
+				   struct image *postimage,
+				   char *buf,
+				   size_t len, size_t postlen)
 {
-	struct note_data *d = opt->value;
-	char *buf;
-	unsigned char object[20];
-	enum object_type type;
-	unsigned long len;
+	int i, ctx, reduced;
+	char *new, *old, *fixed;
+	struct image fixed_preimage;
 
-	if (d->buf.len)
-		strbuf_addch(&d->buf, '\n');
+	/*
+	 * Update the preimage with whitespace fixes.  Note that we
+	 * are not losing preimage->buf -- apply_one_fragment() will
+	 * free "oldlines".
+	 */
+	prepare_image(&fixed_preimage, buf, len, 1);
+	assert(postlen
+	       ? fixed_preimage.nr == preimage->nr
+	       : fixed_preimage.nr <= preimage->nr);
+	for (i = 0; i < fixed_preimage.nr; i++)
+		fixed_preimage.line[i].flag = preimage->line[i].flag;
+	free(preimage->line_allocated);
+	*preimage = fixed_preimage;
 
-	if (get_sha1(arg, object))
-		die(_("Failed to resolve '%s' as a valid ref."), arg);
-	if (!(buf = read_sha1_file(object, &type, &len))) {
-		free(buf);
-		die(_("Failed to read object '%s'."), arg);
+	/*
+	 * Adjust the common context lines in postimage. This can be
+	 * done in-place when we are shrinking it with whitespace
+	 * fixing, but needs a new buffer when ignoring whitespace or
+	 * expanding leading tabs to spaces.
+	 *
+	 * We trust the caller to tell us if the update can be done
+	 * in place (postlen==0) or not.
+	 */
+	old = postimage->buf;
+	if (postlen)
+		new = postimage->buf = xmalloc(postlen);
+	else
+		new = old;
+	fixed = preimage->buf;
+
+	for (i = reduced = ctx = 0; i < postimage->nr; i++) {
+		size_t l_len = postimage->line[i].len;
+		if (!(postimage->line[i].flag & LINE_COMMON)) {
+			/* an added line -- no counterparts in preimage */
+			memmove(new, old, l_len);
+			old += l_len;
+			new += l_len;
+			continue;
+		}
+
+		/* a common context -- skip it in the original postimage */
+		old += l_len;
+
+		/* and find the corresponding one in the fixed preimage */
+		while (ctx < preimage->nr &&
+		       !(preimage->line[ctx].flag & LINE_COMMON)) {
+			fixed += preimage->line[ctx].len;
+			ctx++;
+		}
+
+		/*
+		 * preimage is expected to run out, if the caller
+		 * fixed addition of trailing blank lines.
+		 */
+		if (preimage->nr <= ctx) {
+			reduced++;
+			continue;
+		}
+
+		/* and copy it in, while fixing the line length */
+		l_len = preimage->line[ctx].len;
+		memcpy(new, fixed, l_len);
+		new += l_len;
+		fixed += l_len;
+		postimage->line[i].len = l_len;
+		ctx++;
 	}
-	if (type != OBJ_BLOB) {
-		free(buf);
-		die(_("Cannot read note data from non-blob object '%s'."), arg);
-	}
-	strbuf_add(&d->buf, buf, len);
-	free(buf);
 
-	d->given = 1;
-	return 0;
+	if (postlen
+	    ? postlen < new - postimage->buf
+	    : postimage->len < new - postimage->buf)
+		die("BUG: caller miscounted postlen: asked %d, orig = %d, used = %d",
+		    (int)postlen, (int) postimage->len, (int)(new - postimage->buf));
+
+	/* Fix the length of the whole thing */
+	postimage->len = new - postimage->buf;
+	postimage->nr -= reduced;
 }

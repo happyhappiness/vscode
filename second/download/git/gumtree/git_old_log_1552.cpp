@@ -1,1 +1,1 @@
-printf(" %s ", diff_unique_abbrev(p->sha1, opt->abbrev));
+error(_("unrecognized argument: %s"), argv[1]);

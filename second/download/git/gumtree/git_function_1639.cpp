@@ -1,15 +1,14 @@
-void set_git_work_tree(const char *new_work_tree)
+static void check_ce_order(struct cache_entry *ce, struct cache_entry *next_ce)
 {
-	if (git_work_tree_initialized) {
-		new_work_tree = real_path(new_work_tree);
-		if (strcmp(new_work_tree, work_tree))
-			die("internal error: work tree has already been set\n"
-			    "Current worktree: %s\nNew worktree: %s",
-			    work_tree, new_work_tree);
-		return;
+	int name_compare = strcmp(ce->name, next_ce->name);
+	if (0 < name_compare)
+		die("unordered stage entries in index");
+	if (!name_compare) {
+		if (!ce_stage(ce))
+			die("multiple stage entries for merged file '%s'",
+				ce->name);
+		if (ce_stage(ce) > ce_stage(next_ce))
+			die("unordered stage entries for '%s'",
+				ce->name);
 	}
-	git_work_tree_initialized = 1;
-	work_tree = xstrdup(real_path(new_work_tree));
-	if (setenv(GIT_WORK_TREE_ENVIRONMENT, work_tree, 1))
-		die("could not set GIT_WORK_TREE to '%s'", work_tree);
 }

@@ -1,1 +1,2 @@
-packet_write(1, "%s %s^{}\n", sha1_to_hex(peeled), refname_nons);
+die("bad pack.indexversion=%"PRIu32,
+			    pack_idx_opts.version);

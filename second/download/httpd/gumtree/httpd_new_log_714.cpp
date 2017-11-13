@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "proxy: connected %s to %s:%d", *url, conn->hostname,
-                 conn->port);
+ap_rputs(" -D APR_USE_PROC_PTHREAD_SERIALIZE\n", r);

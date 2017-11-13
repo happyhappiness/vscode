@@ -1,7 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(),
-                             ap_server_conf, APLOGNO(00355)
-                             "Child: CreateThread failed. Unable to "
-                             "create all worker threads. Created %d of the %d "
-                             "threads requested with the ThreadsPerChild "
-                             "configuration directive.",
-                             threads_created, ap_threads_per_child);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02210)
+                    "Failed to load SSLCACertificateFile: %s", ca_file);

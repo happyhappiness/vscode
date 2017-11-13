@@ -1,111 +1,91 @@
-static int authenticate_basic_user(request_rec *r)
+static int CommandLineInterpreter(scr_t screenID, const char *commandLine)
 {
-    auth_basic_config_rec *conf = ap_get_module_config(r->per_dir_config,
-                                                       &auth_basic_module);
-    const char *sent_user, *sent_pw, *current_auth;
-    int res;
-    authn_status auth_result;
-    authn_provider_list *current_provider;
+    char *szCommand = "APACHE2 ";
+    int iCommandLen = 8;
+    char szcommandLine[256];
+    char *pID;
+    screenID = screenID;
 
-    /* Are we configured to be Basic auth? */
-    current_auth = ap_auth_type(r);
-    if (!current_auth || strcasecmp(current_auth, "Basic")) {
-        return DECLINED;
-    }
 
-    /* We need an authentication realm. */
-    if (!ap_auth_name(r)) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR,
-                      0, r, "need AuthName: %s", r->uri);
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
+    if (commandLine == NULL)
+        return NOTMYCOMMAND;
+    if (strlen(commandLine) <= strlen(szCommand))
+        return NOTMYCOMMAND;
 
-    r->ap_auth_type = (char*)current_auth;
+    strncpy (szcommandLine, commandLine, sizeof(szcommandLine)-1);
 
-    res = get_basic_auth(r, &sent_user, &sent_pw);
-    if (res) {
-        return res;
-    }
+    /*  All added commands begin with "APACHE2 " */
 
-    current_provider = conf->providers;
-    do {
-        const authn_provider *provider;
+    if (!strnicmp(szCommand, szcommandLine, iCommandLen)) {
+        ActivateScreen (getscreenhandle());
 
-        /* For now, if a provider isn't set, we'll be nice and use the file
-         * provider.
-         */
-        if (!current_provider) {
-            provider = ap_lookup_provider(AUTHN_PROVIDER_GROUP,
-                                          AUTHN_DEFAULT_PROVIDER,
-                                          AUTHN_PROVIDER_VERSION);
+        /* If an instance id was not given but the nlm is loaded in
+            protected space, then the the command belongs to the
+            OS address space instance to pass it on. */
+        pID = strstr (szcommandLine, "-p");
+        if ((pID == NULL) && nlmisloadedprotected())
+            return NOTMYCOMMAND;
 
-            if (!provider || !provider->check_password) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "No Authn provider configured");
-                auth_result = AUTH_GENERAL_ERROR;
-                break;
+        /* If we got an instance id but it doesn't match this
+            instance of the nlm, pass it on. */
+        if (pID) {
+            pID = &pID[2];
+            while (*pID && (*pID == ' '))
+                pID++;
+        }
+        if (pID && ap_my_addrspace && strnicmp(pID, ap_my_addrspace, strlen(ap_my_addrspace)))
+            return NOTMYCOMMAND;
+
+        /* If we have determined that this command belongs to this
+            instance of the nlm, then handle it. */
+        if (!strnicmp("RESTART",&szcommandLine[iCommandLen],3)) {
+            printf("Restart Requested...\n");
+            restart();
+        }
+        else if (!strnicmp("VERSION",&szcommandLine[iCommandLen],3)) {
+            printf("Server version: %s\n", ap_get_server_version());
+            printf("Server built:   %s\n", ap_get_server_built());
+        }
+        else if (!strnicmp("MODULES",&szcommandLine[iCommandLen],3)) {
+            ap_show_modules();
+        }
+        else if (!strnicmp("DIRECTIVES",&szcommandLine[iCommandLen],3)) {
+                ap_show_directives();
+        }
+        else if (!strnicmp("SHUTDOWN",&szcommandLine[iCommandLen],3)) {
+            printf("Shutdown Requested...\n");
+            shutdown_pending = 1;
+        }
+        else if (!strnicmp("SETTINGS",&szcommandLine[iCommandLen],3)) {
+            if (show_settings) {
+                show_settings = 0;
+                ClearScreen (getscreenhandle());
+                show_server_data();
             }
-            apr_table_setn(r->notes, AUTHN_PROVIDER_NAME_NOTE, AUTHN_DEFAULT_PROVIDER);
+            else {
+                show_settings = 1;
+                display_settings();
+            }
         }
         else {
-            provider = current_provider->provider;
-            apr_table_setn(r->notes, AUTHN_PROVIDER_NAME_NOTE, current_provider->provider_name);
+            show_settings = 0;
+            if (strnicmp("HELP",&szcommandLine[iCommandLen],3))
+                printf("Unknown APACHE2 command %s\n", &szcommandLine[iCommandLen]);
+            printf("Usage: APACHE2 [command] [-p <instance ID>]\n");
+            printf("Commands:\n");
+            printf("\tDIRECTIVES - Show directives\n");
+            printf("\tHELP       - Display this help information\n");
+            printf("\tMODULES    - Show a list of the loaded modules\n");
+            printf("\tRESTART    - Reread the configuration file and restart Apache\n");
+            printf("\tSETTINGS   - Show current thread status\n");
+            printf("\tSHUTDOWN   - Shutdown Apache\n");
+            printf("\tVERSION    - Display the server version information\n");
         }
 
-
-        auth_result = provider->check_password(r, sent_user, sent_pw);
-
-        apr_table_unset(r->notes, AUTHN_PROVIDER_NAME_NOTE);
-
-        /* Something occured. Stop checking. */
-        if (auth_result != AUTH_USER_NOT_FOUND) {
-            break;
-        }
-
-        /* If we're not really configured for providers, stop now. */
-        if (!conf->providers) {
-            break;
-        }
-
-        current_provider = current_provider->next;
-    } while (current_provider);
-
-    if (auth_result != AUTH_GRANTED) {
-        int return_code;
-
-        /* If we're not authoritative, then any error is ignored. */
-        if (!(conf->authoritative) && auth_result != AUTH_DENIED) {
-            return DECLINED;
-        }
-
-        switch (auth_result) {
-        case AUTH_DENIED:
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "user %s: authentication failure for \"%s\": "
-                      "Password Mismatch",
-                      sent_user, r->uri);
-            return_code = HTTP_UNAUTHORIZED;
-            break;
-        case AUTH_USER_NOT_FOUND:
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "user %s not found: %s", sent_user, r->uri);
-            return_code = HTTP_UNAUTHORIZED;
-            break;
-        case AUTH_GENERAL_ERROR:
-        default:
-            /* We'll assume that the module has already said what its error
-             * was in the logs.
-             */
-            return_code = HTTP_INTERNAL_SERVER_ERROR;
-            break;
-        }
-
-        /* If we're returning 403, tell them to try again. */
-        if (return_code == HTTP_UNAUTHORIZED) {
-            note_basic_auth_failure(r);
-        }
-        return return_code;
+        /*  Tell NetWare we handled the command */
+        return HANDLEDCOMMAND;
     }
 
-    return OK;
+    /*  Tell NetWare that the command isn't mine */
+    return NOTMYCOMMAND;
 }

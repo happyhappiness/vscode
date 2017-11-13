@@ -1,3 +1,1 @@
-error("BUG: run 'git fsck' for safety.\n"
-		      "If there are errors, try to remove "
-		      "the reported refs above");
+printf("committer %s <%s@%s> %lu +0000\n", author, author, "local", timestamp);

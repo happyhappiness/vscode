@@ -1,211 +1,105 @@
-char *util_ald_cache_display(request_rec *r, util_ldap_state_t *st)
+static apr_status_t ssl_io_filter_Upgrade(ap_filter_t *f,
+                                         apr_bucket_brigade *bb)
+
 {
-    unsigned long i,j;
-    char *buf, *t1, *t2, *t3;
-    char *id1, *id2, *id3;
-    char *argfmt = "cache=%s&id=%d&off=%d";
-    char *scanfmt = "cache=%4s&id=%u&off=%u%1s";
-    apr_pool_t *pool = r->pool;
-    util_cache_node_t *p = NULL;
-    util_url_node_t *n = NULL;
+#define SWITCH_STATUS_LINE "HTTP/1.1 101 Switching Protocols"
+#define UPGRADE_HEADER "Upgrade: TLS/1.0, HTTP/1.1"
+#define CONNECTION_HEADER "Connection: Upgrade"
+    const char *upgrade;
+    const char *connection;
+    apr_bucket_brigade *upgradebb;
+    request_rec *r = f->r;
+    apr_socket_t *csd = NULL;
+    char *key;
+    unicode_t keyFileName[512];
+    int ret;
+    char *token_string;
+    char *token;
+    char *token_state;
 
-    util_ald_cache_t *util_ldap_cache = st->util_ldap_cache;
+    /* Just remove the filter, if it doesn't work the first time, it won't
+     * work at all for this request.
+     */
+    ap_remove_output_filter(f);
 
+    /* No need to ensure that this is a server with optional SSL, the filter
+     * is only inserted if that is true.
+     */
 
-    if (!util_ldap_cache) {
-        return "<tr valign='top'><td nowrap colspan=7>Cache has not been enabled/initialised.</td></tr>";
+    upgrade = apr_table_get(r->headers_in, "Upgrade");
+    if (upgrade == NULL) {
+        return ap_pass_brigade(f->next, bb);
+    }
+    token_string = apr_pstrdup(r->pool,upgrade);
+    token = apr_strtok(token_string,", ",&token_state);
+    while (token && strcmp(token,"TLS/1.0")) {
+        apr_strtok(NULL,", ",&token_state);
+    }
+    // "Upgrade: TLS/1.0" header not found, don't do Upgrade
+    if (!token) {
+        return ap_pass_brigade(f->next, bb);
     }
 
-    if (r->args && strlen(r->args)) {
-        char cachetype[5], lint[2];
-        unsigned int id, off;
-        char date_str[APR_CTIME_LEN+1];
+    connection = apr_table_get(r->headers_in, "Connection");
+    token_string = apr_pstrdup(r->pool,connection);
+    token = apr_strtok(token_string,",",&token_state);
+    while (token && strcmp(token,"Upgrade")) {
+        apr_strtok(NULL,",",&token_state);
+    }
+    // "Connection: Upgrade" header not found, don't do Upgrade
+    if (!token) {
+        return ap_pass_brigade(f->next, bb);
+    }
 
-        if ((3 == sscanf(r->args, scanfmt, cachetype, &id, &off, lint)) &&
-            (id < util_ldap_cache->size)) {
+    apr_table_unset(r->headers_out, "Upgrade");
 
-            if ((p = util_ldap_cache->nodes[id]) != NULL) {
-                n = (util_url_node_t *)p->payload;
-                buf = (char*)n->url;
-            }
-            else {
-                buf = "";
-            }
-
-            ap_rputs(apr_psprintf(r->pool, 
-                     "<p>\n"
-                     "<table border='0'>\n"
-                     "<tr>\n"
-                     "<td bgcolor='#000000'><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Cache Name:</b></font></td>"
-                     "<td bgcolor='#ffffff'><font size='-1' face='Arial,Helvetica' color='#000000'><b>%s (%s)</b></font></td>"
-                     "</tr>\n"
-                     "</table>\n</p>\n",
-                 buf,
-                 cachetype[0] == 'm'? "Main" : 
-                                  (cachetype[0] == 's' ? "Search" : 
-                                   (cachetype[0] == 'c' ? "Compares" : "DNCompares"))), r);
-            
-            switch (cachetype[0]) {
-                case 'm':
-                    if (util_ldap_cache->marktime) {
-                        apr_ctime(date_str, util_ldap_cache->marktime);
-                    }
-                    else
-                        date_str[0] = 0;
-
-                    ap_rputs(apr_psprintf(r->pool, 
-                            "<p>\n"
-                            "<table border='0'>\n"
-                            "<tr>\n"
-                            "<td bgcolor='#000000'><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Size:</b></font></td>"
-                            "<td bgcolor='#ffffff'><font size='-1' face='Arial,Helvetica' color='#000000'><b>%ld</b></font></td>"
-                            "</tr>\n"
-                            "<tr>\n"
-                            "<td bgcolor='#000000'><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Max Entries:</b></font></td>"
-                            "<td bgcolor='#ffffff'><font size='-1' face='Arial,Helvetica' color='#000000'><b>%ld</b></font></td>"
-                            "</tr>\n"
-                            "<tr>\n"
-                            "<td bgcolor='#000000'><font size='-1' face='Arial,Helvetica' color='#ffffff'><b># Entries:</b></font></td>"
-                            "<td bgcolor='#ffffff'><font size='-1' face='Arial,Helvetica' color='#000000'><b>%ld</b></font></td>"
-                            "</tr>\n"
-                            "<tr>\n"
-                            "<td bgcolor='#000000'><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Full Mark:</b></font></td>"
-                            "<td bgcolor='#ffffff'><font size='-1' face='Arial,Helvetica' color='#000000'><b>%ld</b></font></td>"
-                            "</tr>\n"
-                            "<tr>\n"
-                            "<td bgcolor='#000000'><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Full Mark Time:</b></font></td>"
-                            "<td bgcolor='#ffffff'><font size='-1' face='Arial,Helvetica' color='#000000'><b>%s</b></font></td>"
-                            "</tr>\n"
-                            "</table>\n</p>\n",
-                        util_ldap_cache->size,
-                        util_ldap_cache->maxentries,
-                        util_ldap_cache->numentries,
-                        util_ldap_cache->fullmark,
-                        date_str), r);
-
-                    ap_rputs("<p>\n"
-                             "<table border='0'>\n"
-                             "<tr bgcolor='#000000'>\n"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>LDAP URL</b></font></td>"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Size</b></font></td>"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Max Entries</b></font></td>"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b># Entries</b></font></td>"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Full Mark</b></font></td>"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Full Mark Time</b></font></td>"
-                             "</tr>\n", r
-                            );
-                    for (i=0; i < util_ldap_cache->size; ++i) {
-                        for (p = util_ldap_cache->nodes[i]; p != NULL; p = p->next) {
-
-                            (*util_ldap_cache->display)(r, util_ldap_cache, p->payload);
-                        }
-                    }
-                    ap_rputs("</table>\n</p>\n", r);
-                    
-
-                    break;
-                case 's':
-                    ap_rputs("<p>\n"
-                             "<table border='0'>\n"
-                             "<tr bgcolor='#000000'>\n"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>LDAP Filter</b></font></td>"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>User Name</b></font></td>"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Last Bind</b></font></td>"
-                             "</tr>\n", r
-                            );
-                    for (i=0; i < n->search_cache->size; ++i) {
-                        for (p = n->search_cache->nodes[i]; p != NULL; p = p->next) {
-
-                            (*n->search_cache->display)(r, n->search_cache, p->payload);
-                        }
-                    }
-                    ap_rputs("</table>\n</p>\n", r);
-                    break;
-                case 'c':
-                    ap_rputs("<p>\n"
-                             "<table border='0'>\n"
-                             "<tr bgcolor='#000000'>\n"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>DN</b></font></td>"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Attribute</b></font></td>"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Value</b></font></td>"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Last Compare</b></font></td>"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Result</b></font></td>"
-                             "</tr>\n", r
-                            );
-                    for (i=0; i < n->compare_cache->size; ++i) {
-                        for (p = n->compare_cache->nodes[i]; p != NULL; p = p->next) {
-
-                            (*n->compare_cache->display)(r, n->compare_cache, p->payload);
-                        }
-                    }
-                    ap_rputs("</table>\n</p>\n", r);
-                    break;
-                case 'd':
-                    ap_rputs("<p>\n"
-                             "<table border='0'>\n"
-                             "<tr bgcolor='#000000'>\n"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Require DN</b></font></td>"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Actual DN</b></font></td>"
-                             "</tr>\n", r
-                            );
-                    for (i=0; i < n->dn_compare_cache->size; ++i) {
-                        for (p = n->dn_compare_cache->nodes[i]; p != NULL; p = p->next) {
-
-                            (*n->dn_compare_cache->display)(r, n->dn_compare_cache, p->payload);
-                        }
-                    }
-                    ap_rputs("</table>\n</p>\n", r);
-                    break;
-                default:
-                    break;
-            }
-
-        }
+    if (r) {
+        csd = (apr_socket_t*)ap_get_module_config(r->connection->conn_config, &nwssl_module);
     }
     else {
-        ap_rputs("<p>\n"
-                 "<table border='0'>\n"
-                 "<tr bgcolor='#000000'>\n"
-                 "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Cache Name</b></font></td>"
-                 "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Entries</b></font></td>"
-                 "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Avg. Chain Len.</b></font></td>"
-                 "<td colspan='2'><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Hits</b></font></td>"
-                 "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Ins/Rem</b></font></td>"
-                 "<td colspan='2'><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Purges</b></font></td>"
-                 "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Avg Purge Time</b></font></td>"
-                 "</tr>\n", r
-                );
-
-
-        id1 = apr_psprintf(pool, argfmt, "main", 0, 0);
-        buf = util_ald_cache_display_stats(r, st->util_ldap_cache, "LDAP URL Cache", id1);
-    
-        for (i=0; i < util_ldap_cache->size; ++i) {
-            for (p = util_ldap_cache->nodes[i],j=0; p != NULL; p = p->next,j++) {
-    
-                n = (util_url_node_t *)p->payload;
-    
-                t1 = apr_psprintf(pool, "%s (Searches)", n->url);
-                t2 = apr_psprintf(pool, "%s (Compares)", n->url);
-                t3 = apr_psprintf(pool, "%s (DNCompares)", n->url);
-                id1 = apr_psprintf(pool, argfmt, "srch", i, j);
-                id2 = apr_psprintf(pool, argfmt, "cmpr", i, j);
-                id3 = apr_psprintf(pool, argfmt, "dncp", i, j);
-    
-                buf = apr_psprintf(pool, "%s\n\n"
-                                         "%s\n\n"
-                                         "%s\n\n"
-                                         "%s\n\n",
-                                         buf,
-                                         util_ald_cache_display_stats(r, n->search_cache, t1, id1),
-                                         util_ald_cache_display_stats(r, n->compare_cache, t2, id2),
-                                         util_ald_cache_display_stats(r, n->dn_compare_cache, t3, id3)
-                                  );
-            }
-        }
-        ap_rputs(buf, r);
-        ap_rputs("</table>\n</p>\n", r);
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "Unable to get upgradeable socket handle");
+        return ap_pass_brigade(f->next, bb);
     }
 
-    return buf;
+
+    if (r->method_number == M_OPTIONS) {
+        apr_bucket *b = NULL;
+        /* This is a mandatory SSL upgrade. */
+
+        upgradebb = apr_brigade_create(r->pool, f->c->bucket_alloc);
+
+        ap_fputstrs(f->next, upgradebb, SWITCH_STATUS_LINE, CRLF,
+                    UPGRADE_HEADER, CRLF, CONNECTION_HEADER, CRLF, CRLF, NULL);
+
+        b = apr_bucket_flush_create(f->c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(upgradebb, b);
+        ap_pass_brigade(f->next, upgradebb);
+    }
+    else {
+        /* This is optional, and should be configurable, for now don't bother
+         * doing anything.
+         */
+        return ap_pass_brigade(f->next, bb);
+    }
+
+    key = get_port_key(r->connection);
+    
+    if (csd && key) {
+        int sockdes;
+        apr_os_sock_get(&sockdes, csd);
+
+
+        ret = SSLize_Socket(sockdes, key, r);
+    }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "Upgradeable socket handle not found");
+        return ap_pass_brigade(f->next, bb);
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                 "Awaiting re-negotiation handshake");
+
+    return ap_pass_brigade(f->next, bb);
 }

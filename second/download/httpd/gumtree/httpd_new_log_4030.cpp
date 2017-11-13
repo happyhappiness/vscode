@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00942)
-                 "%s: has acquired connection for (%s)",
-                 proxy_function, worker->s->hostname);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01500)
+                    "internal error: bad expires code: %s", r->filename);

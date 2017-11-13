@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                      "h2_task(%s): start process_request", task->id);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL, APLOGNO(02682)
+                     "Failed to create module cache lock");

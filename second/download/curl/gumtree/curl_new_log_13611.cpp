@@ -1,11 +1,10 @@
 fputs(
-"              Tell  curl  to  not handle sequences of /../ or /./ in the given\n"
-"              URL path. Normally curl will squash or merge them  according  to\n"
-"              standards but with this option set you tell it not to do that.\n"
+"              curl  will  make  sure  that each header you add/replace is sent\n"
+"              with the proper end-of-line marker, you should thus not add that\n"
+"              as a part of the header content: do not add newlines or carriage\n"
+"              returns, they will only mess things up for you.\n"
 "\n"
-"              (Added in 7.42.0)\n"
+"              Headers specified with this  option  will  not  be  included  in\n"
+"              requests that curl knows will not be sent to a proxy.\n"
 "\n"
-"       --post301\n"
-"              (HTTP) Tells curl to respect RFC 7230/6.4.2 and not convert POST\n"
-"              requests into GET requests when following a 301 redirection. The\n"
 , stdout);

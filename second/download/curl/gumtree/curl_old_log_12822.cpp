@@ -1,10 +1,11 @@
 fputs(
-"              the equivalent option to -H, --header but is for proxy  communi-\n"
-"              cation  only  like  in CONNECT requests when you want a separate\n"
-"              header sent to the proxy to what is sent to  the  actual  remote\n"
-"              host.\n"
+"              If this option is used several times,  only  the  first  one  is\n"
+"              used.\n"
 "\n"
-"              curl  will  make  sure  that each header you add/replace is sent\n"
-"              with the proper end-of-line marker, you should thus not add that\n"
-"              as a part of the header content: do not add newlines or carriage\n"
+"       -o, --output <file>\n"
+"              Write output to <file> instead of stdout. If you are using {} or\n"
+"              [] to fetch multiple documents, you can use '#'  followed  by  a\n"
+"              number  in  the <file> specifier. That variable will be replaced\n"
+"              with the current string for the URL being fetched. Like in:\n"
+"\n"
 , stdout);

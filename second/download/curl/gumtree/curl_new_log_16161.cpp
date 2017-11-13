@@ -1,1 +1,1 @@
-warnf(config->global, "curl_mime_headers failed!\n");
+warnf(config->global, "curl_mime_type failed!\n");

@@ -1,9 +1,12 @@
 fputs(
-"              This option overrides existing environment  variables  that  set\n"
-"              the  proxy  to use. If there's an environment variable setting a\n"
-"              proxy, you can set proxy to \"\" to override it.\n"
+"                             The  result of the SSL peer certificate verifica-\n"
+"                             tion that was requested. 0 means the verification\n"
+"                             was successful. (Added in 7.19.0)\n"
 "\n"
-"              All operations that are performed over a HTTP proxy will  trans-\n"
-"              parently  be  converted  to HTTP. It means that certain protocol\n"
-"              specific operations might not be available. This is not the case\n"
+"       If this option is used several times, the last one will be used.\n"
+"\n"
+"       -x, --proxy <[protocol://][user@password]proxyhost[:port]>\n"
+"              Use  the  specified HTTP proxy. If the port number is not speci-\n"
+"              fied, it is assumed at port 1080.\n"
+"\n"
 , stdout);

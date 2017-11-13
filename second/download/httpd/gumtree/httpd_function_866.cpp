@@ -1,115 +1,78 @@
-static void usage(process_rec *process)
+static apr_status_t ssl_io_filter_buffer(ap_filter_t *f,
+                                         apr_bucket_brigade *bb,
+                                         ap_input_mode_t mode,
+                                         apr_read_type_e block,
+                                         apr_off_t bytes)
 {
-    const char *bin = process->argv[0];
-    char pad[MAX_STRING_LEN];
-    unsigned i;
+    struct modssl_buffer_ctx *ctx = f->ctx;
+    apr_status_t rv;
 
-    for (i = 0; i < strlen(bin); i++) {
-        pad[i] = ' ';
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, f->r,
+                  "read from buffered SSL brigade, mode %d, "
+                  "%" APR_OFF_T_FMT " bytes",
+                  mode, bytes);
+
+    if (mode != AP_MODE_READBYTES && mode != AP_MODE_GETLINE) {
+        return APR_ENOTIMPL;
     }
 
-    pad[i] = '\0';
+    if (mode == AP_MODE_READBYTES) {
+        apr_bucket *e;
 
-#ifdef SHARED_CORE
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL ,
-                 "Usage: %s [-R directory] [-D name] [-d directory] [-f file]",
-                 bin);
-#else
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "Usage: %s [-D name] [-d directory] [-f file]", bin);
-#endif
+        /* Partition the buffered brigade. */
+        rv = apr_brigade_partition(ctx->bb, bytes, &e);
+        if (rv && rv != APR_INCOMPLETE) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r,
+                          "could not partition buffered SSL brigade");
+            ap_remove_input_filter(f);
+            return rv;
+        }
 
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-C \"directive\"] [-c \"directive\"]", pad);
+        /* If the buffered brigade contains less then the requested
+         * length, just pass it all back. */
+        if (rv == APR_INCOMPLETE) {
+            APR_BRIGADE_CONCAT(bb, ctx->bb);
+        } else {
+            apr_bucket *d = APR_BRIGADE_FIRST(ctx->bb);
 
-#ifdef WIN32
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-w] [-k start|restart|stop|shutdown]", pad);
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-k install|config|uninstall] [-n service_name]",
-                 pad);
-#endif
-#ifdef AP_MPM_WANT_SIGNAL_SERVER
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-k start|restart|graceful|stop]",
-                 pad);
-#endif
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-v] [-V] [-h] [-l] [-L] [-t] [-S]", pad);
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "Options:");
+            e = APR_BUCKET_PREV(e);
+            
+            /* Unsplice the partitioned segment and move it into the
+             * passed-in brigade; no convenient way to do this with
+             * the APR_BRIGADE_* macros. */
+            APR_RING_UNSPLICE(d, e, link);
+            APR_RING_SPLICE_HEAD(&bb->list, d, e, apr_bucket, link);
 
-#ifdef SHARED_CORE
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -R directory      : specify an alternate location for "
-                 "shared object files");
-#endif
+            APR_BRIGADE_CHECK_CONSISTENCY(bb);
+            APR_BRIGADE_CHECK_CONSISTENCY(ctx->bb);
+        }
+    }
+    else {
+        /* Split a line into the passed-in brigade. */
+        rv = apr_brigade_split_line(bb, ctx->bb, mode, bytes);
 
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -D name           : define a name for use in "
-                 "<IfDefine name> directives");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -d directory      : specify an alternate initial "
-                 "ServerRoot");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -f file           : specify an alternate ServerConfigFile");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -C \"directive\"    : process directive before reading "
-                 "config files");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -c \"directive\"    : process directive after reading "
-                 "config files");
+        if (rv) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r,
+                          "could not split line from buffered SSL brigade");
+            ap_remove_input_filter(f);
+            return rv;
+        }
+    }
 
-#ifdef NETWARE
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -n name           : set screen name");
-#endif
-#ifdef WIN32
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -n name           : set service name and use its "
-                 "ServerConfigFile");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k start          : tell Apache to start");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k restart        : tell running Apache to do a graceful "
-                 "restart");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k stop|shutdown  : tell running Apache to shutdown");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k install        : install an Apache service");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k config         : change startup Options of an Apache "
-                 "service");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k uninstall      : uninstall an Apache service");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -w                : hold open the console window on error");
-#endif
+    if (APR_BRIGADE_EMPTY(ctx->bb)) {
+        apr_bucket *e = APR_BRIGADE_LAST(bb);
+        
+        /* Ensure that the brigade is terminated by an EOS if the
+         * buffered request body has been entirely consumed. */
+        if (e == APR_BRIGADE_SENTINEL(bb) || !APR_BUCKET_IS_EOS(e)) {
+            e = apr_bucket_eos_create(f->c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, e);
+        }
 
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -e level          : show startup errors of level "
-                 "(see LogLevel)");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -E file           : log startup errors to file");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -v                : show version number");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -V                : show compile settings");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -h                : list available command line options "
-                 "(this page)");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -l                : list compiled in modules");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -L                : list available configuration "
-                 "directives");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -t -D DUMP_VHOSTS : show parsed settings (currently only "
-                 "vhost settings)");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -S                : a synonym for -t -D DUMP_VHOSTS");   
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -t                : run syntax check for config files");
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, f->r,
+                      "buffered SSL brigade now exhausted; removing filter");
+        ap_remove_input_filter(f);
+    }
 
-    destroy_and_exit_process(process, 1);
+    return APR_SUCCESS;
 }

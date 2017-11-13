@@ -1,1 +1,1 @@
-error(_("Can't cherry-pick into empty head"));
+printf(_("nothing to commit, working directory clean\n"));

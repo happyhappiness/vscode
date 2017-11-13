@@ -1,1 +1,1 @@
-die("BUG: unhandled setup_git_directory_1() result");
+error(ERRORMSG(o, e), super_prefixed(path.buf));

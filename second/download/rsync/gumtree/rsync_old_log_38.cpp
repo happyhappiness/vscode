@@ -1,0 +1,1 @@
+fprintf(stderr,"server changed to directory %s\n",dir);

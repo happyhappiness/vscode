@@ -1,11 +1,10 @@
 puts(
-"   Dload         - the average transfer speed of the download\n"
-"   Average Speed\n"
-"   Upload        - the average transfer speed of the upload\n"
-"   Time Total    - expected time to complete the operation\n"
-"   Time Current  - time passed since the invoke\n"
-"   Time Left     - expected time left to completetion\n"
-"   Curr.Speed    - the average transfer speed the last 5 seconds (the first\n"
-"                   5 seconds of a transfer is based on less time of course.)\n"
+"  Different protocols provide different ways of getting detailed information\n"
+"  about specific files/documents. To get curl to show detailed information\n"
+"  about a single file, you should use -I/--head option. It displays all\n"
+"  available info on a single file for HTTP and FTP. The HTTP information is a\n"
+"  lot more extensive.\n"
 "\n"
+"  For HTTP, you can get the header information (the same as -I would show)\n"
+"  shown before the data by using -i/--include. Curl understands the\n"
 );

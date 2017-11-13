@@ -1,23 +1,22 @@
-static void prepare_format_display(struct ref *ref_map)
+static void output_commit_title(struct merge_options *o, struct commit *commit)
 {
-	struct ref *rm;
-	const char *format = "full";
-
-	git_config_get_string_const("fetch.output", &format);
-	if (!strcasecmp(format, "full"))
-		compact_format = 0;
-	else if (!strcasecmp(format, "compact"))
-		compact_format = 1;
-	else
-		die(_("configuration fetch.output contains invalid value %s"),
-		    format);
-
-	for (rm = ref_map; rm; rm = rm->next) {
-		if (rm->status == REF_STATUS_REJECT_SHALLOW ||
-		    !rm->peer_ref ||
-		    !strcmp(rm->name, "HEAD"))
-			continue;
-
-		adjust_refcol_width(rm);
+	int i;
+	flush_output(o);
+	for (i = o->call_depth; i--;)
+		fputs("  ", stdout);
+	if (commit->util)
+		printf("virtual %s\n", merge_remote_util(commit)->name);
+	else {
+		printf("%s ", find_unique_abbrev(commit->object.sha1, DEFAULT_ABBREV));
+		if (parse_commit(commit) != 0)
+			printf(_("(bad commit)\n"));
+		else {
+			const char *title;
+			const char *msg = get_commit_buffer(commit, NULL);
+			int len = find_commit_subject(msg, &title);
+			if (len)
+				printf("%.*s\n", len, title);
+			unuse_commit_buffer(commit, msg);
+		}
 	}
 }

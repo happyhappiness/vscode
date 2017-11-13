@@ -1,3 +1,2 @@
-apr_file_printf(errfile,
-                        "Could not remove file '%s': %s" APR_EOL_STR, file,
-                        apr_strerror(rv, errmsg, sizeof errmsg));
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "session is too big (%u bytes)", len);

@@ -1,37 +1,22 @@
-void fsck_set_msg_types(struct fsck_options *options, const char *values)
+void credential_fill(struct credential *c)
 {
-	char *buf = xstrdup(values), *to_free = buf;
-	int done = 0;
+	int i;
 
-	while (!done) {
-		int len = strcspn(buf, " ,|"), equal;
+	if (c->username && c->password)
+		return;
 
-		done = !buf[len];
-		if (!len) {
-			buf++;
-			continue;
-		}
-		buf[len] = '\0';
+	credential_apply_config(c);
 
-		for (equal = 0;
-		     equal < len && buf[equal] != '=' && buf[equal] != ':';
-		     equal++)
-			buf[equal] = tolower(buf[equal]);
-		buf[equal] = '\0';
-
-		if (!strcmp(buf, "skiplist")) {
-			if (equal == len)
-				die("skiplist requires a path");
-			init_skiplist(options, buf + equal + 1);
-			buf += len + 1;
-			continue;
-		}
-
-		if (equal == len)
-			die("Missing '=': '%s'", buf);
-
-		fsck_set_msg_type(options, buf, buf + equal + 1);
-		buf += len + 1;
+	for (i = 0; i < c->helpers.nr; i++) {
+		credential_do(c, c->helpers.items[i].string, "get");
+		if (c->username && c->password)
+			return;
+		if (c->quit)
+			die("credential helper '%s' told us to quit",
+			    c->helpers.items[i].string);
 	}
-	free(to_free);
+
+	credential_getpass(c);
+	if (!c->username && !c->password)
+		die("unable to get password from user");
 }

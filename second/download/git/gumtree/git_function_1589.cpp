@@ -1,29 +1,38 @@
-void connect_work_tree_and_git_dir(const char *work_tree, const char *git_dir)
+static int update_branch(struct branch *b)
 {
-	struct strbuf file_name = STRBUF_INIT;
-	struct strbuf rel_path = STRBUF_INIT;
-	const char *real_work_tree = xstrdup(real_path(work_tree));
-	FILE *fp;
+	static const char *msg = "fast-import";
+	struct ref_lock *lock;
+	unsigned char old_sha1[20];
 
-	/* Update gitfile */
-	strbuf_addf(&file_name, "%s/.git", work_tree);
-	fp = fopen(file_name.buf, "w");
-	if (!fp)
-		die(_("Could not create git link %s"), file_name.buf);
-	fprintf(fp, "gitdir: %s\n", relative_path(git_dir, real_work_tree,
-						  &rel_path));
-	fclose(fp);
+	if (read_ref(b->name, old_sha1))
+		hashclr(old_sha1);
+	if (is_null_sha1(b->sha1)) {
+		if (b->delete)
+			delete_ref(b->name, old_sha1, 0);
+		return 0;
+	}
+	lock = lock_any_ref_for_update(b->name, old_sha1, 0, NULL);
+	if (!lock)
+		return error("Unable to lock %s", b->name);
+	if (!force_update && !is_null_sha1(old_sha1)) {
+		struct commit *old_cmit, *new_cmit;
 
-	/* Update core.worktree setting */
-	strbuf_reset(&file_name);
-	strbuf_addf(&file_name, "%s/config", git_dir);
-	if (git_config_set_in_file(file_name.buf, "core.worktree",
-				   relative_path(real_work_tree, git_dir,
-						 &rel_path)))
-		die(_("Could not set core.worktree in %s"),
-		    file_name.buf);
+		old_cmit = lookup_commit_reference_gently(old_sha1, 0);
+		new_cmit = lookup_commit_reference_gently(b->sha1, 0);
+		if (!old_cmit || !new_cmit) {
+			unlock_ref(lock);
+			return error("Branch %s is missing commits.", b->name);
+		}
 
-	strbuf_release(&file_name);
-	strbuf_release(&rel_path);
-	free((void *)real_work_tree);
+		if (!in_merge_bases(old_cmit, new_cmit)) {
+			unlock_ref(lock);
+			warning("Not updating %s"
+				" (new tip %s does not contain %s)",
+				b->name, sha1_to_hex(b->sha1), sha1_to_hex(old_sha1));
+			return -1;
+		}
+	}
+	if (write_ref_sha1(lock, b->sha1, msg) < 0)
+		return error("Unable to update %s", b->name);
+	return 0;
 }

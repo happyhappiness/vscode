@@ -1,2 +1,1 @@
-die("unknown %.*s format %s",
-				    (int)(formatp - name), name, formatp);
+die("cannot open '%s' for copying", path);

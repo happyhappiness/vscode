@@ -1,14 +1,26 @@
-void ssl_io_filter_register(apr_pool_t *p)
+static APR_INLINE int re_check(include_ctx_t *ctx, const char *string,
+                               const char *rexp)
 {
-    /* This filter MUST be after the HTTP_HEADER filter, but it also must be
-     * a resource-level filter so it has the request_rec.
-     */
-    ap_register_output_filter ("UPGRADE_FILTER", ssl_io_filter_Upgrade, NULL, AP_FTYPE_PROTOCOL + 5);
+    ap_regex_t *compiled;
+    backref_t *re = ctx->intern->re;
 
-    ap_register_input_filter  (ssl_io_filter, ssl_io_filter_input,  NULL, AP_FTYPE_CONNECTION + 5);
-    ap_register_output_filter (ssl_io_filter, ssl_io_filter_output, NULL, AP_FTYPE_CONNECTION + 5);
+    compiled = ap_pregcomp(ctx->dpool, rexp, AP_REG_EXTENDED);
+    if (!compiled) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->intern->r, "unable to "
+                      "compile pattern \"%s\"", rexp);
+        return -1;
+    }
 
-    ap_register_input_filter  (ssl_io_buffer, ssl_io_filter_buffer, NULL, AP_FTYPE_PROTOCOL);
+    if (!re) {
+        re = ctx->intern->re = apr_palloc(ctx->pool, sizeof(*re));
+    }
 
-    return;
+    re->source = apr_pstrdup(ctx->pool, string);
+    re->rexp = apr_pstrdup(ctx->pool, rexp);
+    re->nsub = compiled->re_nsub;
+    re->have_match = !ap_regexec(compiled, string, AP_MAX_REG_MATCH, 
+                                 re->match, 0);
+
+    ap_pregfree(ctx->dpool, compiled);
+    return re->have_match;
 }

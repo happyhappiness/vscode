@@ -1,1 +1,1 @@
-warning(rename_limit_advice, varname, needed);
+die("Cannot use --contents with final commit object name");

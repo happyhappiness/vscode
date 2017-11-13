@@ -1,265 +1,368 @@
-static int authenticate_digest_user(request_rec *r)
+static int ap_proxy_ajp_request(apr_pool_t *p, request_rec *r,
+                                proxy_conn_rec *conn,
+                                conn_rec *origin,
+                                proxy_dir_conf *conf,
+                                apr_uri_t *uri,
+                                char *url, char *server_portstr)
 {
-    digest_config_rec *conf;
-    digest_header_rec *resp;
-    request_rec       *mainreq;
-    const char        *t;
-    int                res;
-    authn_status       return_code;
+    apr_status_t status;
+    int result;
+    apr_bucket *e;
+    apr_bucket_brigade *input_brigade;
+    apr_bucket_brigade *output_brigade;
+    ajp_msg_t *msg;
+    apr_size_t bufsiz;
+    char *buff;
+    apr_uint16_t size;
+    const char *tenc;
+    int havebody = 1;
+    int output_failed = 0;
+    int backend_failed = 0;
+    apr_off_t bb_len;
+    int data_sent = 0;
+    int rv = 0;
+    apr_int32_t conn_poll_fd;
+    apr_pollfd_t *conn_poll;
+    proxy_server_conf *psf =
+    ap_get_module_config(r->server->module_config, &proxy_module);
+    apr_size_t maxsize = AJP_MSG_BUFFER_SZ;
 
-    /* do we require Digest auth for this URI? */
+    if (psf->io_buffer_size_set)
+       maxsize = psf->io_buffer_size;
+    if (maxsize > AJP_MAX_BUFFER_SZ)
+       maxsize = AJP_MAX_BUFFER_SZ;
+    else if (maxsize < AJP_MSG_BUFFER_SZ)
+       maxsize = AJP_MSG_BUFFER_SZ;
+    maxsize = APR_ALIGN(maxsize, 1024);
+       
+    /*
+     * Send the AJP request to the remote server
+     */
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest")) {
-        return DECLINED;
+    /* send request headers */
+    status = ajp_send_header(conn->sock, r, maxsize, uri);
+    if (status != APR_SUCCESS) {
+        conn->close++;
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                     "proxy: AJP: request failed to %pI (%s)",
+                     conn->worker->cp->addr,
+                     conn->worker->hostname);
+        if (status == AJP_EOVERFLOW)
+            return HTTP_BAD_REQUEST;
+        else
+            return HTTP_SERVICE_UNAVAILABLE;
     }
 
-    if (!ap_auth_name(r)) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Digest: need AuthName: %s", r->uri);
+    /* allocate an AJP message to store the data of the buckets */
+    bufsiz = maxsize;
+    status = ajp_alloc_data_msg(r->pool, &buff, &bufsiz, &msg);
+    if (status != APR_SUCCESS) {
+        /* We had a failure: Close connection to backend */
+        conn->close++;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: ajp_alloc_data_msg failed");
         return HTTP_INTERNAL_SERVER_ERROR;
     }
 
+    /* read the first bloc of data */
+    input_brigade = apr_brigade_create(p, r->connection->bucket_alloc);
+    tenc = apr_table_get(r->headers_in, "Transfer-Encoding");
+    if (tenc && (strcasecmp(tenc, "chunked") == 0)) {
+        /* The AJP protocol does not want body data yet */
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: request is chunked");
+    } else {
+        status = ap_get_brigade(r->input_filters, input_brigade,
+                                AP_MODE_READBYTES, APR_BLOCK_READ,
+                                maxsize - AJP_HEADER_SZ);
 
-    /* get the client response and mark */
-
-    mainreq = r;
-    while (mainreq->main != NULL) {
-        mainreq = mainreq->main;
-    }
-    while (mainreq->prev != NULL) {
-        mainreq = mainreq->prev;
-    }
-    resp = (digest_header_rec *) ap_get_module_config(mainreq->request_config,
-                                                      &auth_digest_module);
-    resp->needed_auth = 1;
-
-
-    /* get our conf */
-
-    conf = (digest_config_rec *) ap_get_module_config(r->per_dir_config,
-                                                      &auth_digest_module);
-
-
-    /* check for existence and syntax of Auth header */
-
-    if (resp->auth_hdr_sts != VALID) {
-        if (resp->auth_hdr_sts == NOT_DIGEST) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Digest: client used wrong authentication scheme "
-                          "`%s': %s", resp->scheme, r->uri);
-        }
-        else if (resp->auth_hdr_sts == INVALID) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Digest: missing user, realm, nonce, uri, digest, "
-                          "cnonce, or nonce_count in authorization header: %s",
-                          r->uri);
-        }
-        /* else (resp->auth_hdr_sts == NO_HEADER) */
-        note_digest_auth_failure(r, conf, resp, 0);
-        return HTTP_UNAUTHORIZED;
-    }
-
-    r->user         = (char *) resp->username;
-    r->ap_auth_type = (char *) "Digest";
-
-    /* check the auth attributes */
-
-    if (strcmp(resp->uri, resp->raw_request_uri)) {
-        /* Hmm, the simple match didn't work (probably a proxy modified the
-         * request-uri), so lets do a more sophisticated match
-         */
-        apr_uri_t r_uri, d_uri;
-
-        copy_uri_components(&r_uri, resp->psd_request_uri, r);
-        if (apr_uri_parse(r->pool, resp->uri, &d_uri) != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Digest: invalid uri <%s> in Authorization header",
-                          resp->uri);
-            return HTTP_BAD_REQUEST;
-        }
-
-        if (d_uri.hostname) {
-            ap_unescape_url(d_uri.hostname);
-        }
-        if (d_uri.path) {
-            ap_unescape_url(d_uri.path);
-        }
-
-        if (d_uri.query) {
-            ap_unescape_url(d_uri.query);
-        }
-        else if (r_uri.query) {
-            /* MSIE compatibility hack.  MSIE has some RFC issues - doesn't
-             * include the query string in the uri Authorization component
-             * or when computing the response component.  the second part
-             * works out ok, since we can hash the header and get the same
-             * result.  however, the uri from the request line won't match
-             * the uri Authorization component since the header lacks the
-             * query string, leaving us incompatable with a (broken) MSIE.
-             *
-             * the workaround is to fake a query string match if in the proper
-             * environment - BrowserMatch MSIE, for example.  the cool thing
-             * is that if MSIE ever fixes itself the simple match ought to
-             * work and this code won't be reached anyway, even if the
-             * environment is set.
-             */
-
-            if (apr_table_get(r->subprocess_env,
-                              "AuthDigestEnableQueryStringHack")) {
-
-                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "Digest: "
-                              "applying AuthDigestEnableQueryStringHack "
-                              "to uri <%s>", resp->raw_request_uri);
-
-               d_uri.query = r_uri.query;
-            }
-        }
-
-        if (r->method_number == M_CONNECT) {
-            if (!r_uri.hostinfo || strcmp(resp->uri, r_uri.hostinfo)) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Digest: uri mismatch - <%s> does not match "
-                              "request-uri <%s>", resp->uri, r_uri.hostinfo);
-                return HTTP_BAD_REQUEST;
-            }
-        }
-        else if (
-            /* check hostname matches, if present */
-            (d_uri.hostname && d_uri.hostname[0] != '\0'
-              && strcasecmp(d_uri.hostname, r_uri.hostname))
-            /* check port matches, if present */
-            || (d_uri.port_str && d_uri.port != r_uri.port)
-            /* check that server-port is default port if no port present */
-            || (d_uri.hostname && d_uri.hostname[0] != '\0'
-                && !d_uri.port_str && r_uri.port != ap_default_port(r))
-            /* check that path matches */
-            || (d_uri.path != r_uri.path
-                /* either exact match */
-                && (!d_uri.path || !r_uri.path
-                    || strcmp(d_uri.path, r_uri.path))
-                /* or '*' matches empty path in scheme://host */
-                && !(d_uri.path && !r_uri.path && resp->psd_request_uri->hostname
-                    && d_uri.path[0] == '*' && d_uri.path[1] == '\0'))
-            /* check that query matches */
-            || (d_uri.query != r_uri.query
-                && (!d_uri.query || !r_uri.query
-                    || strcmp(d_uri.query, r_uri.query)))
-            ) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Digest: uri mismatch - <%s> does not match "
-                          "request-uri <%s>", resp->uri, resp->raw_request_uri);
-            return HTTP_BAD_REQUEST;
-        }
-    }
-
-    if (resp->opaque && resp->opaque_num == 0) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Digest: received invalid opaque - got `%s'",
-                      resp->opaque);
-        note_digest_auth_failure(r, conf, resp, 0);
-        return HTTP_UNAUTHORIZED;
-    }
-
-    if (strcmp(resp->realm, conf->realm)) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Digest: realm mismatch - got `%s' but expected `%s'",
-                      resp->realm, conf->realm);
-        note_digest_auth_failure(r, conf, resp, 0);
-        return HTTP_UNAUTHORIZED;
-    }
-
-    if (resp->algorithm != NULL
-        && strcasecmp(resp->algorithm, "MD5")
-        && strcasecmp(resp->algorithm, "MD5-sess")) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Digest: unknown algorithm `%s' received: %s",
-                      resp->algorithm, r->uri);
-        note_digest_auth_failure(r, conf, resp, 0);
-        return HTTP_UNAUTHORIZED;
-    }
-
-    return_code = get_hash(r, r->user, conf);
-
-    if (return_code == AUTH_USER_NOT_FOUND) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Digest: user `%s' in realm `%s' not found: %s",
-                      r->user, conf->realm, r->uri);
-        note_digest_auth_failure(r, conf, resp, 0);
-        return HTTP_UNAUTHORIZED;
-    }
-    else if (return_code == AUTH_USER_FOUND) {
-        /* we have a password, so continue */
-    }
-    else if (return_code == AUTH_DENIED) {
-        /* authentication denied in the provider before attempting a match */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Digest: user `%s' in realm `%s' denied by provider: %s",
-                      r->user, conf->realm, r->uri);
-        note_digest_auth_failure(r, conf, resp, 0);
-        return HTTP_UNAUTHORIZED;
-    }
-    else {
-        /* AUTH_GENERAL_ERROR (or worse)
-         * We'll assume that the module has already said what its error
-         * was in the logs.
-         */
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    if (resp->message_qop == NULL) {
-        /* old (rfc-2069) style digest */
-        if (strcmp(resp->digest, old_digest(r, resp, conf->ha1))) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Digest: user %s: password mismatch: %s", r->user,
-                          r->uri);
-            note_digest_auth_failure(r, conf, resp, 0);
-            return HTTP_UNAUTHORIZED;
-        }
-    }
-    else {
-        const char *exp_digest;
-        int match = 0, idx;
-        for (idx = 0; conf->qop_list[idx] != NULL; idx++) {
-            if (!strcasecmp(conf->qop_list[idx], resp->message_qop)) {
-                match = 1;
-                break;
-            }
-        }
-
-        if (!match
-            && !(conf->qop_list[0] == NULL
-                 && !strcasecmp(resp->message_qop, "auth"))) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Digest: invalid qop `%s' received: %s",
-                          resp->message_qop, r->uri);
-            note_digest_auth_failure(r, conf, resp, 0);
-            return HTTP_UNAUTHORIZED;
-        }
-
-        exp_digest = new_digest(r, resp, conf);
-        if (!exp_digest) {
-            /* we failed to allocate a client struct */
+        if (status != APR_SUCCESS) {
+            /* We had a failure: Close connection to backend */
+            conn->close++;
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: ap_get_brigade failed");
+            apr_brigade_destroy(input_brigade);
             return HTTP_INTERNAL_SERVER_ERROR;
         }
-        if (strcmp(resp->digest, exp_digest)) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Digest: user %s: password mismatch: %s", r->user,
-                          r->uri);
-            note_digest_auth_failure(r, conf, resp, 0);
-            return HTTP_UNAUTHORIZED;
+
+        /* have something */
+        if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(input_brigade))) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: APR_BUCKET_IS_EOS");
+        }
+
+        /* Try to send something */
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: data to read (max %" APR_SIZE_T_FMT
+                     " at %" APR_SIZE_T_FMT ")", bufsiz, msg->pos);
+
+        status = apr_brigade_flatten(input_brigade, buff, &bufsiz);
+        if (status != APR_SUCCESS) {
+            /* We had a failure: Close connection to backend */
+            conn->close++;
+            apr_brigade_destroy(input_brigade);
+            ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                         "proxy: apr_brigade_flatten");
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+        apr_brigade_cleanup(input_brigade);
+
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: got %" APR_SIZE_T_FMT " bytes of data", bufsiz);
+        if (bufsiz > 0) {
+            status = ajp_send_data_msg(conn->sock, msg, bufsiz);
+            if (status != APR_SUCCESS) {
+                /* We had a failure: Close connection to backend */
+                conn->close++;
+                apr_brigade_destroy(input_brigade);
+                ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                             "proxy: send failed to %pI (%s)",
+                             conn->worker->cp->addr,
+                             conn->worker->hostname);
+                return HTTP_SERVICE_UNAVAILABLE;
+            }
+            conn->worker->s->transferred += bufsiz;
         }
     }
 
-    if (check_nc(r, resp, conf) != OK) {
-        note_digest_auth_failure(r, conf, resp, 0);
-        return HTTP_UNAUTHORIZED;
+    /* read the response */
+    conn->data = NULL;
+    status = ajp_read_header(conn->sock, r, maxsize,
+                             (ajp_msg_t **)&(conn->data));
+    if (status != APR_SUCCESS) {
+        /* We had a failure: Close connection to backend */
+        conn->close++;
+        apr_brigade_destroy(input_brigade);
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                     "proxy: read response failed from %pI (%s)",
+                     conn->worker->cp->addr,
+                     conn->worker->hostname);
+        return HTTP_SERVICE_UNAVAILABLE;
+    }
+    /* parse the reponse */
+    result = ajp_parse_type(r, conn->data);
+    output_brigade = apr_brigade_create(p, r->connection->bucket_alloc);
+
+    /*
+     * Prepare apr_pollfd_t struct for possible later check if there is currently
+     * data available from the backend (do not flush response to client)
+     * or not (flush response to client)
+     */
+    conn_poll = apr_pcalloc(p, sizeof(apr_pollfd_t));
+    conn_poll->reqevents = APR_POLLIN;
+    conn_poll->desc_type = APR_POLL_SOCKET;
+    conn_poll->desc.s = conn->sock;
+
+    bufsiz = maxsize;
+    for (;;) {
+        switch (result) {
+            case CMD_AJP13_GET_BODY_CHUNK:
+                if (havebody) {
+                    if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(input_brigade))) {
+                        /* This is the end */
+                        bufsiz = 0;
+                        havebody = 0;
+                        ap_log_error(APLOG_MARK, APLOG_DEBUG, status, r->server,
+                                     "proxy: APR_BUCKET_IS_EOS");
+                    } else {
+                        status = ap_get_brigade(r->input_filters, input_brigade,
+                                                AP_MODE_READBYTES,
+                                                APR_BLOCK_READ,
+                                                maxsize - AJP_HEADER_SZ);
+                        if (status != APR_SUCCESS) {
+                            ap_log_error(APLOG_MARK, APLOG_DEBUG, status,
+                                         r->server,
+                                         "ap_get_brigade failed");
+                            output_failed = 1;
+                            break;
+                        }
+                        bufsiz = maxsize;
+                        status = apr_brigade_flatten(input_brigade, buff,
+                                                     &bufsiz);
+                        apr_brigade_cleanup(input_brigade);
+                        if (status != APR_SUCCESS) {
+                            ap_log_error(APLOG_MARK, APLOG_DEBUG, status,
+                                         r->server,
+                                         "apr_brigade_flatten failed");
+                            output_failed = 1;
+                            break;
+                        }
+                    }
+
+                    ajp_msg_reset(msg);
+                    /* will go in ajp_send_data_msg */
+                    status = ajp_send_data_msg(conn->sock, msg, bufsiz);
+                    if (status != APR_SUCCESS) {
+                        ap_log_error(APLOG_MARK, APLOG_DEBUG, status, r->server,
+                                     "ajp_send_data_msg failed");
+                        backend_failed = 1;
+                        break;
+                    }
+                    conn->worker->s->transferred += bufsiz;
+                } else {
+                    /*
+                     * something is wrong TC asks for more body but we are
+                     * already at the end of the body data
+                     */
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                                 "ap_proxy_ajp_request error read after end");
+                    backend_failed = 1;
+                }
+                break;
+            case CMD_AJP13_SEND_HEADERS:
+                /* AJP13_SEND_HEADERS: process them */
+                status = ajp_parse_header(r, conf, conn->data);
+                if (status != APR_SUCCESS) {
+                    backend_failed = 1;
+                }
+                break;
+            case CMD_AJP13_SEND_BODY_CHUNK:
+                /* AJP13_SEND_BODY_CHUNK: piece of data */
+                status = ajp_parse_data(r, conn->data, &size, &buff);
+                if (status == APR_SUCCESS) {
+                    if (size == 0) {
+                        /* AJP13_SEND_BODY_CHUNK with zero length
+                         * is explicit flush message
+                         */
+                        e = apr_bucket_flush_create(r->connection->bucket_alloc);
+                        APR_BRIGADE_INSERT_TAIL(output_brigade, e);
+                    }
+                    else {
+                        e = apr_bucket_transient_create(buff, size,
+                                                    r->connection->bucket_alloc);
+                        APR_BRIGADE_INSERT_TAIL(output_brigade, e);
+
+                        if ((conn->worker->flush_packets == flush_on) ||
+                            ((conn->worker->flush_packets == flush_auto) &&
+                            (apr_poll(conn_poll, 1, &conn_poll_fd,
+                                      conn->worker->flush_wait)
+                                        == APR_TIMEUP) ) ) {
+                            e = apr_bucket_flush_create(r->connection->bucket_alloc);
+                            APR_BRIGADE_INSERT_TAIL(output_brigade, e);
+                        }
+                        apr_brigade_length(output_brigade, 0, &bb_len);
+                        if (bb_len != -1)
+                            conn->worker->s->read += bb_len;
+                    }
+                    if (ap_pass_brigade(r->output_filters,
+                                        output_brigade) != APR_SUCCESS) {
+                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                      "proxy: error processing body");
+                        output_failed = 1;
+                    }
+                    data_sent = 1;
+                    apr_brigade_cleanup(output_brigade);
+                }
+                else {
+                    backend_failed = 1;
+                }
+                break;
+            case CMD_AJP13_END_RESPONSE:
+                e = apr_bucket_eos_create(r->connection->bucket_alloc);
+                APR_BRIGADE_INSERT_TAIL(output_brigade, e);
+                if (ap_pass_brigade(r->output_filters,
+                                    output_brigade) != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "proxy: error processing end");
+                    output_failed = 1;
+                }
+                /* XXX: what about flush here? See mod_jk */
+                data_sent = 1;
+                break;
+            default:
+                backend_failed = 1;
+                break;
+        }
+
+        /*
+         * If connection has been aborted by client: Stop working.
+         * Nevertheless, we regard our operation so far as a success:
+         * So reset output_failed to 0 and set result to CMD_AJP13_END_RESPONSE
+         * But: Close this connection to the backend.
+         */
+        if (r->connection->aborted) {
+            conn->close++;
+            output_failed = 0;
+            result = CMD_AJP13_END_RESPONSE;
+        }
+
+        /*
+         * We either have finished successfully or we failed.
+         * So bail out
+         */
+        if ((result == CMD_AJP13_END_RESPONSE) || backend_failed
+            || output_failed)
+            break;
+
+        /* read the response */
+        status = ajp_read_header(conn->sock, r, maxsize,
+                                 (ajp_msg_t **)&(conn->data));
+        if (status != APR_SUCCESS) {
+            backend_failed = 1;
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, status, r->server,
+                         "ajp_read_header failed");
+            break;
+        }
+        result = ajp_parse_type(r, conn->data);
+    }
+    apr_brigade_destroy(input_brigade);
+
+    /*
+     * Clear output_brigade to remove possible buckets that remained there
+     * after an error.
+     */
+    apr_brigade_cleanup(output_brigade);
+
+    if (backend_failed || output_failed) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: Processing of request failed backend: %i, "
+                     "output: %i", backend_failed, output_failed);
+        /* We had a failure: Close connection to backend */
+        conn->close++;
+        /* Return DONE to avoid error messages being added to the stream */
+        if (data_sent) {
+            rv = DONE;
+        }
+    }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: got response from %pI (%s)",
+                     conn->worker->cp->addr,
+                     conn->worker->hostname);
+        rv = OK;
     }
 
-    /* Note: this check is done last so that a "stale=true" can be
-       generated if the nonce is old */
-    if ((res = check_nonce(r, resp, conf))) {
-        return res;
+    if (backend_failed) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                     "proxy: dialog to %pI (%s) failed",
+                     conn->worker->cp->addr,
+                     conn->worker->hostname);
+        /*
+         * If we already send data, signal a broken backend connection
+         * upwards in the chain.
+         */
+        if (data_sent) {
+            ap_proxy_backend_broke(r, output_brigade);
+        } else
+            rv = HTTP_SERVICE_UNAVAILABLE;
     }
 
-    return OK;
+    /*
+     * Ensure that we sent an EOS bucket thru the filter chain, if we already
+     * have sent some data. Maybe ap_proxy_backend_broke was called and added
+     * one to the brigade already (no longer making it empty). So we should
+     * not do this in this case.
+     */
+    if (data_sent && !r->eos_sent && APR_BRIGADE_EMPTY(output_brigade)) {
+        e = apr_bucket_eos_create(r->connection->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(output_brigade, e);
+    }
+
+    /* If we have added something to the brigade above, sent it */
+    if (!APR_BRIGADE_EMPTY(output_brigade))
+        ap_pass_brigade(r->output_filters, output_brigade);
+
+    apr_brigade_destroy(output_brigade);
+
+    return rv;
 }

@@ -1,1 +1,1 @@
-strbuf_addstr(&filename, path);
+die("curl_easy_init failed");

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, status, s, APLOGNO(01752)
-                     "could not find the UTF-8 charset in the file %s.",
-                     charset_confname);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "ppr: real: %s", real);

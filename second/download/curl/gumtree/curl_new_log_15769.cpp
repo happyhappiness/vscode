@@ -1,9 +1,12 @@
 fputs(
-"              The  user  name  and  passwords are split up on the first colon,\n"
-"              which makes it impossible to use a colon in the user  name  with\n"
-"              this option. The password can, still.\n"
+"              Enables  a  full  trace  dump of all incoming and outgoing data,\n"
+"              including descriptive information, to the given output file. Use\n"
+"              \"-\"  as  filename  to have the output sent to stdout. Use \"%\" as\n"
+"              filename to have the output sent to stderr.\n"
 "\n"
-"              When  using  Kerberos  V5 with a Windows based server you should\n"
-"              include the Windows domain name in the user name, in  order  for\n"
-"              the  server  to  successfully  obtain  a Kerberos Ticket. If you\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"              This option overrides -v, --verbose and --trace-ascii.\n"
+"\n"
+"       --unix-socket <path>\n"
 , stdout);

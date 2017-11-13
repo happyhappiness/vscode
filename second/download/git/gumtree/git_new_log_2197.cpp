@@ -1,3 +1,1 @@
-error(_("Cannot delete branch '%s' "
-					"checked out at '%s'"),
-				      bname.buf, worktree);
+die("bad %s argument: %s", opt->long_name, arg);

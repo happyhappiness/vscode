@@ -1,4 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, p, APLOGNO(00098)
-                      "pid file %s overwritten -- Unclean "
-                      "shutdown of previous Apache run?",
-                      fname);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00859)
+                          "receiving request body failed");

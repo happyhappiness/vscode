@@ -1,1 +1,1 @@
-fprintf(FERROR,"sender finished %s\n",fname);
+fprintf(FERROR,"data recv %d at %d\n",i,(int)offset);

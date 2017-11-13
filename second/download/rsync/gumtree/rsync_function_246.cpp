@@ -1,40 +1,134 @@
-static void usage(FILE *f)
-{
-  fprintf(f,"rsync version %s Copyright Andrew Tridgell and Paul Mackerras\n\n",
-	  VERSION);
-  fprintf(f,"Usage:\t%s [options] src user@host:dest\nOR",RSYNC_NAME);
-  fprintf(f,"\t%s [options] user@host:src dest\n\n",RSYNC_NAME);
-  fprintf(f,"Options:\n");
-  fprintf(f,"-v, --verbose            increase verbosity\n");
-  fprintf(f,"-c, --checksum           always checksum\n");
-  fprintf(f,"-a, --archive            archive mode (same as -rlptDog)\n");
-  fprintf(f,"-r, --recursive          recurse into directories\n");
-  fprintf(f,"-R, --relative           use relative path names\n");
-  fprintf(f,"-b, --backup             make backups (default ~ extension)\n");
-  fprintf(f,"-u, --update             update only (don't overwrite newer files)\n");
-  fprintf(f,"-l, --links              preserve soft links\n");
-  fprintf(f,"-H, --hard-links         preserve hard links\n");
-  fprintf(f,"-p, --perms              preserve permissions\n");
-  fprintf(f,"-o, --owner              preserve owner (root only)\n");
-  fprintf(f,"-g, --group              preserve group\n");
-  fprintf(f,"-D, --devices            preserve devices (root only)\n");
-  fprintf(f,"-t, --times              preserve times\n");  
-  fprintf(f,"-S, --sparse             handle sparse files efficiently\n");
-  fprintf(f,"-n, --dry-run            show what would have been transferred\n");
-  fprintf(f,"-x, --one-file-system    don't cross filesystem boundaries\n");
-  fprintf(f,"-B, --block-size SIZE    checksum blocking size\n");  
-  fprintf(f,"-e, --rsh COMMAND        specify rsh replacement\n");
-  fprintf(f,"    --rsync-path PATH    specify path to rsync on the remote machine\n");
-  fprintf(f,"-C, --cvs-exclude        auto ignore files in the same way CVS does\n");
-  fprintf(f,"    --delete             delete files that don't exist on the sending side\n");
-  fprintf(f,"-I, --ignore-times       don't exclude files that match length and time\n");
-  fprintf(f,"-z, --compress           compress file data\n");
-  fprintf(f,"    --exclude FILE       exclude file FILE\n");
-  fprintf(f,"    --exclude-from FILE  exclude files listed in FILE\n");
-  fprintf(f,"    --suffix SUFFIX      override backup suffix\n");  
-  fprintf(f,"    --version            print version number\n");  
+int recv_files(int f_in,struct file_list *flist,char *local_name,int f_gen)
+{  
+  int fd1,fd2;
+  struct stat st;
+  char *fname;
+  char fnametmp[MAXPATHLEN];
+  struct map_struct *buf;
+  int i;
+  struct file_struct *file;
+  int phase=0;
+  int recv_ok;
 
-  fprintf(f,"\n");
-  fprintf(f,"the backup suffix defaults to %s\n",BACKUP_SUFFIX);
-  fprintf(f,"the block size defaults to %d\n",BLOCK_SIZE);  
+  if (verbose > 2) {
+    fprintf(FERROR,"recv_files(%d) starting\n",flist->count);
+  }
+
+  if (recurse && delete_mode && !local_name && flist->count>0) {
+    delete_files(flist);
+  }
+
+  while (1) 
+    {      
+      i = read_int(f_in);
+      if (i == -1) {
+	if (phase==0 && remote_version >= 13) {
+	  phase++;
+	  csum_length = SUM_LENGTH;
+	  if (verbose > 2)
+	    fprintf(FERROR,"recv_files phase=%d\n",phase);
+	  write_int(f_gen,-1);
+	  write_flush(f_gen);
+	  continue;
+	}
+	break;
+      }
+
+      file = &flist->files[i];
+      fname = file->name;
+
+      if (local_name)
+	fname = local_name;
+
+      if (dry_run) {
+	if (!am_server && verbose)
+	  printf("%s\n",fname);
+	continue;
+      }
+
+      if (verbose > 2)
+	fprintf(FERROR,"recv_files(%s)\n",fname);
+
+      /* open the file */  
+      fd1 = open(fname,O_RDONLY);
+
+      if (fd1 != -1 && fstat(fd1,&st) != 0) {
+	fprintf(FERROR,"fstat %s : %s\n",fname,strerror(errno));
+	close(fd1);
+	return -1;
+      }
+
+      if (fd1 != -1 && !S_ISREG(st.st_mode)) {
+	fprintf(FERROR,"%s : not a regular file\n",fname);
+	close(fd1);
+	return -1;
+      }
+
+      if (fd1 != -1 && st.st_size > 0) {
+	buf = map_file(fd1,st.st_size);
+	if (verbose > 2)
+	  fprintf(FERROR,"recv mapped %s of size %d\n",fname,(int)st.st_size);
+      } else {
+	buf = NULL;
+      }
+
+      /* open tmp file */
+      sprintf(fnametmp,"%s.XXXXXX",fname);
+      if (NULL == mktemp(fnametmp)) {
+	fprintf(FERROR,"mktemp %s failed\n",fnametmp);
+	return -1;
+      }
+      fd2 = open(fnametmp,O_WRONLY|O_CREAT,file->mode);
+      if (fd2 == -1) {
+	fprintf(FERROR,"open %s : %s\n",fnametmp,strerror(errno));
+	return -1;
+      }
+      
+      cleanup_fname = fnametmp;
+
+      if (!am_server && verbose)
+	printf("%s\n",fname);
+
+      /* recv file data */
+      recv_ok = receive_data(f_in,buf,fd2,fname);
+
+      if (fd1 != -1) {
+	if (buf) unmap_file(buf);
+	close(fd1);
+      }
+      close(fd2);
+
+      if (verbose > 2)
+	fprintf(FERROR,"renaming %s to %s\n",fnametmp,fname);
+
+      if (make_backups) {
+	char fnamebak[MAXPATHLEN];
+	sprintf(fnamebak,"%s%s",fname,backup_suffix);
+	if (rename(fname,fnamebak) != 0 && errno != ENOENT) {
+	  fprintf(FERROR,"rename %s %s : %s\n",fname,fnamebak,strerror(errno));
+	  exit_cleanup(1);
+	}
+      }
+
+      /* move tmp file over real file */
+      if (rename(fnametmp,fname) != 0) {
+	fprintf(FERROR,"rename %s -> %s : %s\n",
+		fnametmp,fname,strerror(errno));
+      }
+
+      cleanup_fname = NULL;
+
+      set_perms(fname,file,NULL,0);
+
+      if (!recv_ok) {
+	if (verbose > 1)
+	  fprintf(FERROR,"redoing %s(%d)\n",fname,i);
+	write_int(f_gen,i);
+      }
+    }
+
+  if (verbose > 2)
+    fprintf(FERROR,"recv_files finished\n");
+  
+  return 0;
 }

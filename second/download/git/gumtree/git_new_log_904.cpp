@@ -1,1 +1,1 @@
-die(_("Cannot change to '%s'"), dir.buf);
+die("unknown value for config '%s': %s", key, value);

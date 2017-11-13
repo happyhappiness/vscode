@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k start           : tell Apache to start");
+ap_log_cerror(APLOG_MARK, APLOG_INFO, status, f->c,
+                              "SSL filter error shutting down I/O");

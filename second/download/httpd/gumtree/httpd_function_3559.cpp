@@ -1,70 +1,76 @@
-static apr_status_t rfc1413_connect(apr_socket_t **newsock, conn_rec *conn,
-                                    server_rec *srv, apr_time_t timeout)
+static apr_status_t hm_watchdog_callback(int state, void *data,
+                                         apr_pool_t *pool)
 {
-    apr_status_t rv;
-    apr_sockaddr_t *localsa, *destsa;
+    apr_status_t rv = APR_SUCCESS;
+    apr_time_t cur, now;
+    hm_ctx_t *ctx = (hm_ctx_t *)data;
 
-    if ((rv = apr_sockaddr_info_get(&localsa, conn->local_ip, APR_UNSPEC,
-                              0, /* ephemeral port */
-                              0, conn->pool)) != APR_SUCCESS) {
-        /* This should not fail since we have a numeric address string
-         * as the host. */
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, srv,
-                     "rfc1413: apr_sockaddr_info_get(%s) failed",
-                     conn->local_ip);
+    if (!ctx->active) {
         return rv;
     }
 
-    if ((rv = apr_sockaddr_info_get(&destsa, conn->remote_ip,
-                              localsa->family, /* has to match */
-                              RFC1413_PORT, 0, conn->pool)) != APR_SUCCESS) {
-        /* This should not fail since we have a numeric address string
-         * as the host. */
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, srv,
-                     "rfc1413: apr_sockaddr_info_get(%s) failed",
-                     conn->remote_ip);
-        return rv;
+    switch (state) {
+        case AP_WATCHDOG_STATE_STARTING:
+            rv = hm_listen(ctx);
+            if (rv) {
+                ctx->status = rv;
+                ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
+                             "Heartmonitor: Unable to listen for connections!");
+            }
+            else {
+                ctx->keep_running = 1;
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ctx->s,
+                             "Heartmonitor: %s listener started.",
+                             HM_WATHCHDOG_NAME);
+            }
+        break;
+        case AP_WATCHDOG_STATE_RUNNING:
+            /* store in the slotmem or in the file depending on configuration */
+            hm_update_stats(ctx, pool);
+            cur = now = apr_time_sec(apr_time_now());
+            /* TODO: Insted HN_UPDATE_SEC use
+             * the ctx->interval
+             */
+            while ((now - cur) < apr_time_sec(ctx->interval)) {
+                int n;
+                apr_status_t rc;
+                apr_pool_t *p;
+                apr_pollfd_t pfd;
+                apr_interval_time_t timeout;
+
+                apr_pool_create(&p, pool);
+
+                pfd.desc_type = APR_POLL_SOCKET;
+                pfd.desc.s = ctx->sock;
+                pfd.p = p;
+                pfd.reqevents = APR_POLLIN;
+
+                timeout = apr_time_from_sec(1);
+
+                rc = apr_poll(&pfd, 1, &n, timeout);
+
+                if (!ctx->keep_running) {
+                    apr_pool_destroy(p);
+                    break;
+                }
+                if (rc == APR_SUCCESS && (pfd.rtnevents & APR_POLLIN)) {
+                    hm_recv(ctx, p);
+                }
+                now = apr_time_sec(apr_time_now());
+                apr_pool_destroy(p);
+            }
+        break;
+        case AP_WATCHDOG_STATE_STOPPING:
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ctx->s,
+                         "Heartmonitor: stopping %s listener.",
+                         HM_WATHCHDOG_NAME);
+
+            ctx->keep_running = 0;
+            if (ctx->sock) {
+                apr_socket_close(ctx->sock);
+                ctx->sock = NULL;
+            }
+        break;
     }
-
-    if ((rv = apr_socket_create(newsock,
-                                localsa->family, /* has to match */
-                                SOCK_STREAM, 0, conn->pool)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, srv,
-                     "rfc1413: error creating query socket");
-        return rv;
-    }
-
-    if ((rv = apr_socket_timeout_set(*newsock, timeout)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, srv,
-                     "rfc1413: error setting query socket timeout");
-        apr_socket_close(*newsock);
-        return rv;
-    }
-
-/*
- * Bind the local and remote ends of the query socket to the same
- * IP addresses as the connection under investigation. We go
- * through all this trouble because the local or remote system
- * might have more than one network address. The RFC1413 etc.
- * client sends only port numbers; the server takes the IP
- * addresses from the query socket.
- */
-
-    if ((rv = apr_socket_bind(*newsock, localsa)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, srv,
-                     "rfc1413: Error binding query socket to local port");
-        apr_socket_close(*newsock);
-        return rv;
-    }
-
-/*
- * errors from connect usually imply the remote machine doesn't support
- * the service; don't log such an error
- */
-    if ((rv = apr_socket_connect(*newsock, destsa)) != APR_SUCCESS) {
-        apr_socket_close(*newsock);
-        return rv;
-    }
-
-    return APR_SUCCESS;
+    return rv;
 }

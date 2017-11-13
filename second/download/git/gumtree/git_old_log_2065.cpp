@@ -1,2 +1,1 @@
-error("Could not read %s",
-			     sha1_to_hex(item->object.sha1));
+printf("%s is the first bad commit\n", bisect_rev_hex);

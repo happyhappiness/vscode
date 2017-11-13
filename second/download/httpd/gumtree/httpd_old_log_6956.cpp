@@ -1,4 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, r->connection, 
-                                  APLOGNO(03369)
-                                  "h2_proxy_session(%s): rescheduled request %s",
-                                  ctx->engine_id, task_id);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, r->connection, 
+                          APLOGNO(03471) "h2_proxy_session(%s): request %s -> %s "
+                          "not complete, was touched",
+                          ctx->engine_id, task_id, uri);

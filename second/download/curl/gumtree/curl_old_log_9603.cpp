@@ -1,12 +1,8 @@
 fputs(
-"    Run the 'openssl' application to convert the certificate. If you cd to the\n"
-"    openssl installation, you can do it like:\n"
-"\n"
-"     # ./apps/openssl pkcs12 -in [file you saved] -clcerts -out [PEMfile]\n"
-"\n"
-"    In Firefox, select Options, then Advanced, then the Encryption tab,\n"
-"    View Certificates. This opens the Certificate Manager, where you can\n"
-"    Export. Be sure to select PEM for the Save as type.\n"
-"\n"
-"    In Internet Explorer, select Internet Options, then the Content tab, then\n"
+"  certificate needs to be in PEM-format. PEM is a standard and open format to\n"
+"  store certificates with, but it is not used by the most commonly used\n"
+"  browsers (Netscape and MSIE both use the so called PKCS#12 format). If you\n"
+"  want curl to use the certificates you use with your (favourite) browser, you\n"
+"  may need to download/compile a converter that can convert your browser's\n"
+"  formatted certificates to PEM formatted ones. This kind of converter is\n"
 , stdout);

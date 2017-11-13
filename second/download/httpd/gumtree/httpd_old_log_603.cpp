@@ -1,2 +1,2 @@
-ap_rputs(DOCTYPE_HTML_3_2
-	     "<html><head><title>Server Information</title></head>\n", r);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "ap_pass_brigade()");

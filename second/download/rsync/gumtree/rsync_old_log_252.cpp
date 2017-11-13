@@ -1,1 +1,1 @@
-fprintf(FERROR,"EOF in map_ptr!\n");
+fprintf(stderr,"Error reading %d bytes : %s\n",4,strerror(errno));

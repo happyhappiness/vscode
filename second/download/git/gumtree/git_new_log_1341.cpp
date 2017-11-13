@@ -1,1 +1,1 @@
-die("BUG: commit called for transaction that is not open");
+die("Corrupt mode in %s", oid_to_hex(oid));

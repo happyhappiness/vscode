@@ -1,4 +1,4 @@
 ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                     "changing ServerLimit to %d from original value of %d "
-                     "not allowed during restart",
-                     server_limit, retained->first_server_limit);
+                         "Init: Oops, you want to request client "
+                         "authentication, but no CAs are known for "
+                         "verification!?  [Hint: SSLCACertificate*]");

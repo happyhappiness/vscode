@@ -1,2 +1,2 @@
-error_errno("chmod on %s failed",
-				  get_lock_file_path(lock));
+fprintf(stderr, _("finished search at %s\n"),
+					oid_to_hex(&c->object.oid));

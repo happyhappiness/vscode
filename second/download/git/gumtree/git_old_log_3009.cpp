@@ -1,1 +1,1 @@
-error("cannot open %s: %s", filename ? filename : "NULL", strerror(errno));
+error("cannot open fd %d: %s", in_fd, strerror(errno));

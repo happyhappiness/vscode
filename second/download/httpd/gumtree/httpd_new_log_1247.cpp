@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                             "Child %lu: _beginthreadex failed. Unable to create all worker threads. "
-                             "Created %d of the %d threads requested with the ThreadsPerChild configuration directive.",
-                             my_pid, threads_created, ap_threads_per_child);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_parse_data: Wrong chunk length. Length of chunk is %i,"
+               " expected length is %i.", *len, expected_len);

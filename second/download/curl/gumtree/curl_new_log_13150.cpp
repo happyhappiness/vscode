@@ -1,11 +1,10 @@
 fputs(
-"              Disable  the  ALPN  TLS extension. ALPN is enabled by default if\n"
-"              libcurl was built with an SSL library that supports  ALPN.  ALPN\n"
-"              is  used  by  a libcurl that supports HTTP 2 to negotiate HTTP 2\n"
-"              support with the server during https sessions.\n"
+"       used with or without a space between it and its value, although a space\n"
+"       is a recommended separator. The long  \"double-dash\"  form,  --data  for\n"
+"       example, requires a space between it and its value.\n"
 "\n"
-"              (Added in 7.36.0)\n"
+"       Short version options that don't need any additional values can be used\n"
+"       immediately next to each other, like for example you  can  specify  all\n"
+"       the options -O, -L and -v at once as -OLv.\n"
 "\n"
-"       -1, --tlsv1\n"
-"              (SSL) Forces curl to use TLS version 1.x when negotiating with a\n"
 , stdout);

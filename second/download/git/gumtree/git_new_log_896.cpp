@@ -1,1 +1,1 @@
-warning("ignoring broken ref %s.", fullref.buf);
+die(_("could not lookup name for submodule '%s'"), path);

@@ -1,11 +1,10 @@
 fputs(
-"              Use the specified SOCKS4 proxy. If the port number is not speci-\n"
-"              fied, it is assumed at port 1080.\n"
+"              used  instead  of  the  method otherwise used (which defaults to\n"
+"              GET). Read the HTTP 1.1 specification for details  and  explana-\n"
+"              tions.  Common  additional HTTP requests include PUT and DELETE,\n"
+"              but related technologies like WebDAV offers PROPFIND, COPY, MOVE\n"
+"              and more.\n"
 "\n"
-"              This option overrides any previous use of -x, --proxy,  as  they\n"
-"              are mutually exclusive.\n"
-"\n"
-"              Since 7.21.7, this option is superfluous since you can specify a\n"
-"              socks4 proxy with -x, --proxy using a socks4:// protocol prefix.\n"
-"              Since 7.52.0, --preproxy can be used to specify a SOCKS proxy at\n"
+"              Normally  you  don't  need  this option. All sorts of GET, HEAD,\n"
+"              POST and PUT requests are rather invoked by using dedicated com-\n"
 , stdout);

@@ -1,2 +1,1 @@
-(fprintf(fp, "%s	%s^{}\n",
-				sha1_to_hex(o->sha1), path);
+die_errno("could not create file '%s'", filename);

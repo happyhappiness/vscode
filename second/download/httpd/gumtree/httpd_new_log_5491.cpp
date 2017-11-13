@@ -1,4 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03067)
-                          "h2_session(%ld-%d): RST_STREAM by client, errror=%d",
-                          session->id, (int)frame->hd.stream_id,
-                          (int)frame->rst_stream.error_code);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(00022)
+                 "Can't create mutex of unknown type %s", type);

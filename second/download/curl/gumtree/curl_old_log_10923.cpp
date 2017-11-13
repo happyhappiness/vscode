@@ -1,11 +1,11 @@
 fputs(
-"              URL path. Normally curl will squash or merge them  according  to\n"
-"              standards but with this option set you tell it not to do that.\n"
+"              with the proper end-of-line marker, you should thus not add that\n"
+"              as a part of the header content: do not add newlines or carriage\n"
+"              returns, they will only mess things up for you.\n"
 "\n"
-"              (Added in 7.42.0)\n"
+"              Headers specified with this  option  will  not  be  included  in\n"
+"              requests that curl knows will not be sent to a proxy.\n"
 "\n"
-"       --post301\n"
-"              (HTTP)  Tells  curl  to  respect RFC 2616/10.3.2 and not convert\n"
-"              POST requests into GET requests when following a  301  redirect-\n"
-"              ion.  The  non-RFC  behaviour  is ubiquitous in web browsers, so\n"
+"              This  option  can  be  used multiple times to add/replace/remove\n"
+"              multiple headers.\n"
 , stdout);

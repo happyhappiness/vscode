@@ -1,50 +1,40 @@
-static apr_status_t h2_session_shutdown(h2_session *session, int error, 
-                                        const char *msg, int force_close)
+static char *try_redirect(request_rec *r, int *status)
 {
-    apr_status_t status = APR_SUCCESS;
-    
-    ap_assert(session);
-    if (session->local.shutdown) {
-        return APR_SUCCESS;
+    alias_dir_conf *dirconf =
+            (alias_dir_conf *) ap_get_module_config(r->per_dir_config, &alias_module);
+
+    if (dirconf->redirect_set) {
+        apr_uri_t uri;
+        const char *err = NULL;
+        char *found = "";
+
+        if (dirconf->redirect) {
+
+            found = apr_pstrdup(r->pool,
+                    ap_expr_str_exec(r, dirconf->redirect, &err));
+            if (err) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02826)
+                              "Can't evaluate redirect expression: %s", err);
+                return PREGSUB_ERROR;
+            }
+
+            apr_uri_parse(r->pool, found, &uri);
+            /* Do not escape the query string or fragment. */
+            found = apr_uri_unparse(r->pool, &uri, APR_URI_UNP_OMITQUERY);
+            found = ap_escape_uri(r->pool, found);
+            if (uri.query) {
+                found = apr_pstrcat(r->pool, found, "?", uri.query, NULL);
+            }
+            if (uri.fragment) {
+                found = apr_pstrcat(r->pool, found, "#", uri.fragment, NULL);
+            }
+
+        }
+
+        *status = dirconf->redirect_status;
+        return found;
+
     }
-    if (!msg && error) {
-        msg = nghttp2_strerror(error);
-    }
-    
-    if (error || force_close) {
-        /* not a graceful shutdown, we want to leave... 
-         * Do not start further streams that are waiting to be scheduled. 
-         * Find out the max stream id that we habe been processed or
-         * are still actively working on.
-         * Remove all streams greater than this number without submitting
-         * a RST_STREAM frame, since that should be clear from the GOAWAY
-         * we send. */
-        session->local.accepted_max = h2_mplx_shutdown(session->mplx);
-        session->local.error = error;
-    }
-    else {
-        /* graceful shutdown. we will continue processing all streams
-         * we have, but no longer accept new ones. Report the max stream
-         * we have received and discard all new ones. */
-    }
-    nghttp2_submit_goaway(session->ngh2, NGHTTP2_FLAG_NONE, 
-                          session->local.accepted_max, 
-                          error, (uint8_t*)msg, msg? strlen(msg):0);
-    session->local.accepting = 0;
-    session->local.shutdown = 1;
-    status = nghttp2_session_send(session->ngh2);
-    if (status == APR_SUCCESS) {
-        status = h2_conn_io_flush(&session->io);
-    }
-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03069)
-                  "session(%ld): sent GOAWAY, err=%d, msg=%s", 
-                  session->id, error, msg? msg : "");
-    dispatch_event(session, H2_SESSION_EV_LOCAL_GOAWAY, error, msg);
-    
-    if (force_close) {
-        apr_brigade_cleanup(session->bbtmp);
-        h2_mplx_abort(session->mplx);
-    }
-    
-    return status;
+
+    return NULL;
 }

@@ -1,10 +1,11 @@
 fputs(
-"              Tells  curl to pick a suitable authentication method when commu-\n"
-"              nicating with  the  given  proxy.  This  might  cause  an  extra\n"
-"              request/response round-trip. (Added in 7.13.2)\n"
+"              --location (Added in 7.26.0)\n"
 "\n"
-"       --proxy-basic\n"
-"              Tells  curl  to use HTTP Basic authentication when communicating\n"
-"              with the given proxy. Use --basic for enabling HTTP Basic with a\n"
-"              remote  host.  Basic  is  the default authentication method curl\n"
+"       --proto <protocols>\n"
+"              Tells  curl  to  use  the  listed  protocols  for  its   initial\n"
+"              retrieval. Protocols are evaluated left to right, are comma sep-\n"
+"              arated, and are each a protocol name or 'all',  optionally  pre-\n"
+"              fixed by zero or more modifiers. Available modifiers are:\n"
+"\n"
+"              +  Permit this protocol in addition to protocols already permit-\n"
 , stdout);

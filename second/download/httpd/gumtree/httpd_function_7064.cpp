@@ -1,70 +1,78 @@
-static apr_status_t vm_construct(void **vm, void *params, apr_pool_t *lifecycle_pool)
+static int lua_handler(request_rec *r)
 {
-    lua_State* L;
-
-    ap_lua_vm_spec *spec = params;
-
-    L = luaL_newstate();
-#ifdef AP_ENABLE_LUAJIT
-    luaopen_jit(L);
-#endif
-    luaL_openlibs(L);
-    if (spec->package_paths) {
-        munge_path(L, 
-                   "path", "?.lua", "./?.lua", 
-                   lifecycle_pool,
-                   spec->package_paths, 
-                   spec->file);
+    ap_lua_dir_cfg *dcfg;
+    apr_pool_t *pool;
+    if (strcmp(r->handler, "lua-script")) {
+        return DECLINED;
     }
-    if (spec->package_cpaths) {
-        munge_path(L, "cpath", "?.so", "./?.so", lifecycle_pool,
-            spec->package_cpaths, spec->file);
-    }
+  
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01472) "handling [%s] in mod_lua",
+                  r->filename);
+    dcfg = ap_get_module_config(r->per_dir_config, &lua_module);
 
-    if (spec->cb) {
-        spec->cb(L, lifecycle_pool, spec->cb_arg);
-    }
+    if (!r->header_only) {
+        lua_State *L;
+        const ap_lua_dir_cfg *cfg = ap_get_module_config(r->per_dir_config,
+                                                         &lua_module);
+        ap_lua_vm_spec *spec = NULL;
 
+        spec = apr_pcalloc(r->pool, sizeof(ap_lua_vm_spec));
+        spec->scope = dcfg->vm_scope;
+        spec->pool = r->pool;
+        spec->file = r->filename;
+        spec->package_paths = cfg->package_paths;
+        spec->package_cpaths = cfg->package_cpaths;
+        spec->cb = &lua_open_callback;
+        spec->cb_arg = NULL;
+      
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01473)
+                      "request details scope:%u, filename:%s, function:%s",
+                      spec->scope,
+                      spec->file,
+                      "handle");
 
-    if (spec->bytecode && spec->bytecode_len > 0) {
-        luaL_loadbuffer(L, spec->bytecode, spec->bytecode_len, spec->file);
-        lua_pcall(L, 0, LUA_MULTRET, 0);
-    }
-    else {
-        int rc;
-        ap_log_perror(APLOG_MARK, APLOG_DEBUG, 0, lifecycle_pool, APLOGNO(01481)
-            "loading lua file %s", spec->file);
-        rc = luaL_loadfile(L, spec->file);
-        if (rc != 0) {
-            char *err;
-            switch (rc) {
-                case LUA_ERRSYNTAX:
-                    err = "syntax error";
-                    break;
-                case LUA_ERRMEM:
-                    err = "memory allocation error";
-                    break;
-                case LUA_ERRFILE:
-                    err = "error opening or reading file";
-                    break;
-                default:
-                    err = "unknown error";
-                    break;
-            }
-            ap_log_perror(APLOG_MARK, APLOG_ERR, 0, lifecycle_pool, APLOGNO(01482)
-                "Loading lua file %s: %s",
-                spec->file, err);
-            return APR_EBADF;
+        switch (spec->scope) {
+        case AP_LUA_SCOPE_ONCE:
+        case AP_LUA_SCOPE_UNSET:
+          apr_pool_create(&pool, r->pool);
+          break;
+        case AP_LUA_SCOPE_REQUEST:
+          pool = r->pool;
+          break;
+        case AP_LUA_SCOPE_CONN:
+          pool = r->connection->pool;
+          break;
+        case AP_LUA_SCOPE_THREAD:
+          #if APR_HAS_THREADS
+          pool = apr_thread_pool_get(r->connection->current_thread);
+          break;
+          #endif
+        default:
+          ap_assert(0);
         }
-        lua_pcall(L, 0, LUA_MULTRET, 0);
+
+        L = ap_lua_get_lua_state(pool,
+                                 spec);
+        
+        if (!L) {
+            /* TODO annotate spec with failure reason */
+            r->status = HTTP_INTERNAL_SERVER_ERROR;
+            ap_rputs("Unable to compile VM, see logs", r);
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01474) "got a vm!");
+        lua_getglobal(L, "handle");
+        if (!lua_isfunction(L, -1)) {
+            ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01475)
+                          "lua: Unable to find function %s in %s",
+                          "handle",
+                          spec->file);
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+        ap_lua_run_lua_request(L, r);
+        if (lua_pcall(L, 1, 0, 0)) {
+            report_lua_error(L, r);
+        }
     }
-
-#ifdef AP_ENABLE_LUAJIT
-    loadjitmodule(L, lifecycle_pool);
-#endif
-    lua_pushlightuserdata(L, lifecycle_pool);
-    lua_setfield(L, LUA_REGISTRYINDEX, "Apache2.Wombat.pool");
-    *vm = L;
-
-    return APR_SUCCESS;
+    return OK;
 }

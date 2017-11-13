@@ -1,1 +1,1 @@
-die("Failed to resolve NOTES_MERGE_REF");
+error(_("%s: does not match index"), name);

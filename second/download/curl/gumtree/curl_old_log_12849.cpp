@@ -1,12 +1,9 @@
 fputs(
-"              chown user file\n"
-"                     The chown command sets the owner of the file named by the\n"
-"                     file operand to the user ID specified by the  user  oper-\n"
-"                     and. The user operand is a decimal integer user ID.\n"
+"              (SSH) Public key file name. Allows you to  provide  your  public\n"
+"              key in this separate file.\n"
 "\n"
-"              ln source_file target_file\n"
-"                     The ln and symlink commands create a symbolic link at the\n"
-"                     target_file location pointing to  the  source_file  loca-\n"
-"                     tion.\n"
-"\n"
+"              If this option is used several times, the last one will be used.\n"
+"              (As of 7.39.0, curl attempts to automatically extract the public\n"
+"              key from the private key file, so passing this option is  gener-\n"
+"              ally not required. Note that this public key extraction requires\n"
 , stdout);

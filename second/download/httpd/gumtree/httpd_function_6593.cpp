@@ -1,252 +1,107 @@
-static int cache_quick_handler(request_rec *r, int lookup)
+apr_status_t h2_mplx_release_and_join(h2_mplx *m, apr_thread_cond_t *wait)
 {
-    apr_status_t rv;
-    const char *auth;
-    cache_provider_list *providers;
-    cache_request_rec *cache;
-    apr_bucket_brigade *out;
-    apr_bucket *e;
-    ap_filter_t *next;
-    ap_filter_rec_t *cache_out_handle;
-    cache_server_conf *conf;
+    apr_status_t status;
+    int acquired;
 
-    conf = (cache_server_conf *) ap_get_module_config(r->server->module_config,
-                                                      &cache_module);
+    h2_workers_unregister(m->workers, m);
+    
+    if ((status = enter_mutex(m, &acquired)) == APR_SUCCESS) {
+        int i, wait_secs = 5;
 
-    /* only run if the quick handler is enabled */
-    if (!conf->quick) {
-        return DECLINED;
-    }
-
-    /*
-     * Which cache module (if any) should handle this request?
-     */
-    if (!(providers = cache_get_providers(r, conf, r->parsed_uri))) {
-        return DECLINED;
-    }
-
-    /* make space for the per request config */
-    cache = apr_pcalloc(r->pool, sizeof(cache_request_rec));
-    cache->size = -1;
-    cache->out = apr_brigade_create(r->pool, r->connection->bucket_alloc);
-
-    /* save away the possible providers */
-    cache->providers = providers;
-
-    /*
-     * Are we allowed to serve cached info at all?
-     */
-    if (!ap_cache_check_no_store(cache, r)) {
-        return DECLINED;
-    }
-
-    /* find certain cache controlling headers */
-    auth = apr_table_get(r->headers_in, "Authorization");
-
-    /* First things first - does the request allow us to return
-     * cached information at all? If not, just decline the request.
-     */
-    if (auth) {
-        return DECLINED;
-    }
-
-    /* Are we PUT/POST/DELETE? If so, prepare to invalidate the cached entities.
-     */
-    switch (r->method_number) {
-    case M_PUT:
-    case M_POST:
-    case M_DELETE:
-    {
-
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(02461)
-                "PUT/POST/DELETE: Adding CACHE_INVALIDATE filter for %s",
-                r->uri);
-
-        /* Add cache_invalidate filter to this request to force a
-         * cache entry to be invalidated if the response is
-         * ultimately successful (2xx).
+        if (!h2_ihash_empty(m->streams) && APLOGctrace1(m->c)) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
+                          "h2_mplx(%ld): release_join with %d streams open, "
+                          "%d streams resume, %d streams ready, %d tasks", 
+                          m->id, (int)h2_ihash_count(m->streams),
+                          (int)h2_ihash_count(m->sresume), 
+                          (int)h2_ihash_count(m->sready), 
+                          (int)h2_ihash_count(m->tasks));
+            h2_ihash_iter(m->streams, report_stream_iter, m);
+        }
+        
+        /* disable WINDOW_UPDATE callbacks */
+        h2_mplx_set_consumed_cb(m, NULL, NULL);
+        
+        if (!h2_ihash_empty(m->shold)) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                          "h2_mplx(%ld): start release_join with %d streams in hold", 
+                          m->id, (int)h2_ihash_count(m->shold));
+        }
+        if (!h2_ihash_empty(m->spurge)) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                          "h2_mplx(%ld): start release_join with %d streams to purge", 
+                          m->id, (int)h2_ihash_count(m->spurge));
+        }
+        
+        h2_iq_clear(m->q);
+        apr_thread_cond_broadcast(m->task_thawed);
+        while (!h2_ihash_iter(m->streams, stream_done_iter, m)) {
+            /* iterate until all streams have been removed */
+        }
+        AP_DEBUG_ASSERT(h2_ihash_empty(m->streams));
+    
+        if (!h2_ihash_empty(m->shold)) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                          "h2_mplx(%ld): 2. release_join with %d streams in hold", 
+                          m->id, (int)h2_ihash_count(m->shold));
+        }
+        if (!h2_ihash_empty(m->spurge)) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                          "h2_mplx(%ld): 2. release_join with %d streams to purge", 
+                          m->id, (int)h2_ihash_count(m->spurge));
+        }
+        
+        /* If we still have busy workers, we cannot release our memory
+         * pool yet, as tasks have references to us.
+         * Any operation on the task slave connection will from now on
+         * be errored ECONNRESET/ABORTED, so processing them should fail 
+         * and workers *should* return in a timely fashion.
          */
-        ap_add_output_filter_handle(
-                cache_invalidate_filter_handle, cache, r,
-                r->connection);
-
-        return DECLINED;
-    }
-    case M_GET: {
-        break;
-    }
-    default : {
-
-        ap_log_rerror(
-                APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(02462) "cache: Method '%s' not cacheable by mod_cache, ignoring: %s", r->method, r->uri);
-
-        return DECLINED;
-    }
-    }
-
-    /*
-     * Try to serve this request from the cache.
-     *
-     * If no existing cache file (DECLINED)
-     *   add cache_save filter
-     * If cached file (OK)
-     *   clear filter stack
-     *   add cache_out filter
-     *   return OK
-     */
-    rv = cache_select(cache, r);
-    if (rv != OK) {
-        if (rv == DECLINED) {
-            if (!lookup) {
-
-                /* try to obtain a cache lock at this point. if we succeed,
-                 * we are the first to try and cache this url. if we fail,
-                 * it means someone else is already trying to cache this
-                 * url, and we should just let the request through to the
-                 * backend without any attempt to cache. this stops
-                 * duplicated simultaneous attempts to cache an entity.
-                 */
-                rv = cache_try_lock(conf, cache, r);
-                if (APR_SUCCESS == rv) {
-
-                    /*
-                     * Add cache_save filter to cache this request. Choose
-                     * the correct filter by checking if we are a subrequest
-                     * or not.
+        for (i = 0; m->workers_busy > 0; ++i) {
+            h2_ihash_iter(m->tasks, task_abort_connection, m);
+            
+            m->join_wait = wait;
+            status = apr_thread_cond_timedwait(wait, m->lock, apr_time_from_sec(wait_secs));
+            
+            if (APR_STATUS_IS_TIMEUP(status)) {
+                if (i > 0) {
+                    /* Oh, oh. Still we wait for assigned  workers to report that 
+                     * they are done. Unless we have a bug, a worker seems to be hanging. 
+                     * If we exit now, all will be deallocated and the worker, once 
+                     * it does return, will walk all over freed memory...
                      */
-                    if (r->main) {
-                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
-                                r, APLOGNO(00749) "Adding CACHE_SAVE_SUBREQ filter for %s",
-                                r->uri);
-                        cache->save_filter = ap_add_output_filter_handle(
-                                cache_save_subreq_filter_handle, cache, r,
-                                r->connection);
+                    ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, APLOGNO(03198)
+                                  "h2_mplx(%ld): release, waiting for %d seconds now for "
+                                  "%d h2_workers to return, have still %d tasks outstanding", 
+                                  m->id, i*wait_secs, m->workers_busy,
+                                  (int)h2_ihash_count(m->tasks));
+                    if (i == 1) {
+                        h2_ihash_iter(m->tasks, task_print, m);
                     }
-                    else {
-                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
-                                r, APLOGNO(00750) "Adding CACHE_SAVE filter for %s",
-                                r->uri);
-                        cache->save_filter = ap_add_output_filter_handle(
-                                cache_save_filter_handle, cache, r,
-                                r->connection);
-                    }
-
-                    apr_pool_userdata_setn(cache, CACHE_CTX_KEY, NULL, r->pool);
-
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(00751)
-                            "Adding CACHE_REMOVE_URL filter for %s",
-                            r->uri);
-
-                    /* Add cache_remove_url filter to this request to remove a
-                     * stale cache entry if needed. Also put the current cache
-                     * request rec in the filter context, as the request that
-                     * is available later during running the filter may be
-                     * different due to an internal redirect.
-                     */
-                    cache->remove_url_filter = ap_add_output_filter_handle(
-                            cache_remove_url_filter_handle, cache, r,
-                            r->connection);
-
                 }
-                else {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv,
-                            r, APLOGNO(00752) "Cache locked for url, not caching "
-                            "response: %s", r->uri);
-                }
-            }
-            else {
-                if (cache->stale_headers) {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
-                            r, APLOGNO(00753) "Restoring request headers for %s",
-                            r->uri);
-
-                    r->headers_in = cache->stale_headers;
-                }
+                h2_mplx_abort(m);
+                apr_thread_cond_broadcast(m->task_thawed);
             }
         }
-        else {
-            /* error */
-            return rv;
+        
+        AP_DEBUG_ASSERT(h2_ihash_empty(m->shold));
+        if (!h2_ihash_empty(m->spurge)) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                          "h2_mplx(%ld): 3. release_join %d streams to purge", 
+                          m->id, (int)h2_ihash_count(m->spurge));
+            purge_streams(m);
         }
-        return DECLINED;
-    }
-
-    /* we've got a cache hit! tell everyone who cares */
-    cache_run_cache_status(cache->handle, r, r->headers_out, AP_CACHE_HIT,
-            "cache hit");
-
-    /* if we are a lookup, we are exiting soon one way or another; Restore
-     * the headers. */
-    if (lookup) {
-        if (cache->stale_headers) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(00754)
-                    "Restoring request headers.");
-            r->headers_in = cache->stale_headers;
+        AP_DEBUG_ASSERT(h2_ihash_empty(m->spurge));
+        
+        if (!h2_ihash_empty(m->tasks)) {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, APLOGNO(03056)
+                          "h2_mplx(%ld): release_join -> destroy, "
+                          "%d tasks still present", 
+                          m->id, (int)h2_ihash_count(m->tasks));
         }
+        leave_mutex(m, acquired);
+        h2_mplx_destroy(m);
+        /* all gone */
     }
-
-    rv = ap_meets_conditions(r);
-    if (rv != OK) {
-        /* If we are a lookup, we have to return DECLINED as we have no
-         * way of knowing if we will be able to serve the content.
-         */
-        if (lookup) {
-            return DECLINED;
-        }
-
-        /* Return cached status. */
-        return rv;
-    }
-
-    /* If we're a lookup, we can exit now instead of serving the content. */
-    if (lookup) {
-        return OK;
-    }
-
-    /* Serve up the content */
-
-    /* We are in the quick handler hook, which means that no output
-     * filters have been set. So lets run the insert_filter hook.
-     */
-    ap_run_insert_filter(r);
-
-    /*
-     * Add cache_out filter to serve this request. Choose
-     * the correct filter by checking if we are a subrequest
-     * or not.
-     */
-    if (r->main) {
-        cache_out_handle = cache_out_subreq_filter_handle;
-    }
-    else {
-        cache_out_handle = cache_out_filter_handle;
-    }
-    ap_add_output_filter_handle(cache_out_handle, cache, r, r->connection);
-
-    /*
-     * Remove all filters that are before the cache_out filter. This ensures
-     * that we kick off the filter stack with our cache_out filter being the
-     * first in the chain. This make sense because we want to restore things
-     * in the same manner as we saved them.
-     * There may be filters before our cache_out filter, because
-     *
-     * 1. We call ap_set_content_type during cache_select. This causes
-     *    Content-Type specific filters to be added.
-     * 2. We call the insert_filter hook. This causes filters e.g. like
-     *    the ones set with SetOutputFilter to be added.
-     */
-    next = r->output_filters;
-    while (next && (next->frec != cache_out_handle)) {
-        ap_remove_output_filter(next);
-        next = next->next;
-    }
-
-    /* kick off the filter stack */
-    out = apr_brigade_create(r->pool, r->connection->bucket_alloc);
-    e = apr_bucket_eos_create(out->bucket_alloc);
-    APR_BRIGADE_INSERT_TAIL(out, e);
-
-    return ap_pass_brigade_fchk(r, out,
-                                "cache_quick_handler(%s): ap_pass_brigade returned",
-                                cache->provider_name);
+    return status;
 }

@@ -1,1 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, ldc->r, "LDC %pp bind", ldc);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
+                  H2_STRM_MSG(stream, "on_headers"));

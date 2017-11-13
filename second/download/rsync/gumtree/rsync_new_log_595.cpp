@@ -1,1 +1,1 @@
-out_of_memory("add_exclude_line");
+rprintf(FERROR,"receive_sums failed\n");

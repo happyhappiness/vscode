@@ -1,1 +1,1 @@
-warning_errno(_(msg_warn_remove_failed), qname);
+printf(_("Huh (%s)?\n"), (*ptr)->buf);

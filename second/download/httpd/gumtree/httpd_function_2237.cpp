@@ -1,182 +1,57 @@
-static int display_info(request_rec * r)
+static PCOMP_CONTEXT win9x_get_connection(PCOMP_CONTEXT context)
 {
-    module *modp = NULL;
-    server_rec *serv = r->server;
-    const char *more_info;
-    const command_rec *cmd = NULL;
-    int comma = 0;
+    apr_os_sock_info_t sockinfo;
+    int len, salen;
+#if APR_HAVE_IPV6
+    salen = sizeof(struct sockaddr_in6);
+#else
+    salen = sizeof(struct sockaddr_in);
+#endif
 
-    if (strcmp(r->handler, "server-info"))
-        return DECLINED;
 
-    r->allowed |= (AP_METHOD_BIT << M_GET);
-    if (r->method_number != M_GET)
-        return DECLINED;
-
-    ap_set_content_type(r, "text/html");
-
-    ap_rputs(DOCTYPE_XHTML_1_0T
-             "<html xmlns=\"http://www.w3.org/1999/xhtml\">\n"
-             "<head>\n"
-             "  <title>Server Information</title>\n" "</head>\n", r);
-    ap_rputs("<body><h1 style=\"text-align: center\">"
-             "Apache Server Information</h1>\n", r);
-    if (!r->args || strcasecmp(r->args, "list")) {
-        if (!r->args) {
-            ap_rputs("<dl><dt><tt>Subpages:<br />", r);
-            ap_rputs("<a href=\"?config\">Configuration Files</a>, "
-                     "<a href=\"?server\">Server Settings</a>, "
-                     "<a href=\"?list\">Module List</a>,  "
-                     "<a href=\"?hooks\">Active Hooks</a>", r);
-            ap_rputs("</tt></dt></dl><hr />", r);
-
-            ap_rputs("<dl><dt><tt>Sections:<br />", r);
-            ap_rputs("<a href=\"#server\">Server Settings</a>, "
-                     "<a href=\"#startup_hooks\">Startup Hooks</a>, "
-                     "<a href=\"#request_hooks\">Request Hooks</a>", r);
-            ap_rputs("</tt></dt></dl><hr />", r);
-
-            ap_rputs("<dl><dt><tt>Loaded Modules: <br />", r);
-            /* TODO: Sort by Alpha */
-            for (modp = ap_top_module; modp; modp = modp->next) {
-                ap_rprintf(r, "<a href=\"#%s\">%s</a>", modp->name,
-                           modp->name);
-                if (modp->next) {
-                    ap_rputs(", ", r);
-                }
-            }
-            ap_rputs("</tt></dt></dl><hr />", r);
-        }
-
-        if (!r->args || !strcasecmp(r->args, "server")) {
-            show_server_settings(r);
-        }
-
-        if (!r->args || !strcasecmp(r->args, "hooks")) {
-            show_active_hooks(r);
-        }
-
-        if (r->args && 0 == strcasecmp(r->args, "config")) {
-            ap_rputs("<dl><dt><strong>Configuration:</strong>\n", r);
-            mod_info_module_cmds(r, NULL, ap_conftree, 0, 0);
-            ap_rputs("</dl><hr />", r);
-        }
-        else {
-            for (modp = ap_top_module; modp; modp = modp->next) {
-                if (!r->args || !strcasecmp(modp->name, r->args)) {
-                    ap_rprintf(r,
-                               "<dl><dt><a name=\"%s\"><strong>Module Name:</strong></a> "
-                               "<font size=\"+1\"><tt><a href=\"?%s\">%s</a></tt></font></dt>\n",
-                               modp->name, modp->name, modp->name);
-                    ap_rputs("<dt><strong>Content handlers:</strong> ", r);
-
-                    if (module_find_hook(modp, ap_hook_get_handler)) {
-                        ap_rputs("<tt> <em>yes</em></tt>", r);
-                    }
-                    else {
-                        ap_rputs("<tt> <em>none</em></tt>", r);
-                    }
-
-                    ap_rputs("</dt>", r);
-                    ap_rputs
-                        ("<dt><strong>Configuration Phase Participation:</strong>\n",
-                         r);
-                    if (modp->create_dir_config) {
-                        if (comma) {
-                            ap_rputs(", ", r);
-                        }
-                        ap_rputs("<tt>Create Directory Config</tt>", r);
-                        comma = 1;
-                    }
-                    if (modp->merge_dir_config) {
-                        if (comma) {
-                            ap_rputs(", ", r);
-                        }
-                        ap_rputs("<tt>Merge Directory Configs</tt>", r);
-                        comma = 1;
-                    }
-                    if (modp->create_server_config) {
-                        if (comma) {
-                            ap_rputs(", ", r);
-                        }
-                        ap_rputs("<tt>Create Server Config</tt>", r);
-                        comma = 1;
-                    }
-                    if (modp->merge_server_config) {
-                        if (comma) {
-                            ap_rputs(", ", r);
-                        }
-                        ap_rputs("<tt>Merge Server Configs</tt>", r);
-                        comma = 1;
-                    }
-                    if (!comma)
-                        ap_rputs("<tt> <em>none</em></tt>", r);
-                    comma = 0;
-                    ap_rputs("</dt>", r);
-
-                    module_request_hook_participate(r, modp);
-
-                    cmd = modp->cmds;
-                    if (cmd) {
-                        ap_rputs
-                            ("<dt><strong>Module Directives:</strong></dt>",
-                             r);
-                        while (cmd) {
-                            if (cmd->name) {
-                                ap_rprintf(r, "<dd><tt>%s%s - <i>",
-                                           ap_escape_html(r->pool, cmd->name),
-                                           cmd->name[0] == '<' ? "&gt;" : "");
-                                if (cmd->errmsg) {
-                                    ap_rputs(cmd->errmsg, r);
-                                }
-                                ap_rputs("</i></tt></dd>\n", r);
-                            }
-                            else {
-                                break;
-                            }
-                            cmd++;
-                        }
-                        ap_rputs
-                            ("<dt><strong>Current Configuration:</strong></dt>\n",
-                             r);
-                        mod_info_module_cmds(r, modp->cmds, ap_conftree, 0,
-                                             0);
-                    }
-                    else {
-                        ap_rputs
-                            ("<dt><strong>Module Directives:</strong> <tt>none</tt></dt>",
-                             r);
-                    }
-                    more_info = find_more_info(serv, modp->name);
-                    if (more_info) {
-                        ap_rputs
-                            ("<dt><strong>Additional Information:</strong>\n</dt><dd>",
-                             r);
-                        ap_rputs(more_info, r);
-                        ap_rputs("</dd>", r);
-                    }
-                    ap_rputs("</dl><hr />\n", r);
-                    if (r->args) {
-                        break;
-                    }
-                }
-            }
-            if (!modp && r->args && strcasecmp(r->args, "server")) {
-                ap_rputs("<p><b>No such module</b></p>\n", r);
-            }
-        }
+    if (context == NULL) {
+        /* allocate the completion context and the transaction pool */
+        apr_allocator_t *allocator;
+        apr_thread_mutex_lock(child_lock);
+        context = apr_pcalloc(pchild, sizeof(COMP_CONTEXT));
+        apr_allocator_create(&allocator);
+        apr_allocator_max_free_set(allocator, ap_max_mem_free);
+        apr_pool_create_ex(&context->ptrans, pchild, NULL, allocator);
+        apr_allocator_owner_set(allocator, context->ptrans);
+        apr_pool_tag(context->ptrans, "transaction");
+        apr_thread_mutex_unlock(child_lock);
     }
-    else {
-        ap_rputs("<dl><dt>Server Module List</dt>", r);
-        for (modp = ap_top_module; modp; modp = modp->next) {
-            ap_rputs("<dd>", r);
-            ap_rputs(modp->name, r);
-            ap_rputs("</dd>", r);
+
+    while (1) {
+        apr_pool_clear(context->ptrans);
+        context->ba = apr_bucket_alloc_create(context->ptrans);
+        context->accept_socket = remove_job();
+        if (context->accept_socket == INVALID_SOCKET) {
+            return NULL;
         }
-        ap_rputs("</dl><hr />", r);
+        len = salen;
+        context->sa_server = apr_palloc(context->ptrans, len);
+        if (getsockname(context->accept_socket,
+                        context->sa_server, &len)== SOCKET_ERROR) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, apr_get_netos_error(), ap_server_conf,
+                         "getsockname failed");
+            continue;
+        }
+        len = salen;
+        context->sa_client = apr_palloc(context->ptrans, len);
+        if ((getpeername(context->accept_socket,
+                         context->sa_client, &len)) == SOCKET_ERROR) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, apr_get_netos_error(), ap_server_conf,
+                         "getpeername failed");
+            memset(&context->sa_client, '\0', sizeof(context->sa_client));
+        }
+        sockinfo.os_sock = &context->accept_socket;
+        sockinfo.local   = context->sa_server;
+        sockinfo.remote  = context->sa_client;
+        sockinfo.family  = context->sa_server->sa_family;
+        sockinfo.type    = SOCK_STREAM;
+        apr_os_sock_make(&context->sock, &sockinfo, context->ptrans);
+
+        return context;
     }
-    ap_rputs(ap_psignature("", r), r);
-    ap_rputs("</body></html>\n", r);
-    /* Done, turn off timeout, close file and return */
-    return 0;
 }

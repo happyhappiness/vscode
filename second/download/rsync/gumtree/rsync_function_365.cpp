@@ -1,77 +1,183 @@
-struct file_list *recv_file_list(int f)
-{
-  struct file_list *flist;
-  unsigned char flags;
+void recv_generator(char *fname,struct file_list *flist,int i,int f_out)
+{  
+  int fd;
+  struct stat st;
+  struct map_struct *buf;
+  struct sum_struct *s;
+  int statret;
+  struct file_struct *file = &flist->files[i];
 
-  if (verbose && recurse && !am_server) {
-    fprintf(FINFO,"receiving file list ... ");
-    fflush(FINFO);
+  if (verbose > 2)
+    fprintf(FERROR,"recv_generator(%s,%d)\n",fname,i);
+
+  statret = link_stat(fname,&st);
+
+  if (S_ISDIR(file->mode)) {
+    if (dry_run) return;
+    if (statret == 0 && !S_ISDIR(st.st_mode)) {
+      if (unlink(fname) != 0) {
+	fprintf(FERROR,"unlink %s : %s\n",fname,strerror(errno));
+	return;
+      }
+      statret = -1;
+    }
+    if (statret != 0 && mkdir(fname,file->mode) != 0 && errno != EEXIST) {
+	    if (!(relative_paths && errno==ENOENT && 
+		  create_directory_path(fname)==0 && 
+		  mkdir(fname,file->mode)==0)) {
+		    fprintf(FERROR,"mkdir %s : %s (2)\n",
+			    fname,strerror(errno));
+	    }
+    }
+    if (set_perms(fname,file,NULL,0) && verbose) 
+      fprintf(FINFO,"%s/\n",fname);
+    return;
   }
 
-  flist = (struct file_list *)malloc(sizeof(flist[0]));
-  if (!flist)
-    goto oom;
+  if (preserve_links && S_ISLNK(file->mode)) {
+#if SUPPORT_LINKS
+    char lnk[MAXPATHLEN];
+    int l;
+    if (statret == 0) {
+      l = readlink(fname,lnk,MAXPATHLEN-1);
+      if (l > 0) {
+	lnk[l] = 0;
+	if (strcmp(lnk,file->link) == 0) {
+	  set_perms(fname,file,&st,1);
+	  return;
+	}
+      }
+    }
+    if (!dry_run) unlink(fname);
+    if (!dry_run && symlink(file->link,fname) != 0) {
+      fprintf(FERROR,"link %s -> %s : %s\n",
+	      fname,file->link,strerror(errno));
+    } else {
+      set_perms(fname,file,NULL,0);
+      if (verbose) 
+	fprintf(FINFO,"%s -> %s\n",
+		fname,file->link);
+    }
+#endif
+    return;
+  }
 
-  flist->count=0;
-  flist->malloced=1000;
-  flist->files = (struct file_struct **)malloc(sizeof(flist->files[0])*
-					       flist->malloced);
-  if (!flist->files)
-    goto oom;
+#ifdef HAVE_MKNOD
+  if (am_root && preserve_devices && IS_DEVICE(file->mode)) {
+    if (statret != 0 || 
+	st.st_mode != file->mode ||
+	st.st_rdev != file->rdev) {	
+      if (!dry_run) unlink(fname);
+      if (verbose > 2)
+	fprintf(FERROR,"mknod(%s,0%o,0x%x)\n",
+		fname,(int)file->mode,(int)file->rdev);
+      if (!dry_run && 
+	  mknod(fname,file->mode,file->rdev) != 0) {
+	fprintf(FERROR,"mknod %s : %s\n",fname,strerror(errno));
+      } else {
+	set_perms(fname,file,NULL,0);
+	if (verbose)
+	  fprintf(FINFO,"%s\n",fname);
+      }
+    } else {
+      set_perms(fname,file,&st,1);
+    }
+    return;
+  }
+#endif
 
+  if (preserve_hard_links && check_hard_link(file)) {
+    if (verbose > 1)
+      fprintf(FINFO,"%s is a hard link\n",file->name);
+    return;
+  }
 
-  for (flags=read_byte(f); flags; flags=read_byte(f)) {
-    int i = flist->count;
+  if (!S_ISREG(file->mode)) {
+    fprintf(FERROR,"skipping non-regular file %s\n",fname);
+    return;
+  }
 
-    if (i >= flist->malloced) {
-	  if (flist->malloced < 1000)
-		  flist->malloced += 1000;
-	  else
-		  flist->malloced *= 2;
-	  flist->files =(struct file_struct **)realloc(flist->files,
-						       sizeof(flist->files[0])*
-						       flist->malloced);
-	  if (!flist->files)
-		  goto oom;
+  if (statret == -1) {
+    if (errno == ENOENT) {
+      write_int(f_out,i);
+      if (!dry_run) send_sums(NULL,f_out);
+    } else {
+      if (verbose > 1)
+	fprintf(FERROR,"recv_generator failed to open %s\n",fname);
+    }
+    return;
+  }
+
+  if (!S_ISREG(st.st_mode)) {
+    /* its not a regular file on the receiving end, but it is on the
+       sending end. If its a directory then skip it (too dangerous to
+       do a recursive deletion??) otherwise try to unlink it */
+    if (S_ISDIR(st.st_mode)) {
+      fprintf(FERROR,"ERROR: %s is a directory\n",fname);
+      return;
+    }
+    if (unlink(fname) != 0) {
+      fprintf(FERROR,"%s : not a regular file (generator)\n",fname);
+      return;
     }
 
-    receive_file_entry(&flist->files[i],flags,f);
-
-    if (S_ISREG(flist->files[i]->mode))
-      total_size += flist->files[i]->length;
-
-    flist->count++;
-
-    if (verbose > 2)
-      fprintf(FINFO,"recv_file_name(%s)\n",f_name(flist->files[i]));
+    /* now pretend the file didn't exist */
+    write_int(f_out,i);
+    if (!dry_run) send_sums(NULL,f_out);    
+    return;
   }
 
+  if (update_only && st.st_mtime > file->modtime) {
+    if (verbose > 1)
+      fprintf(FERROR,"%s is newer\n",fname);
+    return;
+  }
+
+  if (skip_file(fname, file, &st)) {
+    set_perms(fname,file,&st,1);
+    return;
+  }
+
+  if (dry_run) {
+    write_int(f_out,i);
+    return;
+  }
+
+  if (whole_file) {
+    write_int(f_out,i);
+    send_sums(NULL,f_out);    
+    return;
+  }
+
+  /* open the file */  
+  fd = open(fname,O_RDONLY);
+
+  if (fd == -1) {
+    fprintf(FERROR,"failed to open %s : %s\n",fname,strerror(errno));
+    fprintf(FERROR,"skipping %s\n",fname);
+    return;
+  }
+
+  if (st.st_size > 0) {
+    buf = map_file(fd,st.st_size);
+  } else {
+    buf = NULL;
+  }
+
+  if (verbose > 3)
+    fprintf(FERROR,"gen mapped %s of size %d\n",fname,(int)st.st_size);
+
+  s = generate_sums(buf,st.st_size,block_size);
 
   if (verbose > 2)
-    fprintf(FINFO,"received %d names\n",flist->count);
+    fprintf(FERROR,"sending sums for %d\n",i);
 
-  clean_flist(flist);
+  write_int(f_out,i);
+  send_sums(s,f_out);
+  write_flush(f_out);
 
-  if (verbose && recurse && !am_server) {
-    fprintf(FINFO,"done\n");
-  }
+  close(fd);
+  if (buf) unmap_file(buf);
 
-  /* now recv the uid/gid list. This was introduced in protocol version 15 */
-  if (f != -1 && remote_version >= 15) {
-	  recv_uid_list(f, flist);
-  }
-
-  /* if protocol version is >= 17 then recv the io_error flag */
-  if (f != -1 && remote_version >= 17) {
-	  io_error |= read_int(f);
-  }
-
-  if (verbose > 2)
-    fprintf(FINFO,"recv_file_list done\n");
-
-  return flist;
-
-oom:
-    out_of_memory("recv_file_list");
-    return NULL; /* not reached */
+  free_sums(s);
 }

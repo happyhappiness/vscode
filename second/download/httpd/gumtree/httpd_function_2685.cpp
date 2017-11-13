@@ -1,93 +1,55 @@
-static authn_status authn_dbd_password(request_rec *r, const char *user,
-                                       const char *password)
+apr_status_t ap_mpm_safe_kill(pid_t pid, int sig)
 {
+#ifndef HAVE_GETPGID
+    apr_proc_t proc;
     apr_status_t rv;
-    const char *dbd_password = NULL;
-    apr_dbd_prepared_t *statement;
-    apr_dbd_results_t *res = NULL;
-    apr_dbd_row_t *row = NULL;
+    apr_exit_why_e why;
+    int status;
 
-    authn_dbd_conf *conf = ap_get_module_config(r->per_dir_config,
-                                                &authn_dbd_module);
-    ap_dbd_t *dbd = authn_dbd_acquire_fn(r);
-    if (dbd == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Failed to acquire database connection to look up "
-                      "user '%s'", user);
-        return AUTH_GENERAL_ERROR;
+    /* Ensure pid sanity */
+    if (pid < 1) {
+        return APR_EINVAL;
     }
 
-    if (conf->user == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "No AuthDBDUserPWQuery has been specified");
-        return AUTH_GENERAL_ERROR;
-    }
-
-    statement = apr_hash_get(dbd->prepared, conf->user, APR_HASH_KEY_STRING);
-    if (statement == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "A prepared statement could not be found for "
-                      "AuthDBDUserPWQuery with the key '%s'", conf->user);
-        return AUTH_GENERAL_ERROR;
-    }
-    if (apr_dbd_pvselect(dbd->driver, r->pool, dbd->handle, &res, statement,
-                              0, user, NULL) != 0) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Query execution error looking up '%s' "
-                      "in database", user);
-        return AUTH_GENERAL_ERROR;
-    }
-    for (rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1);
-         rv != -1;
-         rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1)) {
-        if (rv != 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "Error retrieving results while looking up '%s' "
-                          "in database", user);
-            return AUTH_GENERAL_ERROR;
-        }
-        if (dbd_password == NULL) {
-#if APU_MAJOR_VERSION > 1 || (APU_MAJOR_VERSION == 1 && APU_MINOR_VERSION >= 3)
-            /* add the rest of the columns to the environment */
-            int i = 1;
-            const char *name;
-            for (name = apr_dbd_get_name(dbd->driver, res, i);
-                 name != NULL;
-                 name = apr_dbd_get_name(dbd->driver, res, i)) {
-
-                char *str = apr_pstrcat(r->pool, AUTHN_PREFIX,
-                                        name,
-                                        NULL);
-                int j = sizeof(AUTHN_PREFIX)-1; /* string length of "AUTHENTICATE_", excluding the trailing NIL */
-                while (str[j]) {
-                    if (!apr_isalnum(str[j])) {
-                        str[j] = '_';
-                    }
-                    else {
-                        str[j] = apr_toupper(str[j]);
-                    }
-                    j++;
-                }
-                apr_table_set(r->subprocess_env, str,
-                              apr_dbd_get_entry(dbd->driver, row, i));
-                i++;
-            }
+    proc.pid = pid;
+    rv = apr_proc_wait(&proc, &status, &why, APR_NOWAIT);
+    if (rv == APR_CHILD_DONE) {
+#ifdef AP_MPM_WANT_PROCESS_CHILD_STATUS
+        /* The child already died - log the termination status if
+         * necessary: */
+        ap_process_child_status(&proc, why, status);
 #endif
-            dbd_password = apr_dbd_get_entry(dbd->driver, row, 0);
-        }
-        /* we can't break out here or row won't get cleaned up */
+        return APR_EINVAL;
+    }
+    else if (rv != APR_CHILD_NOTDONE) {
+        /* The child is already dead and reaped, or was a bogus pid -
+         * log this either way. */
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, rv, ap_server_conf,
+                     "cannot send signal %d to pid %ld (non-child or "
+                     "already dead)", sig, (long)pid);
+        return APR_EINVAL;
+    }
+#else
+    pid_t pg;
+
+    /* Ensure pid sanity. */
+    if (pid < 1) {
+        return APR_EINVAL;
     }
 
-    if (!dbd_password) {
-        return AUTH_USER_NOT_FOUND;
-    }
-    AUTHN_CACHE_STORE(r, user, NULL, dbd_password);
-
-    rv = apr_password_validate(password, dbd_password);
-
-    if (rv != APR_SUCCESS) {
-        return AUTH_DENIED;
+    pg = getpgid(pid);    
+    if (pg == -1) {
+        /* Process already dead... */
+        return errno;
     }
 
-    return AUTH_GRANTED;
+    if (pg != getpgrp()) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, 0, ap_server_conf,
+                     "refusing to send signal %d to pid %ld outside "
+                     "process group", sig, (long)pid);
+        return APR_EINVAL;
+    }
+#endif        
+
+    return kill(pid, sig) ? errno : APR_SUCCESS;
 }

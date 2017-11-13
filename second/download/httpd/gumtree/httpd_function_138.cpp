@@ -1,73 +1,111 @@
-static void dav_send_multistatus(request_rec *r, int status,
-                                 dav_response *first,
-                                 apr_array_header_t *namespaces)
+static void usage(process_rec *process)
 {
-    /* Set the correct status and Content-Type */
-    r->status = status;
-    ap_set_content_type(r, DAV_XML_CONTENT_TYPE);
+    const char *bin = process->argv[0];
+    char pad[MAX_STRING_LEN];
+    unsigned i;
 
-    /* Send the headers and actual multistatus response now... */
-    ap_rputs(DAV_XML_HEADER DEBUG_CR
-             "<D:multistatus xmlns:D=\"DAV:\"", r);
-
-    if (namespaces != NULL) {
-       int i;
-
-       for (i = namespaces->nelts; i--; ) {
-           ap_rprintf(r, " xmlns:ns%d=\"%s\"", i,
-                      APR_XML_GET_URI_ITEM(namespaces, i));
-       }
+    for (i = 0; i < strlen(bin); i++) {
+        pad[i] = ' ';
     }
 
-    /* ap_rputc('>', r); */
-    ap_rputs(">" DEBUG_CR, r);
+    pad[i] = '\0';
 
-    for (; first != NULL; first = first->next) {
-        apr_text *t;
+#ifdef SHARED_CORE
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL ,
+                 "Usage: %s [-R directory] [-D name] [-d directory] [-f file]",
+                 bin);
+#else
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "Usage: %s [-D name] [-d directory] [-f file]", bin);
+#endif
 
-        if (first->propresult.xmlns == NULL) {
-            ap_rputs("<D:response>", r);
-        }
-        else {
-            ap_rputs("<D:response", r);
-            for (t = first->propresult.xmlns; t; t = t->next) {
-                ap_rputs(t->text, r);
-            }
-            ap_rputc('>', r);
-        }
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %s [-C \"directive\"] [-c \"directive\"]", pad);
 
-        ap_rputs(DEBUG_CR "<D:href>", r);
-        ap_rputs(dav_xml_escape_uri(r->pool, first->href), r);
-        ap_rputs("</D:href>" DEBUG_CR, r);
+#ifdef WIN32
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %s [-w] [-k start|restart|stop|shutdown]", pad);
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %s [-k install|config|uninstall] [-n service_name]",
+                 pad);
+#endif
+#ifdef AP_MPM_WANT_SIGNAL_SERVER
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %s [-k start|restart|graceful|stop]",
+                 pad);
+#endif
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %s [-v] [-V] [-h] [-l] [-L] [-t] [-S]", pad);
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "Options:");
 
-        if (first->propresult.propstats == NULL) {
-            /* use the Status-Line text from Apache.  Note, this will
-             * default to 500 Internal Server Error if first->status
-             * is not a known (or valid) status code.
-             */
-            ap_rprintf(r,
-                       "<D:status>HTTP/1.1 %s</D:status>" DEBUG_CR,
-                       ap_get_status_line(first->status));
-        }
-        else {
-            /* assume this includes <propstat> and is quoted properly */
-            for (t = first->propresult.propstats; t; t = t->next) {
-                ap_rputs(t->text, r);
-            }
-        }
+#ifdef SHARED_CORE
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -R directory      : specify an alternate location for "
+                 "shared object files");
+#endif
 
-        if (first->desc != NULL) {
-            /*
-             * We supply the description, so we know it doesn't have to
-             * have any escaping/encoding applied to it.
-             */
-            ap_rputs("<D:responsedescription>", r);
-            ap_rputs(first->desc, r);
-            ap_rputs("</D:responsedescription>" DEBUG_CR, r);
-        }
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -D name           : define a name for use in "
+                 "<IfDefine name> directives");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -d directory      : specify an alternate initial "
+                 "ServerRoot");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -f file           : specify an alternate ServerConfigFile");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -C \"directive\"    : process directive before reading "
+                 "config files");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -c \"directive\"    : process directive after reading "
+                 "config files");
 
-        ap_rputs("</D:response>" DEBUG_CR, r);
-    }
+#ifdef WIN32
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -n name           : set service name and use its "
+                 "ServerConfigFile");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k start          : tell Apache to start");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k restart        : tell running Apache to do a graceful "
+                 "restart");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k stop|shutdown  : tell running Apache to shutdown");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k install        : install an Apache service");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k config         : change startup Options of an Apache "
+                 "service");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k uninstall      : uninstall an Apache service");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -w                : hold open the console window on error");
+#endif
 
-    ap_rputs("</D:multistatus>" DEBUG_CR, r);
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -e level          : show startup errors of level "
+                 "(see LogLevel)");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -E file           : log startup errors to file");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -v                : show version number");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -V                : show compile settings");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -h                : list available command line options "
+                 "(this page)");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -l                : list compiled in modules");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -L                : list available configuration "
+                 "directives");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t -D DUMP_VHOSTS : show parsed settings (currently only "
+                 "vhost settings)");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -S                : a synonym for -t -D DUMP_VHOSTS");   
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t                : run syntax check for config files");
+
+    destroy_and_exit_process(process, 1);
 }

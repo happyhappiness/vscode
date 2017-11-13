@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0,
-                         ap_server_conf, "caught SIGTERM, shutting down");
+ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_ERR, rv, p,
+                      "Failed to create thread mutex for dynamic lock");

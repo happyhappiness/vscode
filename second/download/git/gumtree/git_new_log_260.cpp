@@ -1,1 +1,0 @@
-die(_("failed to read object '%s'."), arg);

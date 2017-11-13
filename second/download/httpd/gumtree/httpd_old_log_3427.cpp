@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "LDAP: Setting referrals to %s.",
-                 ((ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) ? "On" : "Off"));
+ap_log_error(APLOG_MARK, APLOG_DEBUG, rv,
+                             r->server, "Cache locked for url, not caching "
+                             "response: %s", r->uri);

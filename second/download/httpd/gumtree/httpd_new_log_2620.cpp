@@ -1,1 +1,1 @@
-printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 986979 $");
+printf("Server version: %s\n", ap_get_server_description());

@@ -1,5 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00516)
-                         "MaxRequestWorkers of %d would require %d servers and "
-                         "exceed ServerLimit of %d, decreasing to %d",
-                         max_workers, ap_daemons_limit, server_limit,
-                         server_limit * threads_per_child);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00959)
+            "ap_proxy_connect_backend disabling worker for (%s) for %"
+            APR_TIME_T_FMT "s",
+            worker->s->hostname, apr_time_sec(worker->s->retry));

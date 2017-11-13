@@ -1,2 +1,1 @@
-die ("Could not find committer in commit %s",
-		     oid_to_hex(&commit->object.oid));
+error(FAILED_RUN, prune_worktrees.argv[0]);

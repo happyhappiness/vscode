@@ -1,1 +1,4 @@
-die(_("commit '%s' lacks author header"), author_message);
+fprintf_ln(stderr,
+				   _("Continuing under the assumption that "
+				     "you meant '%s'."),
+				   assumed);

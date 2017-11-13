@@ -1,57 +1,60 @@
-static int proxy_ajp_canon(request_rec *r, char *url)
+static apr_status_t pass_data_to_filter(ap_filter_t *f, const char *data,
+                                        apr_size_t len, apr_bucket_brigade *bb)
 {
-    char *host, *path, sport[7];
-    char *search = NULL;
-    const char *err;
-    apr_port_t port = AJP13_DEF_PORT;
+    ef_ctx_t *ctx = f->ctx;
+    ef_dir_t *dc = ctx->dc;
+    apr_status_t rv;
+    apr_size_t bytes_written = 0;
+    apr_size_t tmplen;
 
-    /* ap_port_of_scheme() */
-    if (strncasecmp(url, "ajp:", 4) == 0) {
-        url += 4;
-    }
-    else {
-        return DECLINED;
-    }
+    do {
+        tmplen = len - bytes_written;
+        rv = apr_file_write(ctx->proc->in,
+                       (const char *)data + bytes_written,
+                       &tmplen);
+        bytes_written += tmplen;
+        if (rv != APR_SUCCESS && !APR_STATUS_IS_EAGAIN(rv)) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r,
+                          "apr_file_write(child input), len %" APR_SIZE_T_FMT,
+                          tmplen);
+            return rv;
+        }
+        if (APR_STATUS_IS_EAGAIN(rv)) {
+            /* XXX handle blocking conditions here...  if we block, we need
+             * to read data from the child process and pass it down to the
+             * next filter!
+             */
+            rv = drain_available_output(f, bb);
+            if (APR_STATUS_IS_EAGAIN(rv)) {
+#if APR_FILES_AS_SOCKETS
+                int num_events;
+                const apr_pollfd_t *pdesc;
 
-    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, r->server,
-             "proxy: AJP: canonicalising URL %s", url);
-
-    /*
-     * do syntactic check.
-     * We break the URL into host, port, path, search
-     */
-    err = ap_proxy_canon_netloc(r->pool, &url, NULL, NULL, &host, &port);
-    if (err) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "error parsing URL %s: %s",
-                      url, err);
-        return HTTP_BAD_REQUEST;
-    }
-
-    /*
-     * now parse path/search args, according to rfc1738:
-     * process the path. With proxy-nocanon set (by
-     * mod_proxy) we use the raw, unparsed uri
-     */
-    if (apr_table_get(r->notes, "proxy-nocanon")) {
-        path = url;   /* this is the raw path */
-    }
-    else {
-        path = ap_proxy_canonenc(r->pool, url, strlen(url), enc_path, 0,
-                                 r->proxyreq);
-        search = r->args;
-    }
-    if (path == NULL)
-        return HTTP_BAD_REQUEST;
-
-    apr_snprintf(sport, sizeof(sport), ":%d", port);
-
-    if (ap_strchr_c(host, ':')) {
-        /* if literal IPv6 address */
-        host = apr_pstrcat(r->pool, "[", host, "]", NULL);
-    }
-    r->filename = apr_pstrcat(r->pool, "proxy:ajp://", host, sport,
-                              "/", path, (search) ? "?" : "",
-                              (search) ? search : "", NULL);
-    return OK;
+                rv = apr_pollset_poll(ctx->pollset, f->r->server->timeout,
+                                      &num_events, &pdesc);
+                if (rv || dc->debug >= DBGLVL_GORY) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
+                                  rv, f->r, "apr_pollset_poll()");
+                }
+                if (rv != APR_SUCCESS && !APR_STATUS_IS_EINTR(rv)) {
+                    /* some error such as APR_TIMEUP */
+                    return rv;
+                }
+#else /* APR_FILES_AS_SOCKETS */
+                /* Yuck... I'd really like to wait until I can read
+                 * or write, but instead I have to sleep and try again
+                 */
+                apr_sleep(100000); /* 100 milliseconds */
+                if (dc->debug >= DBGLVL_GORY) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
+                                  0, f->r, "apr_sleep()");
+                }
+#endif /* APR_FILES_AS_SOCKETS */
+            }
+            else if (rv != APR_SUCCESS) {
+                return rv;
+            }
+        }
+    } while (bytes_written < len);
+    return rv;
 }

@@ -1,2 +1,2 @@
-fprintf(stderr, "    sent %s\n",
-					oid_to_hex(&request->obj->oid));
+strbuf_addf(err, "there are still refs under '%s'",
+					    orig_refname);

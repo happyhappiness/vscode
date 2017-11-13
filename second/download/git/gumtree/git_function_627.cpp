@@ -1,16 +1,20 @@
-int hold_lock_file_for_update_timeout(struct lock_file *lk, const char *path,
-				      int flags, long timeout_ms)
+static int parse_insn_buffer(char *buf, struct commit_list **todo_list,
+			struct replay_opts *opts)
 {
-	int fd = lock_file_timeout(lk, path, flags, timeout_ms);
-	if (fd < 0) {
-		if (flags & LOCK_DIE_ON_ERROR)
-			unable_to_lock_die(path, errno);
-		if (flags & LOCK_REPORT_ON_ERROR) {
-			struct strbuf buf = STRBUF_INIT;
-			unable_to_lock_message(path, errno, &buf);
-			error("%s", buf.buf);
-			strbuf_release(&buf);
-		}
+	struct commit_list **next = todo_list;
+	struct commit *commit;
+	char *p = buf;
+	int i;
+
+	for (i = 1; *p; i++) {
+		char *eol = strchrnul(p, '\n');
+		commit = parse_insn_line(p, eol, opts);
+		if (!commit)
+			return error(_("Could not parse line %d."), i);
+		next = commit_list_append(commit, next);
+		p = *eol ? eol + 1 : eol;
 	}
-	return fd;
+	if (!*todo_list)
+		return error(_("No commits parsed."));
+	return 0;
 }

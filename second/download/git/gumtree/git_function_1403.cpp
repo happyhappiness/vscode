@@ -1,48 +1,37 @@
-static CURL *setup_curl(struct imap_server_conf *srvc)
+static int prefix_ref_iterator_advance(struct ref_iterator *ref_iterator)
 {
-	CURL *curl;
-	struct strbuf path = STRBUF_INIT;
+	struct prefix_ref_iterator *iter =
+		(struct prefix_ref_iterator *)ref_iterator;
+	int ok;
 
-	if (curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK)
-		die("curl_global_init failed");
+	while ((ok = ref_iterator_advance(iter->iter0)) == ITER_OK) {
+		if (!starts_with(iter->iter0->refname, iter->prefix))
+			continue;
 
-	curl = curl_easy_init();
+		if (iter->trim) {
+			/*
+			 * It is nonsense to trim off characters that
+			 * you haven't already checked for via a
+			 * prefix check, whether via this
+			 * `prefix_ref_iterator` or upstream in
+			 * `iter0`). So if there wouldn't be at least
+			 * one character left in the refname after
+			 * trimming, report it as a bug:
+			 */
+			if (strlen(iter->iter0->refname) <= iter->trim)
+				die("BUG: attempt to trim too many characters");
+			iter->base.refname = iter->iter0->refname + iter->trim;
+		} else {
+			iter->base.refname = iter->iter0->refname;
+		}
 
-	if (!curl)
-		die("curl_easy_init failed");
-
-	curl_easy_setopt(curl, CURLOPT_USERNAME, server.user);
-	curl_easy_setopt(curl, CURLOPT_PASSWORD, server.pass);
-
-	strbuf_addstr(&path, server.host);
-	if (!path.len || path.buf[path.len - 1] != '/')
-		strbuf_addch(&path, '/');
-	strbuf_addstr(&path, server.folder);
-
-	curl_easy_setopt(curl, CURLOPT_URL, path.buf);
-	strbuf_release(&path);
-	curl_easy_setopt(curl, CURLOPT_PORT, server.port);
-
-	if (server.auth_method) {
-		struct strbuf auth = STRBUF_INIT;
-		strbuf_addstr(&auth, "AUTH=");
-		strbuf_addstr(&auth, server.auth_method);
-		curl_easy_setopt(curl, CURLOPT_LOGIN_OPTIONS, auth.buf);
-		strbuf_release(&auth);
+		iter->base.oid = iter->iter0->oid;
+		iter->base.flags = iter->iter0->flags;
+		return ITER_OK;
 	}
 
-	if (!server.use_ssl)
-		curl_easy_setopt(curl, CURLOPT_USE_SSL, (long)CURLUSESSL_TRY);
-
-	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, server.ssl_verify);
-	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, server.ssl_verify);
-
-	curl_easy_setopt(curl, CURLOPT_READFUNCTION, fread_buffer);
-
-	curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
-
-	if (0 < verbosity || getenv("GIT_CURL_VERBOSE"))
-		curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-
-	return curl;
+	iter->iter0 = NULL;
+	if (ref_iterator_abort(ref_iterator) != ITER_DONE)
+		return ITER_ERROR;
+	return ok;
 }

@@ -1,1 +1,1 @@
-error("unable to block SIGPIPE in async thread");
+die("Too large to be a .git file: '%s'", path);

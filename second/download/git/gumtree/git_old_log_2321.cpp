@@ -1,2 +1,2 @@
-error("chmod on %s failed: %s",
-			    get_lock_file_path(lock), strerror(errno));
+fprintf(stderr, _("finished search at %s\n"),
+					sha1_to_hex(c->object.sha1));

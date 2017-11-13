@@ -1,1 +1,1 @@
-error(_("Pulling is not possible because you have unmerged files."));
+error(_("Reverting is not possible because you have unmerged files."));

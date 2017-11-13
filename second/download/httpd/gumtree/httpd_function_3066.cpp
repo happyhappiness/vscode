@@ -1,158 +1,151 @@
-static apr_status_t hm_file_update_stat(hm_ctx_t *ctx, hm_server_t *s, apr_pool_t *pool)
+static int proxy_http_handler(request_rec *r, proxy_worker *worker,
+                              proxy_server_conf *conf,
+                              char *url, const char *proxyname,
+                              apr_port_t proxyport)
 {
-    apr_status_t rv;
-    apr_file_t *fp;
-    apr_file_t *fpin;
-    apr_time_t now;
-    apr_time_t fage;
-    apr_finfo_t fi;
-    int updated = 0;
-    char *path = apr_pstrcat(pool, ctx->storage_path, ".tmp.XXXXXX", NULL);
+    int status;
+    char server_portstr[32];
+    char *scheme;
+    const char *proxy_function;
+    const char *u;
+    proxy_conn_rec *backend = NULL;
+    int is_ssl = 0;
+    conn_rec *c = r->connection;
+    int retry = 0;
+    /*
+     * Use a shorter-lived pool to reduce memory usage
+     * and avoid a memory leak
+     */
+    apr_pool_t *p = r->pool;
+    apr_uri_t *uri = apr_palloc(p, sizeof(*uri));
 
-
-    /* TODO: Update stats file (!) */
-    rv = apr_file_mktemp(&fp, path, APR_CREATE | APR_WRITE, pool);
-
-    if (rv) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Unable to open tmp file: %s", path);
-        return rv;
+    /* find the scheme */
+    u = strchr(url, ':');
+    if (u == NULL || u[1] != '/' || u[2] != '/' || u[3] == '\0')
+       return DECLINED;
+    if ((u - url) > 14)
+        return HTTP_BAD_REQUEST;
+    scheme = apr_pstrndup(p, url, u - url);
+    /* scheme is lowercase */
+    ap_str_tolower(scheme);
+    /* is it for us? */
+    if (strcmp(scheme, "https") == 0) {
+        if (!ap_proxy_ssl_enable(NULL)) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: HTTPS: declining URL %s"
+                         " (mod_ssl not configured?)", url);
+            return DECLINED;
+        }
+        is_ssl = 1;
+        proxy_function = "HTTPS";
     }
-    rv = apr_file_open(&fpin, ctx->storage_path, APR_READ|APR_BINARY|APR_BUFFERED,
-                       APR_OS_DEFAULT, pool);
+    else if (!(strcmp(scheme, "http") == 0 || (strcmp(scheme, "ftp") == 0 && proxyname))) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: HTTP: declining URL %s", url);
+        return DECLINED; /* only interested in HTTP, or FTP via proxy */
+    }
+    else {
+        if (*scheme == 'h')
+            proxy_function = "HTTP";
+        else
+            proxy_function = "FTP";
+    }
+    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, r->server,
+                 "proxy: HTTP: serving URL %s", url);
 
-    now = apr_time_now();
-    if (rv == APR_SUCCESS) {
-        char *t;
-        apr_table_t *hbt = apr_table_make(pool, 10);
-        apr_bucket_alloc_t *ba = apr_bucket_alloc_create(pool);
-        apr_bucket_brigade *bb = apr_brigade_create(pool, ba);
-        apr_bucket_brigade *tmpbb = apr_brigade_create(pool, ba);
-        rv = apr_file_info_get(&fi, APR_FINFO_SIZE | APR_FINFO_MTIME, fpin);
-        if (rv) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                         "Heartmonitor: Unable to read file: %s", ctx->storage_path);
-            return rv;
+
+    /* create space for state information */
+    if ((status = ap_proxy_acquire_connection(proxy_function, &backend,
+                                              worker, r->server)) != OK)
+        goto cleanup;
+
+
+    backend->is_ssl = is_ssl;
+
+    if (is_ssl) {
+        ap_proxy_ssl_connection_cleanup(backend, r);
+    }
+
+    /*
+     * In the case that we are handling a reverse proxy connection and this
+     * is not a request that is coming over an already kept alive connection
+     * with the client, do NOT reuse the connection to the backend, because
+     * we cannot forward a failure to the client in this case as the client
+     * does NOT expect this in this situation.
+     * Yes, this creates a performance penalty.
+     */
+    if ((r->proxyreq == PROXYREQ_REVERSE) && (!c->keepalives)
+        && (apr_table_get(r->subprocess_env, "proxy-initial-not-pooled"))) {
+        backend->close = 1;
+    }
+
+    while (retry < 2) {
+        char *locurl = url;
+
+        /* Step One: Determine Who To Connect To */
+        if ((status = ap_proxy_determine_connection(p, r, conf, worker, backend,
+                                                uri, &locurl, proxyname,
+                                                proxyport, server_portstr,
+                                                sizeof(server_portstr))) != OK)
+            break;
+
+        /* Step Two: Make the Connection */
+        if (ap_proxy_connect_backend(proxy_function, backend, worker, r->server)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                         "proxy: HTTP: failed to make connection to backend: %s",
+                         backend->hostname);
+            status = HTTP_SERVICE_UNAVAILABLE;
+            break;
         }
 
-        /* Read the file and update the line corresponding to the node */
-        ba = apr_bucket_alloc_create(pool);
-        bb = apr_brigade_create(pool, ba);
-        apr_brigade_insert_file(bb, fpin, 0, fi.size, pool);
-        tmpbb = apr_brigade_create(pool, ba);
-        fage = apr_time_sec(now - fi.mtime);
-        do {
-            char buf[4096];
-            const char *ip;
-            apr_size_t bsize = sizeof(buf);
-            apr_brigade_cleanup(tmpbb);
-            if (APR_BRIGADE_EMPTY(bb)) {
+        /* Step Three: Create conn_rec */
+        if (!backend->connection) {
+            if ((status = ap_proxy_connection_create(proxy_function, backend,
+                                                     c, r->server)) != OK)
                 break;
-            } 
-            rv = apr_brigade_split_line(tmpbb, bb,
-                                        APR_BLOCK_READ, sizeof(buf));
-       
-            if (rv) {
-                ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                             "Heartmonitor: Unable to read from file: %s", ctx->storage_path);
-                return rv;
+            /*
+             * On SSL connections set a note on the connection what CN is
+             * requested, such that mod_ssl can check if it is requested to do
+             * so.
+             */
+            if (is_ssl) {
+                apr_table_set(backend->connection->notes, "proxy-request-hostname",
+                              uri->hostname);
             }
+        }
 
-            apr_brigade_flatten(tmpbb, buf, &bsize);
-            if (bsize == 0) {
+        /* Step Four: Send the Request
+         * On the off-chance that we forced a 100-Continue as a
+         * kinda HTTP ping test, allow for retries
+         */
+        if ((status = ap_proxy_http_request(p, r, backend, worker,
+                                        conf, uri, locurl, server_portstr)) != OK) {
+            if ((status == HTTP_SERVICE_UNAVAILABLE) && worker->ping_timeout_set) {
+                backend->close = 1;
+                ap_log_error(APLOG_MARK, APLOG_INFO, status, r->server,
+                             "proxy: HTTP: 100-Continue failed to %pI (%s)",
+                             worker->cp->addr, worker->hostname);
+                retry++;
+                continue;
+            } else {
                 break;
             }
-            buf[bsize - 1] = 0;
-            t = strchr(buf, ' ');
-            if (t) {
-                ip = apr_pstrndup(pool, buf, t - buf);
-            } else {
-                ip = NULL;
-            }
-            if (!ip || buf[0] == '#') {
-                /* copy things we can't process */
-                apr_file_printf(fp, "%s\n", buf);
-            } else if (strcmp(ip, s->ip) !=0 ) {
-                hm_server_t node; 
-                apr_time_t seen;
-                /* Update seen time according to the last file modification */
-                apr_table_clear(hbt);
-                qs_to_table(apr_pstrdup(pool, t), hbt, pool);
-                if (apr_table_get(hbt, "busy")) {
-                    node.busy = atoi(apr_table_get(hbt, "busy"));
-                } else {
-                    node.busy = 0;
-                }
 
-                if (apr_table_get(hbt, "ready")) {
-                    node.ready = atoi(apr_table_get(hbt, "ready"));
-                } else {
-                    node.ready = 0;
-                }
+        }
 
-                if (apr_table_get(hbt, "lastseen")) {
-                    node.seen = atoi(apr_table_get(hbt, "lastseen"));
-                } else {
-                    node.seen = SEEN_TIMEOUT; 
-                }
-                seen = fage + node.seen;
+        /* Step Five: Receive the Response... Fall thru to cleanup */
+        status = ap_proxy_http_process_response(p, r, backend, worker,
+                                                conf, server_portstr);
 
-                if (apr_table_get(hbt, "port")) {
-                    node.port = atoi(apr_table_get(hbt, "port"));
-                } else {
-                    node.port = 80; 
-                }
-                apr_file_printf(fp, "%s &ready=%u&busy=%u&lastseen=%u&port=%u\n",
-                                ip, node.ready, node.busy, (unsigned int) seen, node.port);
-            } else {
-                apr_time_t seen;
-                seen = apr_time_sec(now - s->seen);
-                apr_file_printf(fp, "%s &ready=%u&busy=%u&lastseen=%u&port=%u\n",
-                                s->ip, s->ready, s->busy, (unsigned int) seen, s->port);
-                updated = 1;
-            }
-        } while (1);
+        break;
     }
 
-    if (!updated) {
-        apr_time_t seen;
-        seen = apr_time_sec(now - s->seen);
-        apr_file_printf(fp, "%s &ready=%u&busy=%u&lastseen=%u&port=%u\n",
-                        s->ip, s->ready, s->busy, (unsigned int) seen, s->port);
+    /* Step Six: Clean Up */
+cleanup:
+    if (backend) {
+        if (status != OK)
+            backend->close = 1;
+        ap_proxy_http_cleanup(proxy_function, r, backend);
     }
-
-    rv = apr_file_flush(fp);
-    if (rv) {
-      ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                   "Heartmonitor: Unable to flush file: %s", path);
-      return rv;
-    }
-
-    rv = apr_file_close(fp);
-    if (rv) {
-      ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                   "Heartmonitor: Unable to close file: %s", path);
-      return rv;
-    }
-  
-    rv = apr_file_perms_set(path,
-                            APR_FPROT_UREAD | APR_FPROT_GREAD |
-                            APR_FPROT_WREAD);
-    if (rv && rv != APR_INCOMPLETE) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Unable to set file permssions on %s",
-                     path);
-        return rv;
-    }
-
-    rv = apr_file_rename(path, ctx->storage_path, pool);
-
-    if (rv) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Unable to move file: %s -> %s", path,
-                     ctx->storage_path);
-        return rv;
-    }
-
-    return APR_SUCCESS;
+    return status;
 }

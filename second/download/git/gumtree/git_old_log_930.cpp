@@ -1,1 +1,0 @@
-die(_("invalid ident line: %s"), sb.buf);

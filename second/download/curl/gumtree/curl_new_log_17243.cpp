@@ -1,1 +1,15 @@
-Curl_failf(data, "Remote host didn't send adat reply");
+puts(
+"  Upload all data on stdin to a specified http site:\n"
+"\n"
+"        curl -T - http://www.upload.com/myfile\n"
+"\n"
+"  Note that the http server must've been configured to accept PUT before this\n"
+"  can be done successfully.\n"
+"\n"
+"  For other ways to do http data upload, see the POST section below.\n"
+"\n"
+"VERBOSE / DEBUG\n"
+"\n"
+"  If curl fails where it isn't supposed to, if the servers don't let you\n"
+"  in, if you can't understand the responses: use the -v flag to get VERBOSE\n"
+);

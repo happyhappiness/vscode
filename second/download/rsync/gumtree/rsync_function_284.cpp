@@ -1,107 +1,67 @@
-static struct file_struct *make_file(char *fname)
+void receive_file_entry_v11(struct file_struct *file,
+			    unsigned char flags,int f)
 {
-	struct file_struct *file;
-	struct stat st;
-	char sum[SUM_LENGTH];
-	char *p;
-	char cleaned_name[MAXPATHLEN];
+  static time_t last_time=0;
+  static mode_t last_mode=0;
+  static dev_t last_rdev=0;
+  static uid_t last_uid=0;
+  static gid_t last_gid=0;
+  static char lastname[MAXPATHLEN]="";
+  int l1=0,l2=0;
 
-	strncpy(cleaned_name, fname, MAXPATHLEN-1);
-	cleaned_name[MAXPATHLEN-1] = 0;
-	clean_fname(cleaned_name);
-	fname = cleaned_name;
+  if (flags & SAME_NAME)
+    l1 = read_byte(f);
+  
+  if (flags & LONG_NAME)
+    l2 = read_int(f);
+  else
+    l2 = read_byte(f);
 
-	bzero(sum,SUM_LENGTH);
+  bzero((char *)file,sizeof(*file));
 
-	if (link_stat(fname,&st) != 0) {
-		io_error = 1;
-		fprintf(FERROR,"%s: %s\n",
-			fname,strerror(errno));
-		return NULL;
-	}
+  file->name = (char *)malloc(l1+l2+1);
+  if (!file->name) out_of_memory("receive_file_entry");
 
-	if (S_ISDIR(st.st_mode) && !recurse) {
-		fprintf(FINFO,"skipping directory %s\n",fname);
-		return NULL;
-	}
-	
-	if (one_file_system && st.st_dev != filesystem_dev) {
-		if (skip_filesystem(fname, &st))
-			return NULL;
-	}
-	
-	if (!match_file_name(fname,&st))
-		return NULL;
-	
-	if (verbose > 2)
-		fprintf(FINFO,"make_file(%s)\n",fname);
-	
-	file = (struct file_struct *)malloc(sizeof(*file));
-	if (!file) out_of_memory("make_file");
-	bzero((char *)file,sizeof(*file));
+  strncpy(file->name,lastname,l1);
+  read_buf(f,file->name+l1,l2);
+  file->name[l1+l2] = 0;
 
-	if ((p = strrchr(fname,'/'))) {
-		static char *lastdir;
-		*p = 0;
-		if (lastdir && strcmp(fname, lastdir)==0) {
-			file->dirname = lastdir;
-		} else {
-			file->dirname = strdup(fname);
-			lastdir = file->dirname;
-		}
-		file->basename = strdup(p+1);
-		*p = '/';
-	} else {
-		file->dirname = NULL;
-		file->basename = strdup(fname);
-	}
-
-	file->modtime = st.st_mtime;
-	file->length = st.st_size;
-	file->mode = st.st_mode;
-	file->uid = st.st_uid;
-	file->gid = st.st_gid;
-	file->dev = st.st_dev;
-	file->inode = st.st_ino;
-#ifdef HAVE_ST_RDEV
-	file->rdev = st.st_rdev;
-#endif
+  file->length = (off_t)read_int(f);
+  file->modtime = (flags & SAME_TIME) ? last_time : (time_t)read_int(f);
+  file->mode = (flags & SAME_MODE) ? last_mode : (mode_t)read_int(f);
+  if (preserve_uid)
+    file->uid = (flags & SAME_UID) ? last_uid : (uid_t)read_int(f);
+  if (preserve_gid)
+    file->gid = (flags & SAME_GID) ? last_gid : (gid_t)read_int(f);
+  if (preserve_devices && IS_DEVICE(file->mode))
+    file->rdev = (flags & SAME_RDEV) ? last_rdev : (dev_t)read_int(f);
 
 #if SUPPORT_LINKS
-	if (S_ISLNK(st.st_mode)) {
-		int l;
-		char lnk[MAXPATHLEN];
-		if ((l=readlink(fname,lnk,MAXPATHLEN-1)) == -1) {
-			io_error=1;
-			fprintf(FERROR,"readlink %s : %s\n",
-				fname,strerror(errno));
-			return NULL;
-		}
-		lnk[l] = 0;
-		file->link = strdup(lnk);
-	}
+  if (preserve_links && S_ISLNK(file->mode)) {
+    int l = read_int(f);
+    file->link = (char *)malloc(l+1);
+    if (!file->link) out_of_memory("receive_file_entry");
+    read_buf(f,file->link,l);
+    file->link[l] = 0;
+  }
 #endif
 
-	if (always_checksum && S_ISREG(st.st_mode)) {
-		file->sum = (char *)malloc(MD4_SUM_LENGTH);
-		if (!file->sum) out_of_memory("md4 sum");
-		file_checksum(fname,file->sum,st.st_size);
-	}       
+#if SUPPORT_HARD_LINKS
+  if (preserve_hard_links && S_ISREG(file->mode)) {
+    file->dev = read_int(f);
+    file->inode = read_int(f);
+  }
+#endif
+  
+  if (always_checksum)
+    read_buf(f,file->sum,csum_length);
+  
+  last_mode = file->mode;
+  last_rdev = file->rdev;
+  last_uid = file->uid;
+  last_gid = file->gid;
+  last_time = file->modtime;
 
-	if (flist_dir) {
-		static char *lastdir;
-		if (lastdir && strcmp(lastdir, flist_dir)==0) {
-			file->basedir = lastdir;
-		} else {
-			file->basedir = strdup(flist_dir);
-			lastdir = file->basedir;
-		}
-	} else {
-		file->basedir = NULL;
-	}
-
-	if (!S_ISDIR(st.st_mode))
-		total_size += st.st_size;
-
-	return file;
+  strncpy(lastname,file->name,MAXPATHLEN-1);
+  lastname[MAXPATHLEN-1] = 0;
 }

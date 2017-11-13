@@ -1,1 +1,1 @@
-die(_("file %s is not writable by user"), file);
+get_lock_file_path(lock->lk);

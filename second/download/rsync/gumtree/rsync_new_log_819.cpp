@@ -1,1 +1,1 @@
-fprintf(stderr, "Failed to run \"%s\"\n", prog);
+)new_array(char, sz);

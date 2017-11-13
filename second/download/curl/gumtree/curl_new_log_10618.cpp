@@ -1,8 +1,11 @@
 fputs(
-"              Makes  curl  scan  the  .netrc  (_netrc  on Windows) file in the\n"
-"              user's home directory for login name and password. This is typi-\n"
-"              cally  used for FTP on Unix. If used with HTTP, curl will enable\n"
-"              user authentication. See netrc(4) or ftp(1) for details  on  the\n"
-"              file  format.  Curl  will not complain if that file doesn't have\n"
-"              the right permissions (it should not be either world- or  group-\n"
+"              fer ends up being larger than this given  limit.  This  concerns\n"
+"              both FTP and HTTP transfers.\n"
+"\n"
+"       --mail-rcpt <address>\n"
+"              (SMTP) Specify a single address, user name or mailing list name.\n"
+"              When  performing a mail transfer, the recipient should specify a\n"
+"              valid email address to send the mail to. (Added in 7.20.0)\n"
+"\n"
+"              When performing an  address  verification  (VRFY  command),  the\n"
 , stdout);

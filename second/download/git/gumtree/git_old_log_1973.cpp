@@ -1,2 +1,2 @@
-error("Object %s not a commit",
-			     sha1_to_hex(item->object.sha1));
+fprintf(fp, "gitdir: %s\n", relative_path(git_dir, real_work_tree,
+						  &rel_path));

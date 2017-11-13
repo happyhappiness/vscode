@@ -1,2 +1,2 @@
-die("%s %s: expected NUL but got: %s",
-			    command, refname, *next);
+warning(_("unsupported sort specification '%s' in variable '%s'"),
+				var, arg);

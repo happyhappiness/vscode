@@ -1,31 +1,31 @@
-static void check_good_are_ancestors_of_bad(const char *prefix, int no_checkout)
+static int fast_forward_to(const unsigned char *to, const unsigned char *from,
+			int unborn, struct replay_opts *opts)
 {
-	char *filename = git_pathdup("BISECT_ANCESTORS_OK");
-	struct stat st;
-	int fd;
+	struct ref_transaction *transaction;
+	struct strbuf sb = STRBUF_INIT;
+	struct strbuf err = STRBUF_INIT;
 
-	if (!current_bad_oid)
-		die("a bad revision is needed");
+	read_cache();
+	if (checkout_fast_forward(from, to, 1))
+		exit(128); /* the callee should have complained already */
 
-	/* Check if file BISECT_ANCESTORS_OK exists. */
-	if (!stat(filename, &st) && S_ISREG(st.st_mode))
-		goto done;
+	strbuf_addf(&sb, "%s: fast-forward", action_name(opts));
 
-	/* Bisecting with no good rev is ok. */
-	if (good_revs.nr == 0)
-		goto done;
+	transaction = ref_transaction_begin(&err);
+	if (!transaction ||
+	    ref_transaction_update(transaction, "HEAD",
+				   to, unborn ? null_sha1 : from,
+				   0, 1, sb.buf, &err) ||
+	    ref_transaction_commit(transaction, &err)) {
+		ref_transaction_free(transaction);
+		error("%s", err.buf);
+		strbuf_release(&sb);
+		strbuf_release(&err);
+		return -1;
+	}
 
-	/* Check if all good revs are ancestor of the bad rev. */
-	if (check_ancestors(prefix))
-		check_merge_bases(no_checkout);
-
-	/* Create file BISECT_ANCESTORS_OK. */
-	fd = open(filename, O_CREAT | O_TRUNC | O_WRONLY, 0600);
-	if (fd < 0)
-		warning("could not create file '%s': %s",
-			filename, strerror(errno));
-	else
-		close(fd);
- done:
-	free(filename);
+	strbuf_release(&sb);
+	strbuf_release(&err);
+	ref_transaction_free(transaction);
+	return 0;
 }

@@ -1,11 +1,8 @@
 fputs(
-"              only such one. (Added in 7.33.0)\n"
-"\n"
-"       --dns-ipv4-addr <ip-address>\n"
-"              Tell curl to bind to <ip-address> when making IPv4 DNS requests,\n"
-"              so  that the DNS requests originate from this address. The argu-\n"
-"              ment should be a single IPv4 address.\n"
-"\n"
-"              This option requires that libcurl  was  built  with  a  resolver\n"
-"              backend  that supports this operation. The c-ares backend is the\n"
+"              (FTP) Tell curl to disable the use of the EPRT and LPRT commands\n"
+"              when doing active FTP transfers. Curl will normally always first\n"
+"              attempt  to use EPRT, then LPRT before using PORT, but with this\n"
+"              option, it will use PORT right away. EPRT and  LPRT  are  exten-\n"
+"              sions  to  the  original  FTP  protocol, and may not work on all\n"
+"              servers, but they enable more functionality in a better way than\n"
 , stdout);

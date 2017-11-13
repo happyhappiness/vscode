@@ -1,9 +1,11 @@
 fputs(
-"              This option may be used any number of times.  To  control  where\n"
-"              this  URL  is written, use the -o, --output or the -O, --remote-\n"
-"              name options.\n"
-"       -v, --verbose\n"
-"              Makes the fetching more  verbose/talkative.  Mostly  useful  for\n"
-"              debugging.  A line starting with '>' means \"header data\" sent by\n"
-"              curl, '<' means \"header data\" received by curl that is hidden in\n"
+"              use  for  server  authentication.  Overrides  -n,  --netrc   and\n"
+"              --netrc-optional.\n"
+"\n"
+"              If  you  simply specify the user name, with or without the login\n"
+"              options, curl will prompt for a password.\n"
+"\n"
+"              If you use an SSPI-enabled curl binary and perform NTLM  authen-\n"
+"              tication,  you  can force curl to select the user name and pass-\n"
+"              word from your environment by simply specifying a  single  colon\n"
 , stdout);

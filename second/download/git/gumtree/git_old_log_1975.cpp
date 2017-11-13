@@ -1,1 +1,1 @@
-printf(format, sha1_to_hex(list->item->object.sha1));
+error("problems writing temporary file %s", buf->buf);

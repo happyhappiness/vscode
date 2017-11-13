@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, APLOGNO(01116)
-                 "proxy: Entering roundrobin for BALANCER %s (%d)",
-                 balancer->name, (int)getpid());
+ap_log_rerror(APLOG_MARK, lvl, rv, r, APLOGNO(01460)
+                      "apr_file_read(child output), len %" APR_SIZE_T_FMT,
+                      !rv ? len : -1);

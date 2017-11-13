@@ -1,1 +1,0 @@
-packet_buf_write(&req_buf, "deepen-since %lu", max_age);

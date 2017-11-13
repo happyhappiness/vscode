@@ -1,48 +1,18 @@
-static int ssl_tmp_key_init_rsa(server_rec *s,
-                                int bits, int idx)
+static int on_invalid_header_cb(nghttp2_session *ngh2, 
+                                const nghttp2_frame *frame, 
+                                const uint8_t *name, size_t namelen, 
+                                const uint8_t *value, size_t valuelen, 
+                                uint8_t flags, void *user_data)
 {
-    SSLModConfigRec *mc = myModConfig(s);
-
-#ifdef HAVE_FIPS
-
-    if (FIPS_mode() && bits < 1024) {
-        mc->pTmpKeys[idx] = NULL;
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01877)
-                     "Init: Skipping generating temporary "
-                     "%d bit RSA private key in FIPS mode", bits);
-        return OK;
+    h2_session *session = user_data;
+    if (APLOGcdebug(session->c)) {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03456)
+                      "h2_session(%ld-%d): denying stream with invalid header "
+                      "'%s: %s'", session->id, (int)frame->hd.stream_id,
+                      apr_pstrndup(session->pool, (const char *)name, namelen),
+                      apr_pstrndup(session->pool, (const char *)value, valuelen));
     }
-
-#endif
-#ifdef HAVE_GENERATE_EX
-    {
-        RSA *tkey;
-        BIGNUM *bn_f4;
-        if (!(tkey = RSA_new())
-          || !(bn_f4 = BN_new())
-          || !BN_set_word(bn_f4, RSA_F4)
-          || !RSA_generate_key_ex(tkey, bits, bn_f4, NULL))
-        {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01878)
-                         "Init: Failed to generate temporary "
-                         "%d bit RSA private key", bits);
-            ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
-            return !OK;
-        }
-        BN_free(bn_f4);
-        mc->pTmpKeys[idx] = tkey;
-    }
-#else
-    if (!(mc->pTmpKeys[idx] =
-          RSA_generate_key(bits, RSA_F4, NULL, NULL)))
-    {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01879)
-                     "Init: Failed to generate temporary "
-                     "%d bit RSA private key", bits);
-        ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
-        return !OK;
-    }
-#endif
-
-    return OK;
+    return nghttp2_submit_rst_stream(session->ngh2, NGHTTP2_FLAG_NONE,
+                                     frame->hd.stream_id, 
+                                     NGHTTP2_PROTOCOL_ERROR);
 }

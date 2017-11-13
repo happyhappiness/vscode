@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                                     "Cannot get media parameter.");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                            r->server, "Adding CACHE_SAVE filter for %s",
+                            r->uri);

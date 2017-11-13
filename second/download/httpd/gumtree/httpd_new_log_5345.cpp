@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c,
-                          "h2_task_input(%s): serialize request %s %s", 
-                          task->id, task->request->method, task->request->path);
+ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf, APLOGNO(00275)
+                     "apr_thread_create: unable to create listener thread");

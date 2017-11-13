@@ -1,1 +1,2 @@
-die(_(":strip= requires a positive integer argument"));
+die(_("ref '%s' does not have %ld components to :strip"),
+			    refname, nr);

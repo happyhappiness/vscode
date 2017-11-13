@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00227)
-                "Graceful restart requested, doing restart");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01852)
+                      "failed to find the prepared statement called '%s'", query);

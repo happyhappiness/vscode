@@ -1,1 +1,17 @@
-fprintf (stderr, _("Error: value '%s' is invalid for -d.\n"), optarg);
+puts (
+#ifdef CRYPT_BACKEND_CLASSIC_PGP
+        "+CRYPT_BACKEND_CLASSIC_PGP  "
+#else
+        "-CRYPT_BACKEND_CLASSIC_PGP  "
+#endif
+#ifdef CRYPT_BACKEND_CLASSIC_SMIME
+        "+CRYPT_BACKEND_CLASSIC_SMIME  "
+#else
+        "-CRYPT_BACKEND_CLASSIC_SMIME  "
+#endif
+#ifdef CRYPT_BACKEND_GPGME
+        "+CRYPT_BACKEND_GPGME  "
+#else
+        "-CRYPT_BACKEND_GPGME  "
+#endif
+        );

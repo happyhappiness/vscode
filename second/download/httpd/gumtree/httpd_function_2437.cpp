@@ -1,109 +1,65 @@
-static BOOL shmcb_init_memory(
-    server_rec *s, void *shm_mem,
-    unsigned int shm_mem_size)
+apr_status_t ap_fatal_signal_setup(server_rec *s, apr_pool_t *in_pconf)
 {
-    SHMCBHeader *header;
-    SHMCBQueue queue;
-    SHMCBCache cache;
-    unsigned int temp, loop, granularity;
+#ifndef NO_USE_SIGACTION
+    struct sigaction sa;
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "entered shmcb_init_memory()");
+    sigemptyset(&sa.sa_mask);
 
-    /* Calculate some sizes... */
-    temp = sizeof(SHMCBHeader);
+#if defined(SA_ONESHOT)
+    sa.sa_flags = SA_ONESHOT;
+#elif defined(SA_RESETHAND)
+    sa.sa_flags = SA_RESETHAND;
+#else
+    sa.sa_flags = 0;
+#endif
 
-    /* If the segment is ridiculously too small, bail out */
-    if (shm_mem_size < (2*temp)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "shared memory segment too small");
-        return FALSE;
-    }
+    sa.sa_handler = sig_coredump;
+    if (sigaction(SIGSEGV, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGSEGV)");
+#ifdef SIGBUS
+    if (sigaction(SIGBUS, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGBUS)");
+#endif
+#ifdef SIGABORT
+    if (sigaction(SIGABORT, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGABORT)");
+#endif
+#ifdef SIGABRT
+    if (sigaction(SIGABRT, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGABRT)");
+#endif
+#ifdef SIGILL
+    if (sigaction(SIGILL, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGILL)");
+#endif
+#ifdef SIGFPE
+    if (sigaction(SIGFPE, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGFPE)");
+#endif
 
-    /* Make temp the amount of memory without the header */
-    temp = shm_mem_size - temp;
+#else /* NO_USE_SIGACTION */
 
-    /* Work on the basis that you need 10 bytes index for each session
-     * (approx 150 bytes), which is to divide temp by 160 - and then
-     * make sure we err on having too index space to burn even when
-     * the cache is full, which is a lot less stupid than having
-     * having not enough index space to utilise the whole cache!. */
-    temp /= 120;
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "for %u bytes, recommending %u indexes",
-                 shm_mem_size, temp);
+    apr_signal(SIGSEGV, sig_coredump);
+#ifdef SIGBUS
+    apr_signal(SIGBUS, sig_coredump);
+#endif /* SIGBUS */
+#ifdef SIGABORT
+    apr_signal(SIGABORT, sig_coredump);
+#endif /* SIGABORT */
+#ifdef SIGABRT
+    apr_signal(SIGABRT, sig_coredump);
+#endif /* SIGABRT */
+#ifdef SIGILL
+    apr_signal(SIGILL, sig_coredump);
+#endif /* SIGILL */
+#ifdef SIGFPE
+    apr_signal(SIGFPE, sig_coredump);
+#endif /* SIGFPE */
 
-    /* We should divide these indexes evenly amongst the queues. Try
-     * to get it so that there are roughly half the number of divisions
-     * as there are indexes in each division. */
-    granularity = 256;
-    while ((temp / granularity) < (2 * granularity))
-        granularity /= 2;
+#endif /* NO_USE_SIGACTION */
 
-    /* So we have 'granularity' divisions, set 'temp' equal to the
-     * number of indexes in each division. */
-    temp /= granularity;
+    pconf = in_pconf;
+    parent_pid = my_pid = getpid();
 
-    /* Too small? Bail ... */
-    if (temp < 5) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "shared memory segment too small");
-        return FALSE;
-    }
-
-    /* OK, we're sorted - from here on in, the return should be TRUE */
-    header = (SHMCBHeader *)shm_mem;
-    header->division_mask = (unsigned char)(granularity - 1);
-    header->division_offset = sizeof(SHMCBHeader);
-    header->index_num = temp;
-    header->index_offset = (2 * sizeof(unsigned int));
-    header->index_size = sizeof(SHMCBIndex);
-    header->queue_size = header->index_offset +
-                         (header->index_num * header->index_size);
-
-    /* Now calculate the space for each division */
-    temp = shm_mem_size - header->division_offset;
-    header->division_size = temp / granularity;
-
-    /* Calculate the space left in each division for the cache */
-    temp -= header->queue_size;
-    header->cache_data_offset = (2 * sizeof(unsigned int));
-    header->cache_data_size = header->division_size -
-                              header->queue_size - header->cache_data_offset;
-
-    /* Output trace info */
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "shmcb_init_memory choices follow");
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "division_mask = 0x%02X", header->division_mask);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "division_offset = %u", header->division_offset);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                  "division_size = %u", header->division_size);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                  "queue_size = %u", header->queue_size);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                  "index_num = %u", header->index_num);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                  "index_offset = %u", header->index_offset);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                  "index_size = %u", header->index_size);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                  "cache_data_offset = %u", header->cache_data_offset);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                  "cache_data_size = %u", header->cache_data_size);
-
-    /* The header is done, make the caches empty */
-    for (loop = 0; loop < granularity; loop++) {
-        if (!shmcb_get_division(header, &queue, &cache, loop))
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, "shmcb_init_memory, " "internal error");
-        shmcb_set_safe_uint(cache.first_pos, 0);
-        shmcb_set_safe_uint(cache.pos_count, 0);
-        shmcb_set_safe_uint(queue.first_pos, 0);
-        shmcb_set_safe_uint(queue.pos_count, 0);
-    }
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "leaving shmcb_init_memory()");
-    return TRUE;
+    return APR_SUCCESS;
 }

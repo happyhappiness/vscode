@@ -1,11 +1,10 @@
 fputs(
-"              speed_download The average download speed that curl measured for\n"
-"                             the complete download. Bytes per second.\n"
+"              content_type   The Content-Type of the  requested  document,  if\n"
+"                             there was any.\n"
 "\n"
-"              speed_upload   The  average  upload speed that curl measured for\n"
-"                             the complete upload. Bytes per second.\n"
-"\n"
-"              ssl_verify_result\n"
-"                             The result of the SSL peer certificate  verifica-\n"
-"                             tion that was requested. 0 means the verification\n"
+"              filename_effective\n"
+"                             The  ultimate  filename  that curl writes out to.\n"
+"                             This is only meaningful if curl is told to  write\n"
+"                             to  a  file  with  the  --remote-name or --output\n"
+"                             option. It's most useful in combination with  the\n"
 , stdout);

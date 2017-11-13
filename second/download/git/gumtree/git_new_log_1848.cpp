@@ -1,2 +1,1 @@
-die("size_t underflow: %"PRIuMAX" - %"PRIuMAX,
-		    (uintmax_t)a, (uintmax_t)b);
+die("unable to generate diff for %s", pair->one->path);

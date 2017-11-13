@@ -1,3 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "proxy: *: found reverse proxy worker for %s",
-                               *url);
+ap_rputs(" -D OS=\"" OS "\"\n", r);

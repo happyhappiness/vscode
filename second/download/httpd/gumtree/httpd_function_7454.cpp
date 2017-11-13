@@ -1,96 +1,308 @@
-static const char *add_member(cmd_parms *cmd, void *dummy, const char *arg)
+static apr_status_t dispatch(proxy_conn_rec *conn, proxy_dir_conf *conf,
+                             request_rec *r, apr_pool_t *setaside_pool,
+                             apr_uint16_t request_id)
 {
-    server_rec *s = cmd->server;
-    proxy_server_conf *conf =
-    ap_get_module_config(s->module_config, &proxy_module);
-    proxy_balancer *balancer;
-    proxy_worker *worker;
-    char *path = cmd->path;
-    char *name = NULL;
-    char *word;
-    apr_table_t *params = apr_table_make(cmd->pool, 5);
-    const apr_array_header_t *arr;
-    const apr_table_entry_t *elts;
-    int reuse = 0;
-    int i;
-    /* XXX: Should this be NOT_IN_DIRECTORY|NOT_IN_FILES? */
-    const char *err = ap_check_cmd_context(cmd, NOT_IN_HTACCESS);
-    if (err)
-        return err;
+    apr_bucket_brigade *ib, *ob;
+    int seen_end_of_headers = 0, done = 0;
+    apr_status_t rv = APR_SUCCESS;
+    int script_error_status = HTTP_OK;
+    conn_rec *c = r->connection;
+    struct iovec vec[2];
+    ap_fcgi_header header;
+    unsigned char farray[AP_FCGI_HEADER_LEN];
+    apr_pollfd_t pfd;
+    int header_state = HDR_STATE_READING_HEADERS;
+ 
+    pfd.desc_type = APR_POLL_SOCKET;
+    pfd.desc.s = conn->sock;
+    pfd.p = r->pool;
+    pfd.reqevents = APR_POLLIN | APR_POLLOUT;
 
-    if (cmd->path)
-        path = apr_pstrdup(cmd->pool, cmd->path);
+    ib = apr_brigade_create(r->pool, c->bucket_alloc);
+    ob = apr_brigade_create(r->pool, c->bucket_alloc);
 
-    while (*arg) {
-        char *val;
-        word = ap_getword_conf(cmd->pool, &arg);
-        val = strchr(word, '=');
+    while (! done) {
+        apr_interval_time_t timeout;
+        apr_size_t len;
+        int n;
 
-        if (!val) {
-            if (!path)
-                path = word;
-            else if (!name)
-                name = word;
-            else {
-                if (cmd->path)
-                    return "BalancerMember can not have a balancer name when defined in a location";
-                else
-                    return "Invalid BalancerMember parameter. Parameter must "
-                           "be in the form 'key=value'";
+        /* We need SOME kind of timeout here, or virtually anything will
+         * cause timeout errors. */
+        apr_socket_timeout_get(conn->sock, &timeout);
+
+        rv = apr_poll(&pfd, 1, &n, timeout);
+        if (rv != APR_SUCCESS) {
+            if (APR_STATUS_IS_EINTR(rv)) {
+                continue;
             }
-        } else {
-            *val++ = '\0';
-            apr_table_setn(params, word, val);
+            break;
+        }
+
+        if (pfd.rtnevents & APR_POLLOUT) {
+            char writebuf[AP_IOBUFSIZE];
+            apr_size_t writebuflen;
+            int last_stdin = 0;
+            int nvec = 0;
+
+            rv = ap_get_brigade(r->input_filters, ib,
+                                AP_MODE_READBYTES, APR_BLOCK_READ,
+                                sizeof(writebuf));
+            if (rv != APR_SUCCESS) {
+                break;
+            }
+
+            if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(ib))) {
+                last_stdin = 1;
+            }
+
+            writebuflen = sizeof(writebuf);
+
+            rv = apr_brigade_flatten(ib, writebuf, &writebuflen);
+
+            apr_brigade_cleanup(ib);
+
+            if (rv != APR_SUCCESS) {
+                break;
+            }
+
+            ap_fcgi_fill_in_header(&header, AP_FCGI_STDIN, request_id,
+                                   (apr_uint16_t) writebuflen, 0);
+            ap_fcgi_header_to_array(&header, farray);
+
+            vec[nvec].iov_base = (void *)farray;
+            vec[nvec].iov_len = sizeof(farray);
+            ++nvec;
+            if (writebuflen) {
+                vec[nvec].iov_base = writebuf;
+                vec[nvec].iov_len = writebuflen;
+                ++nvec;
+            }
+
+            rv = send_data(conn, vec, nvec, &len, 0);
+            if (rv != APR_SUCCESS) {
+                break;
+            }
+
+            if (last_stdin) {
+                pfd.reqevents = APR_POLLIN; /* Done with input data */
+
+                if (writebuflen) { /* empty AP_FCGI_STDIN not already sent? */
+                    ap_fcgi_fill_in_header(&header, AP_FCGI_STDIN, request_id,
+                                           0, 0);
+                    ap_fcgi_header_to_array(&header, farray);
+
+                    vec[0].iov_base = (void *)farray;
+                    vec[0].iov_len = sizeof(farray);
+
+                    rv = send_data(conn, vec, 1, &len, 1);
+                }
+            }
+        }
+
+        if (pfd.rtnevents & APR_POLLIN) {
+            /* readbuf has one byte on the end that is always 0, so it's
+             * able to work with a strstr when we search for the end of
+             * the headers, even if we fill the entire length in the recv. */
+            char readbuf[AP_IOBUFSIZE + 1];
+            apr_size_t readbuflen;
+            apr_uint16_t clen, rid;
+            apr_bucket *b;
+            unsigned char plen;
+            unsigned char type, version;
+
+            memset(readbuf, 0, sizeof(readbuf));
+            memset(farray, 0, sizeof(farray));
+
+            /* First, we grab the header... */
+            rv = get_data_full(conn, (char *) farray, AP_FCGI_HEADER_LEN);
+            if (rv != APR_SUCCESS) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01067)
+                              "Failed to read FastCGI header");
+                break;
+            }
+
+#ifdef FCGI_DUMP_HEADERS
+            ap_log_rdata(APLOG_MARK, APLOG_DEBUG, r, "FastCGI header",
+                         farray, AP_FCGI_HEADER_LEN, 0);
+#endif
+
+            ap_fcgi_header_fields_from_array(&version, &type, &rid,
+                                             &clen, &plen, farray);
+
+            if (version != AP_FCGI_VERSION_1) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01068)
+                              "Got bogus version %d", (int) header.version);
+                rv = APR_EINVAL;
+                break;
+            }
+
+            if (rid != request_id) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01069)
+                              "Got bogus rid %d, expected %d",
+                              rid, request_id);
+                rv = APR_EINVAL;
+                break;
+            }
+
+recv_again:
+            if (clen > sizeof(readbuf) - 1) {
+                readbuflen = sizeof(readbuf) - 1;
+            } else {
+                readbuflen = clen;
+            }
+
+            /* Now get the actual data.  Yes it sucks to do this in a second
+             * recv call, this will eventually change when we move to real
+             * nonblocking recv calls. */
+            if (readbuflen != 0) {
+                rv = get_data(conn, readbuf, &readbuflen);
+                if (rv != APR_SUCCESS) {
+                    break;
+                }
+                readbuf[readbuflen] = 0;
+            }
+
+            switch (type) {
+            case AP_FCGI_STDOUT:
+                if (clen != 0) {
+                    b = apr_bucket_transient_create(readbuf,
+                                                    readbuflen,
+                                                    c->bucket_alloc);
+
+                    APR_BRIGADE_INSERT_TAIL(ob, b);
+
+                    if (! seen_end_of_headers) {
+                        int st = handle_headers(r, &header_state, readbuf);
+
+                        if (st == 1) {
+                            int status;
+                            seen_end_of_headers = 1;
+
+                            status = ap_scan_script_header_err_brigade_ex(r, ob,
+                                NULL, APLOG_MODULE_INDEX);
+                            /* suck in all the rest */
+                            if (status != OK) {
+                                apr_bucket *tmp_b;
+                                apr_brigade_cleanup(ob);
+                                tmp_b = apr_bucket_eos_create(c->bucket_alloc);
+                                APR_BRIGADE_INSERT_TAIL(ob, tmp_b);
+                                r->status = status;
+                                ap_pass_brigade(r->output_filters, ob);
+                                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01070)
+                                              "Error parsing script headers");
+                                rv = APR_EINVAL;
+                                break;
+                            }
+
+                            if (conf->error_override &&
+                                ap_is_HTTP_ERROR(r->status)) {
+                                /*
+                                 * set script_error_status to discard
+                                 * everything after the headers
+                                 */
+                                script_error_status = r->status;
+                                /*
+                                 * prevent ap_die() from treating this as a
+                                 * recursive error, initially:
+                                 */
+                                r->status = HTTP_OK;
+                            }
+
+                            if (script_error_status == HTTP_OK) {
+                                rv = ap_pass_brigade(r->output_filters, ob);
+                                if (rv != APR_SUCCESS) {
+                                    break;
+                                }
+                            }
+                            apr_brigade_cleanup(ob);
+
+                            apr_pool_clear(setaside_pool);
+                        }
+                        else {
+                            /* We're still looking for the end of the
+                             * headers, so this part of the data will need
+                             * to persist. */
+                            apr_bucket_setaside(b, setaside_pool);
+                        }
+                    } else {
+                        /* we've already passed along the headers, so now pass
+                         * through the content.  we could simply continue to
+                         * setaside the content and not pass until we see the
+                         * 0 content-length (below, where we append the EOS),
+                         * but that could be a huge amount of data; so we pass
+                         * along smaller chunks
+                         */
+                        if (script_error_status == HTTP_OK) {
+                            rv = ap_pass_brigade(r->output_filters, ob);
+                            if (rv != APR_SUCCESS) {
+                                break;
+                            }
+                        }
+                        apr_brigade_cleanup(ob);
+                    }
+
+                    /* If we didn't read all the data go back and get the
+                     * rest of it. */
+                    if (clen > readbuflen) {
+                        clen -= readbuflen;
+                        goto recv_again;
+                    }
+                } else {
+                    /* XXX what if we haven't seen end of the headers yet? */
+
+                    if (script_error_status == HTTP_OK) {
+                        b = apr_bucket_eos_create(c->bucket_alloc);
+                        APR_BRIGADE_INSERT_TAIL(ob, b);
+                        rv = ap_pass_brigade(r->output_filters, ob);
+                        if (rv != APR_SUCCESS) {
+                            break;
+                        }
+                    }
+
+                    /* XXX Why don't we cleanup here?  (logic from AJP) */
+                }
+                break;
+
+            case AP_FCGI_STDERR:
+                /* TODO: Should probably clean up this logging a bit... */
+                if (clen) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01071)
+                                  "Got error '%s'", readbuf);
+                }
+
+                if (clen > readbuflen) {
+                    clen -= readbuflen;
+                    goto recv_again;
+                }
+                break;
+
+            case AP_FCGI_END_REQUEST:
+                done = 1;
+                break;
+
+            default:
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01072)
+                              "Got bogus record %d", type);
+                break;
+            }
+
+            if (plen) {
+                rv = get_data_full(conn, readbuf, plen);
+                if (rv != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                  APLOGNO(02537) "Error occurred reading padding");
+                    break;
+                }
+            }
         }
     }
-    if (!path)
-        return "BalancerMember must define balancer name when outside <Proxy > section";
-    if (!name)
-        return "BalancerMember must define remote proxy server";
 
-    ap_str_tolower(path);   /* lowercase scheme://hostname */
+    apr_brigade_destroy(ib);
+    apr_brigade_destroy(ob);
 
-    /* Try to find the balancer */
-    balancer = ap_proxy_get_balancer(cmd->temp_pool, conf, path, 0);
-    if (!balancer) {
-        err = ap_proxy_define_balancer(cmd->pool, &balancer, conf, path, "/", 0);
-        if (err)
-            return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
+    if (script_error_status != HTTP_OK) {
+        ap_die(script_error_status, r); /* send ErrorDocument */
     }
 
-    /* Try to find existing worker */
-    worker = ap_proxy_get_worker(cmd->temp_pool, balancer, conf, name);
-    if (!worker) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01147)
-                     "Defining worker '%s' for balancer '%s'",
-                     name, balancer->s->name);
-        if ((err = ap_proxy_define_worker(cmd->pool, &worker, balancer, conf, name, 0)) != NULL)
-            return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01148)
-                     "Defined worker '%s' for balancer '%s'",
-                     worker->s->name, balancer->s->name);
-        PROXY_COPY_CONF_PARAMS(worker, conf);
-    } else {
-        reuse = 1;
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, cmd->server, APLOGNO(01149)
-                     "Sharing worker '%s' instead of creating new worker '%s'",
-                     worker->s->name, name);
-    }
-
-    arr = apr_table_elts(params);
-    elts = (const apr_table_entry_t *)arr->elts;
-    for (i = 0; i < arr->nelts; i++) {
-        if (reuse) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(01150)
-                         "Ignoring parameter '%s=%s' for worker '%s' because of worker sharing",
-                         elts[i].key, elts[i].val, worker->s->name);
-        } else {
-            err = set_worker_param(cmd->pool, worker, elts[i].key,
-                                               elts[i].val);
-            if (err)
-                return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
-        }
-    }
-
-    return NULL;
+    return rv;
 }

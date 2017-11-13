@@ -1,1 +1,1 @@
-(INFO_GTE(MISC, 2);
+out_of_memory("expand_vars");

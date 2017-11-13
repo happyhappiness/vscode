@@ -1,14 +1,49 @@
-struct string_area *string_area_new(int size)
+int local_child(int argc, char **argv,int *f_in,int *f_out)
 {
-	struct string_area *a;
+	int pid;
+	int to_child_pipe[2];
+	int from_child_pipe[2];
 
-	if (size <= 0) size = ARENA_SIZE;
-	a = malloc(sizeof(*a));
-	if (!a) out_of_memory("string_area_new");
-	a->current = a->base = malloc(size);
-	if (!a->current) out_of_memory("string_area_new buffer");
-	a->end = a->base + size;
-	a->next = 0;
+	if (pipe(to_child_pipe) < 0 ||
+	    pipe(from_child_pipe) < 0) {
+		fprintf(FERROR,"pipe: %s\n",strerror(errno));
+		exit_cleanup(1);
+	}
 
-	return a;
+
+	pid = do_fork();
+	if (pid < 0) {
+		fprintf(FERROR,"fork: %s\n",strerror(errno));
+		exit_cleanup(1);
+	}
+
+	if (pid == 0) {
+		extern int am_sender;
+		extern int am_server;
+
+		am_sender = !am_sender;
+		am_server = 1;		
+
+		if (dup2(to_child_pipe[0], STDIN_FILENO) < 0 ||
+		    close(to_child_pipe[1]) < 0 ||
+		    close(from_child_pipe[0]) < 0 ||
+		    dup2(from_child_pipe[1], STDOUT_FILENO) < 0) {
+			fprintf(FERROR,"Failed to dup/close : %s\n",strerror(errno));
+			exit_cleanup(1);
+		}
+		if (to_child_pipe[0] != STDIN_FILENO) close(to_child_pipe[0]);
+		if (from_child_pipe[1] != STDOUT_FILENO) close(from_child_pipe[1]);
+		start_server(argc, argv);
+	}
+
+	if (close(from_child_pipe[1]) < 0 ||
+	    close(to_child_pipe[0]) < 0) {
+		fprintf(FERROR,"Failed to close : %s\n",strerror(errno));   
+		exit_cleanup(1);
+	}
+
+	*f_in = from_child_pipe[0];
+	*f_out = to_child_pipe[1];
+  
+	return pid;
 }

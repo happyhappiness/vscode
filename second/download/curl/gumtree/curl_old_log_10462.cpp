@@ -1,9 +1,11 @@
 fputs(
-"              (FTP)  Use  CCC  (Clear  Command Channel) Shuts down the SSL/TLS\n"
-"              layer after authenticating. The rest of the control channel com-\n"
-"              munication  will be unencrypted. This allows NAT routers to fol-\n"
-"              low the FTP transaction. The default mode is passive. See --ftp-\n"
-"              ssl-ccc-mode for other modes.  (Added in 7.16.1)\n"
+"       --ftp-create-dirs\n"
+"              (FTP/SFTP) When an FTP or SFTP URL/operation uses  a  path  that\n"
+"              doesn't  currently exist on the server, the standard behavior of\n"
+"              curl is to fail. Using this option, curl will instead attempt to\n"
+"              create missing directories.\n"
 "\n"
-"       --ftp-ssl-ccc-mode [active/passive]\n"
+"       --ftp-method [method]\n"
+"              (FTP)  Control what method curl should use to reach a file on an\n"
+"              FTP(S) server. The method argument should be one of the  follow-\n"
 , stdout);

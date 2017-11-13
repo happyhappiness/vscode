@@ -1,4 +1,3 @@
-ap_register_output_filter("CACHE",
-                                  cache_filter,
-                                  NULL,
-                                  AP_FTYPE_RESOURCE);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, rv, f->r,
+                                      "Error reading/parsing chunk %s ",
+                                      (APR_ENOSPC == rv) ? "(overflow)" : "");

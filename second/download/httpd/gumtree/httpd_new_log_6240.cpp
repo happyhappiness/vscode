@@ -1,1 +1,2 @@
-h2_mplx_process(session->mplx, stream, stream_pri_cmp, session);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, NULL, APLOGNO(02818)
+                     "MPM run failed, exiting");

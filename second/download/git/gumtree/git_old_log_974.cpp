@@ -1,1 +1,1 @@
-printf("num read blob: %d\n", num_read_blob);
+warning(_(msg_warn_remove_failed), quoted.buf);

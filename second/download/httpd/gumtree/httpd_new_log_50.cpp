@@ -1,2 +1,2 @@
-apr_file_printf(errfile, " -b  Use the password from the command line "
-            "rather than prompting for it.\n");
+apr_file_printf(errfile, " -n  Don't update file; display results on "
+                    "stdout.\n");

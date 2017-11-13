@@ -1,1 +1,1 @@
-out_of_memory("print_rsync_version");
+fprintf(stderr, "Failed to run \"%s\"\n", prog);

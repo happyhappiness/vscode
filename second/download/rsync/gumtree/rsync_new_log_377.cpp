@@ -1,1 +1,1 @@
-fprintf(FINFO,"added %s to delete list\n", f_name(file));
+fprintf(FERROR,"rmdir %s : %s\n",f_name(f),strerror(errno));

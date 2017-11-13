@@ -1,1 +1,1 @@
-fputs(line->buf, cmitmsg);
+printf(" %s ", diff_unique_abbrev(p->sha1, opt->abbrev));

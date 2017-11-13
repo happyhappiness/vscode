@@ -1,94 +1,66 @@
-int git_config_rename_section_in_file(const char *config_filename,
-				      const char *old_name, const char *new_name)
+int cmd_rerere(int argc, const char **argv, const char *prefix)
 {
-	int ret = 0, remove = 0;
-	char *filename_buf = NULL;
-	struct lock_file *lock;
-	int out_fd;
-	char buf[1024];
-	FILE *config_file;
-	struct stat st;
+	struct string_list merge_rr = STRING_LIST_INIT_DUP;
+	int i, fd, autoupdate = -1, flags = 0;
 
-	if (new_name && !section_name_is_ok(new_name)) {
-		ret = error("invalid section name: %s", new_name);
-		goto out;
+	struct option options[] = {
+		OPT_SET_INT(0, "rerere-autoupdate", &autoupdate,
+			N_("register clean resolutions in index"), 1),
+		OPT_END(),
+	};
+
+	argc = parse_options(argc, argv, prefix, options, rerere_usage, 0);
+
+	git_config(git_xmerge_config, NULL);
+
+	if (autoupdate == 1)
+		flags = RERERE_AUTOUPDATE;
+	if (autoupdate == 0)
+		flags = RERERE_NOAUTOUPDATE;
+
+	if (argc < 1)
+		return rerere(flags);
+
+	if (!strcmp(argv[0], "forget")) {
+		struct pathspec pathspec;
+		if (argc < 2)
+			warning("'git rerere forget' without paths is deprecated");
+		parse_pathspec(&pathspec, 0, PATHSPEC_PREFER_CWD,
+			       prefix, argv + 1);
+		return rerere_forget(&pathspec);
 	}
 
-	if (!config_filename)
-		config_filename = filename_buf = git_pathdup("config");
+	fd = setup_rerere(&merge_rr, flags);
+	if (fd < 0)
+		return 0;
 
-	lock = xcalloc(1, sizeof(struct lock_file));
-	out_fd = hold_lock_file_for_update(lock, config_filename, 0);
-	if (out_fd < 0) {
-		ret = error("could not lock config file %s", config_filename);
-		goto out;
-	}
-
-	if (!(config_file = fopen(config_filename, "rb"))) {
-		/* no config file means nothing to rename, no error */
-		goto unlock_and_out;
-	}
-
-	fstat(fileno(config_file), &st);
-
-	if (chmod(get_lock_file_path(lock), st.st_mode & 07777) < 0) {
-		ret = error("chmod on %s failed: %s",
-			    get_lock_file_path(lock), strerror(errno));
-		goto out;
-	}
-
-	while (fgets(buf, sizeof(buf), config_file)) {
-		int i;
-		int length;
-		char *output = buf;
-		for (i = 0; buf[i] && isspace(buf[i]); i++)
-			; /* do nothing */
-		if (buf[i] == '[') {
-			/* it's a section */
-			int offset = section_name_match(&buf[i], old_name);
-			if (offset > 0) {
-				ret++;
-				if (new_name == NULL) {
-					remove = 1;
-					continue;
-				}
-				store.baselen = strlen(new_name);
-				if (!store_write_section(out_fd, new_name)) {
-					ret = write_error(get_lock_file_path(lock));
-					goto out;
-				}
-				/*
-				 * We wrote out the new section, with
-				 * a newline, now skip the old
-				 * section's length
-				 */
-				output += offset + i;
-				if (strlen(output) > 0) {
-					/*
-					 * More content means there's
-					 * a declaration to put on the
-					 * next line; indent with a
-					 * tab
-					 */
-					output -= 1;
-					output[0] = '\t';
-				}
-			}
-			remove = 0;
+	if (!strcmp(argv[0], "clear")) {
+		rerere_clear(&merge_rr);
+	} else if (!strcmp(argv[0], "gc"))
+		rerere_gc(&merge_rr);
+	else if (!strcmp(argv[0], "status"))
+		for (i = 0; i < merge_rr.nr; i++)
+			printf("%s\n", merge_rr.items[i].string);
+	else if (!strcmp(argv[0], "remaining")) {
+		rerere_remaining(&merge_rr);
+		for (i = 0; i < merge_rr.nr; i++) {
+			if (merge_rr.items[i].util != RERERE_RESOLVED)
+				printf("%s\n", merge_rr.items[i].string);
+			else
+				/* prepare for later call to
+				 * string_list_clear() */
+				merge_rr.items[i].util = NULL;
 		}
-		if (remove)
-			continue;
-		length = strlen(output);
-		if (write_in_full(out_fd, output, length) != length) {
-			ret = write_error(get_lock_file_path(lock));
-			goto out;
+	} else if (!strcmp(argv[0], "diff"))
+		for (i = 0; i < merge_rr.nr; i++) {
+			const char *path = merge_rr.items[i].string;
+			const char *name = (const char *)merge_rr.items[i].util;
+			if (diff_two(rerere_path(name, "preimage"), path, path, path))
+				die("unable to generate diff for %s", name);
 		}
-	}
-	fclose(config_file);
-unlock_and_out:
-	if (commit_lock_file(lock) < 0)
-		ret = error("could not commit config file %s", config_filename);
-out:
-	free(filename_buf);
-	return ret;
+	else
+		usage_with_options(rerere_usage, options);
+
+	string_list_clear(&merge_rr, 1);
+	return 0;
 }

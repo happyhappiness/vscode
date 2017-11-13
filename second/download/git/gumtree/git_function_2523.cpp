@@ -1,53 +1,28 @@
-static void handle_fetch_head(struct commit_list **remotes, struct strbuf *merge_names)
+static int commit_packed_refs(void)
 {
-	const char *filename;
-	int fd, pos, npos;
-	struct strbuf fetch_head_file = STRBUF_INIT;
+	struct packed_ref_cache *packed_ref_cache =
+		get_packed_ref_cache(&ref_cache);
+	int error = 0;
+	int save_errno = 0;
+	FILE *out;
 
-	if (!merge_names)
-		merge_names = &fetch_head_file;
+	if (!packed_ref_cache->lock)
+		die("internal error: packed-refs not locked");
 
-	filename = git_path_fetch_head();
-	fd = open(filename, O_RDONLY);
-	if (fd < 0)
-		die_errno(_("could not open '%s' for reading"), filename);
+	out = fdopen_lock_file(packed_ref_cache->lock, "w");
+	if (!out)
+		die_errno("unable to fdopen packed-refs descriptor");
 
-	if (strbuf_read(merge_names, fd, 0) < 0)
-		die_errno(_("could not read '%s'"), filename);
-	if (close(fd) < 0)
-		die_errno(_("could not close '%s'"), filename);
+	fprintf_or_die(out, "%s", PACKED_REFS_HEADER);
+	do_for_each_entry_in_dir(get_packed_ref_dir(packed_ref_cache),
+				 0, write_packed_entry_fn, out);
 
-	for (pos = 0; pos < merge_names->len; pos = npos) {
-		unsigned char sha1[20];
-		char *ptr;
-		struct commit *commit;
-
-		ptr = strchr(merge_names->buf + pos, '\n');
-		if (ptr)
-			npos = ptr - merge_names->buf + 1;
-		else
-			npos = merge_names->len;
-
-		if (npos - pos < 40 + 2 ||
-		    get_sha1_hex(merge_names->buf + pos, sha1))
-			commit = NULL; /* bad */
-		else if (memcmp(merge_names->buf + pos + 40, "\t\t", 2))
-			continue; /* not-for-merge */
-		else {
-			char saved = merge_names->buf[pos + 40];
-			merge_names->buf[pos + 40] = '\0';
-			commit = get_merge_parent(merge_names->buf + pos);
-			merge_names->buf[pos + 40] = saved;
-		}
-		if (!commit) {
-			if (ptr)
-				*ptr = '\0';
-			die("not something we can merge in %s: %s",
-			    filename, merge_names->buf + pos);
-		}
-		remotes = &commit_list_insert(commit, remotes)->next;
+	if (commit_lock_file(packed_ref_cache->lock)) {
+		save_errno = errno;
+		error = -1;
 	}
-
-	if (merge_names == &fetch_head_file)
-		strbuf_release(&fetch_head_file);
+	packed_ref_cache->lock = NULL;
+	release_packed_ref_cache(packed_ref_cache);
+	errno = save_errno;
+	return error;
 }

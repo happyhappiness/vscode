@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00517)
-                         "WARNING: StartServers of %d not allowed, "
-                         "increasing to 1.", ap_daemons_to_start);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00962)
+                 "%s: connection complete to %pI (%s)",
+                 proxy_function, backend_addr, conn->hostname);

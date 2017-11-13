@@ -1,9 +1,14 @@
-static const char *setup_nongit(const char *cwd, int *nongit_ok)
+NORETURN
+static void die_bad_number(const char *name, const char *value)
 {
-	if (!nongit_ok)
-		die("Not a git repository (or any of the parent directories): %s", DEFAULT_GIT_DIR_ENVIRONMENT);
-	if (chdir(cwd))
-		die_errno("Cannot come back to cwd");
-	*nongit_ok = 1;
-	return NULL;
+	const char *reason = errno == ERANGE ?
+			     "out of range" :
+			     "invalid unit";
+	if (!value)
+		value = "";
+
+	if (cf && cf->name)
+		die(_("bad numeric config value '%s' for '%s' in %s: %s"),
+		    value, name, cf->name, reason);
+	die(_("bad numeric config value '%s' for '%s': %s"), value, name, reason);
 }

@@ -1,10 +1,11 @@
 fputs(
-"              (SMTP) Specify a single address, user name or mailing list name.\n"
-"              When performing a mail transfer, the recipient should specify  a\n"
-"              valid email address to send the mail to. (Added in 7.20.0)\n"
+"              out will decrease in accuracy as the specified timeout increases\n"
+"              in decimal precision.  See also the --connect-timeout option.\n"
 "\n"
-"              When  performing  an  address  verification  (VRFY command), the\n"
-"              recipient should be specified as the user name or user name  and\n"
-"              domain (as per Section 3.5 of RFC5321). (Added in 7.34.0)\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
+"       --login-options <options>\n"
+"              Specify the login options to use during server authentication.\n"
+"\n"
+"              You can use the  login  options  to  specify  protocol  specific\n"
 , stdout);

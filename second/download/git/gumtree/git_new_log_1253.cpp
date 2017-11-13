@@ -1,1 +1,2 @@
-error(_("invalid color value: %.*s"), value_len, value);
+die(_("SHA1 COLLISION FOUND WITH %s !"),
+		    oid_to_hex(&entry->idx.oid));

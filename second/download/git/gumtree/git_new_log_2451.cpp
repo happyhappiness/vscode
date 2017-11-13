@@ -1,1 +1,2 @@
-printf("%s\n", oid_to_hex(&tried->item->object.oid));
+die("unable to parse commit %s",
+		    item ? oid_to_hex(&item->object.oid) : "(null)");

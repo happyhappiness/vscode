@@ -1,88 +1,97 @@
-static int uldap_connection_open(request_rec *r,
-                                 util_ldap_connection_t *ldc)
+static int initialize_tables(server_rec *s, apr_pool_t *ctx)
 {
-    int rc = 0;
-    int failures = 0;
-    int new_connection = 0;
-    util_ldap_state_t *st;
+    unsigned long idx;
+    apr_status_t   sts;
+    const char *tempdir; 
 
-    /* sanity check for NULL */
-    if (!ldc) {
-        return -1;
+    /* set up client list */
+
+    sts = apr_temp_dir_get(&tempdir, ctx);
+    if (APR_SUCCESS != sts) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, sts, s, 
+                     "Failed to find temporary directory");
+        log_error_and_cleanup("failed to find temp dir", sts, s);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    /* If the connection is already bound, return
-    */
-    if (ldc->bound)
-    {
-        ldc->reason = "LDAP: connection open successful (already bound)";
-        return LDAP_SUCCESS;
-    }
+    /* Create the shared memory segment */
 
-    /* create the ldap session handle
-    */
-    if (NULL == ldc->ldap)
-    {
-       new_connection = 1;
-       rc = uldap_connection_init( r, ldc );
-       if (LDAP_SUCCESS != rc)
-       {
-           return rc;
-       }
-    }
-
-
-    st = (util_ldap_state_t *)ap_get_module_config(r->server->module_config,
-                                                   &ldap_module);
-
-    /* loop trying to bind up to 10 times if LDAP_SERVER_DOWN error is
-     * returned. If LDAP_TIMEOUT is returned on the first try, maybe the
-     * connection was idle for a long time and has been dropped by a firewall.
-     * In this case close the connection immediately and try again.
-     *
-     * On Success or any other error, break out of the loop.
-     *
-     * NOTE: Looping is probably not a great idea. If the server isn't
-     * responding the chances it will respond after a few tries are poor.
-     * However, the original code looped and it only happens on
-     * the error condition.
+    /* 
+     * Create a unique filename using our pid. This information is 
+     * stashed in the global variable so the children inherit it.
      */
-    for (failures=0; failures<10; failures++)
-    {
-        rc = uldap_simple_bind(ldc, (char *)ldc->binddn, (char *)ldc->bindpw,
-                               st->opTimeout);
-        if ((AP_LDAP_IS_SERVER_DOWN(rc) && failures == 5) ||
-            (rc == LDAP_TIMEOUT && failures == 0))
-        {
-           if (rc == LDAP_TIMEOUT && !new_connection) {
-               ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                             "ldap_simple_bind() timed out on reused "
-                             "connection, dropped by firewall?");
-           }
-           /* attempt to init the connection once again */
-           uldap_connection_unbind( ldc );
-           rc = uldap_connection_init( r, ldc );
-           if (LDAP_SUCCESS != rc)
-           {
-               break;
-           }
-        }
-        else if (!AP_LDAP_IS_SERVER_DOWN(rc)) {
-            break;
-        }
+    client_shm_filename = apr_psprintf(ctx, "%s/authdigest_shm.%"APR_PID_T_FMT, tempdir, 
+                                       getpid());
+
+    /* Now create that segment */
+    sts = apr_shm_create(&client_shm, shmem_size,
+                        client_shm_filename, ctx);
+    if (APR_SUCCESS != sts) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, sts, s, 
+                     "Failed to create shared memory segment on file %s", 
+                     client_shm_filename);
+        log_error_and_cleanup("failed to initialize shm", sts, s);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    /* free the handle if there was an error
-    */
-    if (LDAP_SUCCESS != rc)
-    {
-       uldap_connection_unbind(ldc);
-        ldc->reason = "LDAP: ldap_simple_bind() failed";
-    }
-    else {
-        ldc->bound = 1;
-        ldc->reason = "LDAP: connection open successful";
+    sts = apr_rmm_init(&client_rmm,
+                       NULL, /* no lock, we'll do the locking ourselves */
+                       apr_shm_baseaddr_get(client_shm),
+                       shmem_size, ctx);
+    if (sts != APR_SUCCESS) {
+        log_error_and_cleanup("failed to initialize rmm", sts, s);
+        return !OK;
     }
 
-    return(rc);
+    client_list = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(*client_list) +
+                                                          sizeof(client_entry*)*num_buckets));
+    if (!client_list) {
+        log_error_and_cleanup("failed to allocate shared memory", -1, s);
+        return !OK;
+    }
+    client_list->table = (client_entry**) (client_list + 1);
+    for (idx = 0; idx < num_buckets; idx++) {
+        client_list->table[idx] = NULL;
+    }
+    client_list->tbl_len     = num_buckets;
+    client_list->num_entries = 0;
+
+    sts = ap_global_mutex_create(&client_lock, NULL, client_mutex_type, NULL,
+                                 s, ctx, 0);
+    if (sts != APR_SUCCESS) {
+        log_error_and_cleanup("failed to create lock (client_lock)", sts, s);
+        return !OK;
+    }
+
+
+    /* setup opaque */
+
+    opaque_cntr = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(*opaque_cntr)));
+    if (opaque_cntr == NULL) {
+        log_error_and_cleanup("failed to allocate shared memory", -1, s);
+        return !OK;
+    }
+    *opaque_cntr = 1UL;
+
+    sts = ap_global_mutex_create(&opaque_lock, NULL, opaque_mutex_type, NULL,
+                                 s, ctx, 0);
+    if (sts != APR_SUCCESS) {
+        log_error_and_cleanup("failed to create lock (opaque_lock)", sts, s);
+        return !OK;
+    }
+
+
+    /* setup one-time-nonce counter */
+
+    otn_counter = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(*otn_counter)));
+    if (otn_counter == NULL) {
+        log_error_and_cleanup("failed to allocate shared memory", -1, s);
+        return !OK;
+    }
+    *otn_counter = 0;
+    /* no lock here */
+
+
+    /* success */
+    return OK;
 }

@@ -1,174 +1,115 @@
-static apr_status_t input_read(h2_task *task, ap_filter_t* f,
-                               apr_bucket_brigade* bb, ap_input_mode_t mode,
-                               apr_read_type_e block, apr_off_t readbytes)
+request_rec *h2_request_create_rec(const h2_request *req, conn_rec *conn)
 {
-    apr_status_t status = APR_SUCCESS;
-    apr_bucket *b, *next, *first_data;
-    apr_off_t bblen = 0;
+    request_rec *r;
+    apr_pool_t *p;
+    int access_status = HTTP_OK;    
     
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                  "h2_task(%s): read, mode=%d, block=%d, readbytes=%ld", 
-                  task->id, mode, block, (long)readbytes);
+    apr_pool_create(&p, conn->pool);
+    apr_pool_tag(p, "request");
+    r = apr_pcalloc(p, sizeof(request_rec));
+    AP_READ_REQUEST_ENTRY((intptr_t)r, (uintptr_t)conn);
+    r->pool            = p;
+    r->connection      = conn;
+    r->server          = conn->base_server;
     
-    if (mode == AP_MODE_INIT) {
-        return ap_get_brigade(f->c->input_filters, bb, mode, block, readbytes);
-    }
+    r->user            = NULL;
+    r->ap_auth_type    = NULL;
     
-    if (f->c->aborted || !task->request) {
-        return APR_ECONNABORTED;
-    }
+    r->allowed_methods = ap_make_method_list(p, 2);
     
-    if (!task->input.bb) {
-        if (!task->input.eos_written) {
-            input_append_eos(task, f->r);
-            return APR_SUCCESS;
-        }
-        return APR_EOF;
-    }
+    r->headers_in      = apr_table_clone(r->pool, req->headers);
+    r->trailers_in     = apr_table_make(r->pool, 5);
+    r->subprocess_env  = apr_table_make(r->pool, 25);
+    r->headers_out     = apr_table_make(r->pool, 12);
+    r->err_headers_out = apr_table_make(r->pool, 5);
+    r->trailers_out    = apr_table_make(r->pool, 5);
+    r->notes           = apr_table_make(r->pool, 5);
     
-    /* Cleanup brigades from those nasty 0 length non-meta buckets
-     * that apr_brigade_split_line() sometimes produces. */
-    for (b = APR_BRIGADE_FIRST(task->input.bb);
-         b != APR_BRIGADE_SENTINEL(task->input.bb); b = next) {
-        next = APR_BUCKET_NEXT(b);
-        if (b->length == 0 && !APR_BUCKET_IS_METADATA(b)) {
-            apr_bucket_delete(b);
-        } 
-    }
+    r->request_config  = ap_create_request_config(r->pool);
+    /* Must be set before we run create request hook */
     
-    while (APR_BRIGADE_EMPTY(task->input.bb) && !task->input.eos) {
-        /* Get more input data for our request. */
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                      "h2_task(%s): get more data from mplx, block=%d, "
-                      "readbytes=%ld, queued=%ld",
-                      task->id, block, (long)readbytes, (long)bblen);
-        
-        /* Override the block mode we get called with depending on the input's
-         * setting. */
-        if (task->input.beam) {
-            status = h2_beam_receive(task->input.beam, task->input.bb, block, 
-                                     H2MIN(readbytes, 32*1024));
-        }
-        else {
-            status = APR_EOF;
-        }
-        
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, f->c,
-                      "h2_task(%s): read returned", task->id);
-        if (APR_STATUS_IS_EAGAIN(status) 
-            && (mode == AP_MODE_GETLINE || block == APR_BLOCK_READ)) {
-            /* chunked input handling does not seem to like it if we
-             * return with APR_EAGAIN from a GETLINE read... 
-             * upload 100k test on test-ser.example.org hangs */
-            status = APR_SUCCESS;
-        }
-        else if (APR_STATUS_IS_EOF(status)) {
-            task->input.eos = 1;
-        }
-        else if (status != APR_SUCCESS) {
-            return status;
-        }
-        
-        /* Inspect the buckets received, detect EOS and apply
-         * chunked encoding if necessary */
-        h2_util_bb_log(f->c, task->stream_id, APLOG_TRACE2, 
-                       "input.beam recv raw", task->input.bb);
-        first_data = NULL;
-        bblen = 0;
-        for (b = APR_BRIGADE_FIRST(task->input.bb); 
-             b != APR_BRIGADE_SENTINEL(task->input.bb); b = next) {
-            next = APR_BUCKET_NEXT(b);
-            if (APR_BUCKET_IS_METADATA(b)) {
-                if (first_data && task->input.chunked) {
-                    make_chunk(task, task->input.bb, first_data, bblen, b);
-                    first_data = NULL;
-                    bblen = 0;
-                }
-                if (APR_BUCKET_IS_EOS(b)) {
-                    task->input.eos = 1;
-                    input_handle_eos(task, f->r, b);
-                    h2_util_bb_log(f->c, task->stream_id, APLOG_TRACE2, 
-                                   "input.bb after handle eos", 
-                                   task->input.bb);
-                }
-            }
-            else if (b->length == 0) {
-                apr_bucket_delete(b);
-            } 
-            else {
-                if (!first_data) {
-                    first_data = b;
-                }
-                bblen += b->length;
-            }    
-        }
-        if (first_data && task->input.chunked) {
-            make_chunk(task, task->input.bb, first_data, bblen, NULL);
-        }            
-        
-        if (h2_task_logio_add_bytes_in) {
-            h2_task_logio_add_bytes_in(f->c, bblen);
-        }
-    }
+    r->proto_output_filters = conn->output_filters;
+    r->output_filters  = r->proto_output_filters;
+    r->proto_input_filters = conn->input_filters;
+    r->input_filters   = r->proto_input_filters;
+    ap_run_create_request(r);
+    r->per_dir_config  = r->server->lookup_defaults;
     
-    if (task->input.eos) {
-        if (!task->input.eos_written) {
-            input_append_eos(task, f->r);
-        }
-        if (APR_BRIGADE_EMPTY(task->input.bb)) {
-            return APR_EOF;
-        }
+    r->sent_bodyct     = 0;                      /* bytect isn't for body */
+    
+    r->read_length     = 0;
+    r->read_body       = REQUEST_NO_BODY;
+    
+    r->status          = HTTP_OK;  /* Until further notice */
+    r->header_only     = 0;
+    r->the_request     = NULL;
+    
+    /* Begin by presuming any module can make its own path_info assumptions,
+     * until some module interjects and changes the value.
+     */
+    r->used_path_info = AP_REQ_DEFAULT_PATH_INFO;
+    
+    r->useragent_addr = conn->client_addr;
+    r->useragent_ip = conn->client_ip;
+    
+    ap_run_pre_read_request(r, conn);
+    
+    /* Time to populate r with the data we have. */
+    r->request_time = req->request_time;
+    r->method = req->method;
+    /* Provide quick information about the request method as soon as known */
+    r->method_number = ap_method_number_of(r->method);
+    if (r->method_number == M_GET && r->method[0] == 'H') {
+        r->header_only = 1;
     }
 
-    h2_util_bb_log(f->c, task->stream_id, APLOG_TRACE2, 
-                   "task_input.bb", task->input.bb);
-           
-    if (APR_BRIGADE_EMPTY(task->input.bb)) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                      "h2_task(%s): no data", task->id);
-        return (block == APR_NONBLOCK_READ)? APR_EAGAIN : APR_EOF;
+    ap_parse_uri(r, req->path);
+    r->protocol = "HTTP/2";
+    r->proto_num = HTTP_VERSION(2, 0);
+
+    r->the_request = apr_psprintf(r->pool, "%s %s %s", 
+                                  r->method, req->path, r->protocol);
+    
+    /* update what we think the virtual host is based on the headers we've
+     * now read. may update status.
+     * Leave r->hostname empty, vhost will parse if form our Host: header,
+     * otherwise we get complains about port numbers.
+     */
+    r->hostname = NULL;
+    ap_update_vhost_from_headers(r);
+    
+    /* we may have switched to another server */
+    r->per_dir_config = r->server->lookup_defaults;
+    
+    /*
+     * Add the HTTP_IN filter here to ensure that ap_discard_request_body
+     * called by ap_die and by ap_send_error_response works correctly on
+     * status codes that do not cause the connection to be dropped and
+     * in situations where the connection should be kept alive.
+     */
+    ap_add_input_filter_handle(ap_http_input_filter_handle,
+                               NULL, r, r->connection);
+    
+    if (access_status != HTTP_OK
+        || (access_status = ap_run_post_read_request(r))) {
+        /* Request check post hooks failed. An example of this would be a
+         * request for a vhost where h2 is disabled --> 421.
+         */
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, conn, APLOGNO()
+                      "h2_request(%d): access_status=%d, request_create failed",
+                      req->id, access_status);
+        ap_die(access_status, r);
+        ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+        ap_run_log_transaction(r);
+        r = NULL;
+        goto traceout;
     }
     
-    if (mode == AP_MODE_EXHAUSTIVE) {
-        /* return all we have */
-        APR_BRIGADE_CONCAT(bb, task->input.bb);
-    }
-    else if (mode == AP_MODE_READBYTES) {
-        status = h2_brigade_concat_length(bb, task->input.bb, readbytes);
-    }
-    else if (mode == AP_MODE_SPECULATIVE) {
-        status = h2_brigade_copy_length(bb, task->input.bb, readbytes);
-    }
-    else if (mode == AP_MODE_GETLINE) {
-        /* we are reading a single LF line, e.g. the HTTP headers. 
-         * this has the nasty side effect to split the bucket, even
-         * though it ends with CRLF and creates a 0 length bucket */
-        status = apr_brigade_split_line(bb, task->input.bb, block, 
-                                        HUGE_STRING_LEN);
-        if (APLOGctrace1(f->c)) {
-            char buffer[1024];
-            apr_size_t len = sizeof(buffer)-1;
-            apr_brigade_flatten(bb, buffer, &len);
-            buffer[len] = 0;
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                          "h2_task(%s): getline: %s",
-                          task->id, buffer);
-        }
-    }
-    else {
-        /* Hmm, well. There is mode AP_MODE_EATCRLF, but we chose not
-         * to support it. Seems to work. */
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOTIMPL, f->c,
-                      APLOGNO(02942) 
-                      "h2_task, unsupported READ mode %d", mode);
-        status = APR_ENOTIMPL;
-    }
-    
-    if (APLOGctrace1(f->c)) {
-        apr_brigade_length(bb, 0, &bblen);
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                      "h2_task(%s): return %ld data bytes",
-                      task->id, (long)bblen);
-    }
-    return status;
+    AP_READ_REQUEST_SUCCESS((uintptr_t)r, (char *)r->method, 
+                            (char *)r->uri, (char *)r->server->defn_name, 
+                            r->status);
+    return r;
+traceout:
+    AP_READ_REQUEST_FAILURE((uintptr_t)r);
+    return r;
 }

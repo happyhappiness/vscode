@@ -1,4 +1,4 @@
-error(remote_branch
-			      ? _("Error deleting remote branch '%s'")
-			      : _("Error deleting branch '%s'"),
-			      bname.buf);
+fprintf(stderr, "IMAP command '%s' returned response (%s) - %s\n",
+					 memcmp(cmdp->cmd, "LOGIN", 5) ?
+							cmdp->cmd : "LOGIN <user> <pass>",
+							arg, cmd ? cmd : "");

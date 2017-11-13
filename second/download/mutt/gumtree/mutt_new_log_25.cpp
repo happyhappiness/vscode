@@ -1,1 +1,1 @@
-fprintf (f, "%d:", (int) hclass);
+fprintf (tmp, "%s\n", linebuf);

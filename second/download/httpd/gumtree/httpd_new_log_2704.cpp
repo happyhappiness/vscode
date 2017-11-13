@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(01679)
-                      "authn credentials for %s not cached (mutex busy)", user);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rr->status, r, 
+                              "mod_include: The tested "
+                              "subrequest -A \"%s\" returned an error code.",
+                              current->right->token.value);

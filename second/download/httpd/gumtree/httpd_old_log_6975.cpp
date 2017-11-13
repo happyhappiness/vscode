@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, ctx->s, APLOGNO(03300)
-                          "Error reading response body");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(03257)
+                         "Somehow tried to use unimplemented hcheck method: %d",
+                         (int)worker->s->method);

@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(00698)
-                  "cache: Key for entity %s?%s is %s", path, query, *key);
+ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s, "h2_switch init");

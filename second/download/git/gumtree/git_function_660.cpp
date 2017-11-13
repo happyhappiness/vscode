@@ -1,39 +1,36 @@
-static int do_exec(const char *command_line)
+static int get_short_sha1(const char *name, int len, unsigned char *sha1,
+			  unsigned flags)
 {
-	const char *child_argv[] = { NULL, NULL };
-	int dirty, status;
+	int status;
+	char hex_pfx[40];
+	unsigned char bin_pfx[20];
+	struct disambiguate_state ds;
+	int quietly = !!(flags & GET_SHA1_QUIETLY);
 
-	fprintf(stderr, "Executing: %s\n", command_line);
-	child_argv[0] = command_line;
-	status = run_command_v_opt(child_argv, RUN_USING_SHELL);
+	if (len < MINIMUM_ABBREV || len > 40)
+		return -1;
+	if (prepare_prefixes(name, len, bin_pfx, hex_pfx) < 0)
+		return -1;
 
-	/* force re-reading of the cache */
-	if (discard_cache() < 0 || read_cache() < 0)
-		return error(_("could not read index"));
+	prepare_alt_odb();
 
-	dirty = require_clean_work_tree("rebase", NULL, 1, 1);
+	memset(&ds, 0, sizeof(ds));
+	if (flags & GET_SHA1_COMMIT)
+		ds.fn = disambiguate_commit_only;
+	else if (flags & GET_SHA1_COMMITTISH)
+		ds.fn = disambiguate_committish_only;
+	else if (flags & GET_SHA1_TREE)
+		ds.fn = disambiguate_tree_only;
+	else if (flags & GET_SHA1_TREEISH)
+		ds.fn = disambiguate_treeish_only;
+	else if (flags & GET_SHA1_BLOB)
+		ds.fn = disambiguate_blob_only;
 
-	if (status) {
-		warning(_("execution failed: %s\n%s"
-			  "You can fix the problem, and then run\n"
-			  "\n"
-			  "  git rebase --continue\n"
-			  "\n"),
-			command_line,
-			dirty ? N_("and made changes to the index and/or the "
-				"working tree\n") : "");
-		if (status == 127)
-			/* command not found */
-			status = 1;
-	} else if (dirty) {
-		warning(_("execution succeeded: %s\nbut "
-			  "left changes to the index and/or the working tree\n"
-			  "Commit or stash your changes, and then run\n"
-			  "\n"
-			  "  git rebase --continue\n"
-			  "\n"), command_line);
-		status = 1;
-	}
+	find_short_object_filename(len, hex_pfx, &ds);
+	find_short_packed_object(len, bin_pfx, &ds);
+	status = finish_object_disambiguation(&ds, sha1);
 
+	if (!quietly && (status == SHORT_NAME_AMBIGUOUS))
+		return error("short SHA1 %.*s is ambiguous.", len, hex_pfx);
 	return status;
 }

@@ -1,80 +1,51 @@
-static struct commit *handle_commit(struct rev_info *revs,
-				    struct object_array_entry *entry)
+static void diff_words_show(struct diff_words_data *diff_words)
 {
-	struct object *object = entry->item;
-	const char *name = entry->name;
-	const char *path = entry->path;
-	unsigned int mode = entry->mode;
-	unsigned long flags = object->flags;
+	xpparam_t xpp;
+	xdemitconf_t xecfg;
+	mmfile_t minus, plus;
+	struct diff_words_style *style = diff_words->style;
 
-	/*
-	 * Tag object? Look what it points to..
-	 */
-	while (object->type == OBJ_TAG) {
-		struct tag *tag = (struct tag *) object;
-		if (revs->tag_objects && !(flags & UNINTERESTING))
-			add_pending_object(revs, object, tag->tag);
-		if (!tag->tagged)
-			die("bad tag");
-		object = parse_object(tag->tagged->sha1);
-		if (!object) {
-			if (flags & UNINTERESTING)
-				return NULL;
-			die("bad object %s", sha1_to_hex(tag->tagged->sha1));
-		}
-		object->flags |= flags;
-		/*
-		 * We'll handle the tagged object by looping or dropping
-		 * through to the non-tag handlers below. Do not
-		 * propagate path data from the tag's pending entry.
-		 */
-		path = NULL;
-		mode = 0;
+	struct diff_options *opt = diff_words->opt;
+	const char *line_prefix;
+
+	assert(opt);
+	line_prefix = diff_line_prefix(opt);
+
+	/* special case: only removal */
+	if (!diff_words->plus.text.size) {
+		fputs(line_prefix, diff_words->opt->file);
+		fn_out_diff_words_write_helper(diff_words->opt->file,
+			&style->old, style->newline,
+			diff_words->minus.text.size,
+			diff_words->minus.text.ptr, line_prefix);
+		diff_words->minus.text.size = 0;
+		return;
 	}
 
-	/*
-	 * Commit object? Just return it, we'll do all the complex
-	 * reachability crud.
-	 */
-	if (object->type == OBJ_COMMIT) {
-		struct commit *commit = (struct commit *)object;
-		if (parse_commit(commit) < 0)
-			die("unable to parse commit %s", name);
-		if (flags & UNINTERESTING) {
-			mark_parents_uninteresting(commit);
-			revs->limited = 1;
-		}
-		if (revs->show_source && !commit->util)
-			commit->util = xstrdup(name);
-		return commit;
-	}
+	diff_words->current_plus = diff_words->plus.text.ptr;
+	diff_words->last_minus = 0;
 
-	/*
-	 * Tree object? Either mark it uninteresting, or add it
-	 * to the list of objects to look at later..
-	 */
-	if (object->type == OBJ_TREE) {
-		struct tree *tree = (struct tree *)object;
-		if (!revs->tree_objects)
-			return NULL;
-		if (flags & UNINTERESTING) {
-			mark_tree_contents_uninteresting(tree);
-			return NULL;
-		}
-		add_pending_object_with_path(revs, object, name, mode, path);
-		return NULL;
+	memset(&xpp, 0, sizeof(xpp));
+	memset(&xecfg, 0, sizeof(xecfg));
+	diff_words_fill(&diff_words->minus, &minus, diff_words->word_regex);
+	diff_words_fill(&diff_words->plus, &plus, diff_words->word_regex);
+	xpp.flags = 0;
+	/* as only the hunk header will be parsed, we need a 0-context */
+	xecfg.ctxlen = 0;
+	if (xdi_diff_outf(&minus, &plus, fn_out_diff_words_aux, diff_words,
+			  &xpp, &xecfg))
+		die("unable to generate word diff");
+	free(minus.ptr);
+	free(plus.ptr);
+	if (diff_words->current_plus != diff_words->plus.text.ptr +
+			diff_words->plus.text.size) {
+		if (color_words_output_graph_prefix(diff_words))
+			fputs(line_prefix, diff_words->opt->file);
+		fn_out_diff_words_write_helper(diff_words->opt->file,
+			&style->ctx, style->newline,
+			diff_words->plus.text.ptr + diff_words->plus.text.size
+			- diff_words->current_plus, diff_words->current_plus,
+			line_prefix);
 	}
-
-	/*
-	 * Blob object? You know the drill by now..
-	 */
-	if (object->type == OBJ_BLOB) {
-		if (!revs->blob_objects)
-			return NULL;
-		if (flags & UNINTERESTING)
-			return NULL;
-		add_pending_object_with_path(revs, object, name, mode, path);
-		return NULL;
-	}
-	die("%s is unknown object", name);
+	diff_words->minus.text.size = diff_words->plus.text.size = 0;
 }

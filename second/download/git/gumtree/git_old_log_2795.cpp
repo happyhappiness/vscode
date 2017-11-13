@@ -1,1 +1,1 @@
-error("Malformed value for %s", var);
+error("Malformed value for %s: %s", var, value);

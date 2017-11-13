@@ -1,11 +1,9 @@
 fputs(
-"              ronment by specifying a single colon with this option: \"-u :\".\n"
+"              Use  the file name \"-\" (a single dash) to use stdin instead of a\n"
+"              given file.  Alternately, the file name \".\"  (a  single  period)\n"
+"              may  be  specified  instead  of \"-\" to use stdin in non-blocking\n"
+"              mode to  allow  reading  server  output  while  stdin  is  being\n"
+"              uploaded.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -v, --verbose\n"
-"              Makes curl verbose during the operation.  Useful  for  debugging\n"
-"              and  seeing  what's  going  on \"under the hood\". A line starting\n"
-"              with '>' means \"header data\" sent by  curl,  '<'  means  \"header\n"
-"              data\"  received  by  curl  that is hidden in normal cases, and a\n"
+"              You  can  specify one -T, --upload-file for each URL on the com-\n"
 , stdout);

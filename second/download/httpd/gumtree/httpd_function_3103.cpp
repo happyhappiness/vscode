@@ -1,39 +1,111 @@
-static apr_status_t dbd_setup(server_rec *s, dbd_group_t *group)
+static int authenticate_basic_user(request_rec *r)
 {
-    dbd_cfg_t *cfg = group->cfg;
-    apr_status_t rv;
+    auth_basic_config_rec *conf = ap_get_module_config(r->per_dir_config,
+                                                       &auth_basic_module);
+    const char *sent_user, *sent_pw, *current_auth;
+    int res;
+    authn_status auth_result;
+    authn_provider_list *current_provider;
 
-    /* We create the reslist using a sub-pool of the pool passed to our
-     * child_init hook.  No other threads can be here because we're
-     * either in the child_init phase or dbd_setup_lock() acquired our mutex.
-     * No other threads will use this sub-pool after this, except via
-     * reslist calls, which have an internal mutex.
-     *
-     * We need to short-circuit the cleanup registered internally by
-     * apr_reslist_create().  We do this by registering dbd_destroy()
-     * as a cleanup afterwards, so that it will run before the reslist's
-     * internal cleanup.
-     *
-     * If we didn't do this, then we could free memory twice when the pool
-     * was destroyed.  When apr_pool_destroy() runs, it first destroys all
-     * all the per-connection sub-pools created in dbd_construct(), and
-     * then it runs the reslist's cleanup.  The cleanup calls dbd_destruct()
-     * on each resource, which would then attempt to destroy the sub-pools
-     * a second time.
-     */
-    rv = apr_reslist_create(&group->reslist,
-                            cfg->nmin, cfg->nkeep, cfg->nmax,
-                            apr_time_from_sec(cfg->exptime),
-                            dbd_construct, dbd_destruct, group,
-                            group->pool);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                     "DBD: failed to initialise");
-        return rv;
+    /* Are we configured to be Basic auth? */
+    current_auth = ap_auth_type(r);
+    if (!current_auth || strcasecmp(current_auth, "Basic")) {
+        return DECLINED;
     }
 
-    apr_pool_cleanup_register(group->pool, group, dbd_destroy,
-                              apr_pool_cleanup_null);
+    /* We need an authentication realm. */
+    if (!ap_auth_name(r)) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR,
+                      0, r, "need AuthName: %s", r->uri);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
 
-    return APR_SUCCESS;
+    r->ap_auth_type = (char*)current_auth;
+
+    res = get_basic_auth(r, &sent_user, &sent_pw);
+    if (res) {
+        return res;
+    }
+
+    current_provider = conf->providers;
+    do {
+        const authn_provider *provider;
+
+        /* For now, if a provider isn't set, we'll be nice and use the file
+         * provider.
+         */
+        if (!current_provider) {
+            provider = ap_lookup_provider(AUTHN_PROVIDER_GROUP,
+                                          AUTHN_DEFAULT_PROVIDER,
+                                          AUTHN_PROVIDER_VERSION);
+
+            if (!provider || !provider->check_password) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "No Authn provider configured");
+                auth_result = AUTH_GENERAL_ERROR;
+                break;
+            }
+            apr_table_setn(r->notes, AUTHN_PROVIDER_NAME_NOTE, AUTHN_DEFAULT_PROVIDER);
+        }
+        else {
+            provider = current_provider->provider;
+            apr_table_setn(r->notes, AUTHN_PROVIDER_NAME_NOTE, current_provider->provider_name);
+        }
+
+
+        auth_result = provider->check_password(r, sent_user, sent_pw);
+
+        apr_table_unset(r->notes, AUTHN_PROVIDER_NAME_NOTE);
+
+        /* Something occured. Stop checking. */
+        if (auth_result != AUTH_USER_NOT_FOUND) {
+            break;
+        }
+
+        /* If we're not really configured for providers, stop now. */
+        if (!conf->providers) {
+            break;
+        }
+
+        current_provider = current_provider->next;
+    } while (current_provider);
+
+    if (auth_result != AUTH_GRANTED) {
+        int return_code;
+
+        /* If we're not authoritative, then any error is ignored. */
+        if (!(conf->authoritative) && auth_result != AUTH_DENIED) {
+            return DECLINED;
+        }
+
+        switch (auth_result) {
+        case AUTH_DENIED:
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "user %s: authentication failure for \"%s\": "
+                      "Password Mismatch",
+                      sent_user, r->uri);
+            return_code = HTTP_UNAUTHORIZED;
+            break;
+        case AUTH_USER_NOT_FOUND:
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "user %s not found: %s", sent_user, r->uri);
+            return_code = HTTP_UNAUTHORIZED;
+            break;
+        case AUTH_GENERAL_ERROR:
+        default:
+            /* We'll assume that the module has already said what its error
+             * was in the logs.
+             */
+            return_code = HTTP_INTERNAL_SERVER_ERROR;
+            break;
+        }
+
+        /* If we're returning 403, tell them to try again. */
+        if (return_code == HTTP_UNAUTHORIZED) {
+            note_basic_auth_failure(r);
+        }
+        return return_code;
+    }
+
+    return OK;
 }

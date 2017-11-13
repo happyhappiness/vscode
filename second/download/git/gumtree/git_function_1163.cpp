@@ -1,48 +1,40 @@
-int push_unpushed_submodules(struct oid_array *commits,
-			     const struct remote *remote,
-			     const char **refspec, int refspec_nr,
-			     const struct string_list *push_options,
-			     int dry_run)
+static int apply_autostash(struct replay_opts *opts)
 {
-	int i, ret = 1;
-	struct string_list needs_pushing = STRING_LIST_INIT_DUP;
+	struct strbuf stash_sha1 = STRBUF_INIT;
+	struct child_process child = CHILD_PROCESS_INIT;
+	int ret = 0;
 
-	if (!find_unpushed_submodules(commits, remote->name, &needs_pushing))
-		return 1;
+	if (!read_oneliner(&stash_sha1, rebase_path_autostash(), 1)) {
+		strbuf_release(&stash_sha1);
+		return 0;
+	}
+	strbuf_trim(&stash_sha1);
 
-	/*
-	 * Verify that the remote and refspec can be propagated to all
-	 * submodules.  This check can be skipped if the remote and refspec
-	 * won't be propagated due to the remote being unconfigured (e.g. a URL
-	 * instead of a remote name).
-	 */
-	if (remote->origin != REMOTE_UNCONFIGURED) {
-		char *head;
-		struct object_id head_oid;
+	child.git_cmd = 1;
+	argv_array_push(&child.args, "stash");
+	argv_array_push(&child.args, "apply");
+	argv_array_push(&child.args, stash_sha1.buf);
+	if (!run_command(&child))
+		printf(_("Applied autostash."));
+	else {
+		struct child_process store = CHILD_PROCESS_INIT;
 
-		head = resolve_refdup("HEAD", 0, head_oid.hash, NULL);
-		if (!head)
-			die(_("Failed to resolve HEAD as a valid ref."));
-
-		for (i = 0; i < needs_pushing.nr; i++)
-			submodule_push_check(needs_pushing.items[i].string,
-					     head, remote,
-					     refspec, refspec_nr);
-		free(head);
+		store.git_cmd = 1;
+		argv_array_push(&store.args, "stash");
+		argv_array_push(&store.args, "store");
+		argv_array_push(&store.args, "-m");
+		argv_array_push(&store.args, "autostash");
+		argv_array_push(&store.args, "-q");
+		argv_array_push(&store.args, stash_sha1.buf);
+		if (run_command(&store))
+			ret = error(_("cannot store %s"), stash_sha1.buf);
+		else
+			printf(_("Applying autostash resulted in conflicts.\n"
+				"Your changes are safe in the stash.\n"
+				"You can run \"git stash pop\" or"
+				" \"git stash drop\" at any time.\n"));
 	}
 
-	/* Actually push the submodules */
-	for (i = 0; i < needs_pushing.nr; i++) {
-		const char *path = needs_pushing.items[i].string;
-		fprintf(stderr, "Pushing submodule '%s'\n", path);
-		if (!push_submodule(path, remote, refspec, refspec_nr,
-				    push_options, dry_run)) {
-			fprintf(stderr, "Unable to push submodule '%s'\n", path);
-			ret = 0;
-		}
-	}
-
-	string_list_clear(&needs_pushing, 0);
-
+	strbuf_release(&stash_sha1);
 	return ret;
 }

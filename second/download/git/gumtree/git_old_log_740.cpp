@@ -1,1 +1,1 @@
-error("no such remote ref %s", sought[i]->name);
+die(_("could not parse %s"), am_path(state, "abort_safety"));

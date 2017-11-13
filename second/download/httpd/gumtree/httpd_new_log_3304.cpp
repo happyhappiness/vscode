@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01217)
-                     "apr_pollset_create(); check system or user limits");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01640)
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");

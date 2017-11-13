@@ -1,174 +1,48 @@
-int main (int argc, const char * const argv[])
+static int file_cache_recall_mydata(apr_file_t *fd, cache_info *info,
+                                    disk_cache_object_t *dobj, request_rec *r)
 {
-    char buf[BUFSIZE], buf2[MAX_PATH], errbuf[ERRMSGSZ];
-    int tLogEnd = 0, tRotation = 0, utc_offset = 0;
-    unsigned int sRotation = 0;
-    int nMessCount = 0;
-    apr_size_t nRead, nWrite;
-    int use_strftime = 0;
-    int now = 0;
-    const char *szLogRoot;
-    apr_file_t *f_stdin, *nLogFD = NULL, *nLogFDprev = NULL;
-    apr_pool_t *pool;
-    char *ptr = NULL;
+    apr_status_t rv;
+    char *urlbuff;
+    disk_cache_info_t disk_info;
+    apr_size_t len;
 
-    apr_app_initialize(&argc, &argv, NULL);
-    atexit(apr_terminate);
-
-    apr_pool_create(&pool, NULL);
-    if (argc < 3 || argc > 4) {
-        fprintf(stderr,
-                "Usage: %s <logfile> <rotation time in seconds> "
-                "[offset minutes from UTC] or <rotation size in megabytes>\n\n",
-                argv[0]);
-#ifdef OS2
-        fprintf(stderr,
-                "Add this:\n\nTransferLog \"|%s.exe /some/where 86400\"\n\n",
-                argv[0]);
-#else
-        fprintf(stderr,
-                "Add this:\n\nTransferLog \"|%s /some/where 86400\"\n\n",
-                argv[0]);
-        fprintf(stderr,
-                "or \n\nTransferLog \"|%s /some/where 5M\"\n\n", argv[0]);
-#endif
-        fprintf(stderr,
-                "to httpd.conf. The generated name will be /some/where.nnnn "
-                "where nnnn is the\nsystem time at which the log nominally "
-                "starts (N.B. if using a rotation time,\nthe time will always "
-                "be a multiple of the rotation time, so you can synchronize\n"
-                "cron scripts with it). At the end of each rotation time or "
-                "when the file size\nis reached a new log is started.\n");
-        exit(1);
+    /* read the data from the cache file */
+    len = sizeof(disk_cache_info_t);
+    rv = apr_file_read_full(fd, &disk_info, len, &len);
+    if (rv != APR_SUCCESS) {
+        return rv;
     }
 
-    szLogRoot = argv[1];
-
-    ptr = strchr (argv[2], 'M');
-    if (ptr) {
-        if (*(ptr+1) == '\0') {
-            sRotation = atoi(argv[2]) * 1048576;
-        }
-        if (sRotation == 0) {
-            fprintf(stderr, "Invalid rotation size parameter\n");
-            exit(1);
-        }
-    }
-    else {
-        if (argc >= 4) {
-            utc_offset = atoi(argv[3]) * 60;
-        }
-        tRotation = atoi(argv[2]);
-        if (tRotation <= 0) {
-            fprintf(stderr, "Rotation time must be > 0\n");
-            exit(6);
-        }
+    if (disk_info.format != DISK_FORMAT_VERSION) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "cache_disk: URL %s had a on-disk version mismatch",
+                     r->uri);
+        return APR_EGENERAL;
     }
 
-    use_strftime = (strchr(szLogRoot, '%') != NULL);
-    if (apr_file_open_stdin(&f_stdin, pool) != APR_SUCCESS) {
-        fprintf(stderr, "Unable to open stdin\n");
-        exit(1);
+    /* Store it away so we can get it later. */
+    dobj->disk_info = disk_info;
+
+    info->date = disk_info.date;
+    info->expire = disk_info.expire;
+    info->request_time = disk_info.request_time;
+    info->response_time = disk_info.response_time;
+
+    /* Note that we could optimize this by conditionally doing the palloc
+     * depending upon the size. */
+    urlbuff = apr_palloc(r->pool, disk_info.name_len + 1);
+    len = disk_info.name_len;
+    rv = apr_file_read_full(fd, urlbuff, len, &len);
+    if (rv != APR_SUCCESS) {
+        return rv;
+    }
+    urlbuff[disk_info.name_len] = '\0';
+
+    /* check that we have the same URL */
+    /* Would strncmp be correct? */
+    if (strcmp(urlbuff, dobj->name) != 0) {
+        return APR_EGENERAL;
     }
 
-    for (;;) {
-        nRead = sizeof(buf);
-        if (apr_file_read(f_stdin, buf, &nRead) != APR_SUCCESS)
-            exit(3);
-        if (tRotation) {
-            now = (int)(apr_time_now() / APR_USEC_PER_SEC) + utc_offset;
-            if (nLogFD != NULL && now >= tLogEnd) {
-                nLogFDprev = nLogFD;
-                nLogFD = NULL;
-            }
-        }
-        else if (sRotation) {
-            apr_finfo_t finfo;
-            apr_off_t current_size = -1;
-
-            if ((nLogFD != NULL) && 
-                (apr_file_info_get(&finfo, APR_FINFO_SIZE, nLogFD) == APR_SUCCESS)) {
-                current_size = finfo.size;
-            }
-
-            if (current_size > sRotation) {
-                nLogFDprev = nLogFD;
-                nLogFD = NULL;
-            }
-        }
-        else {
-            fprintf(stderr, "No rotation time or size specified\n");
-            exit(2);
-        }
-
-        if (nLogFD == NULL) {
-            int tLogStart;
-                
-            if (tRotation)
-                tLogStart = (now / tRotation) * tRotation;
-            else
-                tLogStart = (int)apr_time_sec(apr_time_now());
-
-            if (use_strftime) {
-                apr_time_t tNow = apr_time_from_sec(tLogStart);
-                apr_time_exp_t e;
-                apr_size_t rs;
-
-                apr_time_exp_gmt(&e, tNow);
-                apr_strftime(buf2, &rs, sizeof(buf2), szLogRoot, &e);
-            }
-            else {
-                sprintf(buf2, "%s.%010d", szLogRoot, tLogStart);
-            }
-            tLogEnd = tLogStart + tRotation;
-            apr_file_open(&nLogFD, buf2, APR_READ | APR_WRITE | APR_CREATE | APR_APPEND,
-                          APR_OS_DEFAULT, pool);
-            if (nLogFD == NULL) {
-                /* Uh-oh. Failed to open the new log file. Try to clear
-                 * the previous log file, note the lost log entries,
-                 * and keep on truckin'. */
-                if (nLogFDprev == NULL) {
-                    fprintf(stderr, "1 Previous file handle doesn't exists %s\n", buf2);
-                    exit(2);
-                }
-                else {
-                    nLogFD = nLogFDprev;
-                    sprintf(errbuf,
-                            "Resetting log file due to error opening "
-                            "new log file. %10d messages lost.\n",
-                            nMessCount);
-                    nWrite = strlen(errbuf);
-                    apr_file_trunc(nLogFD, 0);
-                    if (apr_file_write(nLogFD, errbuf, &nWrite) != APR_SUCCESS) {
-                        fprintf(stderr, "Error writing to the file %s\n", buf2);
-                        exit(2);
-                    }
-                }
-            }
-            else if (nLogFDprev) {
-                apr_file_close(nLogFDprev);
-            }
-            nMessCount = 0;
-        }
-        nWrite = nRead;
-        apr_file_write(nLogFD, buf, &nWrite);
-        if (nWrite != nRead) {
-            nMessCount++;
-            sprintf(errbuf,
-                    "Error writing to log file. "
-                    "%10d messages lost.\n",
-                    nMessCount);
-            nWrite = strlen(errbuf);
-            apr_file_trunc(nLogFD, 0);
-            if (apr_file_write(nLogFD, errbuf, &nWrite) != APR_SUCCESS) {
-                fprintf(stderr, "Error writing to the file %s\n", buf2);
-                exit(2);
-            }
-        }
-        else {
-            nMessCount++;
-        }
-    }
-    /* Of course we never, but prevent compiler warnings */
-    return 0;
+    return APR_SUCCESS;
 }

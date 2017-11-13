@@ -1,1 +1,1 @@
-die(_("revision walk setup failed"));
+die("Could not read ref %s", private);

@@ -1,1 +1,1 @@
-error(_("unusable instruction sheet: '%s'"), todo_file);
+die(_("no branches given, and HEAD is not valid"));

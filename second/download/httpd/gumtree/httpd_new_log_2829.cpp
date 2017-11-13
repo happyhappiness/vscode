@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01640)
-                      "Authorization of user %s to access %s failed, reason: %s",
-                      r->user, r->uri, reason ? reason : "unknown");
+printf("<tr %s><th colspan=2 %s>Time taken for tests:</th>"
+       "<td colspan=2 %s>%.3f seconds</td></tr>\n",
+       trstring, tdstring, tdstring, timetaken);

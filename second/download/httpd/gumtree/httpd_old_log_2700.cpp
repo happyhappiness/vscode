@@ -1,2 +1,4 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog,
-                      "failed to create %s mutex", authn_cache_id);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "charset_source: %s charset_default: %s",
+                      dc && dc->charset_source ? dc->charset_source : "(none)",
+                      dc && dc->charset_default ? dc->charset_default : "(none)");

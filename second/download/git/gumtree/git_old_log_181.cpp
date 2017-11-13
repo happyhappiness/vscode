@@ -1,1 +1,2 @@
-fprintf(fp, "%s ", sha1_to_hex(state->orig_commit));
+fprintf(log_file, "%s %"PRIuMAX"\n",
+		p->pack_name, (uintmax_t)obj_offset);

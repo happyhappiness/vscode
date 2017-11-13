@@ -1,59 +1,58 @@
-static void pretty_default (char *t, size_t l, const char *s, int type)
+static void redraw_crypt_lines (HEADER *msg)
 {
-  memset (t, 0, l);
-  l--;
+  mutt_window_mvprintw (MuttIndexWindow, HDR_CRYPT, 0, TITLE_FMT, "Security: ");
 
-  switch (type)
+  if ((WithCrypto & (APPLICATION_PGP | APPLICATION_SMIME)) == 0)
   {
-    case DT_QUAD:
-    {    
-      if (!strcasecmp (s, "MUTT_YES")) strncpy (t, "yes", l);
-      else if (!strcasecmp (s, "MUTT_NO")) strncpy (t, "no", l);
-      else if (!strcasecmp (s, "MUTT_ASKYES")) strncpy (t, "ask-yes", l);
-      else if (!strcasecmp (s, "MUTT_ASKNO")) strncpy (t, "ask-no", l);
-      break;
-    }
-    case DT_BOOL:
+    addstr(_("Not supported"));
+    return;
+  }
+
+  if ((msg->security & (ENCRYPT | SIGN)) == (ENCRYPT | SIGN))
+    addstr (_("Sign, Encrypt"));
+  else if (msg->security & ENCRYPT)
+    addstr (_("Encrypt"));
+  else if (msg->security & SIGN)
+    addstr (_("Sign"));
+  else
+    addstr (_("None"));
+
+  if ((msg->security & (ENCRYPT | SIGN)))
+  {
+    if ((WithCrypto & APPLICATION_PGP) && (msg->security & APPLICATION_PGP))
     {
-      if (atoi (s))
-	strncpy (t, "yes", l);
+      if ((msg->security & INLINE))
+        addstr (_(" (inline PGP)"));
       else
-	strncpy (t, "no", l);
-      break;
+        addstr (_(" (PGP/MIME)"));
     }
-    case DT_SORT:
-    {
-      /* heuristic! */
-      if (strncmp (s, "SORT_", 5))
-        fprintf (stderr,
-                 "WARNING: expected prefix of SORT_ for type DT_SORT instead of %s\n", s);
-      strncpy (t, s + 5, l);
-      for (; *t; t++) *t = tolower ((unsigned char) *t);
-      break;
-    }
-    case DT_MAGIC:
-    {
-      /* heuristic! */
-      if (strncmp (s, "MUTT_", 5))
-        fprintf (stderr,
-                 "WARNING: expected prefix of MUTT_ for type DT_MAGIC instead of %s\n", s);
-      strncpy (t, s + 5, l);
-      for (; *t; t++) *t = tolower ((unsigned char) *t);
-      break;
-    }
-    case DT_STR:
-    case DT_RX:
-    case DT_ADDR:
-    case DT_PATH:
-    {
-      if (!strcmp (s, "0"))
-	break;
-      /* fallthrough */
-    }
-    default:
-    {
-      strncpy (t, s, l);
-      break;
-    }
+    else if ((WithCrypto & APPLICATION_SMIME) &&
+             (msg->security & APPLICATION_SMIME))
+      addstr (_(" (S/MIME)"));
+  }
+
+  if (option (OPTCRYPTOPPORTUNISTICENCRYPT) && (msg->security & OPPENCRYPT))
+      addstr (_(" (OppEnc mode)"));
+
+  mutt_window_clrtoeol (MuttIndexWindow);
+  mutt_window_move (MuttIndexWindow, HDR_CRYPTINFO, 0);
+  mutt_window_clrtoeol (MuttIndexWindow);
+
+  if ((WithCrypto & APPLICATION_PGP)
+      && (msg->security & APPLICATION_PGP) && (msg->security & SIGN))
+    printw (TITLE_FMT "%s", _("sign as: "), PgpSignAs ? PgpSignAs : _("<default>"));
+
+  if ((WithCrypto & APPLICATION_SMIME)
+      && (msg->security & APPLICATION_SMIME) && (msg->security & SIGN)) {
+      printw (TITLE_FMT "%s", _("sign as: "), SmimeDefaultKey ? SmimeDefaultKey : _("<default>"));
+  }
+
+  if ((WithCrypto & APPLICATION_SMIME)
+      && (msg->security & APPLICATION_SMIME)
+      && (msg->security & ENCRYPT)
+      && SmimeCryptAlg
+      && *SmimeCryptAlg) {
+    mutt_window_mvprintw (MuttIndexWindow, HDR_CRYPTINFO, 40, "%s%s", _("Encrypt with: "),
+		NONULL(SmimeCryptAlg));
   }
 }

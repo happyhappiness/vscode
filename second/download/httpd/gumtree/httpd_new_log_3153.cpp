@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00618)
-                      "The DAV:source element must contain a DAV:href "
-                      "element.");
+ap_log_rerror(APLOG_MARK, APLOG_INFO, APR_SUCCESS, r, APLOGNO(01672)
+                          "Anonymous: Passwd <%s> Accepted",
+                          sent_pw ? sent_pw : "\'none\'");

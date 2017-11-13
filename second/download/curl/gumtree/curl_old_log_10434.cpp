@@ -1,2 +1,1 @@
-warnf(config,
-              "--libcurl option was disabled at build-time!\n");
+warnf(config, "Illegally formatted input field!\n");

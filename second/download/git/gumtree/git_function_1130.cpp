@@ -1,39 +1,42 @@
-static int handle_file(const char *path, unsigned char *sha1, const char *output)
+const char *discover_git_directory(struct strbuf *gitdir)
 {
-	int hunk_no = 0;
-	struct rerere_io_file io;
-	int marker_size = ll_merge_marker_size(path);
+	struct strbuf dir = STRBUF_INIT, err = STRBUF_INIT;
+	size_t gitdir_offset = gitdir->len, cwd_len;
+	struct repository_format candidate;
 
-	memset(&io, 0, sizeof(io));
-	io.io.getline = rerere_file_getline;
-	io.input = fopen(path, "r");
-	io.io.wrerror = 0;
-	if (!io.input)
-		return error("Could not open %s", path);
+	if (strbuf_getcwd(&dir))
+		return NULL;
 
-	if (output) {
-		io.io.output = fopen(output, "w");
-		if (!io.io.output) {
-			fclose(io.input);
-			return error("Could not write %s", output);
-		}
+	cwd_len = dir.len;
+	if (setup_git_directory_gently_1(&dir, gitdir, 0) <= 0) {
+		strbuf_release(&dir);
+		return NULL;
 	}
 
-	hunk_no = handle_path(sha1, (struct rerere_io *)&io, marker_size);
-
-	fclose(io.input);
-	if (io.io.wrerror)
-		error("There were errors while writing %s (%s)",
-		      path, strerror(io.io.wrerror));
-	if (io.io.output && fclose(io.io.output))
-		io.io.wrerror = error_errno("Failed to flush %s", path);
-
-	if (hunk_no < 0) {
-		if (output)
-			unlink_or_warn(output);
-		return error("Could not parse conflict hunks in %s", path);
+	/*
+	 * The returned gitdir is relative to dir, and if dir does not reflect
+	 * the current working directory, we simply make the gitdir absolute.
+	 */
+	if (dir.len < cwd_len && !is_absolute_path(gitdir->buf + gitdir_offset)) {
+		/* Avoid a trailing "/." */
+		if (!strcmp(".", gitdir->buf + gitdir_offset))
+			strbuf_setlen(gitdir, gitdir_offset);
+		else
+			strbuf_addch(&dir, '/');
+		strbuf_insert(gitdir, gitdir_offset, dir.buf, dir.len);
 	}
-	if (io.io.wrerror)
-		return -1;
-	return hunk_no;
+
+	strbuf_reset(&dir);
+	strbuf_addf(&dir, "%s/config", gitdir->buf + gitdir_offset);
+	read_repository_format(&candidate, dir.buf);
+	strbuf_release(&dir);
+
+	if (verify_repository_format(&candidate, &err) < 0) {
+		warning("ignoring git dir '%s': %s",
+			gitdir->buf + gitdir_offset, err.buf);
+		strbuf_release(&err);
+		return NULL;
+	}
+
+	return gitdir->buf + gitdir_offset;
 }

@@ -1,1 +1,1 @@
-die(_("no name was given and auto-detection is disabled"));
+die(_("bad pack compression level %d"), level);

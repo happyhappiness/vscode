@@ -1,67 +1,37 @@
-static int read_tree_1(struct tree *tree, struct strbuf *base,
-		       int stage, const struct pathspec *pathspec,
-		       read_tree_fn_t fn, void *context)
+static int verify_absent_1(const struct cache_entry *ce,
+			   enum unpack_trees_error_types error_type,
+			   struct unpack_trees_options *o)
 {
-	struct tree_desc desc;
-	struct name_entry entry;
-	unsigned char sha1[20];
-	int len, oldlen = base->len;
-	enum interesting retval = entry_not_interesting;
+	int len;
+	struct stat st;
 
-	if (parse_tree(tree))
-		return -1;
+	if (o->index_only || o->reset || !o->update)
+		return 0;
 
-	init_tree_desc(&desc, tree->buffer, tree->size);
+	len = check_leading_path(ce->name, ce_namelen(ce));
+	if (!len)
+		return 0;
+	else if (len > 0) {
+		char *path;
+		int ret;
 
-	while (tree_entry(&desc, &entry)) {
-		if (retval != all_entries_interesting) {
-			retval = tree_entry_interesting(&entry, base, 0, pathspec);
-			if (retval == all_entries_not_interesting)
-				break;
-			if (retval == entry_not_interesting)
-				continue;
-		}
-
-		switch (fn(entry.sha1, base,
-			   entry.path, entry.mode, stage, context)) {
-		case 0:
-			continue;
-		case READ_TREE_RECURSIVE:
-			break;
-		default:
-			return -1;
-		}
-
-		if (S_ISDIR(entry.mode))
-			hashcpy(sha1, entry.sha1);
-		else if (S_ISGITLINK(entry.mode)) {
-			struct commit *commit;
-
-			commit = lookup_commit(entry.sha1);
-			if (!commit)
-				die("Commit %s in submodule path %s%s not found",
-				    sha1_to_hex(entry.sha1),
-				    base->buf, entry.path);
-
-			if (parse_commit(commit))
-				die("Invalid commit %s in submodule path %s%s",
-				    sha1_to_hex(entry.sha1),
-				    base->buf, entry.path);
-
-			hashcpy(sha1, commit->tree->object.oid.hash);
-		}
+		path = xmemdupz(ce->name, len);
+		if (lstat(path, &st))
+			ret = error("cannot stat '%s': %s", path,
+					strerror(errno));
 		else
-			continue;
-
-		len = tree_entry_len(&entry);
-		strbuf_add(base, entry.path, len);
-		strbuf_addch(base, '/');
-		retval = read_tree_1(lookup_tree(sha1),
-				     base, stage, pathspec,
-				     fn, context);
-		strbuf_setlen(base, oldlen);
-		if (retval)
-			return -1;
+			ret = check_ok_to_remove(path, len, DT_UNKNOWN, NULL,
+						 &st, error_type, o);
+		free(path);
+		return ret;
+	} else if (lstat(ce->name, &st)) {
+		if (errno != ENOENT)
+			return error("cannot stat '%s': %s", ce->name,
+				     strerror(errno));
+		return 0;
+	} else {
+		return check_ok_to_remove(ce->name, ce_namelen(ce),
+					  ce_to_dtype(ce), ce, &st,
+					  error_type, o);
 	}
-	return 0;
 }

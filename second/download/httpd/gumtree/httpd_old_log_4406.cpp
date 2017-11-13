@@ -1,4 +1,4 @@
-ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0, p,
-                     "Syntax error on line %d of %s:",
-                     parms.err_directive->line_num,
-                     parms.err_directive->filename);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                      "proxy: missing or failed auth to %s",
+                      apr_uri_unparse(r->pool,
+                                 &r->parsed_uri, APR_URI_UNP_OMITPATHINFO));

@@ -1,1 +1,0 @@
-die(_("--deepen and --depth are mutually exclusive"));

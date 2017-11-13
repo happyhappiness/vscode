@@ -1,1 +1,2 @@
-error(_("need a HEAD to fixup"));
+error_errno(_("could not write to '%s'"),
+				   git_path_head_file());

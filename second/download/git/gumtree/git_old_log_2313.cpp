@@ -1,1 +1,1 @@
-warning("vsnprintf failed: '%s'", strerror(errno));
+die(_("revision walk setup failed"));

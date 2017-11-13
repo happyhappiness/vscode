@@ -1,2 +1,1 @@
-die(_("Invalid pathspec magic '%.*s' in '%s'"),
-				    (int) len, copyfrom, elt);
+error(_("No commits parsed."));

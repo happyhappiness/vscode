@@ -1,1 +1,1 @@
-die(_("BUG: reopen a lockfile that is still open"));
+printf(_("Deleted tag '%s' (was %s)\n"), name, find_unique_abbrev(oid->hash, DEFAULT_ABBREV));

@@ -1,1 +1,0 @@
-die("%s missing parameter", opt->long_name);

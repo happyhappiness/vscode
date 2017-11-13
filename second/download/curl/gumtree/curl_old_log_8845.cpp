@@ -1,1 +1,1 @@
-puts("Build-time engines:");
+fputs("\n", config->errors);

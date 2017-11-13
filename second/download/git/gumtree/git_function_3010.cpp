@@ -1,7 +1,10 @@
-int svndump_init_fd(int in_fd, int back_fd)
+static int warn_if_unremovable(const char *op, const char *file, int rc)
 {
-	if(buffer_fdinit(&input, xdup(in_fd)))
-		return error("cannot open fd %d: %s", in_fd, strerror(errno));
-	init(xdup(back_fd));
-	return 0;
+	int err;
+	if (!rc || errno == ENOENT)
+		return 0;
+	err = errno;
+	warning("unable to %s %s: %s", op, file, strerror(errno));
+	errno = err;
+	return rc;
 }

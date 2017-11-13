@@ -1,68 +1,20 @@
-const char *fmt_ident(const char *name, const char *email,
-		      const char *date_str, int flag)
+static void save_todo(struct commit_list *todo_list, struct replay_opts *opts)
 {
-	static struct strbuf ident = STRBUF_INIT;
-	int strict = (flag & IDENT_STRICT);
-	int want_date = !(flag & IDENT_NO_DATE);
-	int want_name = !(flag & IDENT_NO_NAME);
+	const char *todo_file = git_path(SEQ_TODO_FILE);
+	static struct lock_file todo_lock;
+	struct strbuf buf = STRBUF_INIT;
+	int fd;
 
-	if (want_name) {
-		int using_default = 0;
-		if (!name) {
-			if (strict && ident_use_config_only
-			    && !(ident_config_given & IDENT_NAME_GIVEN)) {
-				fputs(env_hint, stderr);
-				die("no name was given and auto-detection is disabled");
-			}
-			name = ident_default_name();
-			using_default = 1;
-			if (strict && default_name_is_bogus) {
-				fputs(env_hint, stderr);
-				die("unable to auto-detect name (got '%s')", name);
-			}
-		}
-		if (!*name) {
-			struct passwd *pw;
-			if (strict) {
-				if (using_default)
-					fputs(env_hint, stderr);
-				die("empty ident name (for <%s>) not allowed", email);
-			}
-			pw = xgetpwuid_self(NULL);
-			name = pw->pw_name;
-		}
+	fd = hold_lock_file_for_update(&todo_lock, todo_file, LOCK_DIE_ON_ERROR);
+	if (format_todo(&buf, todo_list, opts) < 0)
+		die(_("Could not format %s."), todo_file);
+	if (write_in_full(fd, buf.buf, buf.len) < 0) {
+		strbuf_release(&buf);
+		die_errno(_("Could not write to %s"), todo_file);
 	}
-
-	if (!email) {
-		if (strict && ident_use_config_only
-		    && !(ident_config_given & IDENT_MAIL_GIVEN)) {
-			fputs(env_hint, stderr);
-			die("no email was given and auto-detection is disabled");
-		}
-		email = ident_default_email();
-		if (strict && default_email_is_bogus) {
-			fputs(env_hint, stderr);
-			die("unable to auto-detect email address (got '%s')", email);
-		}
+	if (commit_lock_file(&todo_lock) < 0) {
+		strbuf_release(&buf);
+		die(_("Error wrapping up %s."), todo_file);
 	}
-
-	strbuf_reset(&ident);
-	if (want_name) {
-		strbuf_addstr_without_crud(&ident, name);
-		strbuf_addstr(&ident, " <");
-	}
-	strbuf_addstr_without_crud(&ident, email);
-	if (want_name)
-			strbuf_addch(&ident, '>');
-	if (want_date) {
-		strbuf_addch(&ident, ' ');
-		if (date_str && date_str[0]) {
-			if (parse_date(date_str, &ident) < 0)
-				die("invalid date format: %s", date_str);
-		}
-		else
-			strbuf_addstr(&ident, ident_default_date());
-	}
-
-	return ident.buf;
+	strbuf_release(&buf);
 }

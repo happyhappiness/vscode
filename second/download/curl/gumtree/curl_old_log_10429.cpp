@@ -1,1 +1,1 @@
-warnf(config, "--trace overrides an earlier trace/verbose option\n");
+warnf(config, "Error building form post!\n");

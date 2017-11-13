@@ -1,130 +1,205 @@
-static int proxy_http_handler(request_rec *r, proxy_worker *worker,
-                              proxy_server_conf *conf,
-                              char *url, const char *proxyname,
-                              apr_port_t proxyport)
+static int cache_handler(request_rec *r)
 {
-    int status;
-    char server_portstr[32];
-    char *scheme;
-    const char *proxy_function;
-    const char *u;
-    proxy_conn_rec *backend = NULL;
-    int is_ssl = 0;
-    conn_rec *c = r->connection;
-    /*
-     * Use a shorter-lived pool to reduce memory usage
-     * and avoid a memory leak
-     */
-    apr_pool_t *p = r->pool;
-    apr_uri_t *uri = apr_palloc(p, sizeof(*uri));
+    apr_status_t rv;
+    cache_provider_list *providers;
+    cache_request_rec *cache;
+    apr_bucket_brigade *out;
+    ap_filter_t *next;
+    ap_filter_rec_t *cache_out_handle;
+    ap_filter_rec_t *cache_save_handle;
+    cache_server_conf *conf;
 
-    /* find the scheme */
-    u = strchr(url, ':');
-    if (u == NULL || u[1] != '/' || u[2] != '/' || u[3] == '\0')
-       return DECLINED;
-    if ((u - url) > 14)
-        return HTTP_BAD_REQUEST;
-    scheme = apr_pstrndup(p, url, u - url);
-    /* scheme is lowercase */
-    ap_str_tolower(scheme);
-    /* is it for us? */
-    if (strcmp(scheme, "https") == 0) {
-        if (!ap_proxy_ssl_enable(NULL)) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "proxy: HTTPS: declining URL %s"
-                         " (mod_ssl not configured?)", url);
-            return DECLINED;
-        }
-        is_ssl = 1;
-        proxy_function = "HTTPS";
+    /* Delay initialization until we know we are handling a GET */
+    if (r->method_number != M_GET) {
+        return DECLINED;
     }
-    else if (!(strcmp(scheme, "http") == 0 || (strcmp(scheme, "ftp") == 0 && proxyname))) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: HTTP: declining URL %s", url);
-        return DECLINED; /* only interested in HTTP, or FTP via proxy */
+
+    conf = (cache_server_conf *) ap_get_module_config(r->server->module_config,
+                                                      &cache_module);
+
+    /* only run if the quick handler is disabled */
+    if (conf->quick) {
+        return DECLINED;
+    }
+
+    /*
+     * Which cache module (if any) should handle this request?
+     */
+    if (!(providers = ap_cache_get_providers(r, conf, r->parsed_uri))) {
+        return DECLINED;
+    }
+
+    /* make space for the per request config */
+    cache = (cache_request_rec *) ap_get_module_config(r->request_config,
+                                                       &cache_module);
+    if (!cache) {
+        cache = apr_pcalloc(r->pool, sizeof(cache_request_rec));
+        ap_set_module_config(r->request_config, &cache_module, cache);
+    }
+
+    /* save away the possible providers */
+    cache->providers = providers;
+
+    /*
+     * Try to serve this request from the cache.
+     *
+     * If no existing cache file (DECLINED)
+     *   add cache_save filter
+     * If cached file (OK)
+     *   clear filter stack
+     *   add cache_out filter
+     *   return OK
+     */
+    rv = cache_select(r);
+    if (rv != OK) {
+        if (rv == DECLINED) {
+
+            /* try to obtain a cache lock at this point. if we succeed,
+             * we are the first to try and cache this url. if we fail,
+             * it means someone else is already trying to cache this
+             * url, and we should just let the request through to the
+             * backend without any attempt to cache. this stops
+             * duplicated simultaneous attempts to cache an entity.
+             */
+            rv = ap_cache_try_lock(conf, r, NULL);
+            if (APR_SUCCESS == rv) {
+
+                /*
+                 * Add cache_save filter to cache this request. Choose
+                 * the correct filter by checking if we are a subrequest
+                 * or not.
+                 */
+                if (r->main) {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                            r->server,
+                            "Adding CACHE_SAVE_SUBREQ filter for %s",
+                            r->uri);
+                    cache_save_handle = cache_save_subreq_filter_handle;
+                }
+                else {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                            r->server, "Adding CACHE_SAVE filter for %s",
+                            r->uri);
+                    cache_save_handle = cache_save_filter_handle;
+                }
+                ap_add_output_filter_handle(cache_save_handle,
+                        NULL, r, r->connection);
+
+                /*
+                 * Did the user indicate the precise location of the
+                 * CACHE_SAVE filter by inserting the CACHE filter as a
+                 * marker?
+                 *
+                 * If so, we get cunning and replace CACHE with the
+                 * CACHE_SAVE filter. This has the effect of inserting
+                 * the CACHE_SAVE filter at the precise location where
+                 * the admin wants to cache the content. All filters that
+                 * lie before and after the original location of the CACHE
+                 * filter will remain in place.
+                 */
+                if (cache_replace_filter(r->output_filters,
+                        cache_filter_handle, cache_save_handle)) {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                            r->server, "Replacing CACHE with CACHE_SAVE "
+                            "filter for %s", r->uri);
+                }
+
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
+                        "Adding CACHE_REMOVE_URL filter for %s",
+                        r->uri);
+
+                /* Add cache_remove_url filter to this request to remove a
+                 * stale cache entry if needed. Also put the current cache
+                 * request rec in the filter context, as the request that
+                 * is available later during running the filter may be
+                 * different due to an internal redirect.
+                 */
+                cache->remove_url_filter =
+                    ap_add_output_filter_handle(cache_remove_url_filter_handle,
+                            cache, r, r->connection);
+
+            }
+            else {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, rv,
+                             r->server, "Cache locked for url, not caching "
+                             "response: %s", r->uri);
+            }
+        }
+        else {
+            /* error */
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                         "cache: error returned while checking for cached "
+                         "file by %s cache", cache->provider_name);
+        }
+        return DECLINED;
+    }
+
+    rv = ap_meets_conditions(r);
+    if (rv != OK) {
+        return rv;
+    }
+
+    /* Serve up the content */
+
+    /*
+     * Add cache_out filter to serve this request. Choose
+     * the correct filter by checking if we are a subrequest
+     * or not.
+     */
+    if (r->main) {
+        cache_out_handle = cache_out_subreq_filter_handle;
     }
     else {
-        if (*scheme == 'h')
-            proxy_function = "HTTP";
-        else
-            proxy_function = "FTP";
+        cache_out_handle = cache_out_filter_handle;
     }
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-             "proxy: HTTP: serving URL %s", url);
+    ap_add_output_filter_handle(cache_out_handle, NULL, r, r->connection);
 
-
-    /* create space for state information */
-    if ((status = ap_proxy_acquire_connection(proxy_function, &backend,
-                                              worker, r->server)) != OK)
-        goto cleanup;
-
-
-    backend->is_ssl = is_ssl;
-    if (is_ssl) {
-        ap_proxy_ssl_connection_cleanup(backend, r);
+    /*
+     * Did the user indicate the precise location of the CACHE_OUT filter by
+     * inserting the CACHE filter as a marker?
+     *
+     * If so, we get cunning and replace CACHE with the CACHE_OUT filters.
+     * This has the effect of inserting the CACHE_OUT filter at the precise
+     * location where the admin wants to cache the content. All filters that
+     * lie *after* the original location of the CACHE filter will remain in
+     * place.
+     */
+    if (cache_replace_filter(r->output_filters, cache_filter_handle, cache_out_handle)) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                r->server, "Replacing CACHE with CACHE_OUT filter for %s",
+                r->uri);
     }
 
     /*
-     * In the case that we are handling a reverse proxy connection and this
-     * is not a request that is coming over an already kept alive connection
-     * with the client, do NOT reuse the connection to the backend, because
-     * we cannot forward a failure to the client in this case as the client
-     * does NOT expects this in this situation.
-     * Yes, this creates a performance penalty.
+     * Remove all filters that are before the cache_out filter. This ensures
+     * that we kick off the filter stack with our cache_out filter being the
+     * first in the chain. This make sense because we want to restore things
+     * in the same manner as we saved them.
+     * There may be filters before our cache_out filter, because
+     *
+     * 1. We call ap_set_content_type during cache_select. This causes
+     *    Content-Type specific filters to be added.
+     * 2. We call the insert_filter hook. This causes filters e.g. like
+     *    the ones set with SetOutputFilter to be added.
      */
-    if ((r->proxyreq == PROXYREQ_REVERSE) && (!c->keepalives)
-        && (apr_table_get(r->subprocess_env, "proxy-initial-not-pooled"))) {
-        backend->close = 1;
+    next = r->output_filters;
+    while (next && (next->frec != cache_out_handle)) {
+        ap_remove_output_filter(next);
+        next = next->next;
     }
 
-    /* Step One: Determine Who To Connect To */
-    if ((status = ap_proxy_determine_connection(p, r, conf, worker, backend,
-                                                uri, &url, proxyname,
-                                                proxyport, server_portstr,
-                                                sizeof(server_portstr))) != OK)
-        goto cleanup;
-
-    /* Step Two: Make the Connection */
-    if (ap_proxy_connect_backend(proxy_function, backend, worker, r->server)) {
-        status = HTTP_SERVICE_UNAVAILABLE;
-        goto cleanup;
-    }
-
-    /* Step Three: Create conn_rec */
-    if (!backend->connection) {
-        if ((status = ap_proxy_connection_create(proxy_function, backend,
-                                                 c, r->server)) != OK)
-            goto cleanup;
-        /*
-         * On SSL connections set a note on the connection what CN is
-         * requested, such that mod_ssl can check if it is requested to do
-         * so.
-         */
-        if (backend->ssl_hostname) {
-            apr_table_setn(backend->connection->notes,
-                           "proxy-request-hostname",
-                           backend->ssl_hostname);
+    /* kick off the filter stack */
+    out = apr_brigade_create(r->pool, r->connection->bucket_alloc);
+    rv = ap_pass_brigade(r->output_filters, out);
+    if (rv != APR_SUCCESS) {
+        if (rv != AP_FILTER_ERROR) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                         "cache: error returned while trying to return %s "
+                         "cached data",
+                         cache->provider_name);
         }
+        return rv;
     }
 
-    /* Step Four: Send the Request */
-    if ((status = ap_proxy_http_request(p, r, backend, backend->connection,
-                                        conf, uri, url, server_portstr)) != OK)
-        goto cleanup;
-
-    /* Step Five: Receive the Response */
-    if ((status = ap_proxy_http_process_response(p, r, backend,
-                                                 backend->connection,
-                                                 conf, server_portstr)) != OK)
-        goto cleanup;
-
-    /* Step Six: Clean Up */
-
-cleanup:
-    if (backend) {
-        if (status != OK)
-            backend->close = 1;
-        ap_proxy_http_cleanup(proxy_function, r, backend);
-    }
-    return status;
+    return OK;
 }

@@ -1,50 +1,55 @@
-static int create_uncompress_child(struct uncompress_parms *parm, apr_pool_t *cntxt,
-                                   apr_file_t **pipe_in)
+static int process_mkcol_body(request_rec *r)
 {
-    int rc = 1;
-    const char *new_argv[4];
-    request_rec *r = parm->r;
-    apr_pool_t *child_context = cntxt;
-    apr_procattr_t *procattr;
-    apr_proc_t *procnew;
+    /* This is snarfed from ap_setup_client_block(). We could get pretty
+     * close to this behavior by passing REQUEST_NO_BODY, but we need to
+     * return HTTP_UNSUPPORTED_MEDIA_TYPE (while ap_setup_client_block
+     * returns HTTP_REQUEST_ENTITY_TOO_LARGE). */
 
-    /* XXX missing 1.3 logic:
-     *
-     * what happens when !compr[parm->method].silent?
-     * Should we create the err pipe, read it, and copy to the log?
+    const char *tenc = apr_table_get(r->headers_in, "Transfer-Encoding");
+    const char *lenp = apr_table_get(r->headers_in, "Content-Length");
+
+    /* make sure to set the Apache request fields properly. */
+    r->read_body = REQUEST_NO_BODY;
+    r->read_chunked = 0;
+    r->remaining = 0;
+
+    if (tenc) {
+        if (strcasecmp(tenc, "chunked")) {
+            /* Use this instead of Apache's default error string */
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Unknown Transfer-Encoding %s", tenc);
+            return HTTP_NOT_IMPLEMENTED;
+        }
+
+        r->read_chunked = 1;
+    }
+    else if (lenp) {
+        const char *pos = lenp;
+
+        while (apr_isdigit(*pos) || apr_isspace(*pos)) {
+            ++pos;
+        }
+
+        if (*pos != '\0') {
+            /* This supplies additional information for the default message. */
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Invalid Content-Length %s", lenp);
+            return HTTP_BAD_REQUEST;
+        }
+
+        r->remaining = apr_atoi64(lenp);
+    }
+
+    if (r->read_chunked || r->remaining > 0) {
+        /* ### log something? */
+
+        /* Apache will supply a default error for this. */
+        return HTTP_UNSUPPORTED_MEDIA_TYPE;
+    }
+
+    /*
+     * Get rid of the body. this will call ap_setup_client_block(), but
+     * our copy above has already verified its work.
      */
-
-    if ((apr_procattr_create(&procattr, child_context) != APR_SUCCESS) ||
-        (apr_procattr_io_set(procattr, APR_FULL_BLOCK,
-                           APR_FULL_BLOCK, APR_NO_PIPE)   != APR_SUCCESS) ||
-        (apr_procattr_dir_set(procattr,
-                              ap_make_dirstr_parent(r->pool, r->filename)) != APR_SUCCESS) ||
-        (apr_procattr_cmdtype_set(procattr, APR_PROGRAM_PATH) != APR_SUCCESS)) {
-        /* Something bad happened, tell the world. */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_ENOPROC, r,
-               "couldn't setup child process: %s", r->filename);
-    }
-    else {
-        new_argv[0] = compr[parm->method].argv[0];
-        new_argv[1] = compr[parm->method].argv[1];
-        new_argv[2] = r->filename;
-        new_argv[3] = NULL;
-
-        procnew = apr_pcalloc(child_context, sizeof(*procnew));
-        rc = apr_proc_create(procnew, compr[parm->method].argv[0],
-                               new_argv, NULL, procattr, child_context);
-
-        if (rc != APR_SUCCESS) {
-            /* Bad things happened. Everyone should have cleaned up. */
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_ENOPROC, r,
-                          MODNAME ": could not execute `%s'.",
-                          compr[parm->method].argv[0]);
-        }
-        else {
-            apr_pool_note_subprocess(child_context, procnew, APR_KILL_AFTER_TIMEOUT);
-            *pipe_in = procnew->out;
-        }
-    }
-
-    return (rc);
+    return ap_discard_request_body(r);
 }

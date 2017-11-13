@@ -1,11 +1,9 @@
 fputs(
-"                     This will make curl URL-encode the content and pass  that\n"
-"                     on.  Just  be careful so that the content doesn't contain\n"
-"                     any = or @ symbols, as that will  then  make  the  syntax\n"
-"                     match one of the other cases below!\n"
+"              with a separating  &-symbol.  Thus,  using  '-d  name=daniel  -d\n"
+"              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
+"              'name=daniel&skill=lousy'.\n"
 "\n"
-"              =content\n"
-"                     This  will make curl URL-encode the content and pass that\n"
-"                     on. The preceding = symbol is not included in the data.\n"
-"\n"
+"              If you start the data with the letter @, the rest  should  be  a\n"
+"              file  name  to read the data from, or - if you want curl to read\n"
+"              the data from stdin. Multiple files can also be specified. Post-\n"
 , stdout);

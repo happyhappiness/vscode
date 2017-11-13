@@ -1,11 +1,11 @@
 fputs(
-"              (SSL) Specify the path name to file containing what will be con-\n"
-"              sidered as random data. The data is  used  to  seed  the  random\n"
-"              engine for SSL connections.  See also the --egd-file option.\n"
+"              mand with an asterisk (*) to make curl continue even if the com-\n"
+"              mand fails as by default curl will stop at first failure.\n"
 "\n"
-"       --raw  (HTTP) When used, it disables all internal HTTP decoding of con-\n"
-"              tent or transfer encodings and  instead  makes  them  passed  on\n"
-"              unaltered, raw. (Added in 7.16.2)\n"
+"              SFTP  is a binary protocol. Unlike for FTP, curl interprets SFTP\n"
+"              quote commands itself before sending them to the  server.   File\n"
+"              names may be quoted shell-style to embed spaces or special char-\n"
+"              acters.  Following is the list of all supported SFTP quote  com-\n"
+"              mands:\n"
 "\n"
-"       --remote-name-all\n"
 , stdout);

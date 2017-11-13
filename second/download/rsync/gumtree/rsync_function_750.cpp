@@ -1,98 +1,70 @@
-static int *open_socket_in(int type, int port, const char *bind_addr,
-			   int af_hint)
+static int read_unbuffered(int fd, char *buf, size_t len)
 {
-	int one = 1;
-	int s, *socks, maxs, i, ecnt;
-	struct addrinfo hints, *all_ai, *resp;
-	char portbuf[10], **errmsgs;
-	int error;
+	static size_t remaining;
+	int tag, ret = 0;
+	char line[1024];
+	static char *buffer;
+	static size_t bufferIdx = 0;
+	static size_t bufferSz;
 
-	memset(&hints, 0, sizeof hints);
-	hints.ai_family = af_hint;
-	hints.ai_socktype = type;
-	hints.ai_flags = AI_PASSIVE;
-	snprintf(portbuf, sizeof portbuf, "%d", port);
-	error = getaddrinfo(bind_addr, portbuf, &hints, &all_ai);
-	if (error) {
-		rprintf(FERROR, RSYNC_NAME ": getaddrinfo: bind address %s: %s\n",
-			bind_addr, gai_strerror(error));
-		return NULL;
+	if (fd != multiplex_in_fd)
+		return read_timeout(fd, buf, len);
+
+	if (!io_multiplexing_in && remaining == 0) {
+		if (!buffer) {
+			bufferSz = 2 * IO_BUFFER_SIZE;
+			buffer   = new_array(char, bufferSz);
+			if (!buffer) out_of_memory("read_unbuffered");
+		}
+		remaining = read_timeout(fd, buffer, bufferSz);
+		bufferIdx = 0;
 	}
 
-	/* Count max number of sockets we might open. */
-	for (maxs = 0, resp = all_ai; resp; resp = resp->ai_next, maxs++) {}
-
-	socks = new_array(int, maxs + 1);
-	errmsgs = new_array(char *, maxs);
-	if (!socks || !errmsgs)
-		out_of_memory("open_socket_in");
-
-	/* We may not be able to create the socket, if for example the
-	 * machine knows about IPv6 in the C library, but not in the
-	 * kernel. */
-	for (resp = all_ai, i = ecnt = 0; resp; resp = resp->ai_next) {
-		s = socket(resp->ai_family, resp->ai_socktype,
-			   resp->ai_protocol);
-
-		if (s == -1) {
-			int r = asprintf(&errmsgs[ecnt++],
-				"socket(%d,%d,%d) failed: %s\n",
-				(int)resp->ai_family, (int)resp->ai_socktype,
-				(int)resp->ai_protocol, strerror(errno));
-			if (r < 0)
-				out_of_memory("open_socket_in");
-			/* See if there's another address that will work... */
-			continue;
+	while (ret == 0) {
+		if (remaining) {
+			len = MIN(len, remaining);
+			memcpy(buf, buffer + bufferIdx, len);
+			bufferIdx += len;
+			remaining -= len;
+			ret = len;
+			break;
 		}
 
-		setsockopt(s, SOL_SOCKET, SO_REUSEADDR,
-			   (char *)&one, sizeof one);
+		read_loop(fd, line, 4);
+		tag = IVAL(line, 0);
 
-#ifdef IPV6_V6ONLY
-		if (resp->ai_family == AF_INET6) {
-			if (setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY,
-				       (char *)&one, sizeof one) < 0
-			    && default_af_hint != AF_INET6) {
-				close(s);
-				continue;
+		remaining = tag & 0xFFFFFF;
+		tag = (tag >> 24) - MPLEX_BASE;
+
+		switch (tag) {
+		case MSG_DATA:
+			if (!buffer || remaining > bufferSz) {
+				buffer = realloc_array(buffer, char, remaining);
+				if (!buffer) out_of_memory("read_unbuffered");
+				bufferSz = remaining;
 			}
+			read_loop(fd, buffer, remaining);
+			bufferIdx = 0;
+			break;
+		case MSG_INFO:
+		case MSG_ERROR:
+			if (remaining >= sizeof line) {
+				rprintf(FERROR, "multiplexing overflow %d:%ld\n\n",
+					tag, (long)remaining);
+				exit_cleanup(RERR_STREAMIO);
+			}
+			read_loop(fd, line, remaining);
+			rwrite((enum logcode)tag, line, remaining);
+			remaining = 0;
+			break;
+		default:
+			rprintf(FERROR, "unexpected tag %d\n", tag);
+			exit_cleanup(RERR_STREAMIO);
 		}
-#endif
-
-		/* Now we've got a socket - we need to bind it. */
-		if (bind(s, resp->ai_addr, resp->ai_addrlen) < 0) {
-			/* Nope, try another */
-			int r = asprintf(&errmsgs[ecnt++],
-				"bind() failed: %s (address-family %d)\n",
-				strerror(errno), (int)resp->ai_family);
-			if (r < 0)
-				out_of_memory("open_socket_in");
-			close(s);
-			continue;
-		}
-
-		socks[i++] = s;
 	}
-	socks[i] = -1;
 
-	if (all_ai)
-		freeaddrinfo(all_ai);
+	if (remaining == 0)
+		io_flush(NORMAL_FLUSH);
 
-	/* Only output the socket()/bind() messages if we were totally
-	 * unsuccessful, or if the daemon is being run with -vv. */
-	for (s = 0; s < ecnt; s++) {
-		if (!i || verbose > 1)
-			rwrite(FLOG, errmsgs[s], strlen(errmsgs[s]));
-		free(errmsgs[s]);
-	}
-	free(errmsgs);
-
-	if (!i) {
-		rprintf(FERROR,
-			"unable to bind any inbound sockets on port %d\n",
-			port);
-		free(socks);
-		return NULL;
-	}
-	return socks;
+	return ret;
 }

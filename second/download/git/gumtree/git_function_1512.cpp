@@ -1,80 +1,24 @@
-static int get_value(const char *key_, const char *regex_)
+static int show_blob_object(const unsigned char *sha1, struct rev_info *rev, const char *obj_name)
 {
-	int ret = CONFIG_GENERIC_ERROR;
-	struct strbuf_list values = {NULL};
-	int i;
+	unsigned char sha1c[20];
+	struct object_context obj_context;
+	char *buf;
+	unsigned long size;
 
-	if (use_key_regexp) {
-		char *tl;
+	fflush(stdout);
+	if (!DIFF_OPT_TOUCHED(&rev->diffopt, ALLOW_TEXTCONV) ||
+	    !DIFF_OPT_TST(&rev->diffopt, ALLOW_TEXTCONV))
+		return stream_blob_to_fd(1, sha1, NULL, 0);
 
-		/*
-		 * NEEDSWORK: this naive pattern lowercasing obviously does not
-		 * work for more complex patterns like "^[^.]*Foo.*bar".
-		 * Perhaps we should deprecate this altogether someday.
-		 */
+	if (get_sha1_with_context(obj_name, 0, sha1c, &obj_context))
+		die("Not a valid object name %s", obj_name);
+	if (!obj_context.path[0] ||
+	    !textconv_object(obj_context.path, obj_context.mode, sha1c, 1, &buf, &size))
+		return stream_blob_to_fd(1, sha1, NULL, 0);
 
-		key = xstrdup(key_);
-		for (tl = key + strlen(key) - 1;
-		     tl >= key && *tl != '.';
-		     tl--)
-			*tl = tolower(*tl);
-		for (tl = key; *tl && *tl != '.'; tl++)
-			*tl = tolower(*tl);
+	if (!buf)
+		die("git show %s: bad file", obj_name);
 
-		key_regexp = (regex_t*)xmalloc(sizeof(regex_t));
-		if (regcomp(key_regexp, key, REG_EXTENDED)) {
-			fprintf(stderr, "Invalid key pattern: %s\n", key_);
-			free(key_regexp);
-			key_regexp = NULL;
-			ret = CONFIG_INVALID_PATTERN;
-			goto free_strings;
-		}
-	} else {
-		if (git_config_parse_key(key_, &key, NULL)) {
-			ret = CONFIG_INVALID_KEY;
-			goto free_strings;
-		}
-	}
-
-	if (regex_) {
-		if (regex_[0] == '!') {
-			do_not_match = 1;
-			regex_++;
-		}
-
-		regexp = (regex_t*)xmalloc(sizeof(regex_t));
-		if (regcomp(regexp, regex_, REG_EXTENDED)) {
-			fprintf(stderr, "Invalid pattern: %s\n", regex_);
-			free(regexp);
-			regexp = NULL;
-			ret = CONFIG_INVALID_PATTERN;
-			goto free_strings;
-		}
-	}
-
-	git_config_with_options(collect_config, &values,
-				&given_config_source, respect_includes);
-
-	ret = !values.nr;
-
-	for (i = 0; i < values.nr; i++) {
-		struct strbuf *buf = values.items + i;
-		if (do_all || i == values.nr - 1)
-			fwrite(buf->buf, 1, buf->len, stdout);
-		strbuf_release(buf);
-	}
-	free(values.items);
-
-free_strings:
-	free(key);
-	if (key_regexp) {
-		regfree(key_regexp);
-		free(key_regexp);
-	}
-	if (regexp) {
-		regfree(regexp);
-		free(regexp);
-	}
-
-	return ret;
+	write_or_die(1, buf, size);
+	return 0;
 }

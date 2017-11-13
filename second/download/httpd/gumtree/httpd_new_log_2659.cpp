@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01783)
-                          "invalid uri <%s> in Authorization header",
-                          resp->uri);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                 "DBD [%s] Error: %s", svr->cfg->name, errmsg);

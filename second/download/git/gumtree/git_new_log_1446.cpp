@@ -1,1 +1,1 @@
-die("cannot combine --no-walk with --graph");
+error("external filter '%s' failed", entry->subprocess.cmd);

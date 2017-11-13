@@ -1,1 +1,0 @@
-WaitForSingleObject(hthread, INFINITE);

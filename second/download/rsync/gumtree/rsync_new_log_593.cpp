@@ -1,2 +1,2 @@
-rprintf(FERROR,"read %s: %s\n",
-			source,strerror(errno));
+rprintf(FERROR, "send_files failed on long-named directory %s\n",
+				  fname);

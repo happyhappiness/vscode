@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING,
-                             rv, ap_server_conf,
-                             "accept() failed.");
+ap_rvputs(r, "</td><td>", (*worker)->s->redirect, NULL);

@@ -1,157 +1,109 @@
-static apr_status_t store_headers(cache_handle_t *h, request_rec *r,
-        cache_info *info)
+static apr_status_t h2_session_start(h2_session *session, int *rv)
 {
-    cache_socache_dir_conf *dconf =
-            ap_get_module_config(r->per_dir_config, &cache_socache_module);
-    cache_socache_conf *conf = ap_get_module_config(r->server->module_config,
-            &cache_socache_module);
-    apr_size_t slider;
-    apr_status_t rv;
-    cache_object_t *obj = h->cache_obj;
-    cache_socache_object_t *sobj = (cache_socache_object_t*) obj->vobj;
-    cache_socache_info_t *socache_info;
+    apr_status_t status = APR_SUCCESS;
+    nghttp2_settings_entry settings[3];
+    size_t slen;
+    int win_size;
+    
+    ap_assert(session);
+    /* Start the conversation by submitting our SETTINGS frame */
+    *rv = 0;
+    if (session->r) {
+        const char *s, *cs;
+        apr_size_t dlen; 
+        h2_stream * stream;
 
-    memcpy(&h->cache_obj->info, info, sizeof(cache_info));
-
-    if (r->headers_out) {
-        sobj->headers_out = ap_cache_cacheable_headers_out(r);
-    }
-
-    if (r->headers_in) {
-        sobj->headers_in = ap_cache_cacheable_headers_in(r);
-    }
-
-    sobj->expire
-            = obj->info.expire > r->request_time + dconf->maxtime ? r->request_time
-                    + dconf->maxtime
-                    : obj->info.expire + dconf->mintime;
-
-    apr_pool_create(&sobj->pool, r->pool);
-
-    sobj->buffer = apr_palloc(sobj->pool, dconf->max);
-    sobj->buffer_len = dconf->max;
-    socache_info = (cache_socache_info_t *) sobj->buffer;
-
-    if (sobj->headers_out) {
-        const char *vary;
-
-        vary = apr_table_get(sobj->headers_out, "Vary");
-
-        if (vary) {
-            apr_array_header_t* varray;
-            apr_uint32_t format = CACHE_SOCACHE_VARY_FORMAT_VERSION;
-
-            memcpy(sobj->buffer, &format, sizeof(format));
-            slider = sizeof(format);
-
-            memcpy(sobj->buffer + slider, &obj->info.expire,
-                    sizeof(obj->info.expire));
-            slider += sizeof(obj->info.expire);
-
-            varray = apr_array_make(r->pool, 6, sizeof(char*));
-            tokens_to_array(r->pool, vary, varray);
-
-            if (APR_SUCCESS != (rv = store_array(varray, sobj->buffer,
-                    sobj->buffer_len, &slider))) {
-                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02370)
-                        "buffer too small for Vary array, caching aborted: %s",
-                        obj->key);
-                apr_pool_destroy(sobj->pool);
-                sobj->pool = NULL;
-                return rv;
-            }
-            if (socache_mutex) {
-                apr_status_t status = apr_global_mutex_lock(socache_mutex);
-                if (status != APR_SUCCESS) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02371)
-                            "could not acquire lock, ignoring: %s", obj->key);
-                    apr_pool_destroy(sobj->pool);
-                    sobj->pool = NULL;
-                    return status;
-                }
-            }
-            rv = conf->provider->socache_provider->store(
-                    conf->provider->socache_instance, r->server,
-                    (unsigned char *) obj->key, strlen(obj->key), sobj->expire,
-                    (unsigned char *) sobj->buffer, (unsigned int) slider,
-                    sobj->pool);
-            if (socache_mutex) {
-                apr_status_t status = apr_global_mutex_unlock(socache_mutex);
-                if (status != APR_SUCCESS) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02372)
-                            "could not release lock, ignoring: %s", obj->key);
-                }
-            }
-            if (rv != APR_SUCCESS) {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(02373)
-                        "Vary not written to cache, ignoring: %s", obj->key);
-                apr_pool_destroy(sobj->pool);
-                sobj->pool = NULL;
-                return rv;
-            }
-
-            obj->key = sobj->key = regen_key(r->pool, sobj->headers_in, varray,
-                    sobj->name);
+        /* 'h2c' mode: we should have a 'HTTP2-Settings' header with
+         * base64 encoded client settings. */
+        s = apr_table_get(session->r->headers_in, "HTTP2-Settings");
+        if (!s) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_EINVAL, session->r,
+                          APLOGNO(02931) 
+                          "HTTP2-Settings header missing in request");
+            return APR_EINVAL;
+        }
+        cs = NULL;
+        dlen = h2_util_base64url_decode(&cs, s, session->pool);
+        
+        if (APLOGrdebug(session->r)) {
+            char buffer[128];
+            h2_util_hex_dump(buffer, 128, (char*)cs, dlen);
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, session->r, APLOGNO(03070)
+                          "upgrading h2c session with HTTP2-Settings: %s -> %s (%d)",
+                          s, buffer, (int)dlen);
+        }
+        
+        *rv = nghttp2_session_upgrade(session->ngh2, (uint8_t*)cs, dlen, NULL);
+        if (*rv != 0) {
+            status = APR_EINVAL;
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, session->r,
+                          APLOGNO(02932) "nghttp2_session_upgrade: %s", 
+                          nghttp2_strerror(*rv));
+            return status;
+        }
+        
+        /* Now we need to auto-open stream 1 for the request we got. */
+        stream = h2_session_open_stream(session, 1, 0, NULL);
+        if (!stream) {
+            status = APR_EGENERAL;
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, session->r,
+                          APLOGNO(02933) "open stream 1: %s", 
+                          nghttp2_strerror(*rv));
+            return status;
+        }
+        
+        status = h2_stream_set_request_rec(stream, session->r);
+        if (status != APR_SUCCESS) {
+            return status;
+        }
+        status = stream_schedule(session, stream, 1);
+        if (status != APR_SUCCESS) {
+            return status;
         }
     }
 
-    socache_info->format = CACHE_SOCACHE_DISK_FORMAT_VERSION;
-    socache_info->date = obj->info.date;
-    socache_info->expire = obj->info.expire;
-    socache_info->entity_version = sobj->socache_info.entity_version++;
-    socache_info->request_time = obj->info.request_time;
-    socache_info->response_time = obj->info.response_time;
-    socache_info->status = obj->info.status;
-
-    if (r->header_only && r->status != HTTP_NOT_MODIFIED) {
-        socache_info->header_only = 1;
+    slen = 0;
+    settings[slen].settings_id = NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS;
+    settings[slen].value = (uint32_t)session->max_stream_count;
+    ++slen;
+    win_size = h2_config_geti(session->config, H2_CONF_WIN_SIZE);
+    if (win_size != H2_INITIAL_WINDOW_SIZE) {
+        settings[slen].settings_id = NGHTTP2_SETTINGS_INITIAL_WINDOW_SIZE;
+        settings[slen].value = win_size;
+        ++slen;
+    }
+    
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c, APLOGNO(03201)
+                  "h2_session(%ld): start, INITIAL_WINDOW_SIZE=%ld, "
+                  "MAX_CONCURRENT_STREAMS=%d", 
+                  session->id, (long)win_size, (int)session->max_stream_count);
+    *rv = nghttp2_submit_settings(session->ngh2, NGHTTP2_FLAG_NONE,
+                                  settings, slen);
+    if (*rv != 0) {
+        status = APR_EGENERAL;
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, status, session->c,
+                      APLOGNO(02935) "nghttp2_submit_settings: %s", 
+                      nghttp2_strerror(*rv));
     }
     else {
-        socache_info->header_only = sobj->socache_info.header_only;
-    }
-
-    socache_info->name_len = strlen(sobj->name);
-
-    memcpy(&socache_info->control, &obj->info.control, sizeof(cache_control_t));
-    slider = sizeof(cache_socache_info_t);
-
-    if (slider + socache_info->name_len >= sobj->buffer_len) {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02374)
-                "cache buffer too small for name: %s",
-                sobj->name);
-        apr_pool_destroy(sobj->pool);
-        sobj->pool = NULL;
-        return APR_EGENERAL;
-    }
-    memcpy(sobj->buffer + slider, sobj->name, socache_info->name_len);
-    slider += socache_info->name_len;
-
-    if (sobj->headers_out) {
-        if (APR_SUCCESS != store_table(sobj->headers_out, sobj->buffer,
-                sobj->buffer_len, &slider)) {
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02375)
-                    "out-headers didn't fit in buffer: %s", sobj->name);
-            apr_pool_destroy(sobj->pool);
-            sobj->pool = NULL;
-            return APR_EGENERAL;
+        /* use maximum possible value for connection window size. We are only
+         * interested in per stream flow control. which have the initial window
+         * size configured above.
+         * Therefore, for our use, the connection window can only get in the
+         * way. Example: if we allow 100 streams with a 32KB window each, we
+         * buffer up to 3.2 MB of data. Unless we do separate connection window
+         * interim updates, any smaller connection window will lead to blocking
+         * in DATA flow.
+         */
+        *rv = nghttp2_submit_window_update(session->ngh2, NGHTTP2_FLAG_NONE,
+                                           0, NGHTTP2_MAX_WINDOW_SIZE - win_size);
+        if (*rv != 0) {
+            status = APR_EGENERAL;
+            ap_log_cerror(APLOG_MARK, APLOG_ERR, status, session->c,
+                          APLOGNO(02970) "nghttp2_submit_window_update: %s", 
+                          nghttp2_strerror(*rv));        
         }
     }
-
-    /* Parse the vary header and dump those fields from the headers_in. */
-    /* TODO: Make call to the same thing cache_select calls to crack Vary. */
-    if (sobj->headers_in) {
-        if (APR_SUCCESS != store_table(sobj->headers_in, sobj->buffer,
-                sobj->buffer_len, &slider)) {
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, rv, r, APLOGNO(02376)
-                    "in-headers didn't fit in buffer %s",
-                    sobj->key);
-            apr_pool_destroy(sobj->pool);
-            sobj->pool = NULL;
-            return APR_EGENERAL;
-        }
-    }
-
-    sobj->body_offset = slider;
-
-    return APR_SUCCESS;
+    
+    return status;
 }

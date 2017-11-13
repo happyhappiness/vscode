@@ -1,51 +1,16 @@
-static int core_pre_connection(conn_rec *c, void *csd)
+static void util_ldap_child_init(apr_pool_t *p, server_rec *s)
 {
-    core_net_rec *net = apr_palloc(c->pool, sizeof(*net));
-    apr_status_t rv;
+    apr_status_t sts;
+    util_ldap_state_t *st =
+        (util_ldap_state_t *)ap_get_module_config(s->module_config, &ldap_module);
 
-#ifdef AP_MPM_DISABLE_NAGLE_ACCEPTED_SOCK
-    /* BillS says perhaps this should be moved to the MPMs. Some OSes
-     * allow listening socket attributes to be inherited by the
-     * accept sockets which means this call only needs to be made
-     * once on the listener
-     */
-    /* The Nagle algorithm says that we should delay sending partial
-     * packets in hopes of getting more data.  We don't want to do
-     * this; we are not telnet.  There are bad interactions between
-     * persistent connections and Nagle's algorithm that have very severe
-     * performance penalties.  (Failing to disable Nagle is not much of a
-     * problem with simple HTTP.)
-     */
-    rv = apr_socket_opt_set(csd, APR_TCP_NODELAY, 1);
-    if (rv != APR_SUCCESS && rv != APR_ENOTIMPL) {
-        /* expected cause is that the client disconnected already,
-         * hence the debug level
-         */
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rv, c,
-                      "apr_socket_opt_set(APR_TCP_NODELAY)");
+    sts = apr_global_mutex_child_init(&st->util_ldap_cache_lock, st->lock_file, p);
+    if (sts != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, sts, s, "failed to init caching lock in child process");
+        return;
     }
-#endif
-
-    /* The core filter requires the timeout mode to be set, which
-     * incidentally sets the socket to be nonblocking.  If this
-     * is not initialized correctly, Linux - for example - will
-     * be initially blocking, while Solaris will be non blocking
-     * and any initial read will fail.
-     */
-    rv = apr_socket_timeout_set(csd, c->base_server->timeout);
-    if (rv != APR_SUCCESS) {
-        /* expected cause is that the client disconnected already */
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rv, c,
-                     "apr_socket_timeout_set");
+    else {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, s, 
+                     "INIT global mutex %s in child %d ", st->lock_file, getpid());
     }
-
-    net->c = c;
-    net->in_ctx = NULL;
-    net->out_ctx = NULL;
-    net->client_socket = csd;
-
-    ap_set_module_config(net->c->conn_config, &core_module, csd);
-    ap_add_input_filter_handle(ap_core_input_filter_handle, net, NULL, net->c);
-    ap_add_output_filter_handle(ap_core_output_filter_handle, net, NULL, net->c);
-    return DONE;
 }

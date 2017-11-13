@@ -1,6 +1,2 @@
-printf("%s%c%d %d %d\n",
-	       hex,
-	       ent->guilty ? ' ' : '*', /* purely for debugging */
-	       ent->s_lno + 1,
-	       ent->lno + 1,
-	       ent->num_lines);
+error("Object %s is a %s, not a tree",
+		      sha1_to_hex(sha1), typename(obj->type));

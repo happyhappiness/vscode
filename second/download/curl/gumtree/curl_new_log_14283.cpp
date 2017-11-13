@@ -1,9 +1,9 @@
 fputs(
-"              Continue/Resume a previous file transfer at  the  given  offset.\n"
-"              The  given  offset  is  the  exact  number of bytes that will be\n"
-"              skipped, counting from the beginning of the source  file  before\n"
-"              it is transferred to the destination.  If used with uploads, the\n"
-"              FTP server command SIZE will not be used by curl.\n"
+"              default config file is checked for in the  following  places  in\n"
+"              this order:\n"
 "\n"
-"              Use \"-C -\" to tell curl to automatically find out  where/how  to\n"
+"              1)  curl  tries  to find the \"home dir\": It first checks for the\n"
+"              CURL_HOME and then the HOME environment variables. Failing that,\n"
+"              it  uses getpwuid() on Unix-like systems (which returns the home\n"
+"              dir given the current user in your system). On Windows, it  then\n"
 , stdout);

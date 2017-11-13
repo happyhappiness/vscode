@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ServerLimit of %d exceeds compile-time "
-                         "limit of", server_limit);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_parse_headers: wrong type %02x expecting 0x04", result);

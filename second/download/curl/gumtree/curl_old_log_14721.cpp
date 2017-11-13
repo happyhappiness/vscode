@@ -1,11 +1,11 @@
 fputs(
-"              entire  operation  will  be aborted. You must send syntactically\n"
-"              correct FTP commands as RFC 959 defines to FTP servers,  or  one\n"
-"              of the commands listed below to SFTP servers.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              This  option can be used multiple times. When speaking to an FTP\n"
-"              server, prefix the command with an asterisk  (*)  to  make  curl\n"
-"              continue  even if the command fails as by default curl will stop\n"
-"              at first failure.\n"
+"       -x, --proxy [protocol://]host[:port]\n"
+"              Use the specified proxy.\n"
 "\n"
+"              The proxy string can be specified with a protocol:// prefix.  No\n"
+"              protocol specified or http:// will be treated as HTTP proxy. Use\n"
+"              socks4://, socks4a://, socks5:// or socks5h:// to request a spe-\n"
+"              cific SOCKS version to be used.  (The protocol support was added\n"
 , stdout);

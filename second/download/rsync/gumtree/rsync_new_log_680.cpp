@@ -1,1 +1,1 @@
-out_of_memory("write_file");
+io_printf(f_out, "%s\n", path);

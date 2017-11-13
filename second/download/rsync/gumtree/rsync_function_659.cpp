@@ -1,54 +1,52 @@
-static void singleOptionHelp(FILE * f, int maxLeftCol, 
-			     const struct poptOption * opt,
-			     const char *translation_domain) {
-    int indentLength = maxLeftCol + 5;
-    int lineLength = 79 - indentLength;
-    const char * help = D_(translation_domain, opt->descrip);
-    int helpLength;
-    const char * ch;
-    char format[10];
-    char * left;
-    const char * argDescrip = getArgDescrip(opt, translation_domain);
+int daemon_main(void)
+{
+	extern char *config_file;
+	extern int orig_umask;
+	char *pid_file;
 
-    left = malloc(maxLeftCol + 1);
-    *left = '\0';
+	if (is_a_socket(STDIN_FILENO)) {
+		int i;
 
-    if (opt->longName && opt->shortName)
-	sprintf(left, "-%c, --%s", opt->shortName, opt->longName);
-    else if (opt->shortName) 
-	sprintf(left, "-%c", opt->shortName);
-    else if (opt->longName)
-	sprintf(left, "--%s", opt->longName);
-    if (!*left) return ;
-    if (argDescrip) {
-	strcat(left, "=");
-	strcat(left, argDescrip);
-    }
+		/* we are running via inetd - close off stdout and
+		   stderr so that library functions (and getopt) don't
+		   try to use them. Redirect them to /dev/null */
+		for (i=1;i<3;i++) {
+			close(i); 
+			open("/dev/null", O_RDWR);
+		}
 
-    if (help)
-	fprintf(f,"  %-*s   ", maxLeftCol, left);
-    else {
-	fprintf(f,"  %s\n", left); 
-	goto out;
-    }
+		set_nonblocking(STDIN_FILENO);
 
-    helpLength = strlen(help);
-    while (helpLength > lineLength) {
-	ch = help + lineLength - 1;
-	while (ch > help && !isspace(*ch)) ch--;
-	if (ch == help) break;		/* give up */
-	while (ch > (help + 1) && isspace(*ch)) ch--;
-	ch++;
+		return start_daemon(STDIN_FILENO);
+	}
 
-	sprintf(format, "%%.%ds\n%%%ds", (int) (ch - help), indentLength);
-	fprintf(f, format, help, " ");
-	help = ch;
-	while (isspace(*help) && *help) help++;
-	helpLength = strlen(help);
-    }
+	become_daemon();
 
-    if (helpLength) fprintf(f, "%s\n", help);
+	if (!lp_load(config_file, 1)) {
+		fprintf(stderr,"failed to load config file %s\n", config_file);
+		exit_cleanup(RERR_SYNTAX);
+	}
 
-out:
-    free(left);
+	log_open();
+
+	rprintf(FINFO,"rsyncd version %s starting\n",VERSION);
+
+	if (((pid_file = lp_pid_file()) != NULL) && (*pid_file != '\0')) {
+		char pidbuf[16];
+		int fd;
+		int pid = (int) getpid();
+		cleanup_set_pid(pid);
+		if ((fd = do_open(lp_pid_file(), O_WRONLY|O_CREAT|O_TRUNC,
+					0666 & ~orig_umask)) == -1) {
+		    cleanup_set_pid(0);
+		    fprintf(stderr,"failed to create pid file %s\n", pid_file);
+		    exit_cleanup(RERR_FILEIO);
+		}
+		slprintf(pidbuf, sizeof(pidbuf), "%d\n", pid);
+		write(fd, pidbuf, strlen(pidbuf));
+		close(fd);
+	}
+
+	start_accept_loop(rsync_port, start_daemon);
+	return -1;
 }

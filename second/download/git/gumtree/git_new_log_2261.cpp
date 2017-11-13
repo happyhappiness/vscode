@@ -1,1 +1,1 @@
-die(_("Unknown commit %s"), base_commit);
+die("unable to generate diff");

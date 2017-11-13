@@ -1,1 +1,1 @@
-fprintf(fh, "%s%s\n", prefix, msg);
+wt_longstatus_print_other(s, &s->ignored, _("Ignored files"), "add -f");

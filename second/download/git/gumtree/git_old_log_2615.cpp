@@ -1,1 +1,2 @@
-printf("Message-Id: <%s>\n", opt->message_id);
+error("Object %s not a tree",
+			     sha1_to_hex(item->object.sha1));

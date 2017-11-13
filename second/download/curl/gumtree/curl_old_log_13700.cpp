@@ -1,9 +1,9 @@
 fputs(
-"              same but does not have a special interpretation of the @ charac-\n"
-"              ter. To post data purely binary,  you  should  instead  use  the\n"
-"              --data-binary  option.   To URL-encode the value of a form field\n"
-"              you may use --data-urlencode.\n"
+"              of ciphers must specify valid ciphers. Read  up  on  SSL  cipher\n"
+"              list           details           on           this          URL:\n"
+"              https://www.openssl.org/docs/apps/ciphers.html\n"
 "\n"
-"              If any of these options is used more than once on the same  com-\n"
-"              mand  line,  the  data  pieces specified will be merged together\n"
+"              NSS ciphers are done differently than OpenSSL  and  GnuTLS.  The\n"
+"              full  list of NSS ciphers is in the NSSCipherSuite entry at this\n"
+"              URL:                                         https://git.fedora-\n"
 , stdout);

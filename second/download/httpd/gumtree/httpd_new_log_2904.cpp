@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "ServerSupportFunction HSE_REQ_ABORTIVE_CLOSE"
-                          " is not supported: %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "possible match at idx=%d, data=%d", pos, idx->data_pos);

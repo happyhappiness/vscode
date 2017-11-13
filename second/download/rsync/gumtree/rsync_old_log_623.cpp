@@ -1,1 +1,1 @@
-io_printf(fd,"@ERROR: invalid gid\n");
+fprintf(FERROR,"ERROR: out of memory in %s\n",str);

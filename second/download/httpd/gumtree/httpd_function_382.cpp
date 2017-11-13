@@ -1,15 +1,8 @@
-static void cgid_child_errfn(apr_pool_t *pool, apr_status_t err,
-                             const char *description)
+static void ssl_hook_Insert_Filter(request_rec *r)
 {
-    request_rec *r;
-    void *vr;
+    NWSSLSrvConfigRec *sc = get_nwssl_cfg(r->server);
 
-    apr_pool_userdata_get(&vr, ERRFN_USERDATA_KEY, pool);
-    r = vr;
-
-    /* sure we got r, but don't call ap_log_rerror() because we don't
-     * have r->headers_in and possibly other storage referenced by
-     * ap_log_rerror()
-     */
-    ap_log_error(APLOG_MARK, APLOG_ERR, err, r->server, "%s", description);
+    if (isSecureUpgradeable (r)) {
+        ap_add_output_filter("UPGRADE_FILTER", NULL, r, r->connection);
+    }
 }

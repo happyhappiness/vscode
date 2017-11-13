@@ -1,123 +1,106 @@
-static apr_status_t ssl_io_filter_coalesce(ap_filter_t *f,
-                                           apr_bucket_brigade *bb)
+static int proxy_ajp_handler(request_rec *r, proxy_worker *worker,
+                             proxy_server_conf *conf,
+                             char *url, const char *proxyname,
+                             apr_port_t proxyport)
 {
-    apr_bucket *e, *last = NULL;
-    apr_size_t bytes = 0;
-    struct coalesce_ctx *ctx = f->ctx;
-    unsigned count = 0;
+    int status;
+    char server_portstr[32];
+    conn_rec *origin = NULL;
+    proxy_conn_rec *backend = NULL;
+    const char *scheme = "AJP";
+    int retry;
+    proxy_dir_conf *dconf = ap_get_module_config(r->per_dir_config,
+                                                 &proxy_module);
 
-    /* The brigade consists of zero-or-more small data buckets which
-     * can be coalesced (the prefix), followed by the remainder of the
-     * brigade.
+    /*
+     * Note: Memory pool allocation.
+     * A downstream keepalive connection is always connected to the existence
+     * (or not) of an upstream keepalive connection. If this is not done then
+     * load balancing against multiple backend servers breaks (one backend
+     * server ends up taking 100% of the load), and the risk is run of
+     * downstream keepalive connections being kept open unnecessarily. This
+     * keeps webservers busy and ties up resources.
      *
-     * Find the last bucket - if any - of that prefix.  count gives
-     * the number of buckets in the prefix.  The "prefix" must contain
-     * only data buckets with known length, and must be of a total
-     * size which fits into the buffer.
-     *
-     * N.B.: The process here could be repeated throughout the brigade
-     * (coalesce any run of consecutive data buckets) but this would
-     * add significant complexity, particularly to memory
-     * management. */
-    for (e = APR_BRIGADE_FIRST(bb);
-         e != APR_BRIGADE_SENTINEL(bb)
-             && !APR_BUCKET_IS_METADATA(e)
-             && e->length != (apr_size_t)-1
-             && e->length < COALESCE_BYTES
-             && (bytes + e->length) < COALESCE_BYTES
-             && (ctx == NULL
-                 || bytes + ctx->bytes + e->length < COALESCE_BYTES);
-         e = APR_BUCKET_NEXT(e)) {
-        last = e;
-        if (e->length) count++; /* don't count zero-length buckets */
-        bytes += e->length;
-    }
-
-    /* Coalesce the prefix, if:
-     * a) more than one bucket is found to coalesce, or
-     * b) the brigade contains only a single data bucket, or
-     * c)
+     * As a result, we allocate all sockets out of the upstream connection
+     * pool, and when we want to reuse a socket, we check first whether the
+     * connection ID of the current upstream connection is the same as that
+     * of the connection when the socket was opened.
      */
-    if (bytes > 0
-        && (count > 1
-            || (count == 1 && APR_BUCKET_NEXT(last) == APR_BRIGADE_SENTINEL(bb)))) {
-        /* If coalescing some bytes, ensure a context has been
-         * created. */
-        if (!ctx) {
-            f->ctx = ctx = apr_palloc(f->c->pool, sizeof *ctx);
-            ctx->bytes = 0;
+    apr_pool_t *p = r->connection->pool;
+    apr_uri_t *uri = apr_palloc(r->connection->pool, sizeof(*uri));
+
+
+    if (strncasecmp(url, "ajp:", 4) != 0) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: AJP: declining URL %s", url);
+        return DECLINED;
+    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: AJP: serving URL %s", url);
+
+    /* create space for state information */
+    status = ap_proxy_acquire_connection(scheme, &backend, worker,
+                                         r->server);
+    if (status != OK) {
+        if (backend) {
+            backend->close = 1;
+            ap_proxy_release_connection(scheme, backend, r->server);
+        }
+        return status;
+    }
+
+    backend->is_ssl = 0;
+    backend->close = 0;
+
+    retry = 0;
+    while (retry < 2) {
+        char *locurl = url;
+        /* Step One: Determine Who To Connect To */
+        status = ap_proxy_determine_connection(p, r, conf, worker, backend,
+                                               uri, &locurl, proxyname, proxyport,
+                                               server_portstr,
+                                               sizeof(server_portstr));
+
+        if (status != OK)
+            break;
+
+        /* Step Two: Make the Connection */
+        if (ap_proxy_connect_backend(scheme, backend, worker, r->server)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                         "proxy: AJP: failed to make connection to backend: %s",
+                         backend->hostname);
+            status = HTTP_SERVICE_UNAVAILABLE;
+            break;
         }
 
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, f->c,
-                      "coalesce: have %" APR_SIZE_T_FMT " bytes, "
-                      "adding %" APR_SIZE_T_FMT " more", ctx->bytes, bytes);
-
-        /* Iterate through the prefix segment.  For non-fatal errors
-         * in this loop it is safe to break out and fall back to the
-         * normal path of sending the buffer + remaining buckets in
-         * brigade.  */
-        e = APR_BRIGADE_FIRST(bb);
-        while (e != last) {
-            apr_size_t len;
-            const char *data;
-            apr_bucket *next;
-
-            if (APR_BUCKET_IS_METADATA(e)
-                || e->length == (apr_size_t)-1) {
-                ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, f->c, APLOGNO(02012)
-                              "unexpected bucket type during coalesce");
-                break; /* non-fatal error; break out */
+        /* Handle CPING/CPONG */
+        if (worker->ping_timeout_set) {
+            status = ajp_handle_cping_cpong(backend->sock, r,
+                                            worker->ping_timeout);
+            /*
+             * In case the CPING / CPONG failed for the first time we might be
+             * just out of luck and got a faulty backend connection, but the
+             * backend might be healthy nevertheless. So ensure that the backend
+             * TCP connection gets closed and try it once again.
+             */
+            if (status != APR_SUCCESS) {
+                backend->close++;
+                ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                             "proxy: AJP: cping/cpong failed to %pI (%s)",
+                             worker->cp->addr,
+                             worker->hostname);
+                status = HTTP_SERVICE_UNAVAILABLE;
+                retry++;
+                continue;
             }
-
-            if (e->length) {
-                apr_status_t rv;
-
-                /* A blocking read should be fine here for a
-                 * known-length data bucket, rather than the usual
-                 * non-block/flush/block.  */
-                rv = apr_bucket_read(e, &data, &len, APR_BLOCK_READ);
-                if (rv) {
-                    ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, f->c, APLOGNO(02013)
-                                  "coalesce failed to read from data bucket");
-                    return AP_FILTER_ERROR;
-                }
-
-                /* Be paranoid. */
-                if (len > sizeof ctx->buffer
-                    || (len + ctx->bytes > sizeof ctx->buffer)) {
-                    ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, f->c, APLOGNO(02014)
-                                  "unexpected coalesced bucket data length");
-                    break; /* non-fatal error; break out */
-                }
-
-                memcpy(ctx->buffer + ctx->bytes, data, len);
-                ctx->bytes += len;
-            }
-
-            next = APR_BUCKET_NEXT(e);
-            apr_bucket_delete(e);
-            e = next;
         }
+        /* Step Three: Process the Request */
+        status = ap_proxy_ajp_request(p, r, backend, origin, dconf, uri, locurl,
+                                      server_portstr);
+        break;
     }
 
-    if (APR_BRIGADE_EMPTY(bb)) {
-        /* If the brigade is now empty, our work here is done. */
-        return APR_SUCCESS;
-    }
-
-    /* If anything remains in the brigade, it must now be passed down
-     * the filter stack, first prepending anything that has been
-     * coalesced. */
-    if (ctx && ctx->bytes) {
-        apr_bucket *e;
-
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, f->c,
-                      "coalesce: passing on %" APR_SIZE_T_FMT " bytes", ctx->bytes);
-
-        e = apr_bucket_transient_create(ctx->buffer, ctx->bytes, bb->bucket_alloc);
-        APR_BRIGADE_INSERT_HEAD(bb, e);
-        ctx->bytes = 0; /* buffer now emptied. */
-    }
-
-    return ap_pass_brigade(f->next, bb);
+    /* Do not close the socket */
+    ap_proxy_release_connection(scheme, backend, r->server);
+    return status;
 }

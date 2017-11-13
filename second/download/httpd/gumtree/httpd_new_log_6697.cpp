@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                             APLOGNO(02554) "could not restore %s", fname);
+ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, server,
+                     "%s: reusing backend connection %pI<>%pI",
+                     scheme, conn->connection->local_addr,
+                     conn->connection->client_addr);

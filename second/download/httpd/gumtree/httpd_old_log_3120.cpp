@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "The \"propfind\" element was not found.");
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "Digest: cannot check nonce count without shared memory");

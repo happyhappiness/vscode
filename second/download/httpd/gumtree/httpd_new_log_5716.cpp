@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf, APLOGNO(03140)
-                     "ap_queue_init() failed");
+ap_log_rerror(
+                APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02841) "core: ErrorDocument: can't "
+                "evaluate require expression: %s", err);

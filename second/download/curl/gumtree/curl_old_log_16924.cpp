@@ -1,0 +1,15 @@
+puts(
+"        curl -y 3000 -Y 60 www.far-away-site.com\n"
+"\n"
+"  This can very well be used in combination with the overall time limit, so\n"
+"  that the above operatioin must be completed in whole within 30 minutes:\n"
+"\n"
+"        curl -m 1800 -y 3000 -Y 60 www.far-away-site.com\n"
+"\n"
+"CONFIG FILE\n"
+"\n"
+"  Curl automatically tries to read the .curlrc file (or _curlrc file on win32\n"
+"  systems) from the user's home dir on startup.\n"
+"\n"
+"  The config file could be made up with normal command line switches, but you\n"
+);

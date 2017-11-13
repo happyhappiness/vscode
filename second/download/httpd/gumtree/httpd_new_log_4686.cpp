@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf, APLOGNO(00339)
-                                     "Child: Encountered too many AcceptEx "
-                                     "faults accepting client connections.");
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02286)
+                     "Failed to open ticket key file %s: (%d) %pm",
+                     path, rv, &rv);

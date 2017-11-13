@@ -1,51 +1,50 @@
-static void stats (FILE *output)
+static int set_group_privs(void)
 {
-    int i;
-    char *ipstring;
-    struct nsrec *current;
-    char *errstring[MAX_ERR + 3];
+    if (!geteuid()) {
+        const char *name;
 
-    for (i = 0; i < MAX_ERR + 3; i++)
-        errstring[i] = "Unknown error";
-    errstring[HOST_NOT_FOUND] = "Host not found";
-    errstring[TRY_AGAIN] = "Try again";
-    errstring[NO_RECOVERY] = "Non recoverable error";
-    errstring[NO_DATA] = "No data record";
-    errstring[NO_ADDRESS] = "No address";
-    errstring[NO_REVERSE] = "No reverse entry";
+        /* Get username if passed as a uid */
 
-    fprintf(output, "logresolve Statistics:\n");
+        if (unixd_config.user_name[0] == '#') {
+            struct passwd *ent;
+            uid_t uid = atoi(&unixd_config.user_name[1]);
 
-    fprintf(output, "Entries: %d\n", entries);
-    fprintf(output, "    With name   : %d\n", withname);
-    fprintf(output, "    Resolves    : %d\n", resolves);
-    if (errors[HOST_NOT_FOUND])
-        fprintf(output, "    - Not found : %d\n", errors[HOST_NOT_FOUND]);
-    if (errors[TRY_AGAIN])
-        fprintf(output, "    - Try again : %d\n", errors[TRY_AGAIN]);
-    if (errors[NO_DATA])
-        fprintf(output, "    - No data   : %d\n", errors[NO_DATA]);
-    if (errors[NO_ADDRESS])
-        fprintf(output, "    - No address: %d\n", errors[NO_ADDRESS]);
-    if (errors[NO_REVERSE])
-        fprintf(output, "    - No reverse: %d\n", errors[NO_REVERSE]);
-    fprintf(output, "Cache hits      : %d\n", cachehits);
-    fprintf(output, "Cache size      : %d\n", cachesize);
-    fprintf(output, "Cache buckets   :     IP number * hostname\n");
-
-    for (i = 0; i < BUCKETS; i++)
-        for (current = nscache[i]; current != NULL; current = current->next) {
-            ipstring = inet_ntoa(current->ipnum);
-            if (current->noname == 0)
-                fprintf(output, "  %3d  %15s - %s\n", i, ipstring,
-                        current->hostname);
-            else {
-                if (current->noname > MAX_ERR + 2)
-                    fprintf(output, "  %3d  %15s : Unknown error\n", i,
-                            ipstring);
-                else
-                    fprintf(output, "  %3d  %15s : %s\n", i, ipstring,
-                            errstring[current->noname]);
+            if ((ent = getpwuid(uid)) == NULL) {
+                ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
+                         "getpwuid: couldn't determine user name from uid %u, "
+                         "you probably need to modify the User directive",
+                         (unsigned)uid);
+                return -1;
             }
+
+            name = ent->pw_name;
         }
+        else
+            name = unixd_config.user_name;
+
+#if !defined(OS2) && !defined(TPF)
+        /* OS/2 and TPF don't support groups. */
+
+        /*
+         * Set the GID before initgroups(), since on some platforms
+         * setgid() is known to zap the group list.
+         */
+        if (setgid(unixd_config.group_id) == -1) {
+            ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
+                        "setgid: unable to set group id to Group %u",
+                        (unsigned)unixd_config.group_id);
+            return -1;
+        }
+
+        /* Reset `groups' attributes. */
+
+        if (initgroups(name, unixd_config.group_id) == -1) {
+            ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
+                        "initgroups: unable to set groups for User %s "
+                        "and Group %u", name, (unsigned)unixd_config.group_id);
+            return -1;
+        }
+#endif /* !defined(OS2) && !defined(TPF) */
+    }
+    return 0;
 }

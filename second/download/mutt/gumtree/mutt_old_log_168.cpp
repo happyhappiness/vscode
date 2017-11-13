@@ -1,1 +1,1 @@
-state_attach_puts (t1, s);
+state_attach_puts (p, s);

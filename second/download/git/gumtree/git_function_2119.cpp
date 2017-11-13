@@ -1,17 +1,17 @@
-static void read_from_stdin(struct shortlog *log)
+static int run_gpg_verify(const unsigned char *sha1, const char *buf, unsigned long size, int verbose)
 {
-	char author[1024], oneline[1024];
+	struct signature_check signature_check;
 
-	while (fgets(author, sizeof(author), stdin) != NULL) {
-		if (!(author[0] == 'A' || author[0] == 'a') ||
-		    !starts_with(author + 1, "uthor: "))
-			continue;
-		while (fgets(oneline, sizeof(oneline), stdin) &&
-		       oneline[0] != '\n')
-			; /* discard headers */
-		while (fgets(oneline, sizeof(oneline), stdin) &&
-		       oneline[0] == '\n')
-			; /* discard blanks */
-		insert_one_record(log, author + 8, oneline);
-	}
+	memset(&signature_check, 0, sizeof(signature_check));
+
+	check_commit_signature(lookup_commit(sha1), &signature_check);
+
+	if (verbose && signature_check.payload)
+		fputs(signature_check.payload, stdout);
+
+	if (signature_check.gpg_output)
+		fputs(signature_check.gpg_output, stderr);
+
+	signature_check_clear(&signature_check);
+	return signature_check.result != 'G';
 }

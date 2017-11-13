@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
-                         "ResetEvent(shutdown_event)");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Re-negotiation handshake failed: "
+                                  "Client certificate missing");

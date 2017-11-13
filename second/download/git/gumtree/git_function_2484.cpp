@@ -1,145 +1,189 @@
-static int checkout_paths(const struct checkout_opts *opts,
-			  const char *revision)
+void show_log(struct rev_info *opt)
 {
-	int pos;
-	struct checkout state;
-	static char *ps_matched;
-	unsigned char rev[20];
-	struct commit *head;
-	int errs = 0;
-	struct lock_file *lock_file;
+	struct strbuf msgbuf = STRBUF_INIT;
+	struct log_info *log = opt->loginfo;
+	struct commit *commit = log->commit, *parent = log->parent;
+	int abbrev_commit = opt->abbrev_commit ? opt->abbrev : 40;
+	const char *extra_headers = opt->extra_headers;
+	struct pretty_print_context ctx = {0};
 
-	if (opts->track != BRANCH_TRACK_UNSPECIFIED)
-		die(_("'%s' cannot be used with updating paths"), "--track");
+	opt->loginfo = NULL;
+	if (!opt->verbose_header) {
+		graph_show_commit(opt->graph);
 
-	if (opts->new_branch_log)
-		die(_("'%s' cannot be used with updating paths"), "-l");
-
-	if (opts->force && opts->patch_mode)
-		die(_("'%s' cannot be used with updating paths"), "-f");
-
-	if (opts->force_detach)
-		die(_("'%s' cannot be used with updating paths"), "--detach");
-
-	if (opts->merge && opts->patch_mode)
-		die(_("'%s' cannot be used with %s"), "--merge", "--patch");
-
-	if (opts->force && opts->merge)
-		die(_("'%s' cannot be used with %s"), "-f", "-m");
-
-	if (opts->new_branch)
-		die(_("Cannot update paths and switch to branch '%s' at the same time."),
-		    opts->new_branch);
-
-	if (opts->patch_mode)
-		return run_add_interactive(revision, "--patch=checkout",
-					   &opts->pathspec);
-
-	lock_file = xcalloc(1, sizeof(struct lock_file));
-
-	hold_locked_index(lock_file, 1);
-	if (read_cache_preload(&opts->pathspec) < 0)
-		return error(_("corrupt index file"));
-
-	if (opts->source_tree)
-		read_tree_some(opts->source_tree, &opts->pathspec);
-
-	ps_matched = xcalloc(opts->pathspec.nr, 1);
+		if (!opt->graph)
+			put_revision_mark(opt, commit);
+		fputs(find_unique_abbrev(commit->object.sha1, abbrev_commit), stdout);
+		if (opt->print_parents)
+			show_parents(commit, abbrev_commit);
+		if (opt->children.name)
+			show_children(opt, commit, abbrev_commit);
+		show_decorations(opt, commit);
+		if (opt->graph && !graph_is_commit_finished(opt->graph)) {
+			putchar('\n');
+			graph_show_remainder(opt->graph);
+		}
+		putchar(opt->diffopt.line_termination);
+		return;
+	}
 
 	/*
-	 * Make sure all pathspecs participated in locating the paths
-	 * to be checked out.
+	 * If use_terminator is set, we already handled any record termination
+	 * at the end of the last record.
+	 * Otherwise, add a diffopt.line_termination character before all
+	 * entries but the first.  (IOW, as a separator between entries)
 	 */
-	for (pos = 0; pos < active_nr; pos++) {
-		struct cache_entry *ce = active_cache[pos];
-		ce->ce_flags &= ~CE_MATCHED;
-		if (!opts->ignore_skipworktree && ce_skip_worktree(ce))
-			continue;
-		if (opts->source_tree && !(ce->ce_flags & CE_UPDATE))
-			/*
-			 * "git checkout tree-ish -- path", but this entry
-			 * is in the original index; it will not be checked
-			 * out to the working tree and it does not matter
-			 * if pathspec matched this entry.  We will not do
-			 * anything to this entry at all.
-			 */
-			continue;
+	if (opt->shown_one && !opt->use_terminator) {
 		/*
-		 * Either this entry came from the tree-ish we are
-		 * checking the paths out of, or we are checking out
-		 * of the index.
+		 * If entries are separated by a newline, the output
+		 * should look human-readable.  If the last entry ended
+		 * with a newline, print the graph output before this
+		 * newline.  Otherwise it will end up as a completely blank
+		 * line and will look like a gap in the graph.
 		 *
-		 * If it comes from the tree-ish, we already know it
-		 * matches the pathspec and could just stamp
-		 * CE_MATCHED to it from update_some(). But we still
-		 * need ps_matched and read_tree_recursive (and
-		 * eventually tree_entry_interesting) cannot fill
-		 * ps_matched yet. Once it can, we can avoid calling
-		 * match_pathspec() for _all_ entries when
-		 * opts->source_tree != NULL.
+		 * If the entry separator is not a newline, the output is
+		 * primarily intended for programmatic consumption, and we
+		 * never want the extra graph output before the entry
+		 * separator.
 		 */
-		if (ce_path_match(ce, &opts->pathspec, ps_matched))
-			ce->ce_flags |= CE_MATCHED;
+		if (opt->diffopt.line_termination == '\n' &&
+		    !opt->missing_newline)
+			graph_show_padding(opt->graph);
+		putchar(opt->diffopt.line_termination);
 	}
+	opt->shown_one = 1;
 
-	if (report_path_error(ps_matched, &opts->pathspec, opts->prefix)) {
-		free(ps_matched);
-		return 1;
-	}
-	free(ps_matched);
+	/*
+	 * If the history graph was requested,
+	 * print the graph, up to this commit's line
+	 */
+	graph_show_commit(opt->graph);
 
-	/* "checkout -m path" to recreate conflicted state */
-	if (opts->merge)
-		unmerge_marked_index(&the_index);
+	/*
+	 * Print header line of header..
+	 */
 
-	/* Any unmerged paths? */
-	for (pos = 0; pos < active_nr; pos++) {
-		const struct cache_entry *ce = active_cache[pos];
-		if (ce->ce_flags & CE_MATCHED) {
-			if (!ce_stage(ce))
-				continue;
-			if (opts->force) {
-				warning(_("path '%s' is unmerged"), ce->name);
-			} else if (opts->writeout_stage) {
-				errs |= check_stage(opts->writeout_stage, ce, pos);
-			} else if (opts->merge) {
-				errs |= check_stages((1<<2) | (1<<3), ce, pos);
-			} else {
-				errs = 1;
-				error(_("path '%s' is unmerged"), ce->name);
-			}
-			pos = skip_same_name(ce, pos) - 1;
+	if (opt->commit_format == CMIT_FMT_EMAIL) {
+		log_write_email_headers(opt, commit, &ctx.subject, &extra_headers,
+					&ctx.need_8bit_cte);
+	} else if (opt->commit_format != CMIT_FMT_USERFORMAT) {
+		fputs(diff_get_color_opt(&opt->diffopt, DIFF_COMMIT), stdout);
+		if (opt->commit_format != CMIT_FMT_ONELINE)
+			fputs("commit ", stdout);
+
+		if (!opt->graph)
+			put_revision_mark(opt, commit);
+		fputs(find_unique_abbrev(commit->object.sha1, abbrev_commit),
+		      stdout);
+		if (opt->print_parents)
+			show_parents(commit, abbrev_commit);
+		if (opt->children.name)
+			show_children(opt, commit, abbrev_commit);
+		if (parent)
+			printf(" (from %s)",
+			       find_unique_abbrev(parent->object.sha1,
+						  abbrev_commit));
+		fputs(diff_get_color_opt(&opt->diffopt, DIFF_RESET), stdout);
+		show_decorations(opt, commit);
+		if (opt->commit_format == CMIT_FMT_ONELINE) {
+			putchar(' ');
+		} else {
+			putchar('\n');
+			graph_show_oneline(opt->graph);
+		}
+		if (opt->reflog_info) {
+			/*
+			 * setup_revisions() ensures that opt->reflog_info
+			 * and opt->graph cannot both be set,
+			 * so we don't need to worry about printing the
+			 * graph info here.
+			 */
+			show_reflog_message(opt->reflog_info,
+					    opt->commit_format == CMIT_FMT_ONELINE,
+					    &opt->date_mode,
+					    opt->date_mode_explicit);
+			if (opt->commit_format == CMIT_FMT_ONELINE)
+				return;
 		}
 	}
-	if (errs)
-		return 1;
 
-	/* Now we are committed to check them out */
-	memset(&state, 0, sizeof(state));
-	state.force = 1;
-	state.refresh_cache = 1;
-	state.istate = &the_index;
-	for (pos = 0; pos < active_nr; pos++) {
-		struct cache_entry *ce = active_cache[pos];
-		if (ce->ce_flags & CE_MATCHED) {
-			if (!ce_stage(ce)) {
-				errs |= checkout_entry(ce, &state, NULL);
-				continue;
-			}
-			if (opts->writeout_stage)
-				errs |= checkout_stage(opts->writeout_stage, ce, pos, &state);
-			else if (opts->merge)
-				errs |= checkout_merged(pos, &state);
-			pos = skip_same_name(ce, pos) - 1;
-		}
+	if (opt->show_signature) {
+		show_signature(opt, commit);
+		show_mergetag(opt, commit);
 	}
 
-	if (write_locked_index(&the_index, lock_file, COMMIT_LOCK))
-		die(_("unable to write new index file"));
+	if (!get_cached_commit_buffer(commit, NULL))
+		return;
 
-	read_ref_full("HEAD", 0, rev, NULL);
-	head = lookup_commit_reference_gently(rev, 1);
+	if (opt->show_notes) {
+		int raw;
+		struct strbuf notebuf = STRBUF_INIT;
 
-	errs |= post_checkout_hook(head, head, 0);
-	return errs;
+		raw = (opt->commit_format == CMIT_FMT_USERFORMAT);
+		format_display_notes(commit->object.sha1, &notebuf,
+				     get_log_output_encoding(), raw);
+		ctx.notes_message = notebuf.len
+			? strbuf_detach(&notebuf, NULL)
+			: xcalloc(1, 1);
+	}
+
+	/*
+	 * And then the pretty-printed message itself
+	 */
+	if (ctx.need_8bit_cte >= 0 && opt->add_signoff)
+		ctx.need_8bit_cte =
+			has_non_ascii(fmt_name(getenv("GIT_COMMITTER_NAME"),
+					       getenv("GIT_COMMITTER_EMAIL")));
+	ctx.date_mode = opt->date_mode;
+	ctx.date_mode_explicit = opt->date_mode_explicit;
+	ctx.abbrev = opt->diffopt.abbrev;
+	ctx.after_subject = extra_headers;
+	ctx.preserve_subject = opt->preserve_subject;
+	ctx.reflog_info = opt->reflog_info;
+	ctx.fmt = opt->commit_format;
+	ctx.mailmap = opt->mailmap;
+	ctx.color = opt->diffopt.use_color;
+	ctx.output_encoding = get_log_output_encoding();
+	if (opt->from_ident.mail_begin && opt->from_ident.name_begin)
+		ctx.from_ident = &opt->from_ident;
+	pretty_print_commit(&ctx, commit, &msgbuf);
+
+	if (opt->add_signoff)
+		append_signoff(&msgbuf, 0, APPEND_SIGNOFF_DEDUP);
+
+	if ((ctx.fmt != CMIT_FMT_USERFORMAT) &&
+	    ctx.notes_message && *ctx.notes_message) {
+		if (ctx.fmt == CMIT_FMT_EMAIL) {
+			strbuf_addstr(&msgbuf, "---\n");
+			opt->shown_dashes = 1;
+		}
+		strbuf_addstr(&msgbuf, ctx.notes_message);
+	}
+
+	if (opt->show_log_size) {
+		printf("log size %i\n", (int)msgbuf.len);
+		graph_show_oneline(opt->graph);
+	}
+
+	/*
+	 * Set opt->missing_newline if msgbuf doesn't
+	 * end in a newline (including if it is empty)
+	 */
+	if (!msgbuf.len || msgbuf.buf[msgbuf.len - 1] != '\n')
+		opt->missing_newline = 1;
+	else
+		opt->missing_newline = 0;
+
+	if (opt->graph)
+		graph_show_commit_msg(opt->graph, &msgbuf);
+	else
+		fwrite(msgbuf.buf, sizeof(char), msgbuf.len, stdout);
+	if (opt->use_terminator && !commit_format_is_empty(opt->commit_format)) {
+		if (!opt->missing_newline)
+			graph_show_padding(opt->graph);
+		putchar(opt->diffopt.line_termination);
+	}
+
+	strbuf_release(&msgbuf);
+	free(ctx.notes_message);
 }

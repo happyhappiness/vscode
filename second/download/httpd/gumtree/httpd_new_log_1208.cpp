@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s,
-                     "SSL FIPS mode disabled");
+apr_file_printf(errfile, "%s: filename too long" NL, argv[0]);

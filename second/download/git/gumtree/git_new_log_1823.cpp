@@ -1,2 +1,2 @@
-warning("protocol restrictions not applied to curl redirects because\n"
-			"your curl version is too old (>= 7.19.4)");
+die_errno(_("could not create work tree dir '%s'"),
+				  work_tree);

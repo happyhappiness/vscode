@@ -1,114 +1,192 @@
-static struct file_struct *make_file(char *fname)
-{
-	struct file_struct *file;
-	struct stat st;
-	char sum[SUM_LENGTH];
-	char *p;
-	char cleaned_name[MAXPATHLEN];
+int recv_files(int f_in,struct file_list *flist,char *local_name,int f_gen)
+{  
+  int fd1,fd2;
+  struct stat st;
+  char *fname;
+  char fnametmp[MAXPATHLEN];
+  struct map_struct *buf;
+  int i;
+  struct file_struct *file;
+  int phase=0;
+  int recv_ok;
 
-	strncpy(cleaned_name, fname, MAXPATHLEN-1);
-	cleaned_name[MAXPATHLEN-1] = 0;
-	clean_fname(cleaned_name);
-	fname = cleaned_name;
+  if (verbose > 2) {
+    fprintf(FERROR,"recv_files(%d) starting\n",flist->count);
+  }
 
-	bzero(sum,SUM_LENGTH);
+  if (recurse && delete_mode && !local_name && flist->count>0) {
+    delete_files(flist);
+  }
 
-	if (link_stat(fname,&st) != 0) {
-		io_error = 1;
-		fprintf(FERROR,"%s: %s\n",
-			fname,strerror(errno));
-		return NULL;
+  while (1) 
+    {      
+      i = read_int(f_in);
+      if (i == -1) {
+	if (phase==0 && remote_version >= 13) {
+	  phase++;
+	  csum_length = SUM_LENGTH;
+	  if (verbose > 2)
+	    fprintf(FERROR,"recv_files phase=%d\n",phase);
+	  write_int(f_gen,-1);
+	  write_flush(f_gen);
+	  continue;
 	}
+	break;
+      }
 
-	if (S_ISDIR(st.st_mode) && !recurse) {
-		fprintf(FINFO,"skipping directory %s\n",fname);
-		return NULL;
-	}
-	
-	if (one_file_system && st.st_dev != filesystem_dev) {
-		if (skip_filesystem(fname, &st))
-			return NULL;
-	}
-	
-	if (!match_file_name(fname,&st))
-		return NULL;
-	
+      file = &flist->files[i];
+      fname = file->name;
+
+      if (local_name)
+	fname = local_name;
+
+      if (dry_run) {
+	if (!am_server && verbose)
+	  printf("%s\n",fname);
+	continue;
+      }
+
+      if (verbose > 2)
+	fprintf(FERROR,"recv_files(%s)\n",fname);
+
+      /* open the file */  
+      fd1 = open(fname,O_RDONLY);
+
+      if (fd1 != -1 && fstat(fd1,&st) != 0) {
+	fprintf(FERROR,"fstat %s : %s\n",fname,strerror(errno));
+	receive_data(f_in,NULL,-1,NULL);
+	close(fd1);
+	continue;
+      }
+
+      if (fd1 != -1 && !S_ISREG(st.st_mode)) {
+	fprintf(FERROR,"%s : not a regular file (recv_files)\n",fname);
+	receive_data(f_in,NULL,-1,NULL);
+	close(fd1);
+	continue;
+      }
+
+      if (fd1 != -1 && st.st_size > 0) {
+	buf = map_file(fd1,st.st_size);
 	if (verbose > 2)
-		fprintf(FINFO,"make_file(%s)\n",fname);
-	
-	file = (struct file_struct *)malloc(sizeof(*file));
-	if (!file) out_of_memory("make_file");
-	bzero((char *)file,sizeof(*file));
+	  fprintf(FERROR,"recv mapped %s of size %d\n",fname,(int)st.st_size);
+      } else {
+	buf = NULL;
+      }
 
-	if ((p = strrchr(fname,'/'))) {
-		static char *lastdir;
-		*p = 0;
-		if (lastdir && strcmp(fname, lastdir)==0) {
-			file->dirname = lastdir;
-		} else {
-			file->dirname = strdup(fname);
-			lastdir = file->dirname;
-		}
-		file->basename = strdup(p+1);
-		*p = '/';
-	} else {
-		file->dirname = NULL;
-		file->basename = strdup(fname);
+      /* open tmp file */
+      if (strlen(fname) > (MAXPATHLEN-8)) {
+	fprintf(FERROR,"filename too long\n");
+	close(fd1);
+	continue;
+      }
+      if (tmpdir) {
+	      char *f;
+	      f = strrchr(fname,'/');
+	      if (f == NULL) 
+		      f = fname;
+	      else 
+		      f++;
+	      sprintf(fnametmp,"%s/%s.XXXXXX",tmpdir,f);
+      } else {
+	      sprintf(fnametmp,"%s.XXXXXX",fname);
+      }
+      if (NULL == mktemp(fnametmp)) {
+	fprintf(FERROR,"mktemp %s failed\n",fnametmp);
+	receive_data(f_in,buf,-1,NULL);
+	if (buf) unmap_file(buf);
+	close(fd1);
+	continue;
+      }
+      fd2 = open(fnametmp,O_WRONLY|O_CREAT|O_EXCL,file->mode);
+      if (fd2 == -1 && relative_paths && errno == ENOENT && 
+	  create_directory_path(fnametmp) == 0) {
+	      fd2 = open(fnametmp,O_WRONLY|O_CREAT|O_EXCL,file->mode);
+      }
+      if (fd2 == -1) {
+	fprintf(FERROR,"open %s : %s\n",fnametmp,strerror(errno));
+	receive_data(f_in,buf,-1,NULL);
+	if (buf) unmap_file(buf);
+	close(fd1);
+	continue;
+      }
+      
+      cleanup_fname = fnametmp;
+
+      if (!am_server && verbose)
+	printf("%s\n",fname);
+
+      /* recv file data */
+      recv_ok = receive_data(f_in,buf,fd2,fname);
+
+      if (fd1 != -1) {
+	if (buf) unmap_file(buf);
+	close(fd1);
+      }
+      close(fd2);
+
+      if (verbose > 2)
+	fprintf(FERROR,"renaming %s to %s\n",fnametmp,fname);
+
+      if (make_backups) {
+	char fnamebak[MAXPATHLEN];
+	if (strlen(fname) + strlen(backup_suffix) > (MAXPATHLEN-1)) {
+		fprintf(FERROR,"backup filename too long\n");
+		continue;
 	}
-
-	file->modtime = st.st_mtime;
-	file->length = st.st_size;
-	file->mode = st.st_mode;
-	file->uid = st.st_uid;
-	file->gid = st.st_gid;
-	file->dev = st.st_dev;
-	file->inode = st.st_ino;
-#ifdef HAVE_ST_RDEV
-	file->rdev = st.st_rdev;
-#endif
-
-#if SUPPORT_LINKS
-	if (S_ISLNK(st.st_mode)) {
-		int l;
-		char lnk[MAXPATHLEN];
-		if ((l=readlink(fname,lnk,MAXPATHLEN-1)) == -1) {
-			io_error=1;
-			fprintf(FERROR,"readlink %s : %s\n",
-				fname,strerror(errno));
-			return NULL;
-		}
-		lnk[l] = 0;
-		file->link = strdup(lnk);
+	sprintf(fnamebak,"%s%s",fname,backup_suffix);
+	if (rename(fname,fnamebak) != 0 && errno != ENOENT) {
+	  fprintf(FERROR,"rename %s %s : %s\n",fname,fnamebak,strerror(errno));
+	  continue;
 	}
-#endif
+      }
 
-	if (always_checksum) {
-		file->sum = (char *)malloc(MD4_SUM_LENGTH);
-		if (!file->sum) out_of_memory("md4 sum");
-		/* drat. we have to provide a null checksum for non-regular
-		   files in order to be compatible with earlier versions
-		   of rsync */
-		if (S_ISREG(st.st_mode)) {
-			file_checksum(fname,file->sum,st.st_size);
-		} else {
-			memset(file->sum, 0, MD4_SUM_LENGTH);
-		}
-	}       
+      /* move tmp file over real file */
+      if (rename(fnametmp,fname) != 0) {
+	      if (errno == EXDEV) {
+		      /* rename failed on cross-filesystem link.  
+			 Copy the file instead. */
+		      if (copy_file(fnametmp,fname, file->mode)) {
+			      fprintf(FERROR,"copy %s -> %s : %s\n",
+				      fnametmp,fname,strerror(errno));
+		      } else {
+			      set_perms(fname,file,NULL,0);
+		      }
+		      unlink(fnametmp);
+	      } else {
+		      fprintf(FERROR,"rename %s -> %s : %s\n",
+			      fnametmp,fname,strerror(errno));
+		      unlink(fnametmp);
+	      }
+      } else {
+	      set_perms(fname,file,NULL,0);
+      }
 
-	if (flist_dir) {
-		static char *lastdir;
-		if (lastdir && strcmp(lastdir, flist_dir)==0) {
-			file->basedir = lastdir;
-		} else {
-			file->basedir = strdup(flist_dir);
-			lastdir = file->basedir;
-		}
-	} else {
-		file->basedir = NULL;
-	}
+      cleanup_fname = NULL;
 
-	if (!S_ISDIR(st.st_mode))
-		total_size += st.st_size;
 
-	return file;
+      if (!recv_ok) {
+	if (verbose > 1)
+	  fprintf(FERROR,"redoing %s(%d)\n",fname,i);
+        if (csum_length == SUM_LENGTH)
+	  fprintf(FERROR,"ERROR: file corruption in %s\n",fname);
+	write_int(f_gen,i);
+      }
+    }
+
+  if (preserve_hard_links)
+	  do_hard_links(flist);
+
+  /* now we need to fix any directory permissions that were 
+     modified during the transfer */
+  for (i = 0; i < flist->count; i++) {
+	  struct file_struct *file = &flist->files[i];
+	  if (!file->name || !S_ISDIR(file->mode)) continue;
+	  recv_generator(file->name,flist,i,-1);
+  }
+
+  if (verbose > 2)
+    fprintf(FERROR,"recv_files finished\n");
+  
+  return 0;
 }

@@ -1,1 +1,2 @@
-die(_("Failed to register update mode for submodule path '%s'"), displaypath);
+usage_with_options(git_submodule_helper_usage,
+				   module_clone_options);

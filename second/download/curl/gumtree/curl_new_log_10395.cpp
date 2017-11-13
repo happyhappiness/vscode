@@ -1,12 +1,11 @@
 fputs(
-"              and tries to get  the  modification  date  (mtime)  from  <file>\n"
-"              instead.  See  the curl_getdate(3) man pages for date expression\n"
-"              details.\n"
-"\n"
-"              Start the date expression with a dash (-) to make it request for\n"
-"              a  document that is older than the given date/time, default is a\n"
-"              document that is newer than the specified date/time.\n"
+"              (SMTP) Specifies a custom SMTP command to use instead of HELP or\n"
+"              VRFY. (Added in 7.34.0)\n"
 "\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
+"       --xattr\n"
+"              When  saving  output  to a file, this option tells curl to store\n"
+"              certain file metadata in extended  file  attributes.  Currently,\n"
+"              the URL is stored in the xdg.origin.url attribute and, for HTTP,\n"
 , stdout);

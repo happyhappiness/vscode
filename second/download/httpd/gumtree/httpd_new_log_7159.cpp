@@ -1,1 +1,2 @@
-ap_rputs("\"></td></tr>\n", r);
+ap_rvputs(r, "value=\"", ap_escape_html(r->pool, wsel->s->redirect),
+                      NULL);

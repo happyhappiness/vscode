@@ -1,1 +1,2 @@
-git_die_config(key, "unknown notes merge strategy %s", value);
+error("attempting to allocate %"PRIuMAX" over limit %"PRIuMAX,
+			      (uintmax_t)size, (uintmax_t)limit);

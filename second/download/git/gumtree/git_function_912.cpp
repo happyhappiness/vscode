@@ -1,67 +1,53 @@
-unsigned is_submodule_modified(const char *path, int ignore_untracked)
+static void show_rebase_information(struct wt_status *s,
+					struct wt_status_state *state,
+					const char *color)
 {
-	ssize_t len;
-	struct child_process cp = CHILD_PROCESS_INIT;
-	const char *argv[] = {
-		"status",
-		"--porcelain",
-		NULL,
-		NULL,
-	};
-	struct strbuf buf = STRBUF_INIT;
-	unsigned dirty_submodule = 0;
-	const char *line, *next_line;
-	const char *git_dir;
+	if (state->rebase_interactive_in_progress) {
+		int i;
+		int nr_lines_to_show = 2;
 
-	strbuf_addf(&buf, "%s/.git", path);
-	git_dir = read_gitfile(buf.buf);
-	if (!git_dir)
-		git_dir = buf.buf;
-	if (!is_directory(git_dir)) {
-		strbuf_release(&buf);
-		/* The submodule is not checked out, so it is not modified */
-		return 0;
+		struct string_list have_done = STRING_LIST_INIT_DUP;
+		struct string_list yet_to_do = STRING_LIST_INIT_DUP;
 
-	}
-	strbuf_reset(&buf);
-
-	if (ignore_untracked)
-		argv[2] = "-uno";
-
-	cp.argv = argv;
-	prepare_submodule_repo_env(&cp.env_array);
-	cp.git_cmd = 1;
-	cp.no_stdin = 1;
-	cp.out = -1;
-	cp.dir = path;
-	if (start_command(&cp))
-		die("Could not run 'git status --porcelain' in submodule %s", path);
-
-	len = strbuf_read(&buf, cp.out, 1024);
-	line = buf.buf;
-	while (len > 2) {
-		if ((line[0] == '?') && (line[1] == '?')) {
-			dirty_submodule |= DIRTY_SUBMODULE_UNTRACKED;
-			if (dirty_submodule & DIRTY_SUBMODULE_MODIFIED)
-				break;
-		} else {
-			dirty_submodule |= DIRTY_SUBMODULE_MODIFIED;
-			if (ignore_untracked ||
-			    (dirty_submodule & DIRTY_SUBMODULE_UNTRACKED))
-				break;
+		read_rebase_todolist("rebase-merge/done", &have_done);
+		if (read_rebase_todolist("rebase-merge/git-rebase-todo",
+					 &yet_to_do))
+			status_printf_ln(s, color,
+				_("git-rebase-todo is missing."));
+		if (have_done.nr == 0)
+			status_printf_ln(s, color, _("No commands done."));
+		else {
+			status_printf_ln(s, color,
+				Q_("Last command done (%d command done):",
+					"Last commands done (%d commands done):",
+					have_done.nr),
+				have_done.nr);
+			for (i = (have_done.nr > nr_lines_to_show)
+				? have_done.nr - nr_lines_to_show : 0;
+				i < have_done.nr;
+				i++)
+				status_printf_ln(s, color, "   %s", have_done.items[i].string);
+			if (have_done.nr > nr_lines_to_show && s->hints)
+				status_printf_ln(s, color,
+					_("  (see more in file %s)"), git_path("rebase-merge/done"));
 		}
-		next_line = strchr(line, '\n');
-		if (!next_line)
-			break;
-		next_line++;
-		len -= (next_line - line);
-		line = next_line;
+
+		if (yet_to_do.nr == 0)
+			status_printf_ln(s, color,
+					 _("No commands remaining."));
+		else {
+			status_printf_ln(s, color,
+				Q_("Next command to do (%d remaining command):",
+					"Next commands to do (%d remaining commands):",
+					yet_to_do.nr),
+				yet_to_do.nr);
+			for (i = 0; i < nr_lines_to_show && i < yet_to_do.nr; i++)
+				status_printf_ln(s, color, "   %s", yet_to_do.items[i].string);
+			if (s->hints)
+				status_printf_ln(s, color,
+					_("  (use \"git rebase --edit-todo\" to view and edit)"));
+		}
+		string_list_clear(&yet_to_do, 0);
+		string_list_clear(&have_done, 0);
 	}
-	close(cp.out);
-
-	if (finish_command(&cp))
-		die("'git status --porcelain' failed in submodule %s", path);
-
-	strbuf_release(&buf);
-	return dirty_submodule;
 }

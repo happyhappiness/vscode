@@ -1,2 +1,3 @@
-fprintf(stderr,"The %s service is %s.\n", mpm_display_name,
-            signal ? "restarting" : "stopping");
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                "%s configured -- resuming normal operations",
+                ap_get_server_description());

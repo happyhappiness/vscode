@@ -1,1 +1,1 @@
-die("strange hostname '%s' blocked", host);
+set_common_push_options(transport, data->name, flags);

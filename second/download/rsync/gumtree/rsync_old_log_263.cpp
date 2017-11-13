@@ -1,0 +1,1 @@
+fprintf(FERROR,"%s : not a regular file\n",fname);

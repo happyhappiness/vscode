@@ -1,1 +1,0 @@
-ap_rputs(" -D APR_USE_POSIXSEM_SERIALIZE\n", r);

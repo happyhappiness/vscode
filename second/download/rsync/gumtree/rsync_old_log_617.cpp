@@ -1,1 +1,2 @@
-fprintf(stderr,"failed to create pid file %s\n", pid_file);
+fprintf(FERROR,"Failed to exec %s : %s\n",
+	      command[0],strerror(errno));

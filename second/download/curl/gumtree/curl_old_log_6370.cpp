@@ -1,10 +1,9 @@
 fputs(
-"              a GET if the HTTP response was 301, 302, or 303. If the response\n"
-"              code  was  any  other  3xx code, curl will re-send the following\n"
-"              request using the same unmodified method.\n"
+"              initial  host.  If a redirect takes curl to a different host, it\n"
+"              won't be able to intercept the user+password. See  also  --loca-\n"
+"              tion-trusted  on how to change this. You can limit the amount of\n"
+"              redirects to follow by using the --max-redirs option.\n"
 "\n"
-"       --location-trusted\n"
-"              (HTTP/HTTPS) Like -L/--location, but will allow sending the name\n"
-"              +  password to all hosts that the site may redirect to. This may\n"
-"              or may not introduce a security breach if the site redirects you\n"
+"              When curl follows a redirect and the request is not a plain  GET\n"
+"              (for example POST or PUT), it will do the following request with\n"
 , stdout);

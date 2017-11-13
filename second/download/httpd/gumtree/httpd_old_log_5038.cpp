@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_WARNING, 0, NULL,
-                         "macro '%s' (%s): argument '%s' (#%d) never used",
-                         macro->name, macro->location, names[i], i + 1);
+ap_log_error(APLOG_MARK, APLOG_ERR, rc, ap_server_conf,
+                             "apr_pollset_poll failed.  Attempting to "
+                             "shutdown process gracefully");

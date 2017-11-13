@@ -1,1 +1,0 @@
-fprintf (stderr, "dotlock [Mutt %s (%s)]\n", VERSION, ReleaseDate);

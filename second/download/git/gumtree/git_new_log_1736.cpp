@@ -1,1 +1,0 @@
-warning("Unexpected sha1 when deleting %s", pseudoref);

@@ -1,14 +1,19 @@
-static int grep_source_load_sha1(struct grep_source *gs)
+static void refname_atom_parser_internal(struct refname_atom *atom,
+					 const char *arg, const char *name)
 {
-	enum object_type type;
-
-	grep_read_lock();
-	gs->buf = read_sha1_file(gs->identifier, &type, &gs->size);
-	grep_read_unlock();
-
-	if (!gs->buf)
-		return error(_("'%s': unable to read %s"),
-			     gs->name,
-			     sha1_to_hex(gs->identifier));
-	return 0;
+	if (!arg)
+		atom->option = R_NORMAL;
+	else if (!strcmp(arg, "short"))
+		atom->option = R_SHORT;
+	else if (skip_prefix(arg, "lstrip=", &arg) ||
+		 skip_prefix(arg, "strip=", &arg)) {
+		atom->option = R_LSTRIP;
+		if (strtol_i(arg, 10, &atom->lstrip))
+			die(_("Integer value expected refname:lstrip=%s"), arg);
+	} else if (skip_prefix(arg, "rstrip=", &arg)) {
+		atom->option = R_RSTRIP;
+		if (strtol_i(arg, 10, &atom->rstrip))
+			die(_("Integer value expected refname:rstrip=%s"), arg);
+	} else
+		die(_("unrecognized %%(%s) argument: %s"), name, arg);
 }

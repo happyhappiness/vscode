@@ -1,1 +1,0 @@
-die("Error in object");

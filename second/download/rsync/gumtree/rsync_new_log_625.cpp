@@ -1,3 +1,2 @@
-fprintf (stderr,
-				 RSYNC_NAME ": execute socket program \"%s\"\n",
-				 prog);
+rprintf(FERROR,"open %s: %s\n",
+			source,strerror(errno));

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, rv, main_server,
-          "mod_unique_id: unable to find hostname of the server");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "An \"href\" element does not contain a URI.");

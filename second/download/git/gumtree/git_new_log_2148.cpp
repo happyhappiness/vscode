@@ -1,1 +1,0 @@
-die(_("unrecognized position:%s"), s);

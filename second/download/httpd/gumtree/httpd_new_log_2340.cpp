@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
-                          "proxy: SSL cleanup brigade contained %"
-                          APR_OFF_T_FMT " bytes of data.", len);
+ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
+                         "Couldn't create add listener to pollset;"
+                         " check system or user limits");

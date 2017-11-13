@@ -1,1 +1,1 @@
-fprintf(stderr, "adding `%s'\n", buf);
+out_of_memory("rsync_module");

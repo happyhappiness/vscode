@@ -1,1 +1,1 @@
-error("Can't verify ref %s", lock->ref_name);
+die("bad zlib compression level %d", level);

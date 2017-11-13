@@ -1,1 +1,1 @@
-err("Cannot allocate memory for result statistics");
+fprintf(stderr, "error creating request buffer: out of memory\n");

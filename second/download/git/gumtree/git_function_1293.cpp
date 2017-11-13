@@ -1,135 +1,128 @@
-static void process_alternates_response(void *callback_data)
+static void check_object(struct object_entry *entry)
 {
-	struct alternates_request *alt_req =
-		(struct alternates_request *)callback_data;
-	struct walker *walker = alt_req->walker;
-	struct walker_data *cdata = walker->data;
-	struct active_request_slot *slot = alt_req->slot;
-	struct alt_base *tail = cdata->alt;
-	const char *base = alt_req->base;
-	const char null_byte = '\0';
-	char *data;
-	int i = 0;
+	if (entry->in_pack) {
+		struct packed_git *p = entry->in_pack;
+		struct pack_window *w_curs = NULL;
+		const unsigned char *base_ref = NULL;
+		struct object_entry *base_entry;
+		unsigned long used, used_0;
+		unsigned long avail;
+		off_t ofs;
+		unsigned char *buf, c;
 
-	if (alt_req->http_specific) {
-		if (slot->curl_result != CURLE_OK ||
-		    !alt_req->buffer->len) {
+		buf = use_pack(p, &w_curs, entry->in_pack_offset, &avail);
 
-			/* Try reusing the slot to get non-http alternates */
-			alt_req->http_specific = 0;
-			sprintf(alt_req->url, "%s/objects/info/alternates",
-				base);
-			curl_easy_setopt(slot->curl, CURLOPT_URL,
-					 alt_req->url);
-			active_requests++;
-			slot->in_use = 1;
-			if (slot->finished != NULL)
-				(*slot->finished) = 0;
-			if (!start_active_slot(slot)) {
-				cdata->got_alternates = -1;
-				slot->in_use = 0;
-				if (slot->finished != NULL)
-					(*slot->finished) = 1;
+		/*
+		 * We want in_pack_type even if we do not reuse delta
+		 * since non-delta representations could still be reused.
+		 */
+		used = unpack_object_header_buffer(buf, avail,
+						   &entry->in_pack_type,
+						   &entry->size);
+		if (used == 0)
+			goto give_up;
+
+		/*
+		 * Determine if this is a delta and if so whether we can
+		 * reuse it or not.  Otherwise let's find out as cheaply as
+		 * possible what the actual type and size for this object is.
+		 */
+		switch (entry->in_pack_type) {
+		default:
+			/* Not a delta hence we've already got all we need. */
+			entry->type = entry->in_pack_type;
+			entry->in_pack_header_size = used;
+			if (entry->type < OBJ_COMMIT || entry->type > OBJ_BLOB)
+				goto give_up;
+			unuse_pack(&w_curs);
+			return;
+		case OBJ_REF_DELTA:
+			if (reuse_delta && !entry->preferred_base)
+				base_ref = use_pack(p, &w_curs,
+						entry->in_pack_offset + used, NULL);
+			entry->in_pack_header_size = used + 20;
+			break;
+		case OBJ_OFS_DELTA:
+			buf = use_pack(p, &w_curs,
+				       entry->in_pack_offset + used, NULL);
+			used_0 = 0;
+			c = buf[used_0++];
+			ofs = c & 127;
+			while (c & 128) {
+				ofs += 1;
+				if (!ofs || MSB(ofs, 7)) {
+					error("delta base offset overflow in pack for %s",
+					      sha1_to_hex(entry->idx.sha1));
+					goto give_up;
+				}
+				c = buf[used_0++];
+				ofs = (ofs << 7) + (c & 127);
 			}
+			ofs = entry->in_pack_offset - ofs;
+			if (ofs <= 0 || ofs >= entry->in_pack_offset) {
+				error("delta base offset out of bound for %s",
+				      sha1_to_hex(entry->idx.sha1));
+				goto give_up;
+			}
+			if (reuse_delta && !entry->preferred_base) {
+				struct revindex_entry *revidx;
+				revidx = find_pack_revindex(p, ofs);
+				if (!revidx)
+					goto give_up;
+				base_ref = nth_packed_object_sha1(p, revidx->nr);
+			}
+			entry->in_pack_header_size = used + used_0;
+			break;
+		}
+
+		if (base_ref && (base_entry = packlist_find(&to_pack, base_ref, NULL))) {
+			/*
+			 * If base_ref was set above that means we wish to
+			 * reuse delta data, and we even found that base
+			 * in the list of objects we want to pack. Goodie!
+			 *
+			 * Depth value does not matter - find_deltas() will
+			 * never consider reused delta as the base object to
+			 * deltify other objects against, in order to avoid
+			 * circular deltas.
+			 */
+			entry->type = entry->in_pack_type;
+			entry->delta = base_entry;
+			entry->delta_size = entry->size;
+			entry->delta_sibling = base_entry->delta_child;
+			base_entry->delta_child = entry;
+			unuse_pack(&w_curs);
 			return;
 		}
-	} else if (slot->curl_result != CURLE_OK) {
-		if (!missing_target(slot)) {
-			cdata->got_alternates = -1;
+
+		if (entry->type) {
+			/*
+			 * This must be a delta and we already know what the
+			 * final object type is.  Let's extract the actual
+			 * object size from the delta header.
+			 */
+			entry->size = get_size_from_delta(p, &w_curs,
+					entry->in_pack_offset + entry->in_pack_header_size);
+			if (entry->size == 0)
+				goto give_up;
+			unuse_pack(&w_curs);
 			return;
 		}
+
+		/*
+		 * No choice but to fall back to the recursive delta walk
+		 * with sha1_object_info() to find about the object type
+		 * at this point...
+		 */
+		give_up:
+		unuse_pack(&w_curs);
 	}
 
-	fwrite_buffer((char *)&null_byte, 1, 1, alt_req->buffer);
-	alt_req->buffer->len--;
-	data = alt_req->buffer->buf;
-
-	while (i < alt_req->buffer->len) {
-		int posn = i;
-		while (posn < alt_req->buffer->len && data[posn] != '\n')
-			posn++;
-		if (data[posn] == '\n') {
-			int okay = 0;
-			int serverlen = 0;
-			struct alt_base *newalt;
-			char *target = NULL;
-			if (data[i] == '/') {
-				/*
-				 * This counts
-				 * http://git.host/pub/scm/linux.git/
-				 * -----------here^
-				 * so memcpy(dst, base, serverlen) will
-				 * copy up to "...git.host".
-				 */
-				const char *colon_ss = strstr(base,"://");
-				if (colon_ss) {
-					serverlen = (strchr(colon_ss + 3, '/')
-						     - base);
-					okay = 1;
-				}
-			} else if (!memcmp(data + i, "../", 3)) {
-				/*
-				 * Relative URL; chop the corresponding
-				 * number of subpath from base (and ../
-				 * from data), and concatenate the result.
-				 *
-				 * The code first drops ../ from data, and
-				 * then drops one ../ from data and one path
-				 * from base.  IOW, one extra ../ is dropped
-				 * from data than path is dropped from base.
-				 *
-				 * This is not wrong.  The alternate in
-				 *     http://git.host/pub/scm/linux.git/
-				 * to borrow from
-				 *     http://git.host/pub/scm/linus.git/
-				 * is ../../linus.git/objects/.  You need
-				 * two ../../ to borrow from your direct
-				 * neighbour.
-				 */
-				i += 3;
-				serverlen = strlen(base);
-				while (i + 2 < posn &&
-				       !memcmp(data + i, "../", 3)) {
-					do {
-						serverlen--;
-					} while (serverlen &&
-						 base[serverlen - 1] != '/');
-					i += 3;
-				}
-				/* If the server got removed, give up. */
-				okay = strchr(base, ':') - base + 3 <
-				       serverlen;
-			} else if (alt_req->http_specific) {
-				char *colon = strchr(data + i, ':');
-				char *slash = strchr(data + i, '/');
-				if (colon && slash && colon < data + posn &&
-				    slash < data + posn && colon < slash) {
-					okay = 1;
-				}
-			}
-			/* skip "objects\n" at end */
-			if (okay) {
-				target = xmalloc(serverlen + posn - i - 6);
-				memcpy(target, base, serverlen);
-				memcpy(target + serverlen, data + i,
-				       posn - i - 7);
-				target[serverlen + posn - i - 7] = 0;
-				if (walker->get_verbosely)
-					fprintf(stderr,
-						"Also look at %s\n", target);
-				newalt = xmalloc(sizeof(*newalt));
-				newalt->next = NULL;
-				newalt->base = target;
-				newalt->got_indices = 0;
-				newalt->packs = NULL;
-
-				while (tail->next != NULL)
-					tail = tail->next;
-				tail->next = newalt;
-			}
-		}
-		i = posn + 1;
-	}
-
-	cdata->got_alternates = 1;
+	entry->type = sha1_object_info(entry->idx.sha1, &entry->size);
+	/*
+	 * The error condition is checked in prepare_pack().  This is
+	 * to permit a missing preferred base object to be ignored
+	 * as a preferred base.  Doing so can result in a larger
+	 * pack file, but the transfer will still take place.
+	 */
 }

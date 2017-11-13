@@ -1,1 +1,1 @@
-fprintf(f, "%s\n", oid_to_hex(&obj->oid));
+fprintf(stderr, "Checking %s\n", oid_to_hex(&obj->oid));

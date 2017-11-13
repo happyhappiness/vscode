@@ -1,101 +1,113 @@
-static apr_status_t ssl_init_server_ctx(server_rec *s,
-                                        apr_pool_t *p,
-                                        apr_pool_t *ptemp,
-                                        SSLSrvConfigRec *sc,
-                                        apr_array_header_t *pphrases)
+static void task_done(h2_mplx *m, h2_task *task, h2_req_engine *ngn)
 {
-    apr_status_t rv;
-#ifdef HAVE_SSL_CONF_CMD
-    ssl_ctx_param_t *param = (ssl_ctx_param_t *)sc->server->ssl_ctx_param->elts;
-    SSL_CONF_CTX *cctx = sc->server->ssl_ctx_config;
-    int i;
-#endif
-
-    /*
-     *  Check for problematic re-initializations
-     */
-    if (sc->server->ssl_ctx) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02569)
-                     "Illegal attempt to re-initialise SSL for server "
-                     "(SSLEngine On should go in the VirtualHost, not in global scope.)");
-        return APR_EGENERAL;
+    h2_stream *stream;
+    
+    if (task->frozen) {
+        /* this task was handed over to an engine for processing 
+         * and the original worker has finished. That means the 
+         * engine may start processing now. */
+        h2_task_thaw(task);
+        apr_thread_cond_broadcast(m->task_thawed);
+        return;
     }
-
-    if ((rv = ssl_init_ctx(s, p, ptemp, sc->server)) != APR_SUCCESS) {
-        return rv;
-    }
-
-    if ((rv = ssl_init_server_certs(s, p, ptemp, sc->server, pphrases))
-        != APR_SUCCESS) {
-        return rv;
-    }
-
-#ifdef HAVE_SSL_CONF_CMD
-    SSL_CONF_CTX_set_ssl_ctx(cctx, sc->server->ssl_ctx);
-    for (i = 0; i < sc->server->ssl_ctx_param->nelts; i++, param++) {
-        ERR_clear_error();
-        if (SSL_CONF_cmd(cctx, param->name, param->value) <= 0) {
-            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02407)
-                         "\"SSLOpenSSLConfCmd %s %s\" failed for %s",
-                         param->name, param->value, sc->vhost_id);
-            ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
-            return ssl_die(s);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02556)
-                         "\"SSLOpenSSLConfCmd %s %s\" applied to %s",
-                         param->name, param->value, sc->vhost_id);
+        
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
+                  "h2_mplx(%ld): task(%s) done", m->id, task->id);
+    out_close(m, task);
+    
+    if (ngn) {
+        apr_off_t bytes = 0;
+        h2_beam_send(task->output.beam, NULL, APR_NONBLOCK_READ);
+        bytes += h2_beam_get_buffered(task->output.beam);
+        if (bytes > 0) {
+            /* we need to report consumed and current buffered output
+             * to the engine. The request will be streamed out or cancelled,
+             * no more data is coming from it and the engine should update
+             * its calculations before we destroy this information. */
+            h2_req_engine_out_consumed(ngn, task->c, bytes);
         }
     }
-
-    if (SSL_CONF_CTX_finish(cctx) == 0) {
-            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02547)
-                         "SSL_CONF_CTX_finish() failed");
-            SSL_CONF_CTX_free(cctx);
-            ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
-            return ssl_die(s);
+    
+    if (task->engine) {
+        if (!m->aborted && !task->c->aborted 
+            && !h2_req_engine_is_shutdown(task->engine)) {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, APLOGNO(10022)
+                          "h2_mplx(%ld): task(%s) has not-shutdown "
+                          "engine(%s)", m->id, task->id, 
+                          h2_req_engine_get_id(task->engine));
+        }
+        h2_ngn_shed_done_ngn(m->ngn_shed, task->engine);
     }
-    SSL_CONF_CTX_free(cctx);
-#endif
-
-    if (SSL_CTX_check_private_key(sc->server->ssl_ctx) != 1) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02572)
-                     "Failed to configure at least one certificate and key "
-                     "for %s", sc->vhost_id);
-        ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
-        return ssl_die(s);
+    
+    task->worker_done = 1;
+    task->done_at = apr_time_now();
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                  "h2_mplx(%s): request done, %f ms elapsed", task->id, 
+                  (task->done_at - task->started_at) / 1000.0);
+    
+    if (task->started_at > m->last_idle_block) {
+        /* this task finished without causing an 'idle block', e.g.
+         * a block by flow control.
+         */
+        if (task->done_at- m->last_limit_change >= m->limit_change_interval
+            && m->limit_active < m->max_active) {
+            /* Well behaving stream, allow it more workers */
+            m->limit_active = H2MIN(m->limit_active * 2, 
+                                     m->max_active);
+            m->last_limit_change = task->done_at;
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
+                          "h2_mplx(%ld): increase worker limit to %d",
+                          m->id, m->limit_active);
+        }
     }
-
-#if defined(HAVE_OCSP_STAPLING) && defined(SSL_CTRL_SET_CURRENT_CERT)
-    /*
-     * OpenSSL 1.0.2 and later allows iterating over all SSL_CTX certs
-     * by means of SSL_CTX_set_current_cert. Enabling stapling at this
-     * (late) point makes sure that we catch both certificates loaded
-     * via SSLCertificateFile and SSLOpenSSLConfCmd Certificate.
-     */
-    if (sc->server->stapling_enabled == TRUE) {
-        X509 *cert;
-        int i = 0;
-        int ret = SSL_CTX_set_current_cert(sc->server->ssl_ctx,
-                                           SSL_CERT_SET_FIRST);
-        while (ret) {
-            cert = SSL_CTX_get0_certificate(sc->server->ssl_ctx);
-            if (!cert || !ssl_stapling_init_cert(s, sc->server, cert)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02604)
-                             "Unable to configure certificate %s:%d "
-                             "for stapling", sc->vhost_id, i);
+    
+    stream = h2_ihash_get(m->streams, task->stream_id);
+    if (stream) {
+        /* stream not done yet. */
+        if (!m->aborted && h2_ihash_get(m->sredo, stream->id)) {
+            /* reset and schedule again */
+            h2_task_redo(task);
+            h2_ihash_remove(m->sredo, stream->id);
+            h2_iq_add(m->q, stream->id, NULL, NULL);
+        }
+        else {
+            /* stream not cleaned up, stay around */
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                          H2_STRM_MSG(stream, "task_done, stream open")); 
+            if (stream->input) {
+                h2_beam_leave(stream->input);
+                h2_beam_mutex_disable(stream->input);
             }
-            ret = SSL_CTX_set_current_cert(sc->server->ssl_ctx,
-                                           SSL_CERT_SET_NEXT);
-            i++;
+            if (stream->output) {
+                h2_beam_mutex_disable(stream->output);
+            }
+
+            /* more data will not arrive, resume the stream */
+            check_data_for(m, stream, 0);            
         }
     }
-#endif
-
-#ifdef HAVE_TLS_SESSION_TICKETS
-    if ((rv = ssl_init_ticket_key(s, p, ptemp, sc->server)) != APR_SUCCESS) {
-        return rv;
+    else if ((stream = h2_ihash_get(m->shold, task->stream_id)) != NULL) {
+        /* stream is done, was just waiting for this. */
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                      H2_STRM_MSG(stream, "task_done, in hold"));
+        if (stream->input) {
+            h2_beam_leave(stream->input);
+            h2_beam_mutex_disable(stream->input);
+        }
+        if (stream->output) {
+            h2_beam_mutex_disable(stream->output);
+        }
+        stream_joined(m, stream);
     }
-#endif
-
-    return APR_SUCCESS;
+    else if ((stream = h2_ihash_get(m->spurge, task->stream_id)) != NULL) {
+        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c,   
+                      H2_STRM_LOG(APLOGNO(03517), stream, "already in spurge"));
+        ap_assert("stream should not be in spurge" == NULL);
+    }
+    else {
+        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, APLOGNO(03518)
+                      "h2_mplx(%s): task_done, stream not found", 
+                      task->id);
+        ap_assert("stream should still be available" == NULL);
+    }
 }

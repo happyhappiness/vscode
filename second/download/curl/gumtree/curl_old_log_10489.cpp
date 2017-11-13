@@ -1,11 +1,9 @@
 fputs(
-"              This is not very common. Use -V, --version to see if  your  curl\n"
-"              supports it.\n"
+"              it uses getpwuid() on Unix-like systems (which returns the  home\n"
+"              dir  given the current user in your system). On Windows, it then\n"
+"              checks for the APPDATA variable, or as a last resort the '%USER-\n"
+"              PROFILE%\\Application Data'.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -l, --list-only\n"
-"              (FTP)  When listing an FTP directory, this switch forces a name-\n"
-"              only view. This is  especially  useful  if  the  user  wants  to\n"
-"              machine-parse  the contents of an FTP directory since the normal\n"
+"              2)  On  windows, if there is no _curlrc file in the home dir, it\n"
+"              checks for one in the same dir the curl executable is placed. On\n"
 , stdout);

@@ -1,1 +1,1 @@
-rprintf(FINFO,"server_recv(%d) starting pid=%d\n",argc,(int)getpid());
+rprintf(FERROR,"getwd : %s\n",strerror(errno));

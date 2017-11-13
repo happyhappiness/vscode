@@ -1,1 +1,0 @@
-error(_("index file corrupt"));

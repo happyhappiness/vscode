@@ -1,9 +1,11 @@
 fputs(
-"              This  command  line  option will activate the cookie engine that\n"
-"              makes curl record and use cookies. Another way to activate it is\n"
-"              to use the -b, --cookie option.\n"
+"              backslash preceding any other letter is ignored.  If  the  first\n"
+"              column of a config line is a '#' character, the rest of the line\n"
+"              will be treated as a comment. Only write one option per physical\n"
+"              line in the config file.\n"
 "\n"
-"              If the cookie jar can't be created or written to, the whole curl\n"
-"              operation won't fail or even report an error clearly. Using  -v,\n"
-"              --verbose  will  get  a  warning displayed, but that is the only\n"
+"              Specify  the  filename  to -K, --config as '-' to make curl read\n"
+"              the file from stdin.\n"
+"\n"
+"              Note that to be able to specify a URL in the  config  file,  you\n"
 , stdout);

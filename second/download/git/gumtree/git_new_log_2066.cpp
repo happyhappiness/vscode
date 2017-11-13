@@ -1,2 +1,2 @@
-error("Object %s not a tag",
-			     oid_to_hex(&item->object.oid));
+printf("%s is the first %s commit\n", sha1_to_hex(bisect_rev),
+			term_bad);

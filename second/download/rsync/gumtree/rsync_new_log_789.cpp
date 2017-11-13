@@ -1,4 +1,1 @@
-fprintf(stderr,
-			        "%s: %s\n",
-				poptBadOption(pc, POPT_BADOPTION_NOALIAS),
-				poptStrerror(opt));
+out_of_memory("set_delayed_bit");

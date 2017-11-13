@@ -1,36 +1,66 @@
-static void htdbm_usage(void)
+static void h2_beam_emitted(h2_bucket_beam *beam, h2_beam_proxy *proxy)
 {
+    h2_beam_lock bl;
+    apr_bucket *b, *next;
 
-#if (!(defined(WIN32) || defined(NETWARE)))
-#define CRYPT_OPTION "d"
-#else
-#define CRYPT_OPTION ""
-#endif
-    fprintf(stderr, "htdbm -- program for manipulating DBM password databases.\n\n");
-    fprintf(stderr, "Usage: htdbm    [-cm"CRYPT_OPTION"pstvx] [-TDBTYPE] database username\n");
-    fprintf(stderr, "                -b[cm"CRYPT_OPTION"ptsv] [-TDBTYPE] database username password\n");
-    fprintf(stderr, "                -n[m"CRYPT_OPTION"pst]   username\n");
-    fprintf(stderr, "                -nb[m"CRYPT_OPTION"pst]  username password\n");
-    fprintf(stderr, "                -v[m"CRYPT_OPTION"ps]    [-TDBTYPE] database username\n");
-    fprintf(stderr, "                -vb[m"CRYPT_OPTION"ps]   [-TDBTYPE] database username password\n");
-    fprintf(stderr, "                -x[m"CRYPT_OPTION"ps]    [-TDBTYPE] database username\n");
-    fprintf(stderr, "                -l                       [-TDBTYPE] database\n");
-    fprintf(stderr, "Options:\n");
-    fprintf(stderr, "   -b   Use the password from the command line rather "
-                    "than prompting for it.\n");
-    fprintf(stderr, "   -c   Create a new database.\n");
-    fprintf(stderr, "   -n   Don't update database; display results on stdout.\n");
-    fprintf(stderr, "   -m   Force MD5 encryption of the password (default).\n");
-#if (!(defined(WIN32) || defined(NETWARE)))
-    fprintf(stderr, "   -d   Force CRYPT encryption of the password (now deprecated).\n");
-#endif
-    fprintf(stderr, "   -p   Do not encrypt the password (plaintext).\n");
-    fprintf(stderr, "   -s   Force SHA encryption of the password.\n");
-    fprintf(stderr, "   -T   DBM Type (SDBM|GDBM|DB|default).\n");
-    fprintf(stderr, "   -l   Display usernames from database on stdout.\n");
-    fprintf(stderr, "   -t   The last param is username comment.\n");
-    fprintf(stderr, "   -v   Verify the username/password.\n");
-    fprintf(stderr, "   -x   Remove the username record from database.\n");
-    exit(ERR_SYNTAX);
-
+    if (enter_yellow(beam, &bl) == APR_SUCCESS) {
+        /* even when beam buckets are split, only the one where
+         * refcount drops to 0 will call us */
+        H2_BPROXY_REMOVE(proxy);
+        /* invoked from green thread, the last beam bucket for the red
+         * bucket bred is about to be destroyed.
+         * remove it from the hold, where it should be now */
+        if (proxy->bred) {
+            for (b = H2_BLIST_FIRST(&beam->hold); 
+                 b != H2_BLIST_SENTINEL(&beam->hold);
+                 b = APR_BUCKET_NEXT(b)) {
+                 if (b == proxy->bred) {
+                    break;
+                 }
+            }
+            if (b != H2_BLIST_SENTINEL(&beam->hold)) {
+                /* bucket is in hold as it should be, mark this one
+                 * and all before it for purging. We might have placed meta
+                 * buckets without a green proxy into the hold before it 
+                 * and schedule them for purging now */
+                for (b = H2_BLIST_FIRST(&beam->hold); 
+                     b != H2_BLIST_SENTINEL(&beam->hold);
+                     b = next) {
+                    next = APR_BUCKET_NEXT(b);
+                    if (b == proxy->bred) {
+                        APR_BUCKET_REMOVE(b);
+                        H2_BLIST_INSERT_TAIL(&beam->purge, b);
+                        break;
+                    }
+                    else if (APR_BUCKET_IS_METADATA(b)) {
+                        APR_BUCKET_REMOVE(b);
+                        H2_BLIST_INSERT_TAIL(&beam->purge, b);
+                    }
+                    else {
+                        /* another data bucket before this one in hold. this
+                         * is normal since DATA buckets need not be destroyed
+                         * in order */
+                    }
+                }
+                
+                proxy->bred = NULL;
+            }
+            else {
+                /* it should be there unless we screwed up */
+                ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, beam->red_pool, 
+                              APLOGNO(03384) "h2_beam(%d-%s): emitted bucket not "
+                              "in hold, n=%d", beam->id, beam->tag, 
+                              (int)proxy->n);
+                AP_DEBUG_ASSERT(!proxy->bred);
+            }
+        }
+        /* notify anyone waiting on space to become available */
+        if (!bl.mutex) {
+            r_purge_reds(beam);
+        }
+        else if (beam->m_cond) {
+            apr_thread_cond_broadcast(beam->m_cond);
+        }
+        leave_yellow(beam, &bl);
+    }
 }

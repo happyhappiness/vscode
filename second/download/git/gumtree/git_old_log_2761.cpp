@@ -1,1 +1,1 @@
-warning ("invalid SHA-1: %s", buffer);
+die_errno ("Could not make temporary directory");

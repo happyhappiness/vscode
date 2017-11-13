@@ -1,1 +1,1 @@
-die(_("unable to parse format string"));
+warning(_("submodule update strategy not supported for submodule '%s'"), ce->name);

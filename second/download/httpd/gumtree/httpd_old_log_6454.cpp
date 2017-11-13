@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                         ref ? "Spelling fix: %s: %d candidates from %s"
-                             : "Spelling fix: %s: %d candidates",
-                         r->uri, candidates->nelts, ref);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, msos->m->c,
+                      "h2_stream(%ld-%d): read_to, len=%ld eos=%d",
+                      msos->m->id, sos->stream->id, (long)*plen, *peos);

@@ -1,9 +1,8 @@
 fputs(
-"              default  config  file  and  uses it if found. The default config\n"
-"              file is checked for in the following places in this order:\n"
-"\n"
-"              1) curl tries to find the \"home dir\": It first  checks  for  the\n"
-"              CURL_HOME and then the HOME environment variables. Failing that,\n"
-"              it uses getpwuid() on UNIX-like systems (which returns the  home\n"
-"              dir  given the current user in your system). On Windows, it then\n"
+"              fied on the same config  file  line,  separated  by  whitespace,\n"
+"              colon,  the equals sign or any combination thereof (however, the\n"
+"              preferred separator is the equals sign). If the parameter is  to\n"
+"              contain  whitespace,  the  parameter  must  be  enclosed  within\n"
+"              quotes. Within double quotes, the following escape sequences are\n"
+"              available:  \\\\, \\\", \\t, \\n, \\r and \\v. A backslash preceding any\n"
 , stdout);

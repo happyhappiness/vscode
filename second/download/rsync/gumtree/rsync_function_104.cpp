@@ -1,26 +1,44 @@
-void clean_flist(struct file_list *flist)
+static void receive_data(int f_in,char *buf,int fd,char *fname)
 {
-  int i;
+  int i,n,remainder,len,count;
+  off_t offset = 0;
+  off_t offset2;
 
-  if (!flist || flist->count == 0) 
-    return;
-  
-  for (i=0;i<flist->count;i++) {
-    clean_fname(flist->files[i].name);
-  }
-      
-  qsort(flist->files,flist->count,
-	sizeof(flist->files[0]),
-	(int (*)())flist_compare);
+  count = read_int(f_in);
+  n = read_int(f_in);
+  remainder = read_int(f_in);
 
-  for (i=1;i<flist->count;i++) {
-    if (flist->files[i].name &&
-	strcmp(flist->files[i].name,flist->files[i-1].name) == 0) {
-      if (verbose > 1 && !am_server)
-	fprintf(stderr,"removing duplicate name %s from file list\n",
-		flist->files[i].name);
-      free(flist->files[i-1].name);
-      flist->files[i-1].name = NULL;
+  for (i=read_int(f_in); i != 0; i=read_int(f_in)) {
+    if (i > 0) {
+      if (verbose > 3)
+	fprintf(stderr,"data recv %d at %d\n",i,(int)offset);
+
+      if (read_write(f_in,fd,i) != i) {
+	fprintf(stderr,"write failed on %s : %s\n",fname,strerror(errno));
+	exit(1);
+      }
+      offset += i;
+    } else {
+      i = -(i+1);
+      offset2 = i*n;
+      len = n;
+      if (i == count-1 && remainder != 0)
+	len = remainder;
+
+      if (verbose > 3)
+	fprintf(stderr,"chunk[%d] of size %d at %d offset=%d\n",
+		i,len,(int)offset2,(int)offset);
+
+      if (write_sparse(fd,map_ptr(buf,offset2,len),len) != len) {
+	fprintf(stderr,"write failed on %s : %s\n",fname,strerror(errno));
+	exit(1);
+      }
+      offset += len;
     }
+  }
+
+  if (offset > 0 && sparse_end(fd) != 0) {
+    fprintf(stderr,"write failed on %s : %s\n",fname,strerror(errno));
+    exit(1);
   }
 }

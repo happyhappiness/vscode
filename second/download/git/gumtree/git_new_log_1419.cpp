@@ -1,1 +1,1 @@
-printf(_("Remove %s [y/N]? "), qname);
+die(_("in unpopulated submodule '%s'"), ce->name);

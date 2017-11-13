@@ -1,78 +1,73 @@
-static apr_status_t handle_exec(include_ctx_t *ctx, ap_filter_t *f,
-                                apr_bucket_brigade *bb)
+int SSLize_Socket(SOCKET socketHnd, char *key, request_rec *r)
 {
-    char *tag = NULL;
-    char *tag_val = NULL;
-    request_rec *r = f->r;
-    char *file = r->filename;
-    char parsed_string[MAX_STRING_LEN];
+    int rcode;
+    struct tlsserveropts sWS2Opts;
+    struct nwtlsopts    sNWTLSOpts;
+    unicode_t SASKey[512];
+    unsigned long ulFlag;
 
-    if (!ctx->argc) {
-        ap_log_rerror(APLOG_MARK,
-                      (ctx->flags & SSI_FLAG_PRINTING)
-                          ? APLOG_ERR : APLOG_WARNING,
-                      0, r, "missing argument for exec element in %s",
-                      r->filename);
+    memset((char *)&sWS2Opts, 0, sizeof(struct tlsserveropts));
+    memset((char *)&sNWTLSOpts, 0, sizeof(struct nwtlsopts));
+
+
+    ulFlag = SO_TLS_ENABLE;
+    rcode = WSAIoctl(socketHnd, SO_TLS_SET_FLAGS, &ulFlag, sizeof(unsigned long), NULL, 0, NULL, NULL, NULL);
+    if(rcode)
+    {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "Error: %d with WSAIoctl(SO_TLS_SET_FLAGS, SO_TLS_ENABLE)", WSAGetLastError());
+        goto ERR;
     }
 
-    if (!(ctx->flags & SSI_FLAG_PRINTING)) {
-        return APR_SUCCESS;
+
+    ulFlag = SO_TLS_SERVER;
+    rcode = WSAIoctl(socketHnd, SO_TLS_SET_FLAGS, &ulFlag, sizeof(unsigned long),NULL, 0, NULL, NULL, NULL);
+
+    if(rcode)
+    {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "Error: %d with WSAIoctl(SO_TLS_SET_FLAGS, SO_TLS_SERVER)", WSAGetLastError());
+        goto ERR;
     }
 
-    if (!ctx->argc) {
-        SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
-        return APR_SUCCESS;
+    loc2uni(UNI_LOCAL_DEFAULT, SASKey, key, 0, 0);
+
+    //setup the tlsserveropts struct
+    sWS2Opts.wallet = SASKey;
+    sWS2Opts.walletlen = unilen(SASKey);
+    sWS2Opts.sidtimeout = 0;
+    sWS2Opts.sidentries = 0;
+    sWS2Opts.siddir = NULL;
+    sWS2Opts.options = &sNWTLSOpts;
+
+    //setup the nwtlsopts structure
+
+    sNWTLSOpts.walletProvider               = WAL_PROV_KMO;
+    sNWTLSOpts.keysList                     = NULL;
+    sNWTLSOpts.numElementsInKeyList         = 0;
+    sNWTLSOpts.reservedforfutureuse         = NULL;
+    sNWTLSOpts.reservedforfutureCRL         = NULL;
+    sNWTLSOpts.reservedforfutureCRLLen      = 0;
+    sNWTLSOpts.reserved1                    = NULL;
+    sNWTLSOpts.reserved2                    = NULL;
+    sNWTLSOpts.reserved3                    = NULL;
+
+
+    rcode = WSAIoctl(socketHnd,
+                     SO_TLS_SET_SERVER,
+                     &sWS2Opts,
+                     sizeof(struct tlsserveropts),
+                     NULL,
+                     0,
+                     NULL,
+                     NULL,
+                     NULL);
+    if(SOCKET_ERROR == rcode) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "Error: %d with WSAIoctl(SO_TLS_SET_SERVER)", WSAGetLastError());
+        goto ERR;
     }
 
-    if (ctx->flags & SSI_FLAG_NO_EXEC) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "exec used but not allowed "
-                      "in %s", r->filename);
-        SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
-        return APR_SUCCESS;
-    }
-
-    while (1) {
-        cgi_pfn_gtv(ctx, &tag, &tag_val, SSI_VALUE_DECODED);
-        if (!tag || !tag_val) {
-            break;
-        }
-
-        if (!strcmp(tag, "cmd")) {
-            apr_status_t rv;
-
-            cgi_pfn_ps(ctx, tag_val, parsed_string, sizeof(parsed_string),
-                       SSI_EXPAND_LEAVE_NAME);
-
-            rv = include_cmd(ctx, f, bb, parsed_string);
-            if (rv != APR_SUCCESS) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "execution failure "
-                              "for parameter \"%s\" to tag exec in file %s",
-                              tag, r->filename);
-                SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
-                break;
-            }
-        }
-        else if (!strcmp(tag, "cgi")) {
-            apr_status_t rv;
-
-            cgi_pfn_ps(ctx, tag_val, parsed_string, sizeof(parsed_string),
-                       SSI_EXPAND_DROP_NAME);
-
-            rv = include_cgi(ctx, f, bb, parsed_string);
-            if (rv != APR_SUCCESS) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "invalid CGI ref "
-                              "\"%s\" in %s", tag_val, file);
-                SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
-                break;
-            }
-        }
-        else {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unknown parameter "
-                          "\"%s\" to tag exec in %s", tag, file);
-            SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
-            break;
-        }
-    }
-
-    return APR_SUCCESS;
+ERR:
+    return rcode;
 }

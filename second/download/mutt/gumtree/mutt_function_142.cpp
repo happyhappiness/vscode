@@ -1,14 +1,9 @@
-static int mmdf_commit_message (CONTEXT *ctx, MESSAGE *msg)
+static void draw_envelope_addr (int line, ADDRESS *addr)
 {
-  if (fputs (MMDF_SEP, msg->fp) == EOF)
-    return -1;
+  char buf[LONG_STRING];
 
-  if ((fflush (msg->fp) == EOF) ||
-      (fsync (fileno (msg->fp)) == -1))
-  {
-    mutt_perror _("Can't write message");
-    return -1;
-  }
-
-  return 0;
+  buf[0] = 0;
+  rfc822_write_address (buf, sizeof (buf), addr, 1);
+  mutt_window_mvprintw (MuttIndexWindow, line, 0, TITLE_FMT, Prompts[line]);
+  mutt_paddstr (W, buf);
 }

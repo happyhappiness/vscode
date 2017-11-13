@@ -1,3 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
-                          "proxy: CONNECT: error on %s - ap_get_brigade",
-                          name);
+ap_rputs("\"<b><code>C</code></b>\" Closing connection, \n", r);

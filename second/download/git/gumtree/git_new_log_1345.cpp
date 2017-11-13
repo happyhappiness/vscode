@@ -1,1 +1,1 @@
-packet_buf_write(req_buf, "push-cert%c%s", 0, cap_string);
+die("Not a valid commit: %s", oid_to_hex(&b->oid));

@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01504)
-                  "Regular expression replacement failed (replacement too long?)");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ctx->s, APLOGNO(02086)
+                     "%pI busy=%s ready=%s", from,
+                     apr_table_get(tbl, "busy"), apr_table_get(tbl, "ready"));

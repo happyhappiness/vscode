@@ -1,1 +1,1 @@
-error("external filter %s failed %d", params->cmd, status);
+fprintf_ln(stderr, _("Rejected hunk #%d."), cnt);

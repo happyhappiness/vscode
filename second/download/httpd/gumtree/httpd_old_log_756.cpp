@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, status, NULL,
-                             "SSL filter error shutting down I/O");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "Sum of ranges not smaller than file, ignoring.");

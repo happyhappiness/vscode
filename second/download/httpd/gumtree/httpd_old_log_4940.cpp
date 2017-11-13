@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
-                             "Read config: %s", buf);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "redirected from r->uri = %s",
+                          top->uri ? top->uri : "(unexpectedly NULL)");

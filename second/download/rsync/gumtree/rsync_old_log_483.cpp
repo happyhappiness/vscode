@@ -1,1 +1,1 @@
-fprintf(FINFO,"offset=%d sum=%08x\n",(int)offset,sum);
+fprintf(f,"-g, --group              preserve group\n");

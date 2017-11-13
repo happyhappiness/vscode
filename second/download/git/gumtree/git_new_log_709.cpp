@@ -1,1 +1,1 @@
-die(_("could not create directory '%s'"), new_git_dir);
+die("git upload-pack: ambiguous deepen-not: %s", line);

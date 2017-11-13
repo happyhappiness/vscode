@@ -1,48 +1,114 @@
-void match_sums(int f,struct sum_struct *s,struct map_struct *buf,off_t len)
-{
-  char file_sum[SUM_LENGTH];
+int recv_files(int f_in,struct file_list *flist,char *local_name)
+{  
+  int fd1,fd2;
+  struct stat st;
+  char *fname;
+  char fnametmp[MAXPATHLEN];
+  char *buf;
+  int i;
 
-  last_match = 0;
-  false_alarms = 0;
-  tag_hits = 0;
-  matches=0;
-  data_transfer=0;
-
-  sum_init();
-
-  if (len > 0 && s->count>0) {
-    build_hash_table(s);
-
-    if (verbose > 2) 
-      fprintf(FERROR,"built hash table\n");
-
-    hash_search(f,s,buf,len);
-
-    if (verbose > 2) 
-      fprintf(FERROR,"done hash search\n");
-  } else {
-    matched(f,s,buf,len,len,-1);
+  if (verbose > 2) {
+    fprintf(stderr,"recv_files(%d) starting\n",flist->count);
   }
 
-  sum_end(file_sum);
-
-  if (remote_version >= 14) {
-    if (verbose > 2)
-      fprintf(FERROR,"sending file_sum\n");
-    write_buf(f,file_sum,SUM_LENGTH);
+  if (recurse && delete_mode && !local_name && flist->count>0) {
+    delete_files(flist);
   }
 
-  if (targets) {
-    free(targets);
-    targets=NULL;
-  }
+  while (1) 
+    {
+      i = read_int(f_in);
+      if (i == -1) break;
+
+      fname = flist->files[i].name;
+
+      if (local_name)
+	fname = local_name;
+
+      if (dry_run) {
+	if (!am_server && verbose)
+	  printf("%s\n",fname);
+	continue;
+      }
+
+      if (verbose > 2)
+	fprintf(stderr,"recv_files(%s)\n",fname);
+
+      /* open the file */  
+      fd1 = open(fname,O_RDONLY);
+
+      if (fd1 != -1 && fstat(fd1,&st) != 0) {
+	fprintf(stderr,"fstat %s : %s\n",fname,strerror(errno));
+	close(fd1);
+	return -1;
+      }
+
+      if (fd1 != -1 && !S_ISREG(st.st_mode)) {
+	fprintf(stderr,"%s : not a regular file\n",fname);
+	close(fd1);
+	return -1;
+      }
+
+      if (fd1 != -1 && st.st_size > 0) {
+	buf = map_file(fd1,st.st_size);
+      } else {
+	buf = NULL;
+      }
+
+      if (verbose > 2)
+	fprintf(stderr,"mapped %s of size %d\n",fname,(int)st.st_size);
+
+      /* open tmp file */
+      sprintf(fnametmp,"%s.XXXXXX",fname);
+      if (NULL == mktemp(fnametmp)) {
+	fprintf(stderr,"mktemp %s failed\n",fnametmp);
+	return -1;
+      }
+      fd2 = open(fnametmp,O_WRONLY|O_CREAT,flist->files[i].mode);
+      if (fd2 == -1) {
+	fprintf(stderr,"open %s : %s\n",fnametmp,strerror(errno));
+	return -1;
+      }
+      
+      cleanup_fname = fnametmp;
+
+      if (!am_server && verbose)
+	printf("%s\n",fname);
+
+      /* recv file data */
+      receive_data(f_in,buf,fd2,fname);
+
+      if (fd1 != -1) {
+	unmap_file(buf,st.st_size);
+	close(fd1);
+      }
+      close(fd2);
+
+      if (verbose > 2)
+	fprintf(stderr,"renaming %s to %s\n",fnametmp,fname);
+
+      if (make_backups) {
+	char fnamebak[MAXPATHLEN];
+	sprintf(fnamebak,"%s%s",fname,backup_suffix);
+	if (rename(fname,fnamebak) != 0 && errno != ENOENT) {
+	  fprintf(stderr,"rename %s %s : %s\n",fname,fnamebak,strerror(errno));
+	  exit_cleanup(1);
+	}
+      }
+
+      /* move tmp file over real file */
+      if (rename(fnametmp,fname) != 0) {
+	fprintf(stderr,"rename %s -> %s : %s\n",
+		fnametmp,fname,strerror(errno));
+      }
+
+      cleanup_fname = NULL;
+
+      set_perms(fname,&flist->files[i],NULL,0);
+    }
 
   if (verbose > 2)
-    fprintf(FERROR, "false_alarms=%d tag_hits=%d matches=%d\n",
-	    false_alarms, tag_hits, matches);
-
-  total_tag_hits += tag_hits;
-  total_false_alarms += false_alarms;
-  total_matches += matches;
-  total_data_transfer += data_transfer;
+    fprintf(stderr,"recv_files finished\n");
+  
+  return 0;
 }

@@ -1,1 +1,1 @@
-die("BUG: lockfile filename corrupt");
+error("%s %s", oid_to_hex(&e->oid), e->name);

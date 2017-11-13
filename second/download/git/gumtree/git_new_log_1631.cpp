@@ -1,1 +1,1 @@
-die("unable to generate word diff");
+die("unable to get object info for %s", sha1_to_hex(sha1));

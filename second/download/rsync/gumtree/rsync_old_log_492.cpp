@@ -1,1 +1,1 @@
-fprintf(FERROR,"stat(%s) : %s\n", fname, strerror(errno));
+fprintf(f,"    --rsync-path PATH    specify path to rsync on the remote machine\n");

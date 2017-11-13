@@ -1,18 +1,14 @@
-static void decode_tree_entry(struct tree_desc *desc, const char *buf, unsigned long size)
+static const char *diff_abbrev_oid(const struct object_id *oid, int abbrev)
 {
-	const char *path;
-	unsigned int mode, len;
-
-	if (size < 24 || buf[size - 21])
-		die("corrupt tree file");
-
-	path = get_mode(buf, &mode);
-	if (!path || !*path)
-		die("corrupt tree file");
-	len = strlen(path) + 1;
-
-	/* Initialize the descriptor entry */
-	desc->entry.path = path;
-	desc->entry.mode = canon_mode(mode);
-	desc->entry.oid  = (const struct object_id *)(path + len);
+	if (startup_info->have_repository)
+		return find_unique_abbrev(oid->hash, abbrev);
+	else {
+		char *hex = oid_to_hex(oid);
+		if (abbrev < 0)
+			abbrev = FALLBACK_DEFAULT_ABBREV;
+		if (abbrev > GIT_SHA1_HEXSZ)
+			die("BUG: oid abbreviation out of range: %d", abbrev);
+		hex[abbrev] = '\0';
+		return hex;
+	}
 }

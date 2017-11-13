@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, rv, server, APLOGNO(00138)
-                     "apr_socket_addr_get(APR_REMOTE)");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01058) "data connection closed");

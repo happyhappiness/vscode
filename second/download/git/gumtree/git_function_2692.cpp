@@ -1,46 +1,71 @@
-static int get_trace_fd(struct trace_key *key)
+static int handle_alias(int *argcp, const char ***argv)
 {
-	static struct trace_key trace_default = { "GIT_TRACE" };
-	const char *trace;
+	int envchanged = 0, ret = 0, saved_errno = errno;
+	const char *subdir;
+	int count, option_count;
+	const char **new_argv;
+	const char *alias_command;
+	char *alias_string;
+	int unused_nongit;
 
-	/* use default "GIT_TRACE" if NULL */
-	if (!key)
-		key = &trace_default;
+	subdir = setup_git_directory_gently(&unused_nongit);
 
-	/* don't open twice */
-	if (key->initialized)
-		return key->fd;
+	alias_command = (*argv)[0];
+	alias_string = alias_lookup(alias_command);
+	if (alias_string) {
+		if (alias_string[0] == '!') {
+			struct child_process child = CHILD_PROCESS_INIT;
 
-	trace = getenv(key->key);
+			commit_pager_choice();
 
-	if (!trace || !strcmp(trace, "") ||
-	    !strcmp(trace, "0") || !strcasecmp(trace, "false"))
-		key->fd = 0;
-	else if (!strcmp(trace, "1") || !strcasecmp(trace, "true"))
-		key->fd = STDERR_FILENO;
-	else if (strlen(trace) == 1 && isdigit(*trace))
-		key->fd = atoi(trace);
-	else if (is_absolute_path(trace)) {
-		int fd = open(trace, O_WRONLY | O_APPEND | O_CREAT, 0666);
-		if (fd == -1) {
-			fprintf(stderr,
-				"Could not open '%s' for tracing: %s\n"
-				"Defaulting to tracing on stderr...\n",
-				trace, strerror(errno));
-			key->fd = STDERR_FILENO;
-		} else {
-			key->fd = fd;
-			key->need_close = 1;
+			child.use_shell = 1;
+			argv_array_push(&child.args, alias_string + 1);
+			argv_array_pushv(&child.args, (*argv) + 1);
+
+			ret = run_command(&child);
+			if (ret >= 0)   /* normal exit */
+				exit(ret);
+
+			die_errno("While expanding alias '%s': '%s'",
+			    alias_command, alias_string + 1);
 		}
-	} else {
-		fprintf(stderr, "What does '%s' for %s mean?\n"
-			"If you want to trace into a file, then please set "
-			"%s to an absolute pathname (starting with /).\n"
-			"Defaulting to tracing on stderr...\n",
-			trace, key->key, key->key);
-		key->fd = STDERR_FILENO;
+		count = split_cmdline(alias_string, &new_argv);
+		if (count < 0)
+			die("Bad alias.%s string: %s", alias_command,
+			    split_cmdline_strerror(count));
+		option_count = handle_options(&new_argv, &count, &envchanged);
+		if (envchanged)
+			die("alias '%s' changes environment variables\n"
+				 "You can use '!git' in the alias to do this.",
+				 alias_command);
+		memmove(new_argv - option_count, new_argv,
+				count * sizeof(char *));
+		new_argv -= option_count;
+
+		if (count < 1)
+			die("empty alias for %s", alias_command);
+
+		if (!strcmp(alias_command, new_argv[0]))
+			die("recursive alias: %s", alias_command);
+
+		trace_argv_printf(new_argv,
+				  "trace: alias expansion: %s =>",
+				  alias_command);
+
+		REALLOC_ARRAY(new_argv, count + *argcp);
+		/* insert after command name */
+		memcpy(new_argv + count, *argv + 1, sizeof(char *) * *argcp);
+
+		*argv = new_argv;
+		*argcp += count - 1;
+
+		ret = 1;
 	}
 
-	key->initialized = 1;
-	return key->fd;
+	if (subdir && chdir(subdir))
+		die_errno("Cannot change to '%s'", subdir);
+
+	errno = saved_errno;
+
+	return ret;
 }

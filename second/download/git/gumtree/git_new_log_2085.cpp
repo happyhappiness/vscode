@@ -1,1 +1,0 @@
-die("not in a git directory");

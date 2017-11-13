@@ -1,1 +1,1 @@
-fprintf(FERROR,"recv_files(%s)\n",fname);
+fprintf(FERROR,"built hash table\n");

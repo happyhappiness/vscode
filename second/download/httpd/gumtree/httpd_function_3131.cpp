@@ -1,92 +1,265 @@
-static int dav_method_unlock(request_rec *r)
+static int authenticate_digest_user(request_rec *r)
 {
-    dav_error *err;
-    dav_resource *resource;
-    const dav_hooks_locks *locks_hooks;
-    int result;
-    const char *const_locktoken_txt;
-    char *locktoken_txt;
-    dav_locktoken *locktoken = NULL;
-    int resource_state;
-    dav_response *multi_response;
+    digest_config_rec *conf;
+    digest_header_rec *resp;
+    request_rec       *mainreq;
+    const char        *t;
+    int                res;
+    authn_status       return_code;
 
-    /* If no locks provider, decline the request */
-    locks_hooks = DAV_GET_HOOKS_LOCKS(r);
-    if (locks_hooks == NULL)
+    /* do we require Digest auth for this URI? */
+
+    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest")) {
         return DECLINED;
+    }
 
-    if ((const_locktoken_txt = apr_table_get(r->headers_in,
-                                             "Lock-Token")) == NULL) {
+    if (!ap_auth_name(r)) {
         ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Unlock failed (%s):  "
-                      "No Lock-Token specified in header", r->filename);
-        return HTTP_BAD_REQUEST;
+                      "Digest: need AuthName: %s", r->uri);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    locktoken_txt = apr_pstrdup(r->pool, const_locktoken_txt);
-    if (locktoken_txt[0] != '<') {
-        /* ### should provide more specifics... */
-        return HTTP_BAD_REQUEST;
+
+    /* get the client response and mark */
+
+    mainreq = r;
+    while (mainreq->main != NULL) {
+        mainreq = mainreq->main;
     }
-    locktoken_txt++;
-
-    if (locktoken_txt[strlen(locktoken_txt) - 1] != '>') {
-        /* ### should provide more specifics... */
-        return HTTP_BAD_REQUEST;
+    while (mainreq->prev != NULL) {
+        mainreq = mainreq->prev;
     }
-    locktoken_txt[strlen(locktoken_txt) - 1] = '\0';
+    resp = (digest_header_rec *) ap_get_module_config(mainreq->request_config,
+                                                      &auth_digest_module);
+    resp->needed_auth = 1;
 
-    if ((err = (*locks_hooks->parse_locktoken)(r->pool, locktoken_txt,
-                                               &locktoken)) != NULL) {
-        err = dav_push_error(r->pool, HTTP_BAD_REQUEST, 0,
-                             apr_psprintf(r->pool,
-                                          "The UNLOCK on %s failed -- an "
-                                          "invalid lock token was specified "
-                                          "in the \"If:\" header.",
-                                          ap_escape_html(r->pool, r->uri)),
-                             err);
-        return dav_handle_err(r, err, NULL);
-    }
 
-    /* Ask repository module to resolve the resource */
-    err = dav_get_resource(r, 0 /* label_allowed */, 0 /* use_checked_in */,
-                           &resource);
-    if (err != NULL)
-        return dav_handle_err(r, err, NULL);
+    /* get our conf */
 
-    resource_state = dav_get_resource_state(r, resource);
+    conf = (digest_config_rec *) ap_get_module_config(r->per_dir_config,
+                                                      &auth_digest_module);
 
-    /*
-     * Check If-Headers and existing locks.
-     *
-     * Note: depth == 0 normally requires no multistatus response. However,
-     * if we pass DAV_VALIDATE_PARENT, then we could get an error on a URI
-     * other than the Request-URI, thereby requiring a multistatus.
-     *
-     * If the resource is a locknull resource, then the UNLOCK will affect
-     * the parent collection (much like a delete). For that case, we must
-     * validate the parent resource's conditions.
-     */
-    if ((err = dav_validate_request(r, resource, 0, locktoken,
-                                    &multi_response,
-                                    resource_state == DAV_RESOURCE_LOCK_NULL
-                                    ? DAV_VALIDATE_PARENT
-                                    : DAV_VALIDATE_RESOURCE, NULL)) != NULL) {
-        /* ### add a higher-level description? */
-        return dav_handle_err(r, err, multi_response);
+
+    /* check for existence and syntax of Auth header */
+
+    if (resp->auth_hdr_sts != VALID) {
+        if (resp->auth_hdr_sts == NOT_DIGEST) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Digest: client used wrong authentication scheme "
+                          "`%s': %s", resp->scheme, r->uri);
+        }
+        else if (resp->auth_hdr_sts == INVALID) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Digest: missing user, realm, nonce, uri, digest, "
+                          "cnonce, or nonce_count in authorization header: %s",
+                          r->uri);
+        }
+        /* else (resp->auth_hdr_sts == NO_HEADER) */
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
     }
 
-    /* ### RFC 2518 s. 8.11: If this resource is locked by locktoken,
-     *     _all_ resources locked by locktoken are released.  It does not say
-     *     resource has to be the root of an infinte lock.  Thus, an UNLOCK
-     *     on any part of an infinte lock will remove the lock on all resources.
-     *
-     *     For us, if r->filename represents an indirect lock (part of an infinity lock),
-     *     we must actually perform an UNLOCK on the direct lock for this resource.
-     */
-    if ((result = dav_unlock(r, resource, locktoken)) != OK) {
-        return result;
+    r->user         = (char *) resp->username;
+    r->ap_auth_type = (char *) "Digest";
+
+    /* check the auth attributes */
+
+    if (strcmp(resp->uri, resp->raw_request_uri)) {
+        /* Hmm, the simple match didn't work (probably a proxy modified the
+         * request-uri), so lets do a more sophisticated match
+         */
+        apr_uri_t r_uri, d_uri;
+
+        copy_uri_components(&r_uri, resp->psd_request_uri, r);
+        if (apr_uri_parse(r->pool, resp->uri, &d_uri) != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Digest: invalid uri <%s> in Authorization header",
+                          resp->uri);
+            return HTTP_BAD_REQUEST;
+        }
+
+        if (d_uri.hostname) {
+            ap_unescape_url(d_uri.hostname);
+        }
+        if (d_uri.path) {
+            ap_unescape_url(d_uri.path);
+        }
+
+        if (d_uri.query) {
+            ap_unescape_url(d_uri.query);
+        }
+        else if (r_uri.query) {
+            /* MSIE compatibility hack.  MSIE has some RFC issues - doesn't
+             * include the query string in the uri Authorization component
+             * or when computing the response component.  the second part
+             * works out ok, since we can hash the header and get the same
+             * result.  however, the uri from the request line won't match
+             * the uri Authorization component since the header lacks the
+             * query string, leaving us incompatable with a (broken) MSIE.
+             *
+             * the workaround is to fake a query string match if in the proper
+             * environment - BrowserMatch MSIE, for example.  the cool thing
+             * is that if MSIE ever fixes itself the simple match ought to
+             * work and this code won't be reached anyway, even if the
+             * environment is set.
+             */
+
+            if (apr_table_get(r->subprocess_env,
+                              "AuthDigestEnableQueryStringHack")) {
+
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "Digest: "
+                              "applying AuthDigestEnableQueryStringHack "
+                              "to uri <%s>", resp->raw_request_uri);
+
+               d_uri.query = r_uri.query;
+            }
+        }
+
+        if (r->method_number == M_CONNECT) {
+            if (!r_uri.hostinfo || strcmp(resp->uri, r_uri.hostinfo)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Digest: uri mismatch - <%s> does not match "
+                              "request-uri <%s>", resp->uri, r_uri.hostinfo);
+                return HTTP_BAD_REQUEST;
+            }
+        }
+        else if (
+            /* check hostname matches, if present */
+            (d_uri.hostname && d_uri.hostname[0] != '\0'
+              && strcasecmp(d_uri.hostname, r_uri.hostname))
+            /* check port matches, if present */
+            || (d_uri.port_str && d_uri.port != r_uri.port)
+            /* check that server-port is default port if no port present */
+            || (d_uri.hostname && d_uri.hostname[0] != '\0'
+                && !d_uri.port_str && r_uri.port != ap_default_port(r))
+            /* check that path matches */
+            || (d_uri.path != r_uri.path
+                /* either exact match */
+                && (!d_uri.path || !r_uri.path
+                    || strcmp(d_uri.path, r_uri.path))
+                /* or '*' matches empty path in scheme://host */
+                && !(d_uri.path && !r_uri.path && resp->psd_request_uri->hostname
+                    && d_uri.path[0] == '*' && d_uri.path[1] == '\0'))
+            /* check that query matches */
+            || (d_uri.query != r_uri.query
+                && (!d_uri.query || !r_uri.query
+                    || strcmp(d_uri.query, r_uri.query)))
+            ) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Digest: uri mismatch - <%s> does not match "
+                          "request-uri <%s>", resp->uri, resp->raw_request_uri);
+            return HTTP_BAD_REQUEST;
+        }
     }
 
-    return HTTP_NO_CONTENT;
+    if (resp->opaque && resp->opaque_num == 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Digest: received invalid opaque - got `%s'",
+                      resp->opaque);
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
+    }
+
+    if (strcmp(resp->realm, conf->realm)) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Digest: realm mismatch - got `%s' but expected `%s'",
+                      resp->realm, conf->realm);
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
+    }
+
+    if (resp->algorithm != NULL
+        && strcasecmp(resp->algorithm, "MD5")
+        && strcasecmp(resp->algorithm, "MD5-sess")) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Digest: unknown algorithm `%s' received: %s",
+                      resp->algorithm, r->uri);
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
+    }
+
+    return_code = get_hash(r, r->user, conf);
+
+    if (return_code == AUTH_USER_NOT_FOUND) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Digest: user `%s' in realm `%s' not found: %s",
+                      r->user, conf->realm, r->uri);
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
+    }
+    else if (return_code == AUTH_USER_FOUND) {
+        /* we have a password, so continue */
+    }
+    else if (return_code == AUTH_DENIED) {
+        /* authentication denied in the provider before attempting a match */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Digest: user `%s' in realm `%s' denied by provider: %s",
+                      r->user, conf->realm, r->uri);
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
+    }
+    else {
+        /* AUTH_GENERAL_ERROR (or worse)
+         * We'll assume that the module has already said what its error
+         * was in the logs.
+         */
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    if (resp->message_qop == NULL) {
+        /* old (rfc-2069) style digest */
+        if (strcmp(resp->digest, old_digest(r, resp, conf->ha1))) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Digest: user %s: password mismatch: %s", r->user,
+                          r->uri);
+            note_digest_auth_failure(r, conf, resp, 0);
+            return HTTP_UNAUTHORIZED;
+        }
+    }
+    else {
+        const char *exp_digest;
+        int match = 0, idx;
+        for (idx = 0; conf->qop_list[idx] != NULL; idx++) {
+            if (!strcasecmp(conf->qop_list[idx], resp->message_qop)) {
+                match = 1;
+                break;
+            }
+        }
+
+        if (!match
+            && !(conf->qop_list[0] == NULL
+                 && !strcasecmp(resp->message_qop, "auth"))) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Digest: invalid qop `%s' received: %s",
+                          resp->message_qop, r->uri);
+            note_digest_auth_failure(r, conf, resp, 0);
+            return HTTP_UNAUTHORIZED;
+        }
+
+        exp_digest = new_digest(r, resp, conf);
+        if (!exp_digest) {
+            /* we failed to allocate a client struct */
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+        if (strcmp(resp->digest, exp_digest)) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Digest: user %s: password mismatch: %s", r->user,
+                          r->uri);
+            note_digest_auth_failure(r, conf, resp, 0);
+            return HTTP_UNAUTHORIZED;
+        }
+    }
+
+    if (check_nc(r, resp, conf) != OK) {
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
+    }
+
+    /* Note: this check is done last so that a "stale=true" can be
+       generated if the nonce is old */
+    if ((res = check_nonce(r, resp, conf))) {
+        return res;
+    }
+
+    return OK;
 }

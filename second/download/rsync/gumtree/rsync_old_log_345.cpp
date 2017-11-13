@@ -1,1 +1,2 @@
-fprintf(FERROR,"recv_files(%d) starting\n",flist->count);
+fprintf(FERROR,"offset=%d sum=%08x\n",
+	      offset,sum);

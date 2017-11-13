@@ -1,19 +1,13 @@
-static void parse_graph_colors_config(struct argv_array *colors, const char *string)
+static void read_and_refresh_cache(struct replay_opts *opts)
 {
-	const char *end, *start;
-
-	start = string;
-	end = string + strlen(string);
-	while (start < end) {
-		const char *comma = strchrnul(start, ',');
-		char color[COLOR_MAXLEN];
-
-		if (!color_parse_mem(start, comma - start, color))
-			argv_array_push(colors, color);
-		else
-			warning(_("ignore invalid color '%.*s' in log.graphColors"),
-				(int)(comma - start), start);
-		start = comma + 1;
+	static struct lock_file index_lock;
+	int index_fd = hold_locked_index(&index_lock, 0);
+	if (read_index_preload(&the_index, NULL) < 0)
+		die(_("git %s: failed to read the index"), action_name(opts));
+	refresh_index(&the_index, REFRESH_QUIET|REFRESH_UNMERGED, NULL, NULL, NULL);
+	if (the_index.cache_changed && index_fd >= 0) {
+		if (write_locked_index(&the_index, &index_lock, COMMIT_LOCK))
+			die(_("git %s: failed to refresh the index"), action_name(opts));
 	}
-	argv_array_push(colors, GIT_COLOR_RESET);
+	rollback_lock_file(&index_lock);
 }

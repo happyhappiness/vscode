@@ -1,11 +1,9 @@
 fputs(
-"              recipient  should be specified as the user name or user name and\n"
-"              domain (as per Section 3.5 of RFC5321). (Added in 7.34.0)\n"
+"              Maximum time in seconds that you allow the  whole  operation  to\n"
+"              take.   This is useful for preventing your batch jobs from hang-\n"
+"              ing for hours due to slow networks or links going  down.   Since\n"
+"              7.32.0, this option accepts decimal values, but the actual time-\n"
+"              out will decrease in accuracy as the specified timeout increases\n"
+"              in decimal precision.  See also the --connect-timeout option.\n"
 "\n"
-"              When performing a mailing list expand (EXPN command), the recip-\n"
-"              ient  should  be  specified using the mailing list name, such as\n"
-"              \"Friends\" or \"London-Office\".  (Added in 7.34.0)\n"
-"\n"
-"       --max-redirs <num>\n"
-"              Set maximum number of  redirection-followings  allowed.  If  -L,\n"
 , stdout);

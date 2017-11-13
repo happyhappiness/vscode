@@ -1,1 +1,2 @@
-rprintf(FINFO,"IO error encountered - skipping file deletion\n");
+rprintf(FINFO,"count=%d n=%d rem=%d\n",
+	    s->count,s->n,s->remainder);

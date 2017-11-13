@@ -1,56 +1,46 @@
-static apr_status_t piped_log_spawn(piped_log *pl)
+static apr_status_t on_stream_resume(void *ctx, h2_stream *stream)
 {
-    apr_procattr_t *procattr;
-    apr_proc_t *procnew = NULL;
-    apr_status_t status;
-
-    if (((status = apr_procattr_create(&procattr, pl->p)) != APR_SUCCESS) ||
-        ((status = apr_procattr_dir_set(procattr, ap_server_root))
-         != APR_SUCCESS) ||
-        ((status = apr_procattr_cmdtype_set(procattr, pl->cmdtype))
-         != APR_SUCCESS) ||
-        ((status = apr_procattr_child_in_set(procattr,
-                                             pl->read_fd,
-                                             pl->write_fd))
-         != APR_SUCCESS) ||
-        ((status = apr_procattr_child_errfn_set(procattr, log_child_errfn))
-         != APR_SUCCESS) ||
-        ((status = apr_procattr_error_check_set(procattr, 1)) != APR_SUCCESS)) {
-        char buf[120];
-        /* Something bad happened, give up and go away. */
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00103)
-                     "piped_log_spawn: unable to setup child process '%s': %s",
-                     pl->program, apr_strerror(status, buf, sizeof(buf)));
-    }
-    else {
-        char **args;
-        const char *pname;
-
-        apr_tokenize_to_argv(pl->program, &args, pl->p);
-        pname = apr_pstrdup(pl->p, args[0]);
-        procnew = apr_pcalloc(pl->p, sizeof(apr_proc_t));
-        status = apr_proc_create(procnew, pname, (const char * const *) args,
-                                 NULL, procattr, pl->p);
-
-        if (status == APR_SUCCESS) {
-            pl->pid = procnew;
-            /* procnew->in was dup2'd from pl->write_fd;
-             * since the original fd is still valid, close the copy to
-             * avoid a leak. */
-            apr_file_close(procnew->in);
-            procnew->in = NULL;
-            apr_proc_other_child_register(procnew, piped_log_maintenance, pl,
-                                          pl->write_fd, pl->p);
-            close_handle_in_child(pl->p, pl->read_fd);
+    h2_session *session = ctx;
+    apr_status_t status = APR_EAGAIN;
+    int rv;
+    apr_off_t len = 0;
+    int eos = 0;
+    h2_headers *headers;
+    
+    ap_assert(stream);
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
+                  "h2_stream(%ld-%d): on_resume", session->id, stream->id);
+        
+send_headers:
+    headers = NULL;
+    status = h2_stream_out_prepare(stream, &len, &eos, &headers);
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, session->c, 
+                  "h2_stream(%ld-%d): prepared len=%ld, eos=%d", 
+                  session->id, stream->id, (long)len, eos);
+    if (headers) {
+        status = on_stream_headers(session, stream, headers, len, eos);
+        if (status != APR_SUCCESS || stream->rst_error) {
+            return status;
         }
-        else {
-            char buf[120];
-            /* Something bad happened, give up and go away. */
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00104)
-                         "unable to start piped log program '%s': %s",
-                         pl->program, apr_strerror(status, buf, sizeof(buf)));
-        }
+        goto send_headers;
     }
-
+    else if (status != APR_EAGAIN) {
+        if (!stream->has_response) {
+            int err = H2_STREAM_RST(stream, H2_ERR_PROTOCOL_ERROR);
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03466)
+                          "h2_stream(%ld-%d): no response, RST_STREAM, err=%d",
+                          session->id, stream->id, err);
+            nghttp2_submit_rst_stream(session->ngh2, NGHTTP2_FLAG_NONE,
+                                      stream->id, err);
+            return APR_SUCCESS;
+        } 
+        rv = nghttp2_session_resume_data(session->ngh2, stream->id);
+        session->have_written = 1;
+        ap_log_cerror(APLOG_MARK, nghttp2_is_fatal(rv)?
+                      APLOG_ERR : APLOG_DEBUG, 0, session->c,
+                      APLOGNO(02936) 
+                      "h2_stream(%ld-%d): resuming %s",
+                      session->id, stream->id, rv? nghttp2_strerror(rv) : "");
+    }
     return status;
 }

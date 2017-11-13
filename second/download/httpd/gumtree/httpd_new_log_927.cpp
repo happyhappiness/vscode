@@ -1,3 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_STARTUP | APLOG_WARNING, 0, a,
-                     "%s: apr_gethostname() failed to determine ServerName",
-                     ap_server_argv0);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, server,
+                     "The debug mode of Apache should only "
+                     "be started by an unprivileged user!");

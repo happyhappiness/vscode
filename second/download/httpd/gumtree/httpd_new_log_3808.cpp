@@ -1,2 +1,3 @@
-ap_rvputs(r, "<input type=hidden name='nonce' id='nonce' value='",
-                      bsel->s->nonce, "'>\n", NULL);
+ap_log_error(APLOG_MARK, APLOG_ERR, stat,
+                         main_server, APLOGNO(01248)
+                         "Error reading request on cgid socket");

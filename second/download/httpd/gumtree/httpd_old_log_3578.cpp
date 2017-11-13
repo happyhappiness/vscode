@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, serv,
-                    MODNAME ": type %s invalid", l);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
+                                 "Watchdog: Failed to create worker thread.");

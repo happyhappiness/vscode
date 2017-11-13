@@ -1,193 +1,238 @@
-int cache_select(cache_request_rec *cache, request_rec *r)
+apr_status_t cache_generate_key_default(request_rec *r, apr_pool_t* p,
+        const char **key)
 {
-    cache_provider_list *list;
-    apr_status_t rv;
-    cache_handle_t *h;
+    cache_server_conf *conf;
+    char *port_str, *hn, *lcs;
+    const char *hostname, *scheme;
+    int i;
+    char *path, *querystring;
 
-    if (!cache) {
-        /* This should never happen */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_EGENERAL, r, APLOGNO(00693)
-                "cache: No cache request information available for key"
-                " generation");
-        return DECLINED;
+    if (*key) {
+        /*
+         * We have been here before during the processing of this request.
+         */
+        return APR_SUCCESS;
     }
 
-    if (!cache->key) {
-        rv = cache_generate_key(r, r->pool, &cache->key);
-        if (rv != APR_SUCCESS) {
-            return DECLINED;
+    /*
+     * Get the module configuration. We need this for the CacheIgnoreQueryString
+     * option below.
+     */
+    conf = (cache_server_conf *) ap_get_module_config(r->server->module_config,
+                                                      &cache_module);
+
+    /*
+     * Use the canonical name to improve cache hit rate, but only if this is
+     * not a proxy request or if this is a reverse proxy request.
+     * We need to handle both cases in the same manner as for the reverse proxy
+     * case we have the following situation:
+     *
+     * If a cached entry is looked up by mod_cache's quick handler r->proxyreq
+     * is still unset in the reverse proxy case as it only gets set in the
+     * translate name hook (either by ProxyPass or mod_rewrite) which is run
+     * after the quick handler hook. This is different to the forward proxy
+     * case where it gets set before the quick handler is run (in the
+     * post_read_request hook).
+     * If a cache entry is created by the CACHE_SAVE filter we always have
+     * r->proxyreq set correctly.
+     * So we must ensure that in the reverse proxy case we use the same code
+     * path and using the canonical name seems to be the right thing to do
+     * in the reverse proxy case.
+     */
+    if (!r->proxyreq || (r->proxyreq == PROXYREQ_REVERSE)) {
+        if (conf->base_uri && conf->base_uri->hostname) {
+            hostname = conf->base_uri->hostname;
+        }
+        else {
+            /* Use _default_ as the hostname if none present, as in mod_vhost */
+            hostname =  ap_get_server_name(r);
+            if (!hostname) {
+                hostname = "_default_";
+            }
+        }
+    }
+    else if(r->parsed_uri.hostname) {
+        /* Copy the parsed uri hostname */
+        hn = apr_pstrdup(p, r->parsed_uri.hostname);
+        ap_str_tolower(hn);
+        /* const work-around */
+        hostname = hn;
+    }
+    else {
+        /* We are a proxied request, with no hostname. Unlikely
+         * to get very far - but just in case */
+        hostname = "_default_";
+    }
+
+    /*
+     * Copy the scheme, ensuring that it is lower case. If the parsed uri
+     * contains no string or if this is not a proxy request get the http
+     * scheme for this request. As r->parsed_uri.scheme is not set if this
+     * is a reverse proxy request, it is ensured that the cases
+     * "no proxy request" and "reverse proxy request" are handled in the same
+     * manner (see above why this is needed).
+     */
+    if (r->proxyreq && r->parsed_uri.scheme) {
+        /* Copy the scheme and lower-case it */
+        lcs = apr_pstrdup(p, r->parsed_uri.scheme);
+        ap_str_tolower(lcs);
+        /* const work-around */
+        scheme = lcs;
+    }
+    else {
+        if (conf->base_uri && conf->base_uri->scheme) {
+            scheme = conf->base_uri->scheme;
+        }
+        else {
+            scheme = ap_http_scheme(r);
         }
     }
 
-    if (!ap_cache_check_allowed(cache, r)) {
-        return DECLINED;
+    /*
+     * If this is a proxy request, but not a reverse proxy request (see comment
+     * above why these cases must be handled in the same manner), copy the
+     * URI's port-string (which may be a service name). If the URI contains
+     * no port-string, use apr-util's notion of the default port for that
+     * scheme - if available. Otherwise use the port-number of the current
+     * server.
+     */
+    if (r->proxyreq && (r->proxyreq != PROXYREQ_REVERSE)) {
+        if (r->parsed_uri.port_str) {
+            port_str = apr_pcalloc(p, strlen(r->parsed_uri.port_str) + 2);
+            port_str[0] = ':';
+            for (i = 0; r->parsed_uri.port_str[i]; i++) {
+                port_str[i + 1] = apr_tolower(r->parsed_uri.port_str[i]);
+            }
+        }
+        else if (apr_uri_port_of_scheme(scheme)) {
+            port_str = apr_psprintf(p, ":%u", apr_uri_port_of_scheme(scheme));
+        }
+        else {
+            /* No port string given in the AbsoluteUri, and we have no
+             * idea what the default port for the scheme is. Leave it
+             * blank and live with the inefficiency of some extra cached
+             * entities.
+             */
+            port_str = "";
+        }
+    }
+    else {
+        if (conf->base_uri && conf->base_uri->port_str) {
+            port_str = conf->base_uri->port_str;
+        }
+        else if (conf->base_uri && conf->base_uri->hostname) {
+            port_str = "";
+        }
+        else {
+            /* Use the server port */
+            port_str = apr_psprintf(p, ":%u", ap_get_server_port(r));
+        }
     }
 
-    /* go through the cache types till we get a match */
-    h = apr_palloc(r->pool, sizeof(cache_handle_t));
+    /*
+     * Check if we need to ignore session identifiers in the URL and do so
+     * if needed.
+     */
+    path = r->uri;
+    querystring = r->parsed_uri.query;
+    if (conf->ignore_session_id->nelts) {
+        int i;
+        char **identifier;
 
-    list = cache->providers;
+        identifier = (char **)conf->ignore_session_id->elts;
+        for (i = 0; i < conf->ignore_session_id->nelts; i++, identifier++) {
+            int len;
+            char *param;
 
-    while (list) {
-        switch ((rv = list->provider->open_entity(h, r, cache->key))) {
-        case OK: {
-            char *vary = NULL;
-            int fresh, mismatch = 0;
-
-            if (list->provider->recall_headers(h, r) != APR_SUCCESS) {
-                /* try again with next cache type */
-                list = list->next;
+            len = strlen(*identifier);
+            /*
+             * Check that we have a parameter separator in the last segment
+             * of the path and that the parameter matches our identifier
+             */
+            if ((param = strrchr(path, ';'))
+                && !strncmp(param + 1, *identifier, len)
+                && (*(param + len + 1) == '=')
+                && !strchr(param + len + 2, '/')) {
+                path = apr_pstrndup(p, path, param - path);
                 continue;
             }
-
             /*
-             * Check Content-Negotiation - Vary
-             *
-             * At this point we need to make sure that the object we found in
-             * the cache is the same object that would be delivered to the
-             * client, when the effects of content negotiation are taken into
-             * effect.
-             *
-             * In plain english, we want to make sure that a language-negotiated
-             * document in one language is not given to a client asking for a
-             * language negotiated document in a different language by mistake.
-             *
-             * This code makes the assumption that the storage manager will
-             * cache the req_hdrs if the response contains a Vary
-             * header.
-             *
-             * RFC2616 13.6 and 14.44 describe the Vary mechanism.
+             * Check if the identifier is in the querystring and cut it out.
              */
-            vary = apr_pstrdup(r->pool, apr_table_get(h->resp_hdrs, "Vary"));
-            while (vary && *vary) {
-                char *name = vary;
-                const char *h1, *h2;
-
-                /* isolate header name */
-                while (*vary && !apr_isspace(*vary) && (*vary != ','))
-                    ++vary;
-                while (*vary && (apr_isspace(*vary) || (*vary == ','))) {
-                    *vary = '\0';
-                    ++vary;
-                }
-
+            if (querystring) {
                 /*
-                 * is this header in the request and the header in the cached
-                 * request identical? If not, we give up and do a straight get
+                 * First check if the identifier is at the beginning of the
+                 * querystring and followed by a '='
                  */
-                h1 = apr_table_get(r->headers_in, name);
-                h2 = apr_table_get(h->req_hdrs, name);
-                if (h1 == h2) {
-                    /* both headers NULL, so a match - do nothing */
-                }
-                else if (h1 && h2 && !strcmp(h1, h2)) {
-                    /* both headers exist and are equal - do nothing */
+                if (!strncmp(querystring, *identifier, len)
+                    && (*(querystring + len) == '=')) {
+                    param = querystring;
                 }
                 else {
-                    /* headers do not match, so Vary failed */
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
-                            r, APLOGNO(00694) "cache_select_url(): Vary header mismatch.");
-                    mismatch = 1;
-                }
-            }
-
-            /* no vary match, try next provider */
-            if (mismatch) {
-                /* try again with next cache type */
-                list = list->next;
-                continue;
-            }
-
-            cache->provider = list->provider;
-            cache->provider_name = list->provider_name;
-
-            /* Is our cached response fresh enough? */
-            fresh = cache_check_freshness(h, cache, r);
-            if (!fresh) {
-                const char *etag, *lastmod;
-
-                /* Cache-Control: only-if-cached and revalidation required, try
-                 * the next provider
-                 */
-                if (cache->control_in.only_if_cached) {
-                    /* try again with next cache type */
-                    list = list->next;
-                    continue;
-                }
-
-                /* set aside the stale entry for accessing later */
-                cache->stale_headers = apr_table_copy(r->pool,
-                        r->headers_in);
-                cache->stale_handle = h;
-
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(00695)
-                        "Cached response for %s isn't fresh.  Adding/replacing "
-                        "conditional request headers.", r->uri);
-
-                /* We can only revalidate with our own conditionals: remove the
-                 * conditions from the original request.
-                 */
-                apr_table_unset(r->headers_in, "If-Match");
-                apr_table_unset(r->headers_in, "If-Modified-Since");
-                apr_table_unset(r->headers_in, "If-None-Match");
-                apr_table_unset(r->headers_in, "If-Range");
-                apr_table_unset(r->headers_in, "If-Unmodified-Since");
-
-                etag = apr_table_get(h->resp_hdrs, "ETag");
-                lastmod = apr_table_get(h->resp_hdrs, "Last-Modified");
-
-                if (etag || lastmod) {
-                    /* If we have a cached etag and/or Last-Modified add in
-                     * our own conditionals.
-                     */
-
-                    if (etag) {
-                        apr_table_set(r->headers_in, "If-None-Match", etag);
-                    }
-
-                    if (lastmod) {
-                        apr_table_set(r->headers_in, "If-Modified-Since",
-                                lastmod);
-                    }
+                    char *complete;
 
                     /*
-                     * Do not do Range requests with our own conditionals: If
-                     * we get 304 the Range does not matter and otherwise the
-                     * entity changed and we want to have the complete entity
+                     * In order to avoid subkey matching (PR 48401) prepend
+                     * identifier with a '&' and append a '='
                      */
-                    apr_table_unset(r->headers_in, "Range");
-
+                    complete = apr_pstrcat(p, "&", *identifier, "=", NULL);
+                    param = strstr(querystring, complete);
+                    /* If we found something we are sitting on the '&' */
+                    if (param) {
+                        param++;
+                    }
                 }
+                if (param) {
+                    char *amp;
 
-                /* ready to revalidate, pretend we were never here */
-                return DECLINED;
+                    if (querystring != param) {
+                        querystring = apr_pstrndup(p, querystring,
+                                               param - querystring);
+                    }
+                    else {
+                        querystring = "";
+                    }
+
+                    if ((amp = strchr(param + len + 1, '&'))) {
+                        querystring = apr_pstrcat(p, querystring, amp + 1, NULL);
+                    }
+                    else {
+                        /*
+                         * If querystring is not "", then we have the case
+                         * that the identifier parameter we removed was the
+                         * last one in the original querystring. Hence we have
+                         * a trailing '&' which needs to be removed.
+                         */
+                        if (*querystring) {
+                            querystring[strlen(querystring) - 1] = '\0';
+                        }
+                    }
+                }
             }
-
-            /* Okay, this response looks okay.  Merge in our stuff and go. */
-            cache_accept_headers(h, r, 0);
-
-            cache->handle = h;
-            return OK;
-        }
-        case DECLINED: {
-            /* try again with next cache type */
-            list = list->next;
-            continue;
-        }
-        default: {
-            /* oo-er! an error */
-            return rv;
-        }
         }
     }
 
-    /* if Cache-Control: only-if-cached, and not cached, return 504 */
-    if (cache->control_in.only_if_cached) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(00696)
-                "cache: 'only-if-cached' requested and no cached entity, "
-                "returning 504 Gateway Timeout for: %s", r->uri);
-        return HTTP_GATEWAY_TIME_OUT;
+    /* Key format is a URI, optionally without the query-string */
+    if (conf->ignorequerystring) {
+        *key = apr_pstrcat(p, scheme, "://", hostname, port_str,
+                           path, "?", NULL);
+    }
+    else {
+        *key = apr_pstrcat(p, scheme, "://", hostname, port_str,
+                           path, "?", querystring, NULL);
     }
 
-    return DECLINED;
+    /*
+     * Store the key in the request_config for the cache as r->parsed_uri
+     * might have changed in the time from our first visit here triggered by the
+     * quick handler and our possible second visit triggered by the CACHE_SAVE
+     * filter (e.g. r->parsed_uri got unescaped). In this case we would save the
+     * resource in the cache under a key where it is never found by the quick
+     * handler during following requests.
+     */
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(00698)
+            "cache: Key for entity %s?%s is %s", r->uri,
+            r->parsed_uri.query, *key);
+
+    return APR_SUCCESS;
 }

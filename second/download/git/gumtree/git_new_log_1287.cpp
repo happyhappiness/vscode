@@ -1,2 +1,1 @@
-error("Unable to commit marks file %s: %s",
-			export_marks_file, strerror(errno));
+die("unable to read %s", oid_to_hex(&entry->idx.oid));

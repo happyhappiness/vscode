@@ -1,1 +1,1 @@
-printf("-%s\n", oid_to_hex(&commit->object.oid));
+strbuf_addf(err, "can't verify ref %s", lock->ref_name);

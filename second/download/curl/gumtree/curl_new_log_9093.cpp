@@ -1,11 +1,10 @@
 fputs(
-"              you   disable  this  exponential  backoff  algorithm.  See  also\n"
-"              --retry-max-time to limit the total time  allowed  for  retries.\n"
-"              (Added in 7.12.3)\n"
+"              This  option changes the default action for all given URLs to be\n"
+"              dealt with as if -O, --remote-name were used for each one. So if\n"
+"              you want to disable that for a specific URL after --remote-name-\n"
+"              all has been used, you must  use  \"-o  -\"  or  --no-remote-name.\n"
+"              (Added in 7.19.0)\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --retry-delay <seconds>\n"
-"              Make  curl  sleep  this  amount of time before each retry when a\n"
-"              transfer has failed with  a  transient  error  (it  changes  the\n"
+"       --resolve <host:port:address>\n"
+"              Provide  a  custom  address  for  a specific host and port pair.\n"
 , stdout);

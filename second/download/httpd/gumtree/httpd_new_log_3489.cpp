@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01485) "adding output filter %s",
-                  name);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(00789)
+                         "Failed to Add memcache Server: %s:%d",
+                         host_str, port);

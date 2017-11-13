@@ -1,1 +1,3 @@
-printf(" %s", find_unique_abbrev(p->item->object.oid.hash, abbrev));
+printf("%s%s %s%s", c_reset,
+						    c_context, c_reset,
+						    c_func);

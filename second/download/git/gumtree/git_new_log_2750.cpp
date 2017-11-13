@@ -1,1 +1,1 @@
-die("index file corrupt");
+fprintf(outfile, "%s%s\n", tok, val);

@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(00294)
-                "Accept mutex: %s (default: %s)",
-                apr_proc_mutex_name(accept_mutex),
-                apr_proc_mutex_defname());
+ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_ERR, 0, p,
+                      APLOGNO(02185) "Failed to allocate dynamic lock structure");

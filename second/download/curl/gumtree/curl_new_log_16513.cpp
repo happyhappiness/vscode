@@ -1,13 +1,14 @@
-puts(
-"     but no nesting is supported at the moment:\n"
+fputs(
+"       error  messages  that  may appear during bad conditions. At the time of\n"
+"       this writing, the exit codes are:\n"
 "\n"
-"      http://www.any.org/archive[1996-1999]/vol�\n"
-"     ume[1-4]part{a,b,c,index}.html\n"
+"       1      Unsupported protocol. This build of curl has no support for this\n"
+"              protocol.\n"
 "\n"
-"     Starting with curl 7.6, you can specify any amount  of  URLs\n"
-"     on  the  command  line. They will be fetched in a sequential\n"
-"     manner in the specified order.\n"
+"       2      Failed to initialize.\n"
 "\n"
-"     Starting with curl 7.7, curl will attempt to re-use  connec�\n"
-"     tions  for  multiple  file  transfers,  so that getting many\n"
-);
+"       3      URL malformed. The syntax was not correct.\n"
+"\n"
+"       4      A  feature  or  option  that  was  needed to perform the desired\n"
+"              request was not enabled or was  explicitly  disabled  at  build-\n"
+, stdout);

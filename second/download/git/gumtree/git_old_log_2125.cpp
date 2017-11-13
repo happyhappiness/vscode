@@ -1,1 +1,2 @@
-die(_("bad config file line %d in %s"), cf->linenr, cf->name);
+die("unable to generate combined diff for %s",
+		    oid_to_hex(parent));

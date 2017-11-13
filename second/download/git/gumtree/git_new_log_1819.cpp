@@ -1,1 +1,1 @@
-die("unable to generate diff for %s", one->path);
+printf("Diag: port=%s\n", port ? port : "NONE");

@@ -1,1 +1,0 @@
-strbuf_write(&pp->children[i].err, stderr);

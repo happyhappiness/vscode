@@ -1,1 +1,1 @@
-fprintf(stderr, "    -T content-type Content-type header to use for POST/PUT data, eg.\n");
+fprintf(stderr, "                    (" SSL2_HELP_MSG "SSL3, TLS1" TLS1_X_HELP_MSG " or ALL)\n");

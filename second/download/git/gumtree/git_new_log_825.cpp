@@ -1,1 +1,2 @@
-die(_("--no-contains option is only allowed in list mode"));
+error(_("could not read '%s'"),
+				rebase_path_squash_msg());

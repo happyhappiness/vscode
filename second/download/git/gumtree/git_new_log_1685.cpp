@@ -1,2 +1,2 @@
-die("No directory name could be guessed.\n"
-		"Please specify a directory on the command line");
+die_errno("failed to write to %s",
+				  shallow_lock->filename.buf);

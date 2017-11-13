@@ -1,1 +1,1 @@
-fprintf(FINFO,"clearing exclude list\n");
+fprintf(FERROR,"chdir %s: %s (3)\n",dir,strerror(errno));

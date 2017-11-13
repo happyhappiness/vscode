@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, r->server,
-             "proxy: AJP: canonicalising URL %s", url);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
+                                  0, f->r, "apr_sleep()");

@@ -1,1 +1,1 @@
-assert(f_out == iobuf.out_fd);
+alloc_xbuf(&iobuf.in, ROUND_UP_1024(IO_BUFFER_SIZE));

@@ -1,50 +1,33 @@
-apr_status_t h2_task_do(h2_task *task, apr_thread_t *thread)
+static apr_status_t session_pool_cleanup(void *data)
 {
-    AP_DEBUG_ASSERT(task);
+    h2_session *session = data;
+    /* On a controlled connection shutdown, this gets never
+     * called as we deregister and destroy our pool manually.
+     * However when we have an async mpm, and handed it our idle
+     * connection, it will just cleanup once the connection is closed
+     * from the other side (and sometimes even from out side) and
+     * here we arrive then.
+     */
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
+                  "session(%ld): pool_cleanup", session->id);
     
-    task->input.block = APR_BLOCK_READ;
-    task->input.chunked = task->request->chunked;
-    task->input.eos = !task->request->body;
-    if (task->input.eos && !task->input.chunked && !task->ser_headers) {
-        /* We do not serialize/chunk and have eos already, no need to
-         * create a bucket brigade. */
-        task->input.bb = NULL;
-        task->input.eos_written = 1;
+    if (session->state != H2_SESSION_ST_DONE 
+        && session->state != H2_SESSION_ST_LOCAL_SHUTDOWN) {
+        /* Not good. The connection is being torn down and we have
+         * not sent a goaway. This is considered a protocol error and
+         * the client has to assume that any streams "in flight" may have
+         * been processed and are not safe to retry.
+         * As clients with idle connection may only learn about a closed
+         * connection when sending the next request, this has the effect
+         * that at least this one request will fail.
+         */
+        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, session->c, APLOGNO(03199)
+                      "session(%ld): connection disappeared without proper "
+                      "goodbye, clients will be confused, should not happen", 
+                      session->id);
     }
-    else {
-        task->input.bb = apr_brigade_create(task->pool, task->c->bucket_alloc);
-        if (task->ser_headers) {
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c,
-                          "h2_task(%s): serialize request %s %s", 
-                          task->id, task->request->method, task->request->path);
-            apr_brigade_printf(task->input.bb, NULL, 
-                               NULL, "%s %s HTTP/1.1\r\n", 
-                               task->request->method, task->request->path);
-            apr_table_do(input_ser_header, task, task->request->headers, NULL);
-            apr_brigade_puts(task->input.bb, NULL, NULL, "\r\n");
-        }
-        if (task->input.eos) {
-            input_append_eos(task, NULL);
-        }
-    }
-    
-    task->output.from_h1 = h2_from_h1_create(task->stream_id, task->pool);
-    
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c,
-                  "h2_task(%s): process connection", task->id);
-    task->c->current_thread = thread; 
-    ap_run_process_connection(task->c);
-    
-    if (task->frozen) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c,
-                      "h2_task(%s): process_conn returned frozen task", 
-                      task->id);
-        /* cleanup delayed */
-        return APR_EAGAIN;
-    }
-    else {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c,
-                      "h2_task(%s): processing done", task->id);
-        return output_finish(task);
-    }
+    /* keep us from destroying the pool, since that is already ongoing. */
+    session->pool = NULL;
+    h2_session_destroy(session);
+    return APR_SUCCESS;
 }

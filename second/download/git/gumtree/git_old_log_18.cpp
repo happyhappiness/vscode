@@ -1,1 +1,2 @@
-error("'%s' is not possible because you have unmerged files.", me);
+error("Object %s is a %s, not a commit",
+			      sha1_to_hex(sha1), typename(obj->type));

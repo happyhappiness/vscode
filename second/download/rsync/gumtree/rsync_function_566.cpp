@@ -1,62 +1,68 @@
-void generate_files(int f,struct file_list *flist,char *local_name,int f_recv)
+static int receive_data(int f_in,struct map_struct *buf,int fd,char *fname)
 {
-  int i;
-  int phase=0;
+  int i,n,remainder,len,count;
+  off_t offset = 0;
+  off_t offset2;
+  char *data;
+  static char file_sum1[MD4_SUM_LENGTH];
+  static char file_sum2[MD4_SUM_LENGTH];
+  char *map=NULL;
 
-  if (verbose > 2)
-    fprintf(FINFO,"generator starting pid=%d count=%d\n",
-	    (int)getpid(),flist->count);
+  count = read_int(f_in);
+  n = read_int(f_in);
+  remainder = read_int(f_in);
 
-  for (i = 0; i < flist->count; i++) {
-    struct file_struct *file = flist->files[i];
-    mode_t saved_mode = file->mode;
-    if (!file->basename) continue;
+  sum_init();
 
-    /* we need to ensure that any directories we create have writeable
-       permissions initially so that we can create the files within
-       them. This is then fixed after the files are transferred */
-    if (!am_root && S_ISDIR(file->mode)) {
-      file->mode |= S_IWUSR; /* user write */
+  for (i=recv_token(f_in,&data); i != 0; i=recv_token(f_in,&data)) {
+    if (i > 0) {
+      if (verbose > 3)
+	fprintf(FINFO,"data recv %d at %d\n",i,(int)offset);
+
+      sum_update(data,i);
+
+      if (fd != -1 && write_file(fd,data,i) != i) {
+	fprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));
+	exit_cleanup(1);
+      }
+      offset += i;
+    } else {
+      i = -(i+1);
+      offset2 = i*n;
+      len = n;
+      if (i == count-1 && remainder != 0)
+	len = remainder;
+
+      if (verbose > 3)
+	fprintf(FINFO,"chunk[%d] of size %d at %d offset=%d\n",
+		i,len,(int)offset2,(int)offset);
+
+      map = map_ptr(buf,offset2,len);
+
+      see_token(map, len);
+      sum_update(map,len);
+
+      if (fd != -1 && write_file(fd,map,len) != len) {
+	fprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));
+	exit_cleanup(1);
+      }
+      offset += len;
     }
-
-    recv_generator(local_name?local_name:f_name(file),
-		   flist,i,f);
-
-    file->mode = saved_mode;
   }
 
-  phase++;
-  csum_length = SUM_LENGTH;
-  ignore_times=1;
+  if (fd != -1 && offset > 0 && sparse_end(fd) != 0) {
+    fprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));
+    exit_cleanup(1);
+  }
 
-  if (verbose > 2)
-    fprintf(FINFO,"generate_files phase=%d\n",phase);
+  sum_end(file_sum1);
 
-  write_int(f,-1);
-  write_flush(f);
-
-  /* we expect to just sit around now, so don't exit on a timeout. If we
-     really get a timeout then the other process should exit */
-  io_timeout = 0;
-
-  if (remote_version >= 13) {
-    /* in newer versions of the protocol the files can cycle through
-       the system more than once to catch initial checksum errors */
-    for (i=read_int(f_recv); i != -1; i=read_int(f_recv)) {
-      struct file_struct *file = flist->files[i];
-      recv_generator(local_name?local_name:f_name(file),
-		     flist,i,f);    
-    }
-
-    phase++;
+  if (remote_version >= 14) {
+    read_buf(f_in,file_sum2,MD4_SUM_LENGTH);
     if (verbose > 2)
-      fprintf(FINFO,"generate_files phase=%d\n",phase);
-
-    write_int(f,-1);
-    write_flush(f);
+      fprintf(FINFO,"got file_sum\n");
+    if (fd != -1 && memcmp(file_sum1,file_sum2,MD4_SUM_LENGTH) != 0)
+      return 0;
   }
-
-
-  if (verbose > 2)
-    fprintf(FINFO,"generator wrote %ld\n",(long)write_total());
+  return 1;
 }

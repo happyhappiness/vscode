@@ -1,1 +1,2 @@
-die(_("Failed to resolve '%s' as a valid ref."), arg);
+die("BUG: caller miscounted postlen: asked %d, orig = %d, used = %d",
+		    (int)postlen, (int) postimage->len, (int)(new - postimage->buf));

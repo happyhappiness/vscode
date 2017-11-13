@@ -1,11 +1,8 @@
 fputs(
-"              (HTTP) Maximum time in seconds that you allow curl to wait for a\n"
-"              100-continue response when curl emits an  Expects:  100-continue\n"
-"              header  in  its  request.  By default curl will wait one second.\n"
-"              This option accepts decimal values! When curl stops waiting,  it\n"
-"              will continue as if the response has been received.\n"
-"\n"
-"              See also --connect-timeout. Added in 7.47.0.\n"
-"\n"
-"       --fail-early\n"
+"              (FTP) Tell curl to disable the use of the EPRT and LPRT commands\n"
+"              when doing active FTP transfers. Curl will normally always first\n"
+"              attempt  to use EPRT, then LPRT before using PORT, but with this\n"
+"              option, it will use PORT right away. EPRT and  LPRT  are  exten-\n"
+"              sions  to  the  original  FTP  protocol, and may not work on all\n"
+"              servers, but they enable more functionality in a better way than\n"
 , stdout);

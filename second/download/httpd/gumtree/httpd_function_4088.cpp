@@ -1,96 +1,59 @@
-static apr_status_t encrypt_string(request_rec * r, const apr_crypto_t *f,
-        session_crypto_dir_conf *dconf, const char *in, char **out)
+static int revision_suffix(request_rec *r)
 {
-    apr_status_t res;
-    apr_crypto_key_t *key = NULL;
-    apr_size_t ivSize = 0;
-    apr_crypto_block_t *block = NULL;
-    unsigned char *encrypt = NULL;
-    unsigned char *combined = NULL;
-    apr_size_t encryptlen, tlen;
-    char *base64;
-    apr_size_t blockSize = 0;
-    const unsigned char *iv = NULL;
-    apr_uuid_t salt;
-    apr_crypto_block_key_type_e *cipher;
-    const char *passphrase;
+    int suffix_pos, result;
+    char *sub_filename;
+    request_rec *sub;
 
-    /* by default, return an empty string */
-    *out = "";
+#if MIME_MAGIC_DEBUG
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                MODNAME ": revision_suffix checking %s", r->filename);
+#endif /* MIME_MAGIC_DEBUG */
 
-    /* don't attempt to encrypt an empty string, trying to do so causes a segfault */
-    if (!in || !*in) {
-        return APR_SUCCESS;
+    /* check for recognized revision suffix */
+    suffix_pos = strlen(r->filename) - 1;
+    if (!apr_isdigit(r->filename[suffix_pos])) {
+        return 0;
+    }
+    while (suffix_pos >= 0 && apr_isdigit(r->filename[suffix_pos]))
+        suffix_pos--;
+    if (suffix_pos < 0 || r->filename[suffix_pos] != '@') {
+        return 0;
     }
 
-    /* use a uuid as a salt value, and prepend it to our result */
-    apr_uuid_get(&salt);
-    res = crypt_init(r, f, &cipher, dconf);
-    if (res != APR_SUCCESS) {
-        return res;
+    /* perform sub-request for the file name without the suffix */
+    result = 0;
+    sub_filename = apr_pstrndup(r->pool, r->filename, suffix_pos);
+#if MIME_MAGIC_DEBUG
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                MODNAME ": subrequest lookup for %s", sub_filename);
+#endif /* MIME_MAGIC_DEBUG */
+    sub = ap_sub_req_lookup_file(sub_filename, r, NULL);
+
+    /* extract content type/encoding/language from sub-request */
+    if (sub->content_type) {
+        ap_set_content_type(r, apr_pstrdup(r->pool, sub->content_type));
+#if MIME_MAGIC_DEBUG
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                    MODNAME ": subrequest %s got %s",
+                    sub_filename, r->content_type);
+#endif /* MIME_MAGIC_DEBUG */
+        if (sub->content_encoding)
+            r->content_encoding =
+                apr_pstrdup(r->pool, sub->content_encoding);
+        if (sub->content_languages) {
+            int n;
+            r->content_languages = apr_array_copy(r->pool,
+                                                  sub->content_languages);
+            for (n = 0; n < r->content_languages->nelts; ++n) {
+                char **lang = ((char **)r->content_languages->elts) + n;
+                *lang = apr_pstrdup(r->pool, *lang);
+            }
+        }
+        result = 1;
     }
 
-    /* encrypt using the first passphrase in the list */
-    passphrase = APR_ARRAY_IDX(dconf->passphrases, 0, char *);
-    res = apr_crypto_passphrase(&key, &ivSize, passphrase,
-            strlen(passphrase),
-            (unsigned char *) (&salt), sizeof(apr_uuid_t),
-            *cipher, APR_MODE_CBC, 1, 4096, f, r->pool);
-    if (APR_STATUS_IS_ENOKEY(res)) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, APLOGNO(01825)
-                "the passphrase '%s' was empty", passphrase);
-    }
-    if (APR_STATUS_IS_EPADDING(res)) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, APLOGNO(01826)
-                "padding is not supported for cipher");
-    }
-    if (APR_STATUS_IS_EKEYTYPE(res)) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, APLOGNO(01827)
-                "the key type is not known");
-    }
-    if (APR_SUCCESS != res) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, APLOGNO(01828)
-                "encryption could not be configured.");
-        return res;
-    }
+    /* clean up */
+    ap_destroy_sub_req(sub);
 
-    res = apr_crypto_block_encrypt_init(&block, &iv, key, &blockSize, r->pool);
-    if (APR_SUCCESS != res) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, APLOGNO(01829)
-                "apr_crypto_block_encrypt_init failed");
-        return res;
-    }
-
-    /* encrypt the given string */
-    res = apr_crypto_block_encrypt(&encrypt, &encryptlen, (unsigned char *)in,
-            strlen(in), block);
-    if (APR_SUCCESS != res) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, APLOGNO(01830)
-                "apr_crypto_block_encrypt failed");
-        return res;
-    }
-    res = apr_crypto_block_encrypt_finish(encrypt + encryptlen, &tlen, block);
-    if (APR_SUCCESS != res) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, APLOGNO(01831)
-                "apr_crypto_block_encrypt_finish failed");
-        return res;
-    }
-    encryptlen += tlen;
-
-    /* prepend the salt and the iv to the result */
-    combined = apr_palloc(r->pool, ivSize + encryptlen + sizeof(apr_uuid_t));
-    memcpy(combined, &salt, sizeof(apr_uuid_t));
-    memcpy(combined + sizeof(apr_uuid_t), iv, ivSize);
-    memcpy(combined + sizeof(apr_uuid_t) + ivSize, encrypt, encryptlen);
-
-    /* base64 encode the result */
-    base64 = apr_palloc(r->pool, apr_base64_encode_len(ivSize + encryptlen +
-                    sizeof(apr_uuid_t) + 1)
-            * sizeof(char));
-    apr_base64_encode(base64, (const char *) combined,
-            ivSize + encryptlen + sizeof(apr_uuid_t));
-    *out = base64;
-
-    return res;
-
+    return result;
 }

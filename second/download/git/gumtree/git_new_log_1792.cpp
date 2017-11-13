@@ -1,1 +1,2 @@
-die("helper %s does not support dry-run", name);
+error("couldn't write %s",
+					lock->lk->filename.buf);

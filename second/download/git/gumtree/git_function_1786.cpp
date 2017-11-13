@@ -1,44 +1,28 @@
-void add_to_alternates_file(const char *reference)
+static int expire_reflog_ent(unsigned char *osha1, unsigned char *nsha1,
+			     const char *email, unsigned long timestamp, int tz,
+			     const char *message, void *cb_data)
 {
-	struct lock_file *lock = xcalloc(1, sizeof(struct lock_file));
-	char *alts = git_pathdup("objects/info/alternates");
-	FILE *in, *out;
+	struct expire_reflog_cb *cb = cb_data;
+	struct expire_reflog_policy_cb *policy_cb = cb->policy_cb;
 
-	hold_lock_file_for_update(lock, alts, LOCK_DIE_ON_ERROR);
-	out = fdopen_lock_file(lock, "w");
-	if (!out)
-		die_errno("unable to fdopen alternates lockfile");
+	if (cb->flags & EXPIRE_REFLOGS_REWRITE)
+		osha1 = cb->last_kept_sha1;
 
-	in = fopen(alts, "r");
-	if (in) {
-		struct strbuf line = STRBUF_INIT;
-		int found = 0;
-
-		while (strbuf_getline(&line, in, '\n') != EOF) {
-			if (!strcmp(reference, line.buf)) {
-				found = 1;
-				break;
-			}
-			fprintf_or_die(out, "%s\n", line.buf);
+	if ((*cb->should_prune_fn)(osha1, nsha1, email, timestamp, tz,
+				   message, policy_cb)) {
+		if (!cb->newlog)
+			printf("would prune %s", message);
+		else if (cb->flags & EXPIRE_REFLOGS_VERBOSE)
+			printf("prune %s", message);
+	} else {
+		if (cb->newlog) {
+			fprintf(cb->newlog, "%s %s %s %lu %+05d\t%s",
+				sha1_to_hex(osha1), sha1_to_hex(nsha1),
+				email, timestamp, tz, message);
+			hashcpy(cb->last_kept_sha1, nsha1);
 		}
-
-		strbuf_release(&line);
-		fclose(in);
-
-		if (found) {
-			rollback_lock_file(lock);
-			lock = NULL;
-		}
+		if (cb->flags & EXPIRE_REFLOGS_VERBOSE)
+			printf("keep %s", message);
 	}
-	else if (errno != ENOENT)
-		die_errno("unable to read alternates file");
-
-	if (lock) {
-		fprintf_or_die(out, "%s\n", reference);
-		if (commit_lock_file(lock))
-			die_errno("unable to move new alternates file into place");
-		if (alt_odb_tail)
-			link_alt_odb_entries(reference, strlen(reference), '\n', NULL, 0);
-	}
-	free(alts);
+	return 0;
 }

@@ -1,11 +1,10 @@
 fputs(
-"              details on the default config file search path.\n"
+"                     This  will  make  curl  load  data  from  the  given file\n"
+"                     (including any newlines), URL-encode that data  and  pass\n"
+"                     it  on  in  the  POST.  The  name part gets an equal sign\n"
+"                     appended, resulting in name=urlencoded-file-content. Note\n"
+"                     that the name is expected to be URL-encoded already.\n"
+"       See also -d, --data and --data-raw. Added in 7.18.0.\n"
 "\n"
-"       --dns-interface <interface>\n"
-"              (DNS)  Tell  curl  to send outgoing DNS requests through <inter-\n"
-"              face>. This option is a counterpart to --interface  (which  does\n"
-"              not  affect  DNS). The supplied string must be an interface name\n"
-"              (not an address).\n"
-"\n"
-"              See also --dns-ipv4-addr  and  --dns-ipv6-addr.  --dns-interface\n"
+"       -d, --data <data>\n"
 , stdout);

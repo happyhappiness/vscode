@@ -1,245 +1,85 @@
-int cmd_config(int argc, const char **argv, const char *prefix)
+static void final(const char *final_pack_name, const char *curr_pack_name,
+		  const char *final_index_name, const char *curr_index_name,
+		  const char *keep_name, const char *keep_msg,
+		  unsigned char *sha1)
 {
-	int nongit = !startup_info->have_repository;
-	char *value;
+	const char *report = "pack";
+	char name[PATH_MAX];
+	int err;
 
-	given_config_source.file = getenv(CONFIG_ENVIRONMENT);
-
-	argc = parse_options(argc, argv, prefix, builtin_config_options,
-			     builtin_config_usage,
-			     PARSE_OPT_STOP_AT_NON_OPTION);
-
-	if (use_global_config + use_system_config + use_local_config +
-	    !!given_config_source.file + !!given_config_source.blob > 1) {
-		error("only one config file at a time.");
-		usage_with_options(builtin_config_usage, builtin_config_options);
+	if (!from_stdin) {
+		close(input_fd);
+	} else {
+		fsync_or_die(output_fd, curr_pack_name);
+		err = close(output_fd);
+		if (err)
+			die_errno(_("error while closing pack file"));
 	}
 
-	if (use_local_config && nongit)
-		die(_("--local can only be used inside a git repository"));
+	if (keep_msg) {
+		int keep_fd, keep_msg_len = strlen(keep_msg);
 
-	if (given_config_source.file &&
-			!strcmp(given_config_source.file, "-")) {
-		given_config_source.file = NULL;
-		given_config_source.use_stdin = 1;
-	}
-
-	if (use_global_config) {
-		char *user_config = expand_user_path("~/.gitconfig", 0);
-		char *xdg_config = xdg_config_home("config");
-
-		if (!user_config)
-			/*
-			 * It is unknown if HOME/.gitconfig exists, so
-			 * we do not know if we should write to XDG
-			 * location; error out even if XDG_CONFIG_HOME
-			 * is set and points at a sane location.
-			 */
-			die("$HOME not set");
-
-		if (access_or_warn(user_config, R_OK, 0) &&
-		    xdg_config && !access_or_warn(xdg_config, R_OK, 0))
-			given_config_source.file = xdg_config;
+		if (!keep_name)
+			keep_fd = odb_pack_keep(name, sizeof(name), sha1);
 		else
-			given_config_source.file = user_config;
-	}
-	else if (use_system_config)
-		given_config_source.file = git_etc_gitconfig();
-	else if (use_local_config)
-		given_config_source.file = git_pathdup("config");
-	else if (given_config_source.file) {
-		if (!is_absolute_path(given_config_source.file) && prefix)
-			given_config_source.file =
-				prefix_filename(prefix, given_config_source.file);
-	}
+			keep_fd = open(keep_name, O_RDWR|O_CREAT|O_EXCL, 0600);
 
-	if (respect_includes_opt == -1)
-		config_options.respect_includes = !given_config_source.file;
-	else
-		config_options.respect_includes = respect_includes_opt;
-
-	if (end_null) {
-		term = '\0';
-		delim = '\n';
-		key_delim = '\n';
-	}
-
-	if (HAS_MULTI_BITS(types)) {
-		error("only one type at a time.");
-		usage_with_options(builtin_config_usage, builtin_config_options);
-	}
-
-	if ((actions & (ACTION_GET_COLOR|ACTION_GET_COLORBOOL)) && types) {
-		error("--get-color and variable type are incoherent");
-		usage_with_options(builtin_config_usage, builtin_config_options);
-	}
-
-	if (HAS_MULTI_BITS(actions)) {
-		error("only one action at a time.");
-		usage_with_options(builtin_config_usage, builtin_config_options);
-	}
-	if (actions == 0)
-		switch (argc) {
-		case 1: actions = ACTION_GET; break;
-		case 2: actions = ACTION_SET; break;
-		case 3: actions = ACTION_SET_ALL; break;
-		default:
-			usage_with_options(builtin_config_usage, builtin_config_options);
-		}
-	if (omit_values &&
-	    !(actions == ACTION_LIST || actions == ACTION_GET_REGEXP)) {
-		error("--name-only is only applicable to --list or --get-regexp");
-		usage_with_options(builtin_config_usage, builtin_config_options);
-	}
-
-	if (show_origin && !(actions &
-		(ACTION_GET|ACTION_GET_ALL|ACTION_GET_REGEXP|ACTION_LIST))) {
-		error("--show-origin is only applicable to --get, --get-all, "
-			  "--get-regexp, and --list.");
-		usage_with_options(builtin_config_usage, builtin_config_options);
-	}
-
-	if (actions == ACTION_LIST) {
-		check_argc(argc, 0, 0);
-		if (git_config_with_options(show_all_config, NULL,
-					    &given_config_source,
-					    &config_options) < 0) {
-			if (given_config_source.file)
-				die_errno("unable to read config file '%s'",
-					  given_config_source.file);
-			else
-				die("error processing config file(s)");
-		}
-	}
-	else if (actions == ACTION_EDIT) {
-		char *config_file;
-
-		check_argc(argc, 0, 0);
-		if (!given_config_source.file && nongit)
-			die("not in a git directory");
-		if (given_config_source.use_stdin)
-			die("editing stdin is not supported");
-		if (given_config_source.blob)
-			die("editing blobs is not supported");
-		git_config(git_default_config, NULL);
-		config_file = given_config_source.file ?
-				xstrdup(given_config_source.file) :
-				git_pathdup("config");
-		if (use_global_config) {
-			int fd = open(config_file, O_CREAT | O_EXCL | O_WRONLY, 0666);
-			if (fd >= 0) {
-				char *content = default_user_config();
-				write_str_in_full(fd, content);
-				free(content);
-				close(fd);
+		if (keep_fd < 0) {
+			if (errno != EEXIST)
+				die_errno(_("cannot write keep file '%s'"),
+					  keep_name ? keep_name : name);
+		} else {
+			if (keep_msg_len > 0) {
+				write_or_die(keep_fd, keep_msg, keep_msg_len);
+				write_or_die(keep_fd, "\n", 1);
 			}
-			else if (errno != EEXIST)
-				die_errno(_("cannot create configuration file %s"), config_file);
+			if (close(keep_fd) != 0)
+				die_errno(_("cannot close written keep file '%s'"),
+					  keep_name ? keep_name : name);
+			report = "keep";
 		}
-		launch_editor(config_file, NULL, NULL);
-		free(config_file);
-	}
-	else if (actions == ACTION_SET) {
-		int ret;
-		check_write();
-		check_argc(argc, 2, 2);
-		value = normalize_value(argv[0], argv[1]);
-		ret = git_config_set_in_file_gently(given_config_source.file, argv[0], value);
-		if (ret == CONFIG_NOTHING_SET)
-			error(_("cannot overwrite multiple values with a single value\n"
-			"       Use a regexp, --add or --replace-all to change %s."), argv[0]);
-		return ret;
-	}
-	else if (actions == ACTION_SET_ALL) {
-		check_write();
-		check_argc(argc, 2, 3);
-		value = normalize_value(argv[0], argv[1]);
-		return git_config_set_multivar_in_file_gently(given_config_source.file,
-							      argv[0], value, argv[2], 0);
-	}
-	else if (actions == ACTION_ADD) {
-		check_write();
-		check_argc(argc, 2, 2);
-		value = normalize_value(argv[0], argv[1]);
-		return git_config_set_multivar_in_file_gently(given_config_source.file,
-							      argv[0], value,
-							      CONFIG_REGEX_NONE, 0);
-	}
-	else if (actions == ACTION_REPLACE_ALL) {
-		check_write();
-		check_argc(argc, 2, 3);
-		value = normalize_value(argv[0], argv[1]);
-		return git_config_set_multivar_in_file_gently(given_config_source.file,
-							      argv[0], value, argv[2], 1);
-	}
-	else if (actions == ACTION_GET) {
-		check_argc(argc, 1, 2);
-		return get_value(argv[0], argv[1]);
-	}
-	else if (actions == ACTION_GET_ALL) {
-		do_all = 1;
-		check_argc(argc, 1, 2);
-		return get_value(argv[0], argv[1]);
-	}
-	else if (actions == ACTION_GET_REGEXP) {
-		show_keys = 1;
-		use_key_regexp = 1;
-		do_all = 1;
-		check_argc(argc, 1, 2);
-		return get_value(argv[0], argv[1]);
-	}
-	else if (actions == ACTION_GET_URLMATCH) {
-		check_argc(argc, 2, 2);
-		return get_urlmatch(argv[0], argv[1]);
-	}
-	else if (actions == ACTION_UNSET) {
-		check_write();
-		check_argc(argc, 1, 2);
-		if (argc == 2)
-			return git_config_set_multivar_in_file_gently(given_config_source.file,
-								      argv[0], NULL, argv[1], 0);
-		else
-			return git_config_set_in_file_gently(given_config_source.file,
-							     argv[0], NULL);
-	}
-	else if (actions == ACTION_UNSET_ALL) {
-		check_write();
-		check_argc(argc, 1, 2);
-		return git_config_set_multivar_in_file_gently(given_config_source.file,
-							      argv[0], NULL, argv[1], 1);
-	}
-	else if (actions == ACTION_RENAME_SECTION) {
-		int ret;
-		check_write();
-		check_argc(argc, 2, 2);
-		ret = git_config_rename_section_in_file(given_config_source.file,
-							argv[0], argv[1]);
-		if (ret < 0)
-			return ret;
-		if (ret == 0)
-			die("No such section!");
-	}
-	else if (actions == ACTION_REMOVE_SECTION) {
-		int ret;
-		check_write();
-		check_argc(argc, 1, 1);
-		ret = git_config_rename_section_in_file(given_config_source.file,
-							argv[0], NULL);
-		if (ret < 0)
-			return ret;
-		if (ret == 0)
-			die("No such section!");
-	}
-	else if (actions == ACTION_GET_COLOR) {
-		check_argc(argc, 1, 2);
-		get_color(argv[0], argv[1]);
-	}
-	else if (actions == ACTION_GET_COLORBOOL) {
-		check_argc(argc, 1, 2);
-		if (argc == 2)
-			color_stdout_is_tty = git_config_bool("command line", argv[1]);
-		return get_colorbool(argv[0], argc == 2);
 	}
 
-	return 0;
+	if (final_pack_name != curr_pack_name) {
+		if (!final_pack_name) {
+			snprintf(name, sizeof(name), "%s/pack/pack-%s.pack",
+				 get_object_directory(), sha1_to_hex(sha1));
+			final_pack_name = name;
+		}
+		if (finalize_object_file(curr_pack_name, final_pack_name))
+			die(_("cannot store pack file"));
+	} else if (from_stdin)
+		chmod(final_pack_name, 0444);
+
+	if (final_index_name != curr_index_name) {
+		if (!final_index_name) {
+			snprintf(name, sizeof(name), "%s/pack/pack-%s.idx",
+				 get_object_directory(), sha1_to_hex(sha1));
+			final_index_name = name;
+		}
+		if (finalize_object_file(curr_index_name, final_index_name))
+			die(_("cannot store index file"));
+	} else
+		chmod(final_index_name, 0444);
+
+	if (!from_stdin) {
+		printf("%s\n", sha1_to_hex(sha1));
+	} else {
+		char buf[48];
+		int len = snprintf(buf, sizeof(buf), "%s\t%s\n",
+				   report, sha1_to_hex(sha1));
+		write_or_die(1, buf, len);
+
+		/*
+		 * Let's just mimic git-unpack-objects here and write
+		 * the last part of the input buffer to stdout.
+		 */
+		while (input_len) {
+			err = xwrite(1, input_buffer + input_offset, input_len);
+			if (err <= 0)
+				break;
+			input_len -= err;
+			input_offset += err;
+		}
+	}
 }

@@ -1,46 +1,26 @@
-static apr_status_t on_stream_resume(void *ctx, h2_stream *stream)
+apr_status_t h2_mplx_stream_done(h2_mplx *m, int stream_id, int rst_error)
 {
-    h2_session *session = ctx;
-    apr_status_t status = APR_EAGAIN;
-    int rv;
-    apr_off_t len = 0;
-    int eos = 0;
-    h2_headers *headers;
+    apr_status_t status = APR_SUCCESS;
+    int acquired;
     
-    ap_assert(stream);
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
-                  "h2_stream(%ld-%d): on_resume", session->id, stream->id);
-        
-send_headers:
-    headers = NULL;
-    status = h2_stream_out_prepare(stream, &len, &eos, &headers);
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, session->c, 
-                  "h2_stream(%ld-%d): prepared len=%ld, eos=%d", 
-                  session->id, stream->id, (long)len, eos);
-    if (headers) {
-        status = on_stream_headers(session, stream, headers, len, eos);
-        if (status != APR_SUCCESS || stream->rst_error) {
-            return status;
+    /* This maybe called from inside callbacks that already hold the lock.
+     * E.g. when we are streaming out DATA and the EOF triggers the stream
+     * release.
+     */
+    AP_DEBUG_ASSERT(m);
+    if ((status = enter_mutex(m, &acquired)) == APR_SUCCESS) {
+        h2_io *io = h2_io_set_get(m->stream_ios, stream_id);
+
+        /* there should be an h2_io, once the stream has been scheduled
+         * for processing, e.g. when we received all HEADERs. But when
+         * a stream is cancelled very early, it will not exist. */
+        if (io) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c, 
+                          "h2_mplx(%ld-%d): marking stream as done.", 
+                          m->id, stream_id);
+            io_stream_done(m, io, rst_error);
         }
-        goto send_headers;
-    }
-    else if (status != APR_EAGAIN) {
-        if (!stream->has_response) {
-            int err = H2_STREAM_RST(stream, H2_ERR_PROTOCOL_ERROR);
-            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03466)
-                          "h2_stream(%ld-%d): no response, RST_STREAM, err=%d",
-                          session->id, stream->id, err);
-            nghttp2_submit_rst_stream(session->ngh2, NGHTTP2_FLAG_NONE,
-                                      stream->id, err);
-            return APR_SUCCESS;
-        } 
-        rv = nghttp2_session_resume_data(session->ngh2, stream->id);
-        session->have_written = 1;
-        ap_log_cerror(APLOG_MARK, nghttp2_is_fatal(rv)?
-                      APLOG_ERR : APLOG_DEBUG, 0, session->c,
-                      APLOGNO(02936) 
-                      "h2_stream(%ld-%d): resuming %s",
-                      session->id, stream->id, rv? nghttp2_strerror(rv) : "");
+        leave_mutex(m, acquired);
     }
     return status;
 }

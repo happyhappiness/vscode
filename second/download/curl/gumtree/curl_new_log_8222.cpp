@@ -1,12 +1,10 @@
 fputs(
-"       but prefix it with \"no-\". However, in this list we mostly only list and\n"
-"       show the --option version of them. (This concept with --no options  was\n"
-"       added  in  7.19.0.  Previously  most  options  were  toggled  on/off on\n"
-"       repeated use of the same command line option.)\n"
+"       example, requires a space between it and its value.\n"
 "\n"
-"       -#, --progress-bar\n"
-"              Make curl display progress as a simple progress bar  instead  of\n"
-"              the standard, more informational, meter.\n"
+"       Short version options that don't need any additional values can be used\n"
+"       immediately next to each other, like for example you  can  specify  all\n"
+"       the options -O, -L and -v at once as -OLv.\n"
 "\n"
-"       -0, --http1.0\n"
+"       In general, all boolean options are enabled with --option and yet again\n"
+"       disabled with --no-option. That is, you use the exact same option  name\n"
 , stdout);

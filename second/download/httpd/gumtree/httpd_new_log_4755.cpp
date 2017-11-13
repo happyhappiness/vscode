@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s, APLOGNO(00425)
-                         "Parent: ResetEvent(restart_event) failed.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02263)
+                                  "Re-negotiation handshake failed: "
+                                  "Client certificate missing");

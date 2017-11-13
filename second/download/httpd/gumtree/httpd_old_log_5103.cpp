@@ -1,1 +1,3 @@
-fprintf(stderr,"The %s service is running.\n", mpm_display_name);
+ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS,
+                             ap_server_conf, "removed PID file %s (pid=%d)",
+                             pidfile, getpid());

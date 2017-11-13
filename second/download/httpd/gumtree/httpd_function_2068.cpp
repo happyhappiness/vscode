@@ -1,88 +1,46 @@
-int ap_signal_server(int *exit_status, apr_pool_t *pconf)
+static apr_status_t upgrade_connection(request_rec *r)
 {
+    struct conn_rec *conn = r->connection;
+    apr_bucket_brigade *bb;
+    SSLConnRec *sslconn;
     apr_status_t rv;
-    pid_t otherpid;
-    int running = 0;
-    const char *status;
+    SSL *ssl;
 
-    *exit_status = 0;
+    ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, 
+                  "upgrading connection to TLS");
 
-    rv = ap_read_pid(pconf, ap_pid_fname, &otherpid);
-    if (rv != APR_SUCCESS) {
-        if (rv != APR_ENOENT) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, rv, NULL,
-                         "Error retrieving pid file %s", ap_pid_fname);
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "Remove it before continuing if it is corrupted.");
-            *exit_status = 1;
-            return 1;
-        }
-        status = "httpd (no pid file) not running";
-    }
-    else {
-        if (kill(otherpid, 0) == 0) {
-            running = 1;
-            status = apr_psprintf(pconf,
-                                  "httpd (pid %" APR_PID_T_FMT ") already "
-                                  "running", otherpid);
-        }
-        else {
-            status = apr_psprintf(pconf,
-                                  "httpd (pid %" APR_PID_T_FMT "?) not running",
-                                  otherpid);
-        }
+    bb = apr_brigade_create(r->pool, conn->bucket_alloc);
+
+    rv = ap_fputstrs(conn->output_filters, bb, SWITCH_STATUS_LINE, CRLF,
+                     UPGRADE_HEADER, CRLF, CONNECTION_HEADER, CRLF, CRLF, NULL);
+    if (rv == APR_SUCCESS) {
+        APR_BRIGADE_INSERT_TAIL(bb,
+                                apr_bucket_flush_create(conn->bucket_alloc));
+        rv = ap_pass_brigade(conn->output_filters, bb);
     }
 
-    if (!strcmp(dash_k_arg, "start")) {
-        if (running) {
-            printf("%s\n", status);
-            return 1;
-        }
+    if (rv) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "failed to send 101 interim response for connection "
+                      "upgrade");
+        return rv;
     }
 
-    if (!strcmp(dash_k_arg, "stop")) {
-        if (!running) {
-            printf("%s\n", status);
-        }
-        else {
-            send_signal(otherpid, SIGTERM);
-        }
-        return 1;
+    ssl_init_ssl_connection(conn, r);
+    
+    sslconn = myConnConfig(conn);
+    ssl = sslconn->ssl;
+    
+    /* Perform initial SSL handshake. */
+    SSL_set_accept_state(ssl);
+    SSL_do_handshake(ssl);
+
+    if (SSL_get_state(ssl) != SSL_ST_OK) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "TLS upgrade handshake failed: not accepted by client!?");
+        
+        return APR_ECONNABORTED;
     }
 
-    if (!strcmp(dash_k_arg, "restart")) {
-        if (!running) {
-            printf("httpd not running, trying to start\n");
-        }
-        else {
-            *exit_status = send_signal(otherpid, SIGHUP);
-            return 1;
-        }
-    }
-
-    if (!strcmp(dash_k_arg, "graceful")) {
-        if (!running) {
-            printf("httpd not running, trying to start\n");
-        }
-        else {
-            *exit_status = send_signal(otherpid, AP_SIG_GRACEFUL);
-            return 1;
-        }
-    }
-
-    if (!strcmp(dash_k_arg, "graceful-stop")) {
-#ifdef AP_MPM_WANT_SET_GRACEFUL_SHUTDOWN
-        if (!running) {
-            printf("%s\n", status);
-        }
-        else {
-            *exit_status = send_signal(otherpid, AP_SIG_GRACEFUL_STOP);
-        }
-#else
-        printf("httpd MPM \"" MPM_NAME "\" does not support graceful-stop\n");
-#endif
-        return 1;
-    }
-
-    return 0;
+    return APR_SUCCESS;
 }

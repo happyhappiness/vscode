@@ -1,10 +1,11 @@
 fputs(
-"              be encoded according to the URI standard.\n"
+"              (FTP) Tell curl to not use the IP address the server suggests in\n"
+"              its  response to curl's PASV command when curl connects the data\n"
+"              connection. Instead curl will re-use  the  same  IP  address  it\n"
+"              already uses for the control connection. (Added in 7.14.2)\n"
 "\n"
-"       -G, --get\n"
-"              When used, this option will make all  data  specified  with  -d,\n"
-"              --data,  --data-binary or --data-urlencode to be used in an HTTP\n"
-"              GET request instead of the POST request that otherwise would  be\n"
-"              used. The data will be appended to the URL with a '?' separator.\n"
-"              If  used  in  combination with -I, the POST data will instead be\n"
+"              This  option has no effect if PORT, EPRT or EPSV is used instead\n"
+"              of PASV.\n"
+"\n"
+"       --ftp-pret\n"
 , stdout);

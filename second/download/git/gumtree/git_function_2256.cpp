@@ -1,50 +1,51 @@
-static int grep_tree(struct grep_opt *opt, const struct pathspec *pathspec,
-		     struct tree_desc *tree, struct strbuf *base, int tn_len,
-		     int check_attr)
+static void show_rebase_information(struct wt_status *s,
+					struct wt_status_state *state,
+					const char *color)
 {
-	int hit = 0;
-	enum interesting match = entry_not_interesting;
-	struct name_entry entry;
-	int old_baselen = base->len;
+	if (state->rebase_interactive_in_progress) {
+		int i;
+		int nr_lines_to_show = 2;
 
-	while (tree_entry(tree, &entry)) {
-		int te_len = tree_entry_len(&entry);
+		struct string_list have_done = STRING_LIST_INIT_DUP;
+		struct string_list yet_to_do = STRING_LIST_INIT_DUP;
 
-		if (match != all_entries_interesting) {
-			match = tree_entry_interesting(&entry, base, tn_len, pathspec);
-			if (match == all_entries_not_interesting)
-				break;
-			if (match == entry_not_interesting)
-				continue;
+		read_rebase_todolist("rebase-merge/done", &have_done);
+		read_rebase_todolist("rebase-merge/git-rebase-todo", &yet_to_do);
+
+		if (have_done.nr == 0)
+			status_printf_ln(s, color, _("No commands done."));
+		else {
+			status_printf_ln(s, color,
+				Q_("Last command done (%d command done):",
+					"Last commands done (%d commands done):",
+					have_done.nr),
+				have_done.nr);
+			for (i = (have_done.nr > nr_lines_to_show)
+				? have_done.nr - nr_lines_to_show : 0;
+				i < have_done.nr;
+				i++)
+				status_printf_ln(s, color, "   %s", have_done.items[i].string);
+			if (have_done.nr > nr_lines_to_show && s->hints)
+				status_printf_ln(s, color,
+					_("  (see more in file %s)"), git_path("rebase-merge/done"));
 		}
 
-		strbuf_add(base, entry.path, te_len);
-
-		if (S_ISREG(entry.mode)) {
-			hit |= grep_sha1(opt, entry.sha1, base->buf, tn_len,
-					 check_attr ? base->buf + tn_len : NULL);
+		if (yet_to_do.nr == 0)
+			status_printf_ln(s, color,
+					 _("No commands remaining."));
+		else {
+			status_printf_ln(s, color,
+				Q_("Next command to do (%d remaining command):",
+					"Next commands to do (%d remaining commands):",
+					yet_to_do.nr),
+				yet_to_do.nr);
+			for (i = 0; i < nr_lines_to_show && i < yet_to_do.nr; i++)
+				status_printf_ln(s, color, "   %s", yet_to_do.items[i].string);
+			if (s->hints)
+				status_printf_ln(s, color,
+					_("  (use \"git rebase --edit-todo\" to view and edit)"));
 		}
-		else if (S_ISDIR(entry.mode)) {
-			enum object_type type;
-			struct tree_desc sub;
-			void *data;
-			unsigned long size;
-
-			data = lock_and_read_sha1_file(entry.sha1, &type, &size);
-			if (!data)
-				die(_("unable to read tree (%s)"),
-				    sha1_to_hex(entry.sha1));
-
-			strbuf_addch(base, '/');
-			init_tree_desc(&sub, data, size);
-			hit |= grep_tree(opt, pathspec, &sub, base, tn_len,
-					 check_attr);
-			free(data);
-		}
-		strbuf_setlen(base, old_baselen);
-
-		if (hit && opt->status_only)
-			break;
+		string_list_clear(&yet_to_do, 0);
+		string_list_clear(&have_done, 0);
 	}
-	return hit;
 }

@@ -1,1 +1,1 @@
-error("Must specify a notes ref to merge");
+error("%s", err.buf);

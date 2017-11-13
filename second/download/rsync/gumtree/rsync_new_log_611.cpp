@@ -1,2 +1,1 @@
-fprintf(logfile,"%s [%d] %s", 
-			timestring(time(NULL)), (int)getpid(), buf);
+rprintf(FERROR, "inflate returned %d (%d bytes)\n", r, n);

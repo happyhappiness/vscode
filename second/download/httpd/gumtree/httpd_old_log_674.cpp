@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "Trying to run scheme_handler");
+ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server, 
+                         "Couldn't change owner of unix domain socket %s",
+                         sconf->sockname);

@@ -1,11 +1,11 @@
 fputs(
-"              certificate/private  key  in the system or user keychain, or the\n"
-"              path to a PKCS#12-encoded certificate and private  key.  If  you\n"
-"              want to use a file from the current directory, please precede it\n"
-"              with \"./\" prefix, in order to avoid confusion with a nickname.\n"
+"              only such one.  (Added in 7.33.0)\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"       --dns-servers <ip-address,ip-address>\n"
+"              Set the list of DNS servers to be used  instead  of  the  system\n"
+"              default.  The list of IP addresses should be separated with com-\n"
+"              mas. Port numbers may also optionally be given as :<port-number>\n"
+"              after each IP address.\n"
 "\n"
-"       --engine <name>\n"
-"              Select the OpenSSL crypto engine to use for  cipher  operations.\n"
+"              This  option  requires  that  libcurl  was built with a resolver\n"
 , stdout);

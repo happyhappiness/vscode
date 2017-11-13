@@ -1,33 +1,41 @@
-BOOL ssl_scache_store(server_rec *s, UCHAR *id, int idlen,
-                      apr_time_t expiry, SSL_SESSION *sess,
-                      apr_pool_t *p)
+static apr_status_t read_chunked_trailers(http_ctx_t *ctx, ap_filter_t *f,
+                                          apr_bucket_brigade *b, int merge)
 {
-    SSLModConfigRec *mc = myModConfig(s);
-    unsigned char encoded[SSL_SESSION_MAX_DER], *ptr;
-    unsigned int len;
-    apr_status_t rv;
+    int rv;
+    apr_bucket *e;
+    request_rec *r = f->r;
+    apr_table_t *saved_headers_in = r->headers_in;
+    int saved_status = r->status;
 
-    /* Serialise the session. */
-    len = i2d_SSL_SESSION(sess, NULL);
-    if (len > sizeof encoded) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "session is too big (%u bytes)", len);
-        return FALSE;
+    r->status = HTTP_OK;
+    r->headers_in = r->trailers_in;
+    apr_table_clear(r->headers_in);
+    ap_get_mime_headers(r);
+
+    if(r->status == HTTP_OK) {
+        r->status = saved_status;
+        e = apr_bucket_eos_create(f->c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(b, e);
+        ctx->eos_sent = 1;
+        rv = APR_SUCCESS;
+    }
+    else {
+        const char *error_notes = apr_table_get(r->notes,
+                                                "error-notes");
+        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, 
+                      "Error while reading HTTP trailer: %i%s%s",
+                      r->status, error_notes ? ": " : "",
+                      error_notes ? error_notes : "");
+        rv = APR_EINVAL;
     }
 
-    ptr = encoded;
-    len = i2d_SSL_SESSION(sess, &ptr);
-
-    if (mc->sesscache->flags & AP_SOCACHE_FLAG_NOTMPSAFE) {
-        ssl_mutex_on(s);
+    if(!merge) {
+        r->headers_in = saved_headers_in;
     }
-    
-    rv = mc->sesscache->store(mc->sesscache_context, s, id, idlen, 
-                              expiry, encoded, len, p);
-
-    if (mc->sesscache->flags & AP_SOCACHE_FLAG_NOTMPSAFE) {
-        ssl_mutex_off(s);
+    else {
+        r->headers_in = apr_table_overlay(r->pool, saved_headers_in,
+                r->trailers_in);
     }
 
-    return rv == APR_SUCCESS ? TRUE : FALSE;
+    return rv;
 }

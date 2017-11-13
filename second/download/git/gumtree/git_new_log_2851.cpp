@@ -1,1 +1,1 @@
-warning_errno(_("failed to exec '%s'"), path);
+warning(_("failed to exec '%s'"), cmd);

@@ -1,104 +1,115 @@
-static char *guess_dir_name(const char *repo, int is_bundle, int is_bare)
+static int merge(int argc, const char **argv, const char *prefix)
 {
-	const char *end = repo + strlen(repo), *start, *ptr;
-	size_t len;
-	char *dir;
+	struct strbuf remote_ref = STRBUF_INIT, msg = STRBUF_INIT;
+	unsigned char result_sha1[20];
+	struct notes_tree *t;
+	struct notes_merge_options o;
+	int do_merge = 0, do_commit = 0, do_abort = 0;
+	int verbosity = 0, result;
+	const char *strategy = NULL;
+	struct option options[] = {
+		OPT_GROUP(N_("General options")),
+		OPT__VERBOSITY(&verbosity),
+		OPT_GROUP(N_("Merge options")),
+		OPT_STRING('s', "strategy", &strategy, N_("strategy"),
+			   N_("resolve notes conflicts using the given strategy "
+			      "(manual/ours/theirs/union/cat_sort_uniq)")),
+		OPT_GROUP(N_("Committing unmerged notes")),
+		{ OPTION_SET_INT, 0, "commit", &do_commit, NULL,
+			N_("finalize notes merge by committing unmerged notes"),
+			PARSE_OPT_NOARG | PARSE_OPT_NONEG, NULL, 1},
+		OPT_GROUP(N_("Aborting notes merge resolution")),
+		{ OPTION_SET_INT, 0, "abort", &do_abort, NULL,
+			N_("abort notes merge"),
+			PARSE_OPT_NOARG | PARSE_OPT_NONEG, NULL, 1},
+		OPT_END()
+	};
 
-	/*
-	 * Skip scheme.
-	 */
-	start = strstr(repo, "://");
-	if (start == NULL)
-		start = repo;
-	else
-		start += 3;
+	argc = parse_options(argc, argv, prefix, options,
+			     git_notes_merge_usage, 0);
 
-	/*
-	 * Skip authentication data. The stripping does happen
-	 * greedily, such that we strip up to the last '@' inside
-	 * the host part.
-	 */
-	for (ptr = start; ptr < end && !is_dir_sep(*ptr); ptr++) {
-		if (*ptr == '@')
-			start = ptr + 1;
+	if (strategy || do_commit + do_abort == 0)
+		do_merge = 1;
+	if (do_merge + do_commit + do_abort != 1) {
+		error("cannot mix --commit, --abort or -s/--strategy");
+		usage_with_options(git_notes_merge_usage, options);
 	}
 
-	/*
-	 * Strip trailing spaces, slashes and /.git
-	 */
-	while (start < end && (is_dir_sep(end[-1]) || isspace(end[-1])))
-		end--;
-	if (end - start > 5 && is_dir_sep(end[-5]) &&
-	    !strncmp(end - 4, ".git", 4)) {
-		end -= 5;
-		while (start < end && is_dir_sep(end[-1]))
-			end--;
+	if (do_merge && argc != 1) {
+		error("Must specify a notes ref to merge");
+		usage_with_options(git_notes_merge_usage, options);
+	} else if (!do_merge && argc) {
+		error("too many parameters");
+		usage_with_options(git_notes_merge_usage, options);
 	}
 
-	/*
-	 * Strip trailing port number if we've got only a
-	 * hostname (that is, there is no dir separator but a
-	 * colon). This check is required such that we do not
-	 * strip URI's like '/foo/bar:2222.git', which should
-	 * result in a dir '2222' being guessed due to backwards
-	 * compatibility.
-	 */
-	if (memchr(start, '/', end - start) == NULL
-	    && memchr(start, ':', end - start) != NULL) {
-		ptr = end;
-		while (start < ptr && isdigit(ptr[-1]) && ptr[-1] != ':')
-			ptr--;
-		if (start < ptr && ptr[-1] == ':')
-			end = ptr - 1;
-	}
+	init_notes_merge_options(&o);
+	o.verbosity = verbosity + NOTES_MERGE_VERBOSITY_DEFAULT;
 
-	/*
-	 * Find last component. To remain backwards compatible we
-	 * also regard colons as path separators, such that
-	 * cloning a repository 'foo:bar.git' would result in a
-	 * directory 'bar' being guessed.
-	 */
-	ptr = end;
-	while (start < ptr && !is_dir_sep(ptr[-1]) && ptr[-1] != ':')
-		ptr--;
-	start = ptr;
+	if (do_abort)
+		return merge_abort(&o);
+	if (do_commit)
+		return merge_commit(&o);
 
-	/*
-	 * Strip .{bundle,git}.
-	 */
-	len = end - start;
-	strip_suffix_mem(start, &len, is_bundle ? ".bundle" : ".git");
+	o.local_ref = default_notes_ref();
+	strbuf_addstr(&remote_ref, argv[0]);
+	expand_notes_ref(&remote_ref);
+	o.remote_ref = remote_ref.buf;
 
-	if (!len || (len == 1 && *start == '/'))
-	    die("No directory name could be guessed.\n"
-		"Please specify a directory on the command line");
+	t = init_notes_check("merge");
 
-	if (is_bare)
-		dir = xstrfmt("%.*s.git", (int)len, start);
-	else
-		dir = xstrndup(start, len);
-	/*
-	 * Replace sequences of 'control' characters and whitespace
-	 * with one ascii space, remove leading and trailing spaces.
-	 */
-	if (*dir) {
-		char *out = dir;
-		int prev_space = 1 /* strip leading whitespace */;
-		for (end = dir; *end; ++end) {
-			char ch = *end;
-			if ((unsigned char)ch < '\x20')
-				ch = '\x20';
-			if (isspace(ch)) {
-				if (prev_space)
-					continue;
-				prev_space = 1;
-			} else
-				prev_space = 0;
-			*out++ = ch;
+	if (strategy) {
+		if (parse_notes_merge_strategy(strategy, &o.strategy)) {
+			error("Unknown -s/--strategy: %s", strategy);
+			usage_with_options(git_notes_merge_usage, options);
 		}
-		*out = '\0';
-		if (out > dir && prev_space)
-			out[-1] = '\0';
+	} else {
+		struct strbuf merge_key = STRBUF_INIT;
+		const char *short_ref = NULL;
+
+		if (!skip_prefix(o.local_ref, "refs/notes/", &short_ref))
+			die("BUG: local ref %s is outside of refs/notes/",
+			    o.local_ref);
+
+		strbuf_addf(&merge_key, "notes.%s.mergeStrategy", short_ref);
+
+		if (git_config_get_notes_strategy(merge_key.buf, &o.strategy))
+			git_config_get_notes_strategy("notes.mergeStrategy", &o.strategy);
+
+		strbuf_release(&merge_key);
 	}
-	return dir;
+
+	strbuf_addf(&msg, "notes: Merged notes from %s into %s",
+		    remote_ref.buf, default_notes_ref());
+	strbuf_add(&(o.commit_msg), msg.buf + 7, msg.len - 7); /* skip "notes: " */
+
+	result = notes_merge(&o, t, result_sha1);
+
+	if (result >= 0) /* Merge resulted (trivially) in result_sha1 */
+		/* Update default notes ref with new commit */
+		update_ref(msg.buf, default_notes_ref(), result_sha1, NULL,
+			   0, UPDATE_REFS_DIE_ON_ERR);
+	else { /* Merge has unresolved conflicts */
+		char *existing;
+		/* Update .git/NOTES_MERGE_PARTIAL with partial merge result */
+		update_ref(msg.buf, "NOTES_MERGE_PARTIAL", result_sha1, NULL,
+			   0, UPDATE_REFS_DIE_ON_ERR);
+		/* Store ref-to-be-updated into .git/NOTES_MERGE_REF */
+		existing = find_shared_symref("NOTES_MERGE_REF", default_notes_ref());
+		if (existing)
+			die(_("A notes merge into %s is already in-progress at %s"),
+			    default_notes_ref(), existing);
+		if (create_symref("NOTES_MERGE_REF", default_notes_ref(), NULL))
+			die("Failed to store link to current notes ref (%s)",
+			    default_notes_ref());
+		printf("Automatic notes merge failed. Fix conflicts in %s and "
+		       "commit the result with 'git notes merge --commit', or "
+		       "abort the merge with 'git notes merge --abort'.\n",
+		       git_path(NOTES_MERGE_WORKTREE));
+	}
+
+	free_notes(t);
+	strbuf_release(&remote_ref);
+	strbuf_release(&msg);
+	return result < 0; /* return non-zero on conflicts */
 }

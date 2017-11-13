@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00182)
-                         "WARNING: MaxRequestWorkers of %d not allowed, "
-                         "increasing to 1.", ap_daemons_limit);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01899)
+                         "Host %s: CRL checking has been enabled, but "
+                         "neither %sCARevocationFile nor %sCARevocationPath "
+                         "is configured", mctx->sc->vhost_id, cfgp, cfgp);

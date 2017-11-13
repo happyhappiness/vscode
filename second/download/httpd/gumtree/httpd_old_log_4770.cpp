@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK,APLOG_ERR, service_set, NULL,
-             "No installed service named \"%s\".", service_name);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "Found CRL has invalid nextUpdate field");

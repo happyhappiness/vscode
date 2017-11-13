@@ -1,2 +1,1 @@
-error("unable to open mailmap at %s: %s",
-			     filename, strerror(errno));
+fprintf(stderr, "Checking %s\n", sha1_to_hex(obj->sha1));

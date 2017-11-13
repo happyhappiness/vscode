@@ -1,12 +1,9 @@
 fputs(
-"              back you get about this possibly lethal situation.\n"
+"              The file specified with -b, --cookie is only used as  input.  No\n"
+"              cookies  will  be written to the file. To store cookies, use the\n"
+"              -c, --cookie-jar option.\n"
 "\n"
-"              Since 7.43.0 cookies that were imported in the Set-Cookie format\n"
-"              without a domain name are not exported by this option.\n"
-"\n"
-"              If  this  option  is used several times, the last specified file\n"
-"              name will be used.\n"
-"\n"
-"       -C, --continue-at <offset>\n"
-"              Continue/Resume a previous file transfer at  the  given  offset.\n"
+"              Exercise caution if you  are  using  this  option  and  multiple\n"
+"              transfers may occur.  If you use the NAME1=VALUE1; format, or in\n"
+"              a file use the Set-Cookie format and  don't  specify  a  domain,\n"
 , stdout);

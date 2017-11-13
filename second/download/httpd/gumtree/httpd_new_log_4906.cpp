@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00563)
-                                  "Number of request headers exceeds "
-                                  "LimitRequestFields");
+ap_log_error(APLOG_MARK, APLOG_EMERG, errno,
+                         ap_server_conf, APLOGNO(02171) "ufork: Possible mis-configuration "
+                         "for user %s - Aborting.", user);

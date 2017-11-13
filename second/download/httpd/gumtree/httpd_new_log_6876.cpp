@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rs, s,
-            "mod_lua: Failed to create shared memory segment on file %s",
-                     lua_ivm_shmfile);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
+                          H2_SSSN_MSG(session, "unknown event %d"), ev);

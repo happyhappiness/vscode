@@ -1,1 +1,1 @@
-error("could not unhide %s", filename);
+die("helper %s does not support --signed=if-asked", name);

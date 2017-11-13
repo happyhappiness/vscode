@@ -1,1 +1,1 @@
-error("BUG: expected exactly one commit from walk");
+packet_write_fmt(1, "ACK\n");

@@ -1,1 +1,1 @@
-error_errno(_("could not lock '%s'"), todo_path);
+die(_("Value '%s' for submodule.alternateErrorStrategy is not recognized"), error_strategy);

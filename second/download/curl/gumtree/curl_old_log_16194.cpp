@@ -1,11 +1,9 @@
 fputs(
-"                     This  will make curl URL-encode the content and pass that\n"
-"                     on. Just be careful so that the content  doesn't  contain\n"
-"                     any  =  or  @  symbols, as that will then make the syntax\n"
-"                     match one of the other cases below!\n"
+"              This  command  line  option will activate the cookie engine that\n"
+"              makes curl record and use cookies. Another way to activate it is\n"
+"              to use the -b, --cookie option.\n"
 "\n"
-"              =content\n"
-"                     This will make curl URL-encode the content and pass  that\n"
-"                     on. The preceding = symbol is not included in the data.\n"
-"\n"
+"              If the cookie jar can't be created or written to, the whole curl\n"
+"              operation won't fail or even report an error clearly. Using  -v,\n"
+"              --verbose  will  get  a  warning displayed, but that is the only\n"
 , stdout);

@@ -1,6 +1,6 @@
-int mutt_dump_variables (void)
+int mutt_query_variables (LIST *queries)
 {
-  int i;
+  LIST *p;
   
   char command[STRING];
   
@@ -12,12 +12,9 @@ int mutt_dump_variables (void)
   err.dsize = STRING;
   err.data = safe_malloc (err.dsize);
   
-  for (i = 0; MuttVars[i].option; i++)
+  for (p = queries; p; p = p->next)
   {
-    if (MuttVars[i].type == DT_SYN)
-      continue;
-
-    snprintf (command, sizeof (command), "set ?%s\n", MuttVars[i].option);
+    snprintf (command, sizeof (command), "set ?%s\n", p->data);
     if (mutt_parse_rc_line (command, &token, &err) == -1)
     {
       fprintf (stderr, "%s\n", err.data);
@@ -26,7 +23,7 @@ int mutt_dump_variables (void)
 
       return 1;
     }
-    printf("%s\n", err.data);
+    printf ("%s\n", err.data);
   }
   
   FREE (&token.data);

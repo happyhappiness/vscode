@@ -1,97 +1,27 @@
-static int test_if_untracked_cache_is_supported(void)
+static int check_object(struct object *obj, int type, void *data)
 {
-	struct stat st;
-	struct stat_data base;
-	int fd, ret = 0;
+	if (!obj)
+		return 1;
 
-	strbuf_addstr(&mtime_dir, "mtime-test-XXXXXX");
-	if (!mkdtemp(mtime_dir.buf))
-		die_errno("Could not make temporary directory");
+	if (obj->flags & FLAG_WRITTEN)
+		return 0;
 
-	fprintf(stderr, _("Testing "));
-	atexit(remove_test_directory);
-	xstat_mtime_dir(&st);
-	fill_stat_data(&base, &st);
-	fputc('.', stderr);
+	if (type != OBJ_ANY && obj->type != type)
+		die("object type mismatch");
 
-	avoid_racy();
-	fd = create_file("newfile");
-	xstat_mtime_dir(&st);
-	if (!match_stat_data(&base, &st)) {
-		close(fd);
-		fputc('\n', stderr);
-		fprintf_ln(stderr,_("directory stat info does not "
-				    "change after adding a new file"));
-		goto done;
-	}
-	fill_stat_data(&base, &st);
-	fputc('.', stderr);
-
-	avoid_racy();
-	xmkdir("new-dir");
-	xstat_mtime_dir(&st);
-	if (!match_stat_data(&base, &st)) {
-		close(fd);
-		fputc('\n', stderr);
-		fprintf_ln(stderr, _("directory stat info does not change "
-				     "after adding a new directory"));
-		goto done;
-	}
-	fill_stat_data(&base, &st);
-	fputc('.', stderr);
-
-	avoid_racy();
-	write_or_die(fd, "data", 4);
-	close(fd);
-	xstat_mtime_dir(&st);
-	if (match_stat_data(&base, &st)) {
-		fputc('\n', stderr);
-		fprintf_ln(stderr, _("directory stat info changes "
-				     "after updating a file"));
-		goto done;
-	}
-	fputc('.', stderr);
-
-	avoid_racy();
-	close(create_file("new-dir/new"));
-	xstat_mtime_dir(&st);
-	if (match_stat_data(&base, &st)) {
-		fputc('\n', stderr);
-		fprintf_ln(stderr, _("directory stat info changes after "
-				     "adding a file inside subdirectory"));
-		goto done;
-	}
-	fputc('.', stderr);
-
-	avoid_racy();
-	xunlink("newfile");
-	xstat_mtime_dir(&st);
-	if (!match_stat_data(&base, &st)) {
-		fputc('\n', stderr);
-		fprintf_ln(stderr, _("directory stat info does not "
-				     "change after deleting a file"));
-		goto done;
-	}
-	fill_stat_data(&base, &st);
-	fputc('.', stderr);
-
-	avoid_racy();
-	xunlink("new-dir/new");
-	xrmdir("new-dir");
-	xstat_mtime_dir(&st);
-	if (!match_stat_data(&base, &st)) {
-		fputc('\n', stderr);
-		fprintf_ln(stderr, _("directory stat info does not "
-				     "change after deleting a directory"));
-		goto done;
+	if (!(obj->flags & FLAG_OPEN)) {
+		unsigned long size;
+		int type = sha1_object_info(obj->sha1, &size);
+		if (type != obj->type || type <= 0)
+			die("object of unexpected type");
+		obj->flags |= FLAG_WRITTEN;
+		return 0;
 	}
 
-	if (rmdir(mtime_dir.buf))
-		die_errno(_("failed to delete directory %s"), mtime_dir.buf);
-	fprintf_ln(stderr, _(" OK"));
-	ret = 1;
-
-done:
-	strbuf_release(&mtime_dir);
-	return ret;
+	if (fsck_object(obj, 1, fsck_error_function))
+		die("Error in object");
+	if (fsck_walk(obj, check_object, NULL))
+		die("Error on reachable objects of %s", sha1_to_hex(obj->sha1));
+	write_cached_object(obj);
+	return 0;
 }

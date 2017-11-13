@@ -1,1 +1,1 @@
-fprintf(stderr, "    -s timeout      Seconds to max. wait for each response\n");
+fprintf(stderr, "    -T content-type Content-type header to use for POST/PUT data, eg.\n");

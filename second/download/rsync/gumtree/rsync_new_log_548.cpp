@@ -1,1 +1,2 @@
-rprintf(FERROR,"backup filename too long\n");
+rprintf(FERROR,"link %s -> %s : %s\n",
+	      fname,file->link,strerror(errno));

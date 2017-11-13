@@ -1,1 +1,2 @@
-fprintf(outfile, "%s%c %s\n", tok, separators[0], val);
+strbuf_addf(err, "There are still logs under "
+					    "'%s'", logfile->buf);

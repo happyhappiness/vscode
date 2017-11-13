@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, m->c, APLOGNO(03055)  
-                          "h2_mplx(%ld-%d): stream timeout expired: %s",
-                          m->id, io->id, 
-                          (io->timed_op == H2_IO_READ)? "read" : "write");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00574)
+                              "ap_content_length_filter: "
+                              "apr_bucket_read() failed");

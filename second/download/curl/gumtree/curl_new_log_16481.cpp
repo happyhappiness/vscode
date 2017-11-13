@@ -1,11 +1,11 @@
 fputs(
-"                     This  curl  supports  Metalink (both version 3 and 4 (RFC\n"
-"                     5854)), which describes mirrors and  hashes.   curl  will\n"
-"                     use mirrors for failover if there are errors (such as the\n"
-"                     file or server not being available).\n"
+"              will not transcode nor encode it further in any way.\n"
 "\n"
-"              PSL    PSL is short for Public Suffix List and means  that  this\n"
-"                     curl  has  been  built  with knowledge about \"public suf-\n"
-"                     fixes\".\n"
+"       --url <url>\n"
+"              Specify a URL to fetch. This option is  mostly  handy  when  you\n"
+"              want to specify URL(s) in a config file.\n"
 "\n"
+"              If  the given URL is missing a scheme name (such as \"http://\" or\n"
+"              \"ftp://\" etc) then curl will make a guess based on the host.  If\n"
+"              the  outermost  sub-domain  name  matches DICT, FTP, IMAP, LDAP,\n"
 , stdout);

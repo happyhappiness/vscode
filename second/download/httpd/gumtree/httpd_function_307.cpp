@@ -1,108 +1,104 @@
-int main(int argc, const char * const argv[])
+int ap_mpm_run(apr_pool_t *_pconf, apr_pool_t *plog, server_rec *s)
 {
-    apr_file_t *f;
-    apr_status_t rv;
-    char tn[] = "htdigest.tmp.XXXXXX";
-    char *dirname;
-    char user[MAX_STRING_LEN];
-    char realm[MAX_STRING_LEN];
-    char line[MAX_STRING_LEN];
-    char l[MAX_STRING_LEN];
-    char w[MAX_STRING_LEN];
-    char x[MAX_STRING_LEN];
-    int found;
-   
-    apr_app_initialize(&argc, &argv, NULL);
-    atexit(terminate); 
-    apr_pool_create(&cntxt, NULL);
-    apr_file_open_stderr(&errfile, cntxt);
+    apr_status_t status=0;
 
-#if APR_CHARSET_EBCDIC
-    rv = apr_xlate_open(&to_ascii, "ISO8859-1", APR_DEFAULT_CHARSET, cntxt);
-    if (rv) {
-        apr_file_printf(errfile, "apr_xlate_open(): %s (%d)\n",
-                apr_strerror(rv, line, sizeof(line)), rv);
-        exit(1);
+    pconf = _pconf;
+    ap_server_conf = s;
+
+    if (setup_listeners(s)) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, status, s,
+            "no listening sockets available, shutting down");
+        return -1;
     }
+
+    restart_pending = shutdown_pending = 0;
+    worker_thread_count = 0;
+
+    if (!is_graceful) {
+        if (ap_run_pre_mpm(s->process->pool, SB_NOT_SHARED) != OK) {
+            return 1;
+        }
+    }
+
+    /* Only set slot 0 since that is all NetWare will ever have. */
+    ap_scoreboard_image->parent[0].pid = getpid();
+
+    set_signals();
+
+    apr_pool_create(&pmain, pconf);
+    ap_run_child_init(pmain, ap_server_conf);
+
+    if (ap_threads_max_free < ap_threads_min_free + 1)	/* Don't thrash... */
+        ap_threads_max_free = ap_threads_min_free + 1;
+    request_count = 0;
+
+    startup_workers(ap_threads_to_start);
+
+     /* Allow the Apache screen to be closed normally on exit() only if it
+        has not been explicitly forced to close on exit(). (ie. the -E flag
+        was specified at startup) */
+    if (hold_screen_on_exit > 0) {
+        hold_screen_on_exit = 0;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+            "%s configured -- resuming normal operations",
+            ap_get_server_version());
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
+            "Server built: %s", ap_get_server_built());
+#ifdef AP_MPM_WANT_SET_ACCEPT_LOCK_MECH
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+            "AcceptMutex: %s (default: %s)",
+            apr_proc_mutex_name(accept_mutex),
+            apr_proc_mutex_defname());
 #endif
-    
-    apr_signal(SIGINT, (void (*)(int)) interrupted);
-    if (argc == 5) {
-        if (strcmp(argv[1], "-c"))
-            usage();
-        rv = apr_file_open(&f, argv[2], APR_WRITE | APR_CREATE, -1, cntxt);
-        if (rv != APR_SUCCESS) {
-            char errmsg[120];
+    show_server_data();
 
-            apr_file_printf(errfile, "Could not open passwd file %s for writing: %s\n",
-                    argv[2],
-                    apr_strerror(rv, errmsg, sizeof errmsg));
-            exit(1);
+    mpm_state = AP_MPMQ_RUNNING;
+    while (!restart_pending && !shutdown_pending) {
+        perform_idle_server_maintenance(pconf);
+        if (show_settings)
+            display_settings();
+        apr_thread_yield();
+        apr_sleep(SCOREBOARD_MAINTENANCE_INTERVAL);
+    }
+    mpm_state = AP_MPMQ_STOPPING;
+
+
+    /* Shutdown the listen sockets so that we don't get stuck in a blocking call. 
+    shutdown_listeners();*/
+
+    if (shutdown_pending) { /* Got an unload from the console */
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+            "caught SIGTERM, shutting down");
+
+        while (worker_thread_count > 0) {
+            printf ("\rShutdown pending. Waiting for %d thread(s) to terminate...", 
+                    worker_thread_count);
+            apr_thread_yield();
         }
-        apr_file_printf(errfile, "Adding password for %s in realm %s.\n", 
-                    argv[4], argv[3]);
-        add_password(argv[4], argv[3], f);
-        apr_file_close(f);
-        exit(0);
-    }
-    else if (argc != 4)
-        usage();
 
-    if (apr_temp_dir_get((const char**)&dirname, cntxt) != APR_SUCCESS) {
-        apr_file_printf(errfile, "%s: could not determine temp dir\n",
-                        argv[0]);
-        exit(1);
+        return 1;
     }
-    dirname = apr_psprintf(cntxt, "%s/%s", dirname, tn);
+    else {  /* the only other way out is a restart */
+        /* advance to the next generation */
+        /* XXX: we really need to make sure this new generation number isn't in
+         * use by any of the children.
+         */
+        ++ap_my_generation;
+        ap_scoreboard_image->global->running_generation = ap_my_generation;
 
-    if (apr_file_mktemp(&tfp, dirname, 0, cntxt) != APR_SUCCESS) {
-        apr_file_printf(errfile, "Could not open temp file %s.\n", dirname);
-        exit(1);
-    }
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                "Graceful restart requested, doing restart");
 
-    if (apr_file_open(&f, argv[1], APR_READ, -1, cntxt) != APR_SUCCESS) {
-        apr_file_printf(errfile,
-                "Could not open passwd file %s for reading.\n", argv[1]);
-        apr_file_printf(errfile, "Use -c option to create new one.\n");
-        cleanup_tempfile_and_exit(1);
-    }
-    apr_cpystrn(user, argv[3], sizeof(user));
-    apr_cpystrn(realm, argv[2], sizeof(realm));
-
-    found = 0;
-    while (!(get_line(line, MAX_STRING_LEN, f))) {
-        if (found || (line[0] == '#') || (!line[0])) {
-            putline(tfp, line);
-            continue;
+        /* Wait for all of the threads to terminate before initiating the restart */
+        while (worker_thread_count > 0) {
+            printf ("\rRestart pending. Waiting for %d thread(s) to terminate...",
+                    worker_thread_count);
+            apr_thread_yield();
         }
-        strcpy(l, line);
-        getword(w, l, ':');
-        getword(x, l, ':');
-        if (strcmp(user, w) || strcmp(realm, x)) {
-            putline(tfp, line);
-            continue;
-        }
-        else {
-            apr_file_printf(errfile, "Changing password for user %s in realm %s\n", 
-                    user, realm);
-            add_password(user, realm, tfp);
-            found = 1;
-        }
+        printf ("\nRestarting...\n");
     }
-    if (!found) {
-        apr_file_printf(errfile, "Adding user %s in realm %s\n", user, realm);
-        add_password(user, realm, tfp);
-    }
-    apr_file_close(f);
-
-    /* The temporary file has all the data, just copy it to the new location.
-     */
-    if (apr_file_copy(dirname, argv[1], APR_FILE_SOURCE_PERMS, cntxt) !=
-                APR_SUCCESS) {
-        apr_file_printf(errfile, "%s: unable to update file %s\n", 
-                        argv[0], argv[1]);
-    }
-    apr_file_close(tfp);
 
     return 0;
 }

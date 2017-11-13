@@ -1,2 +1,2 @@
-printf("broken link from %7s %s\n",
-				 typename(parent->type), oid_to_hex(&parent->oid));
+printf("              to %7s %s\n",
+				 typename(obj->type), oid_to_hex(&obj->oid));

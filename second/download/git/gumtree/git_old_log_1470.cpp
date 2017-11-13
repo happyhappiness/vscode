@@ -1,0 +1,1 @@
+die_errno("Invalid symlink '%s'", buf);

@@ -1,3 +1,1 @@
-die ("Encountered signed tag %s; use "
-				     "--signed-tags=<mode> to handle it.",
-				     oid_to_hex(&tag->object.oid));
+printf(" %u %s", obj_stat[i].delta_depth, sha1_to_hex(bobj->idx.sha1));

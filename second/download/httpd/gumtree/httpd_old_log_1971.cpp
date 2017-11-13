@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                 "Child %lu: All worker threads have exited.", my_pid);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                                     "proxy: CONNECT: read %d from client", i);

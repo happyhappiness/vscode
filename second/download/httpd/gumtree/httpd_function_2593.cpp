@@ -1,576 +1,275 @@
-static
-apr_status_t ap_proxy_http_process_response(apr_pool_t * p, request_rec *r,
-                                            proxy_conn_rec *backend,
-                                            proxy_worker *worker,
-                                            proxy_server_conf *conf,
-                                            char *server_portstr) {
+static int cgi_handler(request_rec *r)
+{
+    int nph;
+    apr_size_t dbpos = 0;
+    const char *argv0;
+    const char *command;
+    const char **argv;
+    char *dbuf = NULL;
+    apr_file_t *script_out = NULL, *script_in = NULL, *script_err = NULL;
+    apr_bucket_brigade *bb;
+    apr_bucket *b;
+    int is_included;
+    int seen_eos, child_stopped_reading;
+    apr_pool_t *p;
+    cgi_server_conf *conf;
+    apr_status_t rv;
+    cgi_exec_info_t e_info;
     conn_rec *c = r->connection;
-    char buffer[HUGE_STRING_LEN];
-    const char *buf;
-    char keepchar;
-    request_rec *rp;
-    apr_bucket *e;
-    apr_bucket_brigade *bb, *tmp_bb;
-    apr_bucket_brigade *pass_bb;
-    int len, backasswards;
-    int interim_response = 0; /* non-zero whilst interim 1xx responses
-                               * are being read. */
-    int pread_len = 0;
-    apr_table_t *save_table;
-    int backend_broke = 0;
-    static const char *hop_by_hop_hdrs[] =
-        {"Keep-Alive", "Proxy-Authenticate", "TE", "Trailer", "Upgrade", NULL};
-    int i;
-    const char *te = NULL;
-    int original_status = r->status;
-    int proxy_status = OK;
-    const char *original_status_line = r->status_line;
-    const char *proxy_status_line = NULL;
-    conn_rec *origin = backend->connection;
-    apr_interval_time_t old_timeout = 0;
 
-    int do_100_continue;
-    
-    do_100_continue = (worker->ping_timeout_set
-                       && ap_request_has_body(r)
-                       && (PROXYREQ_REVERSE == r->proxyreq)
-                       && !(apr_table_get(r->subprocess_env, "force-proxy-request-1.0")));
-    
-    bb = apr_brigade_create(p, c->bucket_alloc);
-    pass_bb = apr_brigade_create(p, c->bucket_alloc);
-    
-    /* Setup for 100-Continue timeout if appropriate */
-    if (do_100_continue) {
-        apr_socket_timeout_get(backend->sock, &old_timeout);
-        if (worker->ping_timeout != old_timeout) {
-            apr_status_t rc;
-            rc = apr_socket_timeout_set(backend->sock, worker->ping_timeout);
-            if (rc != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server,
-                             "proxy: could not set 100-Continue timeout");
-            }
-        }
+    if(strcmp(r->handler, CGI_MAGIC_TYPE) && strcmp(r->handler, "cgi-script"))
+        return DECLINED;
+
+    is_included = !strcmp(r->protocol, "INCLUDED");
+
+    p = r->main ? r->main->pool : r->pool;
+
+    argv0 = apr_filepath_name_get(r->filename);
+    nph = !(strncmp(argv0, "nph-", 4));
+    conf = ap_get_module_config(r->server->module_config, &cgi_module);
+
+    if (!(ap_allow_options(r) & OPT_EXECCGI) && !is_scriptaliased(r))
+        return log_scripterror(r, conf, HTTP_FORBIDDEN, 0,
+                               "Options ExecCGI is off in this directory");
+    if (nph && is_included)
+        return log_scripterror(r, conf, HTTP_FORBIDDEN, 0,
+                               "attempt to include NPH CGI script");
+
+    if (r->finfo.filetype == 0)
+        return log_scripterror(r, conf, HTTP_NOT_FOUND, 0,
+                               "script not found or unable to stat");
+    if (r->finfo.filetype == APR_DIR)
+        return log_scripterror(r, conf, HTTP_FORBIDDEN, 0,
+                               "attempt to invoke directory as script");
+
+    if ((r->used_path_info == AP_REQ_REJECT_PATH_INFO) &&
+        r->path_info && *r->path_info)
+    {
+        /* default to accept */
+        return log_scripterror(r, conf, HTTP_NOT_FOUND, 0,
+                               "AcceptPathInfo off disallows user's path");
+    }
+/*
+    if (!ap_suexec_enabled) {
+        if (!ap_can_exec(&r->finfo))
+            return log_scripterror(r, conf, HTTP_FORBIDDEN, 0,
+                                   "file permissions deny server execution");
     }
 
-    /* Get response from the remote server, and pass it up the
-     * filter chain
-     */
+*/
+    ap_add_common_vars(r);
+    ap_add_cgi_vars(r);
 
-    rp = ap_proxy_make_fake_req(origin, r);
-    /* In case anyone needs to know, this is a fake request that is really a
-     * response.
+    e_info.process_cgi = 1;
+    e_info.cmd_type    = APR_PROGRAM;
+    e_info.detached    = 0;
+    e_info.in_pipe     = APR_CHILD_BLOCK;
+    e_info.out_pipe    = APR_CHILD_BLOCK;
+    e_info.err_pipe    = APR_CHILD_BLOCK;
+    e_info.prog_type   = RUN_AS_CGI;
+    e_info.bb          = NULL;
+    e_info.ctx         = NULL;
+    e_info.next        = NULL;
+    e_info.addrspace   = 0;
+
+    /* build the command line */
+    if ((rv = cgi_build_command(&command, &argv, r, p, &e_info)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "don't know how to spawn child process: %s",
+                      r->filename);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    /* run the script in its own process */
+    if ((rv = run_cgi_child(&script_out, &script_in, &script_err,
+                            command, argv, r, p, &e_info)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "couldn't spawn child process: %s", r->filename);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    /* Transfer any put/post args, CERN style...
+     * Note that we already ignore SIGPIPE in the core server.
      */
-    rp->proxyreq = PROXYREQ_RESPONSE;
-    tmp_bb = apr_brigade_create(p, c->bucket_alloc);
+    bb = apr_brigade_create(r->pool, c->bucket_alloc);
+    seen_eos = 0;
+    child_stopped_reading = 0;
+    if (conf->logname) {
+        dbuf = apr_palloc(r->pool, conf->bufbytes + 1);
+        dbpos = 0;
+    }
     do {
-        apr_status_t rc;
+        apr_bucket *bucket;
 
-        apr_brigade_cleanup(bb);
+        rv = ap_get_brigade(r->input_filters, bb, AP_MODE_READBYTES,
+                            APR_BLOCK_READ, HUGE_STRING_LEN);
 
-        rc = ap_proxygetline(tmp_bb, buffer, sizeof(buffer), rp, 0, &len);
-        if (len == 0) {
-            /* handle one potential stray CRLF */
-            rc = ap_proxygetline(tmp_bb, buffer, sizeof(buffer), rp, 0, &len);
+        if (rv != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "Error reading request entity data");
+            return HTTP_INTERNAL_SERVER_ERROR;
         }
-        if (len <= 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
-                          "proxy: error reading status line from remote "
-                          "server %s:%d", backend->hostname, backend->port);
-            if (APR_STATUS_IS_TIMEUP(rc)) {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "proxy: read timeout");
-                if (do_100_continue) {
-                    return ap_proxyerror(r, HTTP_SERVICE_UNAVAILABLE, "Timeout on 100-Continue");
-                }
-            }
-            /*
-             * If we are a reverse proxy request shutdown the connection
-             * WITHOUT ANY response to trigger a retry by the client
-             * if allowed (as for idempotent requests).
-             * BUT currently we should not do this if the request is the
-             * first request on a keepalive connection as browsers like
-             * seamonkey only display an empty page in this case and do
-             * not do a retry. We should also not do this on a
-             * connection which times out; instead handle as
-             * we normally would handle timeouts
-             */
-            if (r->proxyreq == PROXYREQ_REVERSE && c->keepalives &&
-                !APR_STATUS_IS_TIMEUP(rc)) {
-                apr_bucket *eos;
 
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "proxy: Closing connection to client because"
-                              " reading from backend server %s:%d failed."
-                              " Number of keepalives %i", backend->hostname, 
-                              backend->port, c->keepalives);
-                ap_proxy_backend_broke(r, bb);
-                /*
-                 * Add an EOC bucket to signal the ap_http_header_filter
-                 * that it should get out of our way, BUT ensure that the
-                 * EOC bucket is inserted BEFORE an EOS bucket in bb as
-                 * some resource filters like mod_deflate pass everything
-                 * up to the EOS down the chain immediately and sent the
-                 * remainder of the brigade later (or even never). But in
-                 * this case the ap_http_header_filter does not get out of
-                 * our way soon enough.
-                 */
-                e = ap_bucket_eoc_create(c->bucket_alloc);
-                eos = APR_BRIGADE_LAST(bb);
-                while ((APR_BRIGADE_SENTINEL(bb) != eos)
-                       && !APR_BUCKET_IS_EOS(eos)) {
-                    eos = APR_BUCKET_PREV(eos);
-                }
-                if (eos == APR_BRIGADE_SENTINEL(bb)) {
-                    APR_BRIGADE_INSERT_TAIL(bb, e);
+        for (bucket = APR_BRIGADE_FIRST(bb);
+             bucket != APR_BRIGADE_SENTINEL(bb);
+             bucket = APR_BUCKET_NEXT(bucket))
+        {
+            const char *data;
+            apr_size_t len;
+
+            if (APR_BUCKET_IS_EOS(bucket)) {
+                seen_eos = 1;
+                break;
+            }
+
+            /* We can't do much with this. */
+            if (APR_BUCKET_IS_FLUSH(bucket)) {
+                continue;
+            }
+
+            /* If the child stopped, we still must read to EOS. */
+            if (child_stopped_reading) {
+                continue;
+            }
+
+            /* read */
+            apr_bucket_read(bucket, &data, &len, APR_BLOCK_READ);
+
+            if (conf->logname && dbpos < conf->bufbytes) {
+                int cursize;
+
+                if ((dbpos + len) > conf->bufbytes) {
+                    cursize = conf->bufbytes - dbpos;
                 }
                 else {
-                    APR_BUCKET_INSERT_BEFORE(eos, e);
+                    cursize = len;
                 }
-                ap_pass_brigade(r->output_filters, bb);
-                /* Mark the backend connection for closing */
-                backend->close = 1;
-                /* Need to return OK to avoid sending an error message */
-                return OK;
+                memcpy(dbuf + dbpos, data, cursize);
+                dbpos += cursize;
             }
-            else if (!c->keepalives) {
-                     ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                   "proxy: NOT Closing connection to client"
-                                   " although reading from backend server %s:%d"
-                                   " failed.", backend->hostname,
-                                   backend->port);
-            }
-            return ap_proxyerror(r, HTTP_BAD_GATEWAY,
-                                 "Error reading from remote server");
-        }
-        /* XXX: Is this a real headers length send from remote? */
-        backend->worker->s->read += len;
 
-        /* Is it an HTTP/1 response?
-         * This is buggy if we ever see an HTTP/1.10
-         */
-        if (apr_date_checkmask(buffer, "HTTP/#.# ###*")) {
-            int major, minor;
-
-            if (2 != sscanf(buffer, "HTTP/%u.%u", &major, &minor)) {
-                major = 1;
-                minor = 1;
-            }
-            /* If not an HTTP/1 message or
-             * if the status line was > 8192 bytes
+            /* Keep writing data to the child until done or too much time
+             * elapses with no progress or an error occurs.
              */
-            else if ((buffer[5] != '1') || (len >= sizeof(buffer)-1)) {
-                return ap_proxyerror(r, HTTP_BAD_GATEWAY,
-                apr_pstrcat(p, "Corrupt status line returned by remote "
-                            "server: ", buffer, NULL));
-            }
-            backasswards = 0;
+            rv = apr_file_write_full(script_out, data, len, NULL);
 
-            keepchar = buffer[12];
-            buffer[12] = '\0';
-            proxy_status = atoi(&buffer[9]);
-
-            if (keepchar != '\0') {
-                buffer[12] = keepchar;
-            } else {
-                /* 2616 requires the space in Status-Line; the origin
-                 * server may have sent one but ap_rgetline_core will
-                 * have stripped it. */
-                buffer[12] = ' ';
-                buffer[13] = '\0';
-            }
-            proxy_status_line = apr_pstrdup(p, &buffer[9]);
-
-            /* The status out of the front is the same as the status coming in
-             * from the back, until further notice.
-             */
-            r->status = proxy_status;
-            r->status_line = proxy_status_line;
-
-            ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
-                          "Status from backend: %d", proxy_status);
-
-            /* read the headers. */
-            /* N.B. for HTTP/1.0 clients, we have to fold line-wrapped headers*/
-            /* Also, take care with headers with multiple occurences. */
-
-            /* First, tuck away all already existing cookies */
-            save_table = apr_table_make(r->pool, 2);
-            apr_table_do(addit_dammit, save_table, r->headers_out,
-                         "Set-Cookie", NULL);
-
-            /* shove the headers direct into r->headers_out */
-            ap_proxy_read_headers(r, rp, buffer, sizeof(buffer), origin,
-                                  &pread_len);
-
-            if (r->headers_out == NULL) {
-                ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
-                             r->server, "proxy: bad HTTP/%d.%d header "
-                             "returned by %s (%s)", major, minor, r->uri,
-                             r->method);
-                backend->close += 1;
-                /*
-                 * ap_send_error relies on a headers_out to be present. we
-                 * are in a bad position here.. so force everything we send out
-                 * to have nothing to do with the incoming packet
-                 */
-                r->headers_out = apr_table_make(r->pool,1);
-                r->status = HTTP_BAD_GATEWAY;
-                r->status_line = "bad gateway";
-                return r->status;
-            }
-
-            /* Now, add in the just read cookies */
-            apr_table_do(addit_dammit, save_table, r->headers_out,
-                         "Set-Cookie", NULL);
-
-            /* and now load 'em all in */
-            if (!apr_is_empty_table(save_table)) {
-                apr_table_unset(r->headers_out, "Set-Cookie");
-                r->headers_out = apr_table_overlay(r->pool,
-                                                   r->headers_out,
-                                                   save_table);
-            }
-
-            /* can't have both Content-Length and Transfer-Encoding */
-            if (apr_table_get(r->headers_out, "Transfer-Encoding")
-                    && apr_table_get(r->headers_out, "Content-Length")) {
-                /*
-                 * 2616 section 4.4, point 3: "if both Transfer-Encoding
-                 * and Content-Length are received, the latter MUST be
-                 * ignored";
-                 *
-                 * To help mitigate HTTP Splitting, unset Content-Length
-                 * and shut down the backend server connection
-                 * XXX: We aught to treat such a response as uncachable
-                 */
-                apr_table_unset(r->headers_out, "Content-Length");
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                             "proxy: server %s:%d returned Transfer-Encoding"
-                             " and Content-Length", backend->hostname,
-                             backend->port);
-                backend->close += 1;
-            }
-
-            /*
-             * Save a possible Transfer-Encoding header as we need it later for
-             * ap_http_filter to know where to end.
-             */
-            te = apr_table_get(r->headers_out, "Transfer-Encoding");
-            /* strip connection listed hop-by-hop headers from response */
-            backend->close += ap_proxy_liststr(apr_table_get(r->headers_out,
-                                                             "Connection"),
-                                              "close");
-            ap_proxy_clear_connection(p, r->headers_out);
-            if ((buf = apr_table_get(r->headers_out, "Content-Type"))) {
-                ap_set_content_type(r, apr_pstrdup(p, buf));
-            }
-            if (!ap_is_HTTP_INFO(proxy_status)) {
-                ap_proxy_pre_http_request(origin, rp);
-            }
-
-            /* Clear hop-by-hop headers */
-            for (i=0; hop_by_hop_hdrs[i]; ++i) {
-                apr_table_unset(r->headers_out, hop_by_hop_hdrs[i]);
-            }
-            /* Delete warnings with wrong date */
-            r->headers_out = ap_proxy_clean_warnings(p, r->headers_out);
-
-            /* handle Via header in response */
-            if (conf->viaopt != via_off && conf->viaopt != via_block) {
-                const char *server_name = ap_get_server_name(r);
-                /* If USE_CANONICAL_NAME_OFF was configured for the proxy virtual host,
-                 * then the server name returned by ap_get_server_name() is the
-                 * origin server name (which does make too much sense with Via: headers)
-                 * so we use the proxy vhost's name instead.
-                 */
-                if (server_name == r->hostname)
-                    server_name = r->server->server_hostname;
-                /* create a "Via:" response header entry and merge it */
-                apr_table_addn(r->headers_out, "Via",
-                               (conf->viaopt == via_full)
-                                     ? apr_psprintf(p, "%d.%d %s%s (%s)",
-                                           HTTP_VERSION_MAJOR(r->proto_num),
-                                           HTTP_VERSION_MINOR(r->proto_num),
-                                           server_name,
-                                           server_portstr,
-                                           AP_SERVER_BASEVERSION)
-                                     : apr_psprintf(p, "%d.%d %s%s",
-                                           HTTP_VERSION_MAJOR(r->proto_num),
-                                           HTTP_VERSION_MINOR(r->proto_num),
-                                           server_name,
-                                           server_portstr)
-                );
-            }
-
-            /* cancel keepalive if HTTP/1.0 or less */
-            if ((major < 1) || (minor < 1)) {
-                backend->close += 1;
-                origin->keepalive = AP_CONN_CLOSE;
-            }
-        } else {
-            /* an http/0.9 response */
-            backasswards = 1;
-            r->status = 200;
-            r->status_line = "200 OK";
-            backend->close += 1;
-        }
-
-        if (ap_is_HTTP_INFO(proxy_status)) {
-            interim_response++;
-            /* Reset to old timeout iff we've adjusted it */
-            if (do_100_continue
-                && (r->status == HTTP_CONTINUE)
-                && (worker->ping_timeout != old_timeout)) {
-                    apr_socket_timeout_set(backend->sock, old_timeout);
+            if (rv != APR_SUCCESS) {
+                /* silly script stopped reading, soak up remaining message */
+                child_stopped_reading = 1;
             }
         }
-        else {
-            interim_response = 0;
-        }
-        if (interim_response) {
-            /* RFC2616 tells us to forward this.
-             *
-             * OTOH, an interim response here may mean the backend
-             * is playing sillybuggers.  The Client didn't ask for
-             * it within the defined HTTP/1.1 mechanisms, and if
-             * it's an extension, it may also be unsupported by us.
-             *
-             * There's also the possibility that changing existing
-             * behaviour here might break something.
-             *
-             * So let's make it configurable.
-             */
-            const char *policy = apr_table_get(r->subprocess_env,
-                                               "proxy-interim-response");
-            ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                         "proxy: HTTP: received interim %d response",
-                         r->status);
-            if (!policy || !strcasecmp(policy, "RFC")) {
-                ap_send_interim_response(r, 1);
-            }
-            /* FIXME: refine this to be able to specify per-response-status
-             * policies and maybe also add option to bail out with 502
-             */
-            else if (strcasecmp(policy, "Suppress")) {
-                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                             "undefined proxy interim response policy");
-            }
-        }
-        /* Moved the fixups of Date headers and those affected by
-         * ProxyPassReverse/etc from here to ap_proxy_read_headers
-         */
+        apr_brigade_cleanup(bb);
+    }
+    while (!seen_eos);
 
-        if ((proxy_status == 401) && (conf->error_override)) {
-            const char *buf;
-            const char *wa = "WWW-Authenticate";
-            if ((buf = apr_table_get(r->headers_out, wa))) {
-                apr_table_set(r->err_headers_out, wa, buf);
-            } else {
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                             "proxy: origin server sent 401 without WWW-Authenticate header");
-            }
-        }
+    if (conf->logname) {
+        dbuf[dbpos] = '\0';
+    }
+    /* Is this flush really needed? */
+    apr_file_flush(script_out);
+    apr_file_close(script_out);
 
-        r->sent_bodyct = 1;
-        /*
-         * Is it an HTTP/0.9 response or did we maybe preread the 1st line of
-         * the response? If so, load the extra data. These are 2 mutually
-         * exclusive possibilities, that just happen to require very
-         * similar behavior.
-         */
-        if (backasswards || pread_len) {
-            apr_ssize_t cntr = (apr_ssize_t)pread_len;
-            if (backasswards) {
-                /*@@@FIXME:
-                 * At this point in response processing of a 0.9 response,
-                 * we don't know yet whether data is binary or not.
-                 * mod_charset_lite will get control later on, so it cannot
-                 * decide on the conversion of this buffer full of data.
-                 * However, chances are that we are not really talking to an
-                 * HTTP/0.9 server, but to some different protocol, therefore
-                 * the best guess IMHO is to always treat the buffer as "text/x":
-                 */
-                ap_xlate_proto_to_ascii(buffer, len);
-                cntr = (apr_ssize_t)len;
-            }
-            e = apr_bucket_heap_create(buffer, cntr, NULL, c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(bb, e);
-        }
-        /* PR 41646: get HEAD right with ProxyErrorOverride */
-        if (ap_is_HTTP_ERROR(r->status) && conf->error_override) {
-            /* clear r->status for override error, otherwise ErrorDocument
-             * thinks that this is a recursive error, and doesn't find the
-             * custom error page
-             */
-            r->status = HTTP_OK;
-            /* Discard body, if one is expected */
-            if (!r->header_only && /* not HEAD request */
-                (proxy_status != HTTP_NO_CONTENT) && /* not 204 */
-                (proxy_status != HTTP_NOT_MODIFIED)) { /* not 304 */
-                ap_discard_request_body(rp);
-            }
-            return proxy_status;
-        }
+    AP_DEBUG_ASSERT(script_in != NULL);
 
-        /* send body - but only if a body is expected */
-        if ((!r->header_only) &&                   /* not HEAD request */
-            !interim_response &&                   /* not any 1xx response */
-            (proxy_status != HTTP_NO_CONTENT) &&      /* not 204 */
-            (proxy_status != HTTP_NOT_MODIFIED)) {    /* not 304 */
+    apr_brigade_cleanup(bb);
 
-            /* We need to copy the output headers and treat them as input
-             * headers as well.  BUT, we need to do this before we remove
-             * TE, so that they are preserved accordingly for
-             * ap_http_filter to know where to end.
-             */
-            rp->headers_in = apr_table_copy(r->pool, r->headers_out);
-            /*
-             * Restore Transfer-Encoding header from response if we saved
-             * one before and there is none left. We need it for the
-             * ap_http_filter. See above.
-             */
-            if (te && !apr_table_get(rp->headers_in, "Transfer-Encoding")) {
-                apr_table_add(rp->headers_in, "Transfer-Encoding", te);
-            }
+#if APR_FILES_AS_SOCKETS
+    apr_file_pipe_timeout_set(script_in, 0);
+    apr_file_pipe_timeout_set(script_err, 0);
 
-            apr_table_unset(r->headers_out,"Transfer-Encoding");
-
-            ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, r->server,
-                         "proxy: start body send");
-
-            /*
-             * if we are overriding the errors, we can't put the content
-             * of the page into the brigade
-             */
-            if (!conf->error_override || !ap_is_HTTP_ERROR(proxy_status)) {
-                /* read the body, pass it to the output filters */
-                apr_read_type_e mode = APR_NONBLOCK_READ;
-                int finish = FALSE;
-
-                /* Handle the case where the error document is itself reverse
-                 * proxied and was successful. We must maintain any previous
-                 * error status so that an underlying error (eg HTTP_NOT_FOUND)
-                 * doesn't become an HTTP_OK.
-                 */
-                if (conf->error_override && !ap_is_HTTP_ERROR(proxy_status)
-                        && ap_is_HTTP_ERROR(original_status)) {
-                    r->status = original_status;
-                    r->status_line = original_status_line;
-                }
-
-                do {
-                    apr_off_t readbytes;
-                    apr_status_t rv;
-
-                    rv = ap_get_brigade(rp->input_filters, bb,
-                                        AP_MODE_READBYTES, mode,
-                                        conf->io_buffer_size);
-
-                    /* ap_get_brigade will return success with an empty brigade
-                     * for a non-blocking read which would block: */
-                    if (APR_STATUS_IS_EAGAIN(rv)
-                        || (rv == APR_SUCCESS && APR_BRIGADE_EMPTY(bb))) {
-                        /* flush to the client and switch to blocking mode */
-                        e = apr_bucket_flush_create(c->bucket_alloc);
-                        APR_BRIGADE_INSERT_TAIL(bb, e);
-                        if (ap_pass_brigade(r->output_filters, bb)
-                            || c->aborted) {
-                            backend->close = 1;
-                            break;
-                        }
-                        apr_brigade_cleanup(bb);
-                        mode = APR_BLOCK_READ;
-                        continue;
-                    }
-                    else if (rv == APR_EOF) {
-                        break;
-                    }
-                    else if (rv != APR_SUCCESS) {
-                        /* In this case, we are in real trouble because
-                         * our backend bailed on us. Pass along a 502 error
-                         * error bucket
-                         */
-                        ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c,
-                                      "proxy: error reading response");
-                        ap_proxy_backend_broke(r, bb);
-                        ap_pass_brigade(r->output_filters, bb);
-                        backend_broke = 1;
-                        backend->close = 1;
-                        break;
-                    }
-                    /* next time try a non-blocking read */
-                    mode = APR_NONBLOCK_READ;
-
-                    apr_brigade_length(bb, 0, &readbytes);
-                    backend->worker->s->read += readbytes;
-#if DEBUGGING
-                    {
-                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
-                                 r->server, "proxy (PID %d): readbytes: %#x",
-                                 getpid(), readbytes);
-                    }
+    b = cgi_bucket_create(r, script_in, script_err, c->bucket_alloc);
+#else
+    b = apr_bucket_pipe_create(script_in, c->bucket_alloc);
 #endif
-                    /* sanity check */
-                    if (APR_BRIGADE_EMPTY(bb)) {
-                        apr_brigade_cleanup(bb);
-                        break;
-                    }
+    APR_BRIGADE_INSERT_TAIL(bb, b);
+    b = apr_bucket_eos_create(c->bucket_alloc);
+    APR_BRIGADE_INSERT_TAIL(bb, b);
 
-                    /* Switch the allocator lifetime of the buckets */
-                    ap_proxy_buckets_lifetime_transform(r, bb, pass_bb);
+    /* Handle script return... */
+    if (!nph) {
+        const char *location;
+        char sbuf[MAX_STRING_LEN];
+        int ret;
 
-                    /* found the last brigade? */
-                    if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(bb))) {
-                        /* signal that we must leave */
-                        finish = TRUE;
-                    }
+        if ((ret = ap_scan_script_header_err_brigade(r, bb, sbuf))) {
+            ret = log_script(r, conf, ret, dbuf, sbuf, bb, script_err);
 
-                    /* try send what we read */
-                    if (ap_pass_brigade(r->output_filters, pass_bb) != APR_SUCCESS
-                        || c->aborted) {
-                        /* Ack! Phbtt! Die! User aborted! */
-                        backend->close = 1;  /* this causes socket close below */
-                        finish = TRUE;
-                    }
-
-                    /* make sure we always clean up after ourselves */
-                    apr_brigade_cleanup(bb);
-                    apr_brigade_cleanup(pass_bb);
-
-                } while (!finish);
-            }
-            ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, r->server,
-                         "proxy: end body send");
-        }
-        else if (!interim_response) {
-            ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, r->server,
-                         "proxy: header only");
+            /* Set our status. */
+            r->status = ret;
 
             /* Pass EOS bucket down the filter chain. */
-            e = apr_bucket_eos_create(c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(bb, e);
-            if (ap_pass_brigade(r->output_filters, bb) != APR_SUCCESS
-                || c->aborted) {
-                /* Ack! Phbtt! Die! User aborted! */
-                backend->close = 1;  /* this causes socket close below */
-            }
-
             apr_brigade_cleanup(bb);
+            b = apr_bucket_eos_create(c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, b);
+            ap_pass_brigade(r->output_filters, bb);
+
+            return ret;
         }
-    } while (interim_response && (interim_response < AP_MAX_INTERIM_RESPONSES));
 
-    /* See define of AP_MAX_INTERIM_RESPONSES for why */
-    if (interim_response >= AP_MAX_INTERIM_RESPONSES) {
-        return ap_proxyerror(r, HTTP_BAD_GATEWAY,
-                             apr_psprintf(p, 
-                             "Too many (%d) interim responses from origin server",
-                             interim_response));
+        location = apr_table_get(r->headers_out, "Location");
+
+        if (location && r->status == 200) {
+            /* For a redirect whether internal or not, discard any
+             * remaining stdout from the script, and log any remaining
+             * stderr output, as normal. */
+            discard_script_output(bb);
+            apr_brigade_destroy(bb);
+            apr_file_pipe_timeout_set(script_err, r->server->timeout);
+            log_script_err(r, script_err);
+        }
+
+        if (location && location[0] == '/' && r->status == 200) {
+            /* This redirect needs to be a GET no matter what the original
+             * method was.
+             */
+            r->method = apr_pstrdup(r->pool, "GET");
+            r->method_number = M_GET;
+
+            /* We already read the message body (if any), so don't allow
+             * the redirected request to think it has one.  We can ignore
+             * Transfer-Encoding, since we used REQUEST_CHUNKED_ERROR.
+             */
+            apr_table_unset(r->headers_in, "Content-Length");
+
+            ap_internal_redirect_handler(location, r);
+            return OK;
+        }
+        else if (location && r->status == 200) {
+            /* XX Note that if a script wants to produce its own Redirect
+             * body, it now has to explicitly *say* "Status: 302"
+             */
+            return HTTP_MOVED_TEMPORARILY;
+        }
+
+        rv = ap_pass_brigade(r->output_filters, bb);
+    }
+    else /* nph */ {
+        struct ap_filter_t *cur;
+
+        /* get rid of all filters up through protocol...  since we
+         * haven't parsed off the headers, there is no way they can
+         * work
+         */
+
+        cur = r->proto_output_filters;
+        while (cur && cur->frec->ftype < AP_FTYPE_CONNECTION) {
+            cur = cur->next;
+        }
+        r->output_filters = r->proto_output_filters = cur;
+
+        rv = ap_pass_brigade(r->output_filters, bb);
     }
 
-    /* If our connection with the client is to be aborted, return DONE. */
-    if (c->aborted || backend_broke) {
-        return DONE;
+    /* don't soak up script output if errors occurred writing it
+     * out...  otherwise, we prolong the life of the script when the
+     * connection drops or we stopped sending output for some other
+     * reason */
+    if (rv == APR_SUCCESS && !r->connection->aborted) {
+        apr_file_pipe_timeout_set(script_err, r->server->timeout);
+        log_script_err(r, script_err);
     }
 
-    return OK;
+    apr_file_close(script_err);
+
+    return OK;                      /* NOT r->status, even if it has changed. */
 }

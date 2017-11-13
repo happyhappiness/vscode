@@ -1,1 +1,1 @@
-io_printf(fd,"@RSYNCD: EXIT\n");
+rprintf(FERROR,"ERROR: buffer overflow in %s\n",str);

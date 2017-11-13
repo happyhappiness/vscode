@@ -1,27 +1,50 @@
-int64 read_longint(int f)
+static int delete_already_done(struct file_list *flist,int j)
 {
-	extern int remote_version;
-	int64 ret;
-	char b[8];
-	ret = read_int(f);
+	int low=0,high=j-1;
+	char *name;
+	char *p;
 
-	if (ret != -1) return ret;
+	if (j == 0) return 0;
 
-#ifndef HAVE_LONGLONG
-	fprintf(FERROR,"Integer overflow - attempted 64 bit offset\n");
-	exit_cleanup(1);
-#else
-	if (remote_version >= 16) {
-		if ((ret=readfd(f,b,8)) != 8) {
-			if (verbose > 1) 
-				fprintf(FERROR,"(%d) Error reading %d bytes : %s\n",
-					getpid(),8,ret==-1?strerror(errno):"EOF");
-			exit_cleanup(1);
-		}
-		total_read += 8;
-		ret = IVAL(b,0) | (((int64)IVAL(b,4))<<32);
+	name = strdup(f_name(flist->files[j]));
+
+	if (!name) {
+		fprintf(FERROR,"out of memory in delete_already_done");
+		exit_cleanup(1);
 	}
-#endif
 
-	return ret;
+	name[strlen(name)-2] = 0;
+
+	p = strrchr(name,'/');
+	if (!p) {
+		free(name);
+		return 0;
+	}
+	*p = 0;
+
+	strcat(name,"/.");
+
+	while (low != high) {
+		int mid = (low+high)/2;
+		int ret = strcmp(f_name(flist->files[flist_up(flist, mid)]),name);
+		if (ret == 0) {
+			free(name);
+			return 1;
+		}
+		if (ret > 0) {
+			high=mid;
+		} else {
+			low=mid+1;
+		}
+	}
+
+	low = flist_up(flist, low);
+
+	if (strcmp(f_name(flist->files[low]),name) == 0) {
+		free(name);
+		return 1;
+	}
+
+	free(name);
+	return 0;
 }

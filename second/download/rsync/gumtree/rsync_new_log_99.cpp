@@ -1,1 +1,1 @@
-fprintf(FERROR,"chdir %s : %s\n",dbuf,strerror(errno));
+out_of_memory("map_ptr");

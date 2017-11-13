@@ -1,1 +1,1 @@
-printf("keep %s", message);
+die("strange hostname '%s' blocked", ssh_host);

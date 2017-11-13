@@ -1,1 +1,1 @@
-die("BUG: initial ref transaction called with existing refs");
+rp_error("%s", err.buf);

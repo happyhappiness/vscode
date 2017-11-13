@@ -1,1 +1,1 @@
-ap_rputs("Off", r);
+ap_rputs("On", r);

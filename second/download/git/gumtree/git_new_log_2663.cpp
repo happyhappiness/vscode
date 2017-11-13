@@ -1,1 +1,1 @@
-die("malformed build-time PAGER_ENV");
+die(_("unable to write parameters to config file"));

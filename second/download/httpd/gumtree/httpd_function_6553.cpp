@@ -1,36 +1,70 @@
-static void htdbm_usage(void)
+apr_status_t h2_from_h1_read_response(h2_from_h1 *from_h1, ap_filter_t* f,
+                                      apr_bucket_brigade* bb)
 {
-
-#if (!(defined(WIN32) || defined(NETWARE)))
-#define CRYPT_OPTION "d"
-#else
-#define CRYPT_OPTION ""
-#endif
-    fprintf(stderr, "htdbm -- program for manipulating DBM password databases.\n\n");
-    fprintf(stderr, "Usage: htdbm    [-cm"CRYPT_OPTION"pstvx] [-TDBTYPE] database username\n");
-    fprintf(stderr, "                -b[cm"CRYPT_OPTION"ptsv] [-TDBTYPE] database username password\n");
-    fprintf(stderr, "                -n[m"CRYPT_OPTION"pst]   username\n");
-    fprintf(stderr, "                -nb[m"CRYPT_OPTION"pst]  username password\n");
-    fprintf(stderr, "                -v[m"CRYPT_OPTION"ps]    [-TDBTYPE] database username\n");
-    fprintf(stderr, "                -vb[m"CRYPT_OPTION"ps]   [-TDBTYPE] database username password\n");
-    fprintf(stderr, "                -x[m"CRYPT_OPTION"ps]    [-TDBTYPE] database username\n");
-    fprintf(stderr, "                -l                       [-TDBTYPE] database\n");
-    fprintf(stderr, "Options:\n");
-    fprintf(stderr, "   -b   Use the password from the command line rather "
-                    "than prompting for it.\n");
-    fprintf(stderr, "   -c   Create a new database.\n");
-    fprintf(stderr, "   -n   Don't update database; display results on stdout.\n");
-    fprintf(stderr, "   -m   Force MD5 encryption of the password (default).\n");
-#if (!(defined(WIN32) || defined(NETWARE)))
-    fprintf(stderr, "   -d   Force CRYPT encryption of the password (now deprecated).\n");
-#endif
-    fprintf(stderr, "   -p   Do not encrypt the password (plaintext).\n");
-    fprintf(stderr, "   -s   Force SHA encryption of the password.\n");
-    fprintf(stderr, "   -T   DBM Type (SDBM|GDBM|DB|default).\n");
-    fprintf(stderr, "   -l   Display usernames from database on stdout.\n");
-    fprintf(stderr, "   -t   The last param is username comment.\n");
-    fprintf(stderr, "   -v   Verify the username/password.\n");
-    fprintf(stderr, "   -x   Remove the username record from database.\n");
-    exit(ERR_SYNTAX);
-
+    apr_status_t status = APR_SUCCESS;
+    char line[HUGE_STRING_LEN];
+    
+    if ((from_h1->state == H2_RESP_ST_BODY) 
+        || (from_h1->state == H2_RESP_ST_DONE)) {
+        if (from_h1->chunked) {
+            /* The httpd core HTTP_HEADER filter has or will install the 
+             * "CHUNK" output transcode filter, which appears further down 
+             * the filter chain. We do not want it for HTTP/2.
+             * Once we successfully deinstalled it, this filter has no
+             * further function and we remove it.
+             */
+            status = ap_remove_output_filter_byhandle(f->r->output_filters, 
+                                                      "CHUNK");
+            if (status == APR_SUCCESS) {
+                ap_remove_output_filter(f);
+            }
+        }
+        
+        return ap_pass_brigade(f->next, bb);
+    }
+    
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                  "h2_from_h1(%d): read_response", from_h1->stream_id);
+    
+    while (!APR_BRIGADE_EMPTY(bb) && status == APR_SUCCESS) {
+        
+        switch (from_h1->state) {
+                
+            case H2_RESP_ST_STATUS_LINE:
+            case H2_RESP_ST_HEADERS:
+                status = get_line(from_h1, bb, f, line, sizeof(line));
+                if (status != APR_SUCCESS) {
+                    return status;
+                }
+                if (from_h1->state == H2_RESP_ST_STATUS_LINE) {
+                    /* instead of parsing, just take it directly */
+                    from_h1->http_status = f->r->status;
+                    from_h1->state = H2_RESP_ST_HEADERS;
+                }
+                else if (line[0] == '\0') {
+                    /* end of headers, create the h2_response and
+                     * pass the rest of the brigade down the filter
+                     * chain.
+                     */
+                    status = make_h2_headers(from_h1, f->r);
+                    if (from_h1->bb) {
+                        apr_brigade_destroy(from_h1->bb);
+                        from_h1->bb = NULL;
+                    }
+                    if (!APR_BRIGADE_EMPTY(bb)) {
+                        return ap_pass_brigade(f->next, bb);
+                    }
+                }
+                else {
+                    status = parse_header(from_h1, f, line);
+                }
+                break;
+                
+            default:
+                return ap_pass_brigade(f->next, bb);
+        }
+        
+    }
+    
+    return status;
 }

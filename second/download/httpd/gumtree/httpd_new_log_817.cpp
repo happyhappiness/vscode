@@ -1,2 +1,3 @@
-apr_pstrcat(p, "Must include a wildcard pattern for "
-                               "Include ", fname, NULL);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: connecting %s to %s:%d", *url, uri->hostname,
+                 uri->port);

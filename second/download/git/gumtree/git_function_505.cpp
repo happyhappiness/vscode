@@ -1,65 +1,53 @@
-static int print_one_push_status(struct ref *ref, const char *dest, int count, int porcelain)
+static int apply_filter(const char *path, const char *src, size_t len, int fd,
+                        struct strbuf *dst, const char *cmd)
 {
-	if (!count) {
-		char *url = transport_anonymize_url(dest);
-		fprintf(porcelain ? stdout : stderr, "To %s\n", url);
-		free(url);
+	/*
+	 * Create a pipeline to have the command filter the buffer's
+	 * contents.
+	 *
+	 * (child --> cmd) --> us
+	 */
+	int ret = 1;
+	struct strbuf nbuf = STRBUF_INIT;
+	struct async async;
+	struct filter_params params;
+
+	if (!cmd || !*cmd)
+		return 0;
+
+	if (!dst)
+		return 1;
+
+	memset(&async, 0, sizeof(async));
+	async.proc = filter_buffer_or_fd;
+	async.data = &params;
+	async.out = -1;
+	params.src = src;
+	params.size = len;
+	params.fd = fd;
+	params.cmd = cmd;
+	params.path = path;
+
+	fflush(NULL);
+	if (start_async(&async))
+		return 0;	/* error was already reported */
+
+	if (strbuf_read(&nbuf, async.out, len) < 0) {
+		error("read from external filter %s failed", cmd);
+		ret = 0;
+	}
+	if (close(async.out)) {
+		error("read from external filter %s failed", cmd);
+		ret = 0;
+	}
+	if (finish_async(&async)) {
+		error("external filter %s failed", cmd);
+		ret = 0;
 	}
 
-	switch(ref->status) {
-	case REF_STATUS_NONE:
-		print_ref_status('X', "[no match]", ref, NULL, NULL, porcelain);
-		break;
-	case REF_STATUS_REJECT_NODELETE:
-		print_ref_status('!', "[rejected]", ref, NULL,
-						 "remote does not support deleting refs", porcelain);
-		break;
-	case REF_STATUS_UPTODATE:
-		print_ref_status('=', "[up to date]", ref,
-						 ref->peer_ref, NULL, porcelain);
-		break;
-	case REF_STATUS_REJECT_NONFASTFORWARD:
-		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
-						 "non-fast-forward", porcelain);
-		break;
-	case REF_STATUS_REJECT_ALREADY_EXISTS:
-		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
-						 "already exists", porcelain);
-		break;
-	case REF_STATUS_REJECT_FETCH_FIRST:
-		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
-						 "fetch first", porcelain);
-		break;
-	case REF_STATUS_REJECT_NEEDS_FORCE:
-		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
-						 "needs force", porcelain);
-		break;
-	case REF_STATUS_REJECT_STALE:
-		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
-						 "stale info", porcelain);
-		break;
-	case REF_STATUS_REJECT_SHALLOW:
-		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
-						 "new shallow roots not allowed", porcelain);
-		break;
-	case REF_STATUS_REMOTE_REJECT:
-		print_ref_status('!', "[remote rejected]", ref,
-						 ref->deletion ? NULL : ref->peer_ref,
-						 ref->remote_status, porcelain);
-		break;
-	case REF_STATUS_EXPECTING_REPORT:
-		print_ref_status('!', "[remote failure]", ref,
-						 ref->deletion ? NULL : ref->peer_ref,
-						 "remote failed to report status", porcelain);
-		break;
-	case REF_STATUS_ATOMIC_PUSH_FAILED:
-		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
-						 "atomic push failed", porcelain);
-		break;
-	case REF_STATUS_OK:
-		print_ok_ref_status(ref, porcelain);
-		break;
+	if (ret) {
+		strbuf_swap(dst, &nbuf);
 	}
-
-	return 1;
+	strbuf_release(&nbuf);
+	return ret;
 }

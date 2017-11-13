@@ -1,102 +1,30 @@
-static int mkrecord(char *user, char *record, apr_size_t rlen, char *passwd,
-                    int alg)
+static void usage(void)
 {
-    char *pw;
-    char cpw[120];
-    char pwin[MAX_STRING_LEN];
-    char pwv[MAX_STRING_LEN];
-    char salt[9];
-    apr_size_t bufsize;
-#if CRYPT_ALGO_SUPPORTED
-    char *cbuf;
-#endif
-
-    if (passwd != NULL) {
-        pw = passwd;
-    }
-    else {
-        bufsize = sizeof(pwin);
-        if (apr_password_get("New password: ", pwin, &bufsize) != 0) {
-            apr_snprintf(record, (rlen - 1), "password too long (>%"
-                         APR_SIZE_T_FMT ")", sizeof(pwin) - 1);
-            return ERR_OVERFLOW;
-        }
-        bufsize = sizeof(pwv);
-        apr_password_get("Re-type new password: ", pwv, &bufsize);
-        if (strcmp(pwin, pwv) != 0) {
-            apr_cpystrn(record, "password verification error", (rlen - 1));
-            return ERR_PWMISMATCH;
-        }
-        pw = pwin;
-        memset(pwv, '\0', sizeof(pwin));
-    }
-    switch (alg) {
-
-    case ALG_APSHA:
-        /* XXX cpw >= 28 + strlen(sha1) chars - fixed len SHA */
-        apr_sha1_base64(pw,strlen(pw),cpw);
-        break;
-
-    case ALG_APMD5:
-        if (seed_rand()) {
-            break;
-        }
-        generate_salt(&salt[0], 8);
-        salt[8] = '\0';
-
-        apr_md5_encode((const char *)pw, (const char *)salt,
-                     cpw, sizeof(cpw));
-        break;
-
-    case ALG_PLAIN:
-        /* XXX this len limitation is not in sync with any HTTPd len. */
-        apr_cpystrn(cpw,pw,sizeof(cpw));
-        break;
-
-#if CRYPT_ALGO_SUPPORTED
-    case ALG_CRYPT:
-    default:
-        if (seed_rand()) {
-            break;
-        }
-        to64(&salt[0], rand(), 8);
-        salt[8] = '\0';
-
-        cbuf = crypt(pw, salt);
-        if (cbuf == NULL) {
-            char errbuf[128];
-
-            apr_snprintf(record, rlen-1, "crypt() failed: %s", 
-                         apr_strerror(errno, errbuf, sizeof errbuf));
-            return ERR_PWMISMATCH;
-        }
-
-        apr_cpystrn(cpw, cbuf, sizeof(cpw) - 1);
-        if (strlen(pw) > 8) {
-            char *truncpw = strdup(pw);
-            truncpw[8] = '\0';
-            if (!strcmp(cpw, crypt(truncpw, salt))) {
-                apr_file_printf(errfile, "Warning: Password truncated to 8 characters "
-                                "by CRYPT algorithm." NL);
-            }
-            free(truncpw);
-        }
-        break;
-#endif /* CRYPT_ALGO_SUPPORTED */
-    }
-    memset(pw, '\0', strlen(pw));
-
-    /*
-     * Check to see if the buffer is large enough to hold the username,
-     * hash, and delimiters.
-     */
-    if ((strlen(user) + 1 + strlen(cpw)) > (rlen - 1)) {
-        apr_cpystrn(record, "resultant record too long", (rlen - 1));
-        return ERR_OVERFLOW;
-    }
-    strcpy(record, user);
-    strcat(record, ":");
-    strcat(record, cpw);
-    strcat(record, "\n");
-    return 0;
+    apr_file_printf(errfile, "Usage:" NL);
+    apr_file_printf(errfile, "\thtpasswd [-cmdpsD] passwordfile username" NL);
+    apr_file_printf(errfile, "\thtpasswd -b[cmdpsD] passwordfile username "
+                    "password" NL NL);
+    apr_file_printf(errfile, "\thtpasswd -n[mdps] username" NL);
+    apr_file_printf(errfile, "\thtpasswd -nb[mdps] username password" NL);
+    apr_file_printf(errfile, " -c  Create a new file." NL);
+    apr_file_printf(errfile, " -n  Don't update file; display results on "
+                    "stdout." NL);
+    apr_file_printf(errfile, " -m  Force MD5 encryption of the password"
+        " (default)"
+        "." NL);
+    apr_file_printf(errfile, " -d  Force CRYPT encryption of the password"
+            " (8 chars max, insecure)." NL);
+    apr_file_printf(errfile, " -p  Do not encrypt the password (plaintext)." NL);
+    apr_file_printf(errfile, " -s  Force SHA encryption of the password"
+            " (insecure)." NL);
+    apr_file_printf(errfile, " -b  Use the password from the command line "
+            "rather than prompting for it." NL);
+    apr_file_printf(errfile, " -D  Delete the specified user." NL);
+    apr_file_printf(errfile,
+            "On other systems than Windows and NetWare the '-p' flag will "
+            "probably not work." NL);
+    apr_file_printf(errfile,
+            "The SHA algorithm does not use a salt and is less secure than "
+            "the MD5 algorithm." NL);
+    exit(ERR_SYNTAX);
 }

@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Digest: invalid nc %s received - no nonce count allowed when qop=none",
-                          snc);
+ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ap_server_conf,
+                         "Parent: child process exited with status %lu -- Aborting.", exitcode);

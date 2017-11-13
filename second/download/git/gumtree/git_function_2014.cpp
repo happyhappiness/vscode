@@ -1,57 +1,27 @@
-void test_bitmap_walk(struct rev_info *revs)
+static void show_diff(struct merge_list *entry)
 {
-	struct object *root;
-	struct bitmap *result = NULL;
-	khiter_t pos;
-	size_t result_popcnt;
-	struct bitmap_test_data tdata;
+	unsigned long size;
+	mmfile_t src, dst;
+	xpparam_t xpp;
+	xdemitconf_t xecfg;
+	xdemitcb_t ecb;
 
-	if (prepare_bitmap_git())
-		die("failed to load bitmap indexes");
+	xpp.flags = 0;
+	memset(&xecfg, 0, sizeof(xecfg));
+	xecfg.ctxlen = 3;
+	ecb.outf = show_outf;
+	ecb.priv = NULL;
 
-	if (revs->pending.nr != 1)
-		die("you must specify exactly one commit to test");
-
-	fprintf(stderr, "Bitmap v%d test (%d entries loaded)\n",
-		bitmap_git.version, bitmap_git.entry_count);
-
-	root = revs->pending.objects[0].item;
-	pos = kh_get_sha1(bitmap_git.bitmaps, root->sha1);
-
-	if (pos < kh_end(bitmap_git.bitmaps)) {
-		struct stored_bitmap *st = kh_value(bitmap_git.bitmaps, pos);
-		struct ewah_bitmap *bm = lookup_stored_bitmap(st);
-
-		fprintf(stderr, "Found bitmap for %s. %d bits / %08x checksum\n",
-			sha1_to_hex(root->sha1), (int)bm->bit_size, ewah_checksum(bm));
-
-		result = ewah_to_bitmap(bm);
-	}
-
-	if (result == NULL)
-		die("Commit %s doesn't have an indexed bitmap", sha1_to_hex(root->sha1));
-
-	revs->tag_objects = 1;
-	revs->tree_objects = 1;
-	revs->blob_objects = 1;
-
-	result_popcnt = bitmap_popcount(result);
-
-	if (prepare_revision_walk(revs))
-		die("revision walk setup failed");
-
-	tdata.base = bitmap_new();
-	tdata.prg = start_progress("Verifying bitmap entries", result_popcnt);
-	tdata.seen = 0;
-
-	traverse_commit_list(revs, &test_show_commit, &test_show_object, &tdata);
-
-	stop_progress(&tdata.prg);
-
-	if (bitmap_equals(result, tdata.base))
-		fprintf(stderr, "OK!\n");
-	else
-		fprintf(stderr, "Mismatch!\n");
-
-	bitmap_free(result);
+	src.ptr = origin(entry, &size);
+	if (!src.ptr)
+		size = 0;
+	src.size = size;
+	dst.ptr = result(entry, &size);
+	if (!dst.ptr)
+		size = 0;
+	dst.size = size;
+	if (xdi_diff(&src, &dst, &xpp, &xecfg, &ecb))
+		die("unable to generate diff");
+	free(src.ptr);
+	free(dst.ptr);
 }

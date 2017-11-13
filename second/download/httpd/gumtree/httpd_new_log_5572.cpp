@@ -1,2 +1,6 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                  "h2_task_input(%s): no data", input->task->id);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, APLOGNO(02796)
+                         "macro '%s' (%s) "
+                         "argument name '%s' (#%d) without expected prefix, "
+                         "better prefix argument names with one of '%s'.",
+                         macro->name, macro->location,
+                         tab[i], i + 1, ARG_PREFIX);

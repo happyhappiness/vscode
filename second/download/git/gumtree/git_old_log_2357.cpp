@@ -1,1 +1,1 @@
-error("Could not write %s: %s", path, strerror(errno));
+die(_("unable to read tree (%s)"), sha1_to_hex(obj->sha1));

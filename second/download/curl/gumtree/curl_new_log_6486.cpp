@@ -1,11 +1,12 @@
 fputs(
-"              reached  the  limit, the request will be made and while perform-\n"
-"              ing, it may take longer than this given time period. To limit  a\n"
-"              single  request's  maximum  time,  use -m, --max-time.  Set this\n"
-"              option to zero to not timeout retries. (Added in 7.12.3)\n"
+"              zero will make curl use the default  backoff  time.   (Added  in\n"
+"              7.12.3)\n"
 "\n"
-"              If this option is  used  multiple  times,  the  last  occurrence\n"
+"              If  this  option  is  used  multiple  times, the last occurrence\n"
 "              determines the amount.\n"
 "\n"
-"       -s, --silent\n"
+"       --retry-max-time <seconds>\n"
+"              The retry timer is reset  before  the  first  transfer  attempt.\n"
+"              Retries will be done as usual (see --retry) as long as the timer\n"
+"              hasn't reached this given limit. Notice that if the timer hasn't\n"
 , stdout);

@@ -1,12 +1,9 @@
 fputs(
-"              acters.   Following is the list of all supported SFTP quote com-\n"
-"              mands:\n"
+"              This  option  overrides  existing environment variables that set\n"
+"              the proxy to use. If there's an environment variable  setting  a\n"
+"              proxy, you can set proxy to \"\" to override it.\n"
 "\n"
-"              chgrp group file\n"
-"                     The chgrp command sets the group ID of the file named  by\n"
-"                     the  file  operand to the group ID specified by the group\n"
-"                     operand. The group operand is a decimal integer group ID.\n"
-"\n"
-"              chmod mode file\n"
-"                     The chmod command modifies the  file  mode  bits  of  the\n"
+"              All operations that are performed over an HTTP proxy will trans-\n"
+"              parently be converted to HTTP. It means  that  certain  protocol\n"
+"              specific operations might not be available. This is not the case\n"
 , stdout);

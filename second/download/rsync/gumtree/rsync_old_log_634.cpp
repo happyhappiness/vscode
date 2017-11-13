@@ -1,1 +1,1 @@
-io_printf(fd,"\n");
+out_of_memory("map_file");

@@ -1,1 +1,1 @@
-rprintf(FERROR,"Failed to dup/close : %s\n",strerror(errno));
+rprintf(FERROR,"filename too long\n");

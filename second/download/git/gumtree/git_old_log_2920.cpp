@@ -1,1 +1,1 @@
-die("strange hostname '%s' blocked", host);
+die("strange port '%s' blocked", port);

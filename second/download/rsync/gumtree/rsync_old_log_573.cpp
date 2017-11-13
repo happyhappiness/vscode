@@ -1,1 +1,1 @@
-fprintf(FERROR, "inflate init failed\n");
+fprintf(FINFO,"deleting in %s\n", name);

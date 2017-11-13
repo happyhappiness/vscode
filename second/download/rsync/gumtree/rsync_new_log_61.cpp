@@ -1,1 +1,1 @@
-exit(1);
+fprintf(f,"    --delete             delete files that don't exist on the sending side\n");

@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00995)
-               "ajp_parse_headers: wrong type %s (0x%02x) expecting %s (0x%02x)",
-               ajp_type_str(result), result,
-               ajp_type_str(CMD_AJP13_SEND_HEADERS), CMD_AJP13_SEND_HEADERS);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, APLOGNO(01453)
+                              "can't open translation %s->%s",
+                              dc->charset_source, dc->charset_default);

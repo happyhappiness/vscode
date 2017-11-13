@@ -1,1 +1,2 @@
-fprintf(FINFO,"data recv %d at %d\n",i,(int)offset);
+fprintf(FINFO,"parent=%d child=%d sender=%d recurse=%d\n",
+	      (int)getpid(),pid,sender,recurse);

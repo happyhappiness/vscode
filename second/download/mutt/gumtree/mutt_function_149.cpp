@@ -1,36 +1,59 @@
-static void
-mutt_query_pipe_attachment (char *command, FILE *fp, BODY *body, int filter)
+static void pretty_default (char *t, size_t l, const char *s, int type)
 {
-  char tfile[_POSIX_PATH_MAX];
-  char warning[STRING+_POSIX_PATH_MAX];
+  memset (t, 0, l);
+  l--;
 
-  if (filter)
+  switch (type)
   {
-    snprintf (warning, sizeof (warning),
-	      _("WARNING!  You are about to overwrite %s, continue?"),
-	      body->filename);
-    if (mutt_yesorno (warning, M_NO) != M_YES) {
-      CLEARLINE (LINES-1);
-      return;
+    case DT_QUAD:
+    {    
+      if (!strcasecmp (s, "MUTT_YES")) strncpy (t, "yes", l);
+      else if (!strcasecmp (s, "MUTT_NO")) strncpy (t, "no", l);
+      else if (!strcasecmp (s, "MUTT_ASKYES")) strncpy (t, "ask-yes", l);
+      else if (!strcasecmp (s, "MUTT_ASKNO")) strncpy (t, "ask-no", l);
+      break;
     }
-    mutt_mktemp (tfile, sizeof (tfile));
-  }
-  else
-    tfile[0] = 0;
-
-  if (mutt_pipe_attachment (fp, body, command, tfile))
-  {
-    if (filter)
+    case DT_BOOL:
     {
-      mutt_unlink (body->filename);
-      mutt_rename_file (tfile, body->filename);
-      mutt_update_encoding (body);
-      mutt_message _("Attachment filtered.");
+      if (atoi (s))
+	strncpy (t, "yes", l);
+      else
+	strncpy (t, "no", l);
+      break;
     }
-  }
-  else
-  {
-    if (filter && tfile[0])
-      mutt_unlink (tfile);
+    case DT_SORT:
+    {
+      /* heuristic! */
+      if (strncmp (s, "SORT_", 5))
+        fprintf (stderr,
+                 "WARNING: expected prefix of SORT_ for type DT_SORT instead of %s\n", s);
+      strncpy (t, s + 5, l);
+      for (; *t; t++) *t = tolower ((unsigned char) *t);
+      break;
+    }
+    case DT_MAGIC:
+    {
+      /* heuristic! */
+      if (strncmp (s, "MUTT_", 5))
+        fprintf (stderr,
+                 "WARNING: expected prefix of MUTT_ for type DT_MAGIC instead of %s\n", s);
+      strncpy (t, s + 5, l);
+      for (; *t; t++) *t = tolower ((unsigned char) *t);
+      break;
+    }
+    case DT_STR:
+    case DT_RX:
+    case DT_ADDR:
+    case DT_PATH:
+    {
+      if (!strcmp (s, "0"))
+	break;
+      /* fallthrough */
+    }
+    default:
+    {
+      strncpy (t, s, l);
+      break;
+    }
   }
 }

@@ -1,1 +1,1 @@
-err(o, msg, path, _(": perhaps a D/F conflict?"));
+die(_("Could not set '%s' to '%s'"), key, value);

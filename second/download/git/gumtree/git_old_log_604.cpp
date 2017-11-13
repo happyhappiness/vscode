@@ -1,2 +1,1 @@
-printf("              to %7s %s\n",
-				 typename(obj->type), describe_object(obj));
+die_errno(_("Could not write to %s"), filename);

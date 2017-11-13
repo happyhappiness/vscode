@@ -1,1 +1,1 @@
-err("Cannot mix PUT and HEAD\n");
+printf("ovector only has room for %d captured substrings\n", rc - 1);

@@ -1,15 +1,15 @@
-int xsnprintf(char *dst, size_t max, const char *fmt, ...)
+static void write_remote_refs(const struct ref *local_refs)
 {
-	va_list ap;
-	int len;
+	const struct ref *r;
 
-	va_start(ap, fmt);
-	len = vsnprintf(dst, max, fmt, ap);
-	va_end(ap);
+	lock_packed_refs(LOCK_DIE_ON_ERROR);
 
-	if (len < 0)
-		die("BUG: your snprintf is broken");
-	if (len >= max)
-		die("BUG: attempt to snprintf into too-small buffer");
-	return len;
+	for (r = local_refs; r; r = r->next) {
+		if (!r->peer_ref)
+			continue;
+		add_packed_ref(r->peer_ref->name, r->old_sha1);
+	}
+
+	if (commit_packed_refs())
+		die_errno("unable to overwrite old ref-pack file");
 }

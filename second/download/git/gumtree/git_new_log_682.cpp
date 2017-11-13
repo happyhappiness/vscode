@@ -1,4 +1,2 @@
-error(_("\nYou have uncommitted changes in your "
-				       "working tree. Please, commit them\n"
-				       "first and then run 'git rebase "
-				       "--continue' again."));
+print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+				 "needs force", porcelain, summary_width);

@@ -1,11 +1,18 @@
-apr_status_t h2_session_stream_done(h2_session *session, h2_stream *stream)
+apr_status_t h2_mplx_do_task(h2_mplx *m, struct h2_task *task)
 {
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
-                  "h2_stream(%ld-%d): EOS bucket cleanup -> done", 
-                  session->id, stream->id);
-    h2_ihash_remove(session->streams, stream->id);
-    h2_mplx_stream_done(session->mplx, stream);
-    
-    dispatch_event(session, H2_SESSION_EV_STREAM_DONE, 0, NULL);
-    return APR_SUCCESS;
+    apr_status_t status;
+    AP_DEBUG_ASSERT(m);
+    if (m->aborted) {
+        return APR_ECONNABORTED;
+    }
+    status = apr_thread_mutex_lock(m->lock);
+    if (APR_SUCCESS == status) {
+        /* TODO: needs to sort queue by priority */
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
+                      "h2_mplx: do task(%s)", task->id);
+        h2_tq_append(m->q, task);
+        apr_thread_mutex_unlock(m->lock);
+    }
+    workers_register(m);
+    return status;
 }

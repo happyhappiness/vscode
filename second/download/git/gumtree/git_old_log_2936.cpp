@@ -1,1 +1,2 @@
-error("can't write crash report %s: %s", loc, strerror(errno));
+error("Unable to write marks file %s: %s",
+			export_marks_file, strerror(errno));

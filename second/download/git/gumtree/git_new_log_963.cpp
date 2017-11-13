@@ -1,1 +1,2 @@
-error("cannot fix permission bits on %s", get_tempfile_path(&temporary_sharedindex));
+die("BUG: counted %d != ended at %d",
+			    check->nr, cnt);

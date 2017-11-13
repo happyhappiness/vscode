@@ -1,11 +1,10 @@
 fputs(
-"              if you can tunnel through the proxy, as one with the -p, --prox-\n"
-"              ytunnel option.\n"
+"              (HTTP) Extra header to include in the request when sending  HTTP\n"
+"              to a proxy. You may specify any number of extra headers. This is\n"
+"              the equivalent option to -H, --header but is for proxy  communi-\n"
+"              cation  only  like  in CONNECT requests when you want a separate\n"
+"              header sent to the proxy to what is sent to  the  actual  remote\n"
+"              host.\n"
 "\n"
-"              User and password that might be provided in the proxy string are\n"
-"              URL decoded by curl. This allows you to pass in special  charac-\n"
-"              ters such as @ by using %40 or pass in a colon with %3a.\n"
-"\n"
-"              The  proxy host can be specified the exact same way as the proxy\n"
-"              environment variables, including the protocol  prefix  (http://)\n"
+"              curl  will  make  sure  that each header you add/replace is sent\n"
 , stdout);

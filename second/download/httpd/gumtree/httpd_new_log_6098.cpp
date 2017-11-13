@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02418)
-                          "HTTP Request Line; Unrecognized protocol '%.*s' "
-                          "(perhaps whitespace was injected?)",
-                          field_name_len(r->protocol), r->protocol);
+ap_log_cerror(APLOG_MARK, APLOG_WARNING, status, c,
+                                  "h2_session(%ld): waiting on conditional",
+                                  session->id);

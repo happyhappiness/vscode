@@ -1,43 +1,46 @@
-static int push_check(int argc, const char **argv, const char *prefix)
+static const char *parse_long_magic(unsigned *magic, int *prefix_len,
+				    const char *elem)
 {
-	struct remote *remote;
+	const char *pos;
+	const char *nextat;
 
-	if (argc < 2)
-		die("submodule--helper push-check requires at least 1 argument");
+	for (pos = elem + 2; *pos && *pos != ')'; pos = nextat) {
+		size_t len = strcspn(pos, ",)");
+		int i;
 
-	/*
-	 * The remote must be configured.
-	 * This is to avoid pushing to the exact same URL as the parent.
-	 */
-	remote = pushremote_get(argv[1]);
-	if (!remote || remote->origin == REMOTE_UNCONFIGURED)
-		die("remote '%s' not configured", argv[1]);
+		if (pos[len] == ',')
+			nextat = pos + len + 1; /* handle ',' */
+		else
+			nextat = pos + len; /* handle ')' and '\0' */
 
-	/* Check the refspec */
-	if (argc > 2) {
-		int i, refspec_nr = argc - 2;
-		struct ref *local_refs = get_local_heads();
-		struct refspec *refspec = parse_push_refspec(refspec_nr,
-							     argv + 2);
+		if (!len)
+			continue;
 
-		for (i = 0; i < refspec_nr; i++) {
-			struct refspec *rs = refspec + i;
-
-			if (rs->pattern || rs->matching)
-				continue;
-
-			/*
-			 * LHS must match a single ref
-			 * NEEDSWORK: add logic to special case 'HEAD' once
-			 * working with submodules in a detached head state
-			 * ceases to be the norm.
-			 */
-			if (count_refspec_match(rs->src, local_refs, NULL) != 1)
-				die("src refspec '%s' must name a ref",
-				    rs->src);
+		if (starts_with(pos, "prefix:")) {
+			char *endptr;
+			*prefix_len = strtol(pos + 7, &endptr, 10);
+			if (endptr - pos != len)
+				die(_("invalid parameter for pathspec magic 'prefix'"));
+			continue;
 		}
-		free_refspec(refspec_nr, refspec);
+
+		for (i = 0; i < ARRAY_SIZE(pathspec_magic); i++) {
+			if (strlen(pathspec_magic[i].name) == len &&
+			    !strncmp(pathspec_magic[i].name, pos, len)) {
+				*magic |= pathspec_magic[i].bit;
+				break;
+			}
+		}
+
+		if (ARRAY_SIZE(pathspec_magic) <= i)
+			die(_("Invalid pathspec magic '%.*s' in '%s'"),
+			    (int) len, pos, elem);
 	}
 
-	return 0;
+	if (*pos != ')')
+		die(_("Missing ')' at the end of pathspec magic in '%s'"),
+		    elem);
+	pos++;
+
+	return pos;
 }

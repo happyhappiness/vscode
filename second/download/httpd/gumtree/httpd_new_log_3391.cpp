@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, APLOGNO(01232)
-                     "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
+ap_log_error(APLOG_MARK, APLOG_ERR, APR_EGENERAL, NULL, APLOGNO(02118)
+                     "could not create the isapi cache pool");

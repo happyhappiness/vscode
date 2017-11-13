@@ -1,2 +1,1 @@
-die(_("Branch %s is being rebased at %s"),
-			    target, wt->path);
+status_printf_ln(s, color, _("No commands done."));

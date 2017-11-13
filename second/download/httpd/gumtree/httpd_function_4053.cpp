@@ -1,88 +1,109 @@
-static apr_status_t send_http_connect(proxy_conn_rec *backend,
-                                      server_rec *s)
+static int apprentice(server_rec *s, apr_pool_t *p)
 {
-    int status;
-    apr_size_t nbytes;
-    apr_size_t left;
-    int complete = 0;
-    char buffer[HUGE_STRING_LEN];
-    char drain_buffer[HUGE_STRING_LEN];
-    forward_info *forward = (forward_info *)backend->forward;
-    int len = 0;
+    apr_file_t *f = NULL;
+    apr_status_t result;
+    char line[BUFSIZ + 1];
+    int errs = 0;
+    int lineno;
+#if MIME_MAGIC_DEBUG
+    int rule = 0;
+    struct magic *m, *prevm;
+#endif
+    magic_server_config_rec *conf = (magic_server_config_rec *)
+                    ap_get_module_config(s->module_config, &mime_magic_module);
+    const char *fname = ap_server_root_relative(p, conf->magicfile);
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "proxy: CONNECT: sending the CONNECT request for %s:%d "
-                 "to the remote proxy %pI (%s)",
-                 forward->target_host, forward->target_port,
-                 backend->addr, backend->hostname);
-    /* Create the CONNECT request */
-    nbytes = apr_snprintf(buffer, sizeof(buffer),
-                          "CONNECT %s:%d HTTP/1.0" CRLF,
-                          forward->target_host, forward->target_port);
-    /* Add proxy authorization from the initial request if necessary */
-    if (forward->proxy_auth != NULL) {
-        nbytes += apr_snprintf(buffer + nbytes, sizeof(buffer) - nbytes,
-                               "Proxy-Authorization: %s" CRLF,
-                               forward->proxy_auth);
+    if (!fname) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
+                     MODNAME ": Invalid magic file path %s", conf->magicfile);
+        return -1;
     }
-    /* Set a reasonable agent and send everything */
-    nbytes += apr_snprintf(buffer + nbytes, sizeof(buffer) - nbytes,
-                           "Proxy-agent: %s" CRLF CRLF,
-                           ap_get_server_banner());
-    apr_socket_send(backend->sock, buffer, &nbytes);
+    if ((result = apr_file_open(&f, fname, APR_READ | APR_BUFFERED,
+                                APR_OS_DEFAULT, p)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, result, s,
+                     MODNAME ": can't read magic file %s", fname);
+        return -1;
+    }
 
-    /* Receive the whole CONNECT response */
-    left = sizeof(buffer) - 1;
-    /* Read until we find the end of the headers or run out of buffer */
-    do {
-        nbytes = left;
-        status = apr_socket_recv(backend->sock, buffer + len, &nbytes);
-        len += nbytes;
-        left -= nbytes;
-        buffer[len] = '\0';
-        if (strstr(buffer + len - nbytes, "\r\n\r\n") != NULL) {
-            complete = 1;
+    /* set up the magic list (empty) */
+    conf->magic = conf->last = NULL;
+
+    /* parse it */
+    for (lineno = 1; apr_file_gets(line, BUFSIZ, f) == APR_SUCCESS; lineno++) {
+        int ws_offset;
+        char *last = line + strlen(line) - 1; /* guaranteed that len >= 1 since an
+                                               * "empty" line contains a '\n'
+                                               */
+
+        /* delete newline and any other trailing whitespace */
+        while (last >= line
+               && apr_isspace(*last)) {
+            *last = '\0';
+            --last;
+        }
+
+        /* skip leading whitespace */
+        ws_offset = 0;
+        while (line[ws_offset] && apr_isspace(line[ws_offset])) {
+            ws_offset++;
+        }
+
+        /* skip blank lines */
+        if (line[ws_offset] == 0) {
+            continue;
+        }
+
+        /* comment, do not parse */
+        if (line[ws_offset] == '#')
+            continue;
+
+#if MIME_MAGIC_DEBUG
+        /* if we get here, we're going to use it so count it */
+        rule++;
+#endif
+
+        /* parse it */
+        if (parse(s, p, line + ws_offset, lineno) != 0)
+            ++errs;
+    }
+
+    (void) apr_file_close(f);
+
+#if MIME_MAGIC_DEBUG
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                MODNAME ": apprentice conf=%x file=%s m=%s m->next=%s last=%s",
+                conf,
+                conf->magicfile ? conf->magicfile : "NULL",
+                conf->magic ? "set" : "NULL",
+                (conf->magic && conf->magic->next) ? "set" : "NULL",
+                conf->last ? "set" : "NULL");
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                MODNAME ": apprentice read %d lines, %d rules, %d errors",
+                lineno, rule, errs);
+#endif
+
+#if MIME_MAGIC_DEBUG
+    prevm = 0;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                MODNAME ": apprentice test");
+    for (m = conf->magic; m; m = m->next) {
+        if (apr_isprint((((unsigned long) m) >> 24) & 255) &&
+            apr_isprint((((unsigned long) m) >> 16) & 255) &&
+            apr_isprint((((unsigned long) m) >> 8) & 255) &&
+            apr_isprint(((unsigned long) m) & 255)) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                        MODNAME ": apprentice: POINTER CLOBBERED! "
+                        "m=\"%c%c%c%c\" line=%d",
+                        (((unsigned long) m) >> 24) & 255,
+                        (((unsigned long) m) >> 16) & 255,
+                        (((unsigned long) m) >> 8) & 255,
+                        ((unsigned long) m) & 255,
+                        prevm ? prevm->lineno : -1);
             break;
         }
-    } while (status == APR_SUCCESS && left > 0);
-    /* Drain what's left */
-    if (!complete) {
-        nbytes = sizeof(drain_buffer) - 1;
-        while (status == APR_SUCCESS && nbytes) {
-            status = apr_socket_recv(backend->sock, drain_buffer, &nbytes);
-            buffer[nbytes] = '\0';
-            nbytes = sizeof(drain_buffer) - 1;
-            if (strstr(drain_buffer, "\r\n\r\n") != NULL) {
-                complete = 1;
-                break;
-            }
-        }
+        prevm = m;
     }
+#endif
 
-    /* Check for HTTP_OK response status */
-    if (status == APR_SUCCESS) {
-        int major, minor;
-        /* Only scan for three character status code */
-        char code_str[4];
-
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "send_http_connect: response from the forward proxy: %s",
-                     buffer);
-
-        /* Extract the returned code */
-        if (sscanf(buffer, "HTTP/%u.%u %3s", &major, &minor, code_str) == 3) {
-            status = atoi(code_str);
-            if (status == HTTP_OK) {
-                status = APR_SUCCESS;
-            }
-            else {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                             "send_http_connect: the forward proxy returned code is '%s'",
-                             code_str);
-            status = APR_INCOMPLETE;
-            }
-        }
-    }
-
-    return(status);
+    return (errs ? -1 : 0);
 }

@@ -1,11 +1,11 @@
 fputs(
-"              cations.  It  is  primarily  meant  as  a  support for Kerberos5\n"
-"              authentication but may be also used along with another authenti-\n"
-"              cation method. For more information see IETF draft draft-brezak-\n"
-"              spnego-http-04.txt.\n"
+"              exclusive.  It will also abide by --netrc-optional if specified.\n"
 "\n"
-"              If you want to enable Negotiate for your  proxy  authentication,\n"
-"              then use --proxy-negotiate.\n"
+"       --netrc-optional\n"
+"              Very similar to --netrc, but this option makes the .netrc  usage\n"
+"              optional and not mandatory as the --netrc option does.\n"
 "\n"
-"              This  option  requires a library built with GSSAPI support. This\n"
+"       --negotiate\n"
+"              (HTTP)  Enables  GSS-Negotiate authentication. The GSS-Negotiate\n"
+"              method was designed by Microsoft and is used in their web appli-\n"
 , stdout);

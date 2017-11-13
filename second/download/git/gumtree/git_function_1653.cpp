@@ -1,27 +1,18 @@
-static void show_diff(struct merge_list *entry)
+static int update_ref_write(const char *action, const char *refname,
+			    const unsigned char *sha1, struct ref_lock *lock,
+			    struct strbuf *err, enum action_on_err onerr)
 {
-	unsigned long size;
-	mmfile_t src, dst;
-	xpparam_t xpp;
-	xdemitconf_t xecfg;
-	xdemitcb_t ecb;
+	if (write_ref_sha1(lock, sha1, action) < 0) {
+		const char *str = "Cannot update the ref '%s'.";
+		if (err)
+			strbuf_addf(err, str, refname);
 
-	xpp.flags = 0;
-	memset(&xecfg, 0, sizeof(xecfg));
-	xecfg.ctxlen = 3;
-	ecb.outf = show_outf;
-	ecb.priv = NULL;
-
-	src.ptr = origin(entry, &size);
-	if (!src.ptr)
-		size = 0;
-	src.size = size;
-	dst.ptr = result(entry, &size);
-	if (!dst.ptr)
-		size = 0;
-	dst.size = size;
-	if (xdi_diff(&src, &dst, &xpp, &xecfg, &ecb))
-		die("unable to generate diff");
-	free(src.ptr);
-	free(dst.ptr);
+		switch (onerr) {
+		case UPDATE_REFS_MSG_ON_ERR: error(str, refname); break;
+		case UPDATE_REFS_DIE_ON_ERR: die(str, refname); break;
+		case UPDATE_REFS_QUIET_ON_ERR: break;
+		}
+		return 1;
+	}
+	return 0;
 }

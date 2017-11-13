@@ -1,1 +1,1 @@
-fprintf(stderr, _("Checking connectivity... "));
+fprintf(stderr, _("done.\n"));

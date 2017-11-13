@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "Error reading request entity data");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+	      "Warning: NetMask not supplied with IP-Addr; guessing: %s/%ld",
+		 inet_ntoa(This->addr), bits);

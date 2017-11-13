@@ -1,1 +1,0 @@
-fprintf(stderr,"%s is uptodate\n",fname);

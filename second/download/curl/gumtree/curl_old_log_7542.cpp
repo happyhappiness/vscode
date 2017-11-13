@@ -1,8 +1,12 @@
 fputs(
-"              server.  Quote commands are sent BEFORE the transfer takes place\n"
-"              (just after the initial PWD command in an FTP  transfer,  to  be\n"
-"              exact). To make commands take place after a successful transfer,\n"
-"              prefix them with a dash '-'.  To make  commands  be  sent  after\n"
-"              libcurl  has  changed  the  working  directory,  just before the\n"
-"              transfer command(s), prefix the command with a '+' (this is only\n"
+"              key in this separate file.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -q     If used as the first parameter on the command line,  the  curlrc\n"
+"              config  file will not be read and used. See the -K, --config for\n"
+"              details on the default config file search path.\n"
+"\n"
+"       -Q, --quote <command>\n"
+"              (FTP/SFTP) Send an arbitrary command to the remote FTP  or  SFTP\n"
 , stdout);

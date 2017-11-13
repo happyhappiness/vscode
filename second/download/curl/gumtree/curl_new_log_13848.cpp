@@ -1,9 +1,8 @@
 fputs(
-"              want to use a file from the current directory, please precede it\n"
-"              with  \"./\"  prefix, in order to avoid confusion with a nickname.\n"
-"              If the nickname contains \":\", it needs to be preceded by \"\\\"  so\n"
-"              that  it  is not recognized as password delimiter.  If the nick-\n"
-"              name contains \"\\\", it needs to be escaped as \"\\\\\" so that it  is\n"
-"              not recognized as an escape character.\n"
-"\n"
+"              (TLS) Tells curl to use the specified certificate  directory  to\n"
+"              verify  the  peer.  Multiple paths can be provided by separating\n"
+"              them with \":\" (e.g.  \"path1:path2:path3\"). The certificates must\n"
+"              be  in  PEM  format,  and  if curl is built against OpenSSL, the\n"
+"              directory must have been processed using  the  c_rehash  utility\n"
+"              supplied  with OpenSSL. Using --capath can allow OpenSSL-powered\n"
 , stdout);

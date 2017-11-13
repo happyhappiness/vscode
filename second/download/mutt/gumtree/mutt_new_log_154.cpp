@@ -1,1 +1,1 @@
-state_puts (_("Warning: One of the keys has been revoked\n"),s);
+mutt_window_mvprintw (MuttMessageWindow, 0, 0, _("Enter keys (^G to abort): "));

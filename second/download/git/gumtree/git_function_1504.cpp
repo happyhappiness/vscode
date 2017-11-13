@@ -1,63 +1,47 @@
-static int batch_one_object(const char *obj_name, struct batch_options *opt,
-			    struct expand_data *data)
+static int grab_single_ref(const char *refname, const unsigned char *sha1, int flag, void *cb_data)
 {
-	struct strbuf buf = STRBUF_INIT;
-	struct object_context ctx;
-	int flags = opt->follow_symlinks ? GET_SHA1_FOLLOW_SYMLINKS : 0;
-	enum follow_symlinks_result result;
+	struct grab_ref_cbdata *cb = cb_data;
+	struct refinfo *ref;
+	int cnt;
 
-	if (!obj_name)
-	   return 1;
+	if (flag & REF_BAD_NAME) {
+		  warning("ignoring ref with broken name %s", refname);
+		  return 0;
+	}
 
-	result = get_sha1_with_context(obj_name, flags, data->sha1, &ctx);
-	if (result != FOUND) {
-		switch (result) {
-		case MISSING_OBJECT:
-			printf("%s missing\n", obj_name);
-			break;
-		case DANGLING_SYMLINK:
-			printf("dangling %"PRIuMAX"\n%s\n",
-			       (uintmax_t)strlen(obj_name), obj_name);
-			break;
-		case SYMLINK_LOOP:
-			printf("loop %"PRIuMAX"\n%s\n",
-			       (uintmax_t)strlen(obj_name), obj_name);
-			break;
-		case NOT_DIR:
-			printf("notdir %"PRIuMAX"\n%s\n",
-			       (uintmax_t)strlen(obj_name), obj_name);
-			break;
-		default:
-			die("BUG: unknown get_sha1_with_context result %d\n",
-			       result);
-			break;
+	if (*cb->grab_pattern) {
+		const char **pattern;
+		int namelen = strlen(refname);
+		for (pattern = cb->grab_pattern; *pattern; pattern++) {
+			const char *p = *pattern;
+			int plen = strlen(p);
+
+			if ((plen <= namelen) &&
+			    !strncmp(refname, p, plen) &&
+			    (refname[plen] == '\0' ||
+			     refname[plen] == '/' ||
+			     p[plen-1] == '/'))
+				break;
+			if (!wildmatch(p, refname, WM_PATHNAME, NULL))
+				break;
 		}
-		fflush(stdout);
-		return 0;
+		if (!*pattern)
+			return 0;
 	}
 
-	if (ctx.mode == 0) {
-		printf("symlink %"PRIuMAX"\n%s\n",
-		       (uintmax_t)ctx.symlink_path.len,
-		       ctx.symlink_path.buf);
-		fflush(stdout);
-		return 0;
-	}
+	/*
+	 * We do not open the object yet; sort may only need refname
+	 * to do its job and the resulting list may yet to be pruned
+	 * by maxcount logic.
+	 */
+	ref = xcalloc(1, sizeof(*ref));
+	ref->refname = xstrdup(refname);
+	hashcpy(ref->objectname, sha1);
+	ref->flag = flag;
 
-	if (sha1_object_info_extended(data->sha1, &data->info, LOOKUP_REPLACE_OBJECT) < 0) {
-		printf("%s missing\n", obj_name);
-		fflush(stdout);
-		return 0;
-	}
-
-	strbuf_expand(&buf, opt->format, expand_format, data);
-	strbuf_addch(&buf, '\n');
-	write_or_die(1, buf.buf, buf.len);
-	strbuf_release(&buf);
-
-	if (opt->print_contents) {
-		print_object_or_die(1, data);
-		write_or_die(1, "\n", 1);
-	}
+	cnt = cb->grab_cnt;
+	REALLOC_ARRAY(cb->grab_array, cnt + 1);
+	cb->grab_array[cnt++] = ref;
+	cb->grab_cnt = cnt;
 	return 0;
 }

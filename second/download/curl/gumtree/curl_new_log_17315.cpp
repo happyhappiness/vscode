@@ -1,10 +1,10 @@
 puts(
-"          ful operation. The format is a string that may  contain\n"
-"          plain  text  mixed  with  any  number of variables. The\n"
-"          string can be specified as \"string\", to get read from a\n"
-"          particular  file you specify it \"@filename\" and to tell\n"
-"          curl to read the format from stdin you write \"@-\".\n"
+"          (HTTP) Sends the \"Referer Page\" information to the HTTP\n"
+"          server. This can also be set with the -H/--header  flag\n"
+"          of course.  When used with -L/--location you can append\n"
+"          \";auto\" to the referer URL to make  curl  automatically\n"
+"          set  the  previous  URL  when  it  follows  a Location:\n"
+"          header. The \";auto\" string can be used alone,  even  if\n"
+"          you don't set an initial referer.\n"
 "\n"
-"          The variables present in the output format will be sub�\n"
-"          stituted  by the value or text that curl thinks fit, as\n"
 );

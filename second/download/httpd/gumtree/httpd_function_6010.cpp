@@ -1,32 +1,28 @@
-static int on_header_cb(nghttp2_session *ngh2, const nghttp2_frame *frame,
-                        const uint8_t *name, size_t namelen,
-                        const uint8_t *value, size_t valuelen,
-                        uint8_t flags,
-                        void *userp)
+apr_status_t h2_mplx_release_and_join(h2_mplx *m, apr_thread_cond_t *wait)
 {
-    h2_session *session = (h2_session *)userp;
-    h2_stream * stream;
     apr_status_t status;
     
-    (void)flags;
-    if (!is_accepting_streams(session)) {
-        /* just ignore */
-        return 0;
-    }
+    workers_unregister(m);
+    status = apr_thread_mutex_lock(m->lock);
+    if (APR_SUCCESS == status) {
+        while (!h2_io_set_iter(m->stream_ios, stream_done_iter, m)) {
+            /* iterator until all h2_io have been orphaned or destroyed */
+        }
     
-    stream = get_stream(session, frame->hd.stream_id);
-    if (!stream) {
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, session->c,
-                      APLOGNO(02920) 
-                      "h2_session:  stream(%ld-%d): on_header unknown stream",
-                      session->id, (int)frame->hd.stream_id);
-        return NGHTTP2_ERR_TEMPORAL_CALLBACK_FAILURE;
+        release(m, 0);
+        while (m->refs > 0) {
+            m->join_wait = wait;
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c,
+                          "h2_mplx(%ld): release_join, refs=%d, waiting...", 
+                          m->id, m->refs);
+            apr_thread_cond_wait(wait, m->lock);
+        }
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c,
+                      "h2_mplx(%ld): release_join -> destroy, (#ios=%ld)", 
+                      m->id, (long)h2_io_set_size(m->stream_ios));
+        h2_mplx_destroy(m);
+        /* all gone */
+        /*apr_thread_mutex_unlock(m->lock);*/
     }
-    
-    status = h2_stream_add_header(stream, (const char *)name, namelen,
-                                  (const char *)value, valuelen);
-    if (status != APR_SUCCESS && !stream->response) {
-        return NGHTTP2_ERR_TEMPORAL_CALLBACK_FAILURE;
-    }
-    return 0;
+    return status;
 }

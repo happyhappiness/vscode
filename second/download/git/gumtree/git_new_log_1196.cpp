@@ -1,1 +1,1 @@
-die("%s", err.buf);
+die("strange pathname '%s' blocked", path);

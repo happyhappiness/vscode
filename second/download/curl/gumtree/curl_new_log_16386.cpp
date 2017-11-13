@@ -1,10 +1,9 @@
 fputs(
-"              requests into GET requests when following a 302 redirection. The\n"
-"              non-RFC  behaviour  is  ubiquitous in web browsers, so curl does\n"
-"              the conversion by default to maintain  consistency.  However,  a\n"
-"              server  may  require  a POST to remain a POST after such a redi-\n"
-"              rection. This option is meaningful only when using  -L,  --loca-\n"
-"              tion.\n"
+"              in  this  list  is matched as either a domain which contains the\n"
+"              hostname, or the hostname itself. For example,  local.com  would\n"
+"              match   local.com,  local.com:80,  and  www.local.com,  but  not\n"
+"              www.notlocal.com.\n"
 "\n"
-"              See  also  --post301  and --post303 and -L, --location. Added in\n"
+"              Since 7.53.0, This option overrides  the  environment  variables\n"
+"              that  disable the proxy. If there's an environment variable dis-\n"
 , stdout);

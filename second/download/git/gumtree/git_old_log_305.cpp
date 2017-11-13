@@ -1,1 +1,2 @@
-die("cannot handle more than %d revs.", MAX_REVS);
+error(_("affected file '%s' is beyond a symbolic link"),
+			     patch->new_name);

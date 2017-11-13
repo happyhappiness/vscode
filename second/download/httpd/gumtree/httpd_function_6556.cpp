@@ -1,205 +1,78 @@
-int main(int argc, const char * const argv[])
+apr_status_t h2_response_output_filter(ap_filter_t *f, apr_bucket_brigade *bb)
 {
-    apr_pool_t *pool;
-    apr_status_t rv;
-    apr_size_t l;
-    char pwi[MAX_STRING_LEN];
-    char pwc[MAX_STRING_LEN];
-    char errbuf[MAX_STRING_LEN];
-    const char *arg;
-    int  need_file = 1;
-    int  need_user = 1;
-    int  need_pwd  = 1;
-    int  need_cmnt = 0;
-    int  pwd_supplied = 0;
-    int  changed = 0;
-    int  cmd = HTDBM_MAKE;
-    int  i;
-    int args_left = 2;
+    h2_task *task = f->ctx;
+    h2_from_h1 *from_h1 = task->output.from_h1;
+    request_rec *r = f->r;
+    apr_bucket *b;
+    ap_bucket_error *eb = NULL;
 
-    apr_app_initialize(&argc, &argv, NULL);
-    atexit(terminate);
-
-    if ((rv = htdbm_init(&pool, &h)) != APR_SUCCESS) {
-        fprintf(stderr, "Unable to initialize htdbm terminating!\n");
-        apr_strerror(rv, errbuf, sizeof(errbuf));
-        exit(1);
+    AP_DEBUG_ASSERT(from_h1 != NULL);
+    
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                  "h2_from_h1(%d): output_filter called", from_h1->stream_id);
+    
+    if (r->header_only && from_h1->response) {
+        /* throw away any data after we have compiled the response */
+        apr_brigade_cleanup(bb);
+        return OK;
     }
-    /*
-     * Preliminary check to make sure they provided at least
-     * three arguments, we'll do better argument checking as
-     * we parse the command line.
-     */
-    if (argc < 3)
-       htdbm_usage();
-    /*
-     * Go through the argument list and pick out any options.  They
-     * have to precede any other arguments.
-     */
-    for (i = 1; i < argc; i++) {
-        arg = argv[i];
-        if (*arg != '-')
-            break;
-
-        while (*++arg != '\0') {
-            switch (*arg) {
-            case 'b':
-                pwd_supplied = 1;
-                need_pwd = 0;
-                args_left++;
-                break;
-            case 'c':
-                h->create = 1;
-                break;
-            case 'n':
-                need_file = 0;
-                cmd = HTDBM_NOFILE;
-                    args_left--;
-                break;
-            case 'l':
-                need_pwd = 0;
-                need_user = 0;
-                cmd = HTDBM_LIST;
-                h->rdonly = 1;
-                args_left--;
-                break;
-            case 't':
-                need_cmnt = 1;
-                args_left++;
-                break;
-            case 'T':
-                h->type = apr_pstrdup(h->pool, ++arg);
-                while (*arg != '\0')
-                    ++arg;
-                --arg; /* so incrementing this in the loop with find a null */
-                break;
-            case 'v':
-                h->rdonly = 1;
-                cmd = HTDBM_VERIFY;
-                break;
-            case 'x':
-                need_pwd = 0;
-                cmd = HTDBM_DELETE;
-                break;
-            case 'm':
-                h->alg = ALG_APMD5;
-                break;
-            case 'p':
-                h->alg = ALG_PLAIN;
-                break;
-            case 's':
-                h->alg = ALG_APSHA;
-                break;
-#if (!(defined(WIN32) || defined(NETWARE)))
-            case 'd':
-                h->alg = ALG_CRYPT;
-                break;
-#endif
-            default:
-                htdbm_usage();
-                break;
-            }
+    
+    for (b = APR_BRIGADE_FIRST(bb);
+         b != APR_BRIGADE_SENTINEL(bb);
+         b = APR_BUCKET_NEXT(b))
+    {
+        if (AP_BUCKET_IS_ERROR(b) && !eb) {
+            eb = b->data;
+            continue;
+        }
+        /*
+         * If we see an EOC bucket it is a signal that we should get out
+         * of the way doing nothing.
+         */
+        if (AP_BUCKET_IS_EOC(b)) {
+            ap_remove_output_filter(f);
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, f->c,
+                          "h2_from_h1(%d): eoc bucket passed", 
+                          from_h1->stream_id);
+            return ap_pass_brigade(f->next, bb);
         }
     }
-    /*
-     * Make sure we still have exactly the right number of arguments left
-     * (the filename, the username, and possibly the password if -b was
-     * specified).
-     */
-    if ((argc - i) != args_left)
-        htdbm_usage();
-
-    if (!need_file)
-        i--;
-    else {
-        h->filename = apr_pstrdup(h->pool, argv[i]);
-            if ((rv = htdbm_open(h)) != APR_SUCCESS) {
-            fprintf(stderr, "Error opening database %s\n", argv[i]);
-            apr_strerror(rv, errbuf, sizeof(errbuf));
-            fprintf(stderr,"%s\n",errbuf);
-            exit(ERR_FILEPERM);
-        }
+    
+    if (eb) {
+        int st = eb->status;
+        apr_brigade_cleanup(bb);
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c, APLOGNO(03047)
+                      "h2_from_h1(%d): err bucket status=%d", 
+                      from_h1->stream_id, st);
+        ap_die(st, r);
+        return AP_FILTER_ERROR;
     }
-    if (need_user) {
-        h->username = apr_pstrdup(pool, argv[i+1]);
-        if (htdbm_valid_username(h) != APR_SUCCESS)
-            exit(ERR_BADUSER);
+    
+    from_h1->response = create_response(from_h1, r);
+    if (from_h1->response == NULL) {
+        ap_log_cerror(APLOG_MARK, APLOG_NOTICE, 0, f->c, APLOGNO(03048)
+                      "h2_from_h1(%d): unable to create response", 
+                      from_h1->stream_id);
+        return APR_ENOMEM;
     }
-    if (pwd_supplied)
-        h->userpass = apr_pstrdup(pool, argv[i+2]);
-
-    if (need_pwd) {
-        l = sizeof(pwc);
-        if (apr_password_get("Enter password        : ", pwi, &l) != APR_SUCCESS) {
-            fprintf(stderr, "Password too long\n");
-            exit(ERR_OVERFLOW);
-        }
-        l = sizeof(pwc);
-        if (apr_password_get("Re-type password      : ", pwc, &l) != APR_SUCCESS) {
-            fprintf(stderr, "Password too long\n");
-            exit(ERR_OVERFLOW);
-        }
-        if (strcmp(pwi, pwc) != 0) {
-            fprintf(stderr, "Password verification error\n");
-            exit(ERR_PWMISMATCH);
-        }
-
-        h->userpass = apr_pstrdup(pool,  pwi);
+    
+    if (r->header_only) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                      "h2_from_h1(%d): header_only, cleanup output brigade", 
+                      from_h1->stream_id);
+        apr_brigade_cleanup(bb);
+        return OK;
     }
-    if (need_cmnt && pwd_supplied)
-        h->comment = apr_pstrdup(pool, argv[i+3]);
-    else if (need_cmnt)
-        h->comment = apr_pstrdup(pool, argv[i+2]);
-
-    switch (cmd) {
-        case HTDBM_VERIFY:
-            if ((rv = htdbm_verify(h)) != APR_SUCCESS) {
-                if (APR_STATUS_IS_ENOENT(rv)) {
-                    fprintf(stderr, "The user '%s' could not be found in database\n", h->username);
-                    exit(ERR_BADUSER);
-                }
-                else {
-                    fprintf(stderr, "Password mismatch for user '%s'\n", h->username);
-                    exit(ERR_PWMISMATCH);
-                }
-            }
-            else
-                fprintf(stderr, "Password validated for user '%s'\n", h->username);
-            break;
-        case HTDBM_DELETE:
-            if (htdbm_del(h) != APR_SUCCESS) {
-                fprintf(stderr, "Cannot find user '%s' in database\n", h->username);
-                exit(ERR_BADUSER);
-            }
-            h->username = NULL;
-            changed = 1;
-            break;
-        case HTDBM_LIST:
-            htdbm_list(h);
-            break;
-        default:
-            htdbm_make(h);
-            break;
-
+    
+    r->sent_bodyct = 1;         /* Whatever follows is real body stuff... */
+    
+    ap_remove_output_filter(f);
+    if (APLOGctrace1(f->c)) {
+        apr_off_t len = 0;
+        apr_brigade_length(bb, 0, &len);
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                      "h2_from_h1(%d): removed header filter, passing brigade "
+                      "len=%ld", from_h1->stream_id, (long)len);
     }
-    if (need_file && !h->rdonly) {
-        if ((rv = htdbm_save(h, &changed)) != APR_SUCCESS) {
-            apr_strerror(rv, errbuf, sizeof(errbuf));
-            exit(ERR_FILEPERM);
-        }
-        fprintf(stdout, "Database %s %s.\n", h->filename,
-                h->create ? "created" : (changed ? "modified" : "updated"));
-    }
-    if (cmd == HTDBM_NOFILE) {
-        if (!need_cmnt) {
-            fprintf(stderr, "%s:%s\n", h->username, h->userpass);
-        }
-        else {
-            fprintf(stderr, "%s:%s:%s\n", h->username, h->userpass,
-                    h->comment);
-        }
-    }
-    htdbm_terminate(h);
-
-    return 0; /* Suppress compiler warning. */
+    return ap_pass_brigade(f->next, bb);
 }

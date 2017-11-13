@@ -1,1 +1,0 @@
-write_name(fullname);

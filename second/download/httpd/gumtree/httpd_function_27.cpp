@@ -1,101 +1,261 @@
-static void * APR_THREAD_FUNC start_threads(apr_thread_t *thd, void *dummy)
+int main(int argc, const char * const argv[])
 {
-    thread_starter *ts = dummy;
-    apr_thread_t **threads = ts->threads;
-    apr_threadattr_t *thread_attr = ts->threadattr;
-    int child_num_arg = ts->child_num_arg;
-    int my_child_num = child_num_arg;
-    proc_info *my_info;
+    char c;
+    int configtestonly = 0;
+    const char *confname = SERVER_CONFIG_FILE;
+    const char *def_server_root = HTTPD_ROOT;
+    const char *temp_error_log = NULL;
+    process_rec *process;
+    server_rec *server_conf;
+    apr_pool_t *pglobal;
+    apr_pool_t *pconf;
+    apr_pool_t *plog; /* Pool of log streams, reset _after_ each read of conf */
+    apr_pool_t *ptemp; /* Pool for temporary config stuff, reset often */
+    apr_pool_t *pcommands; /* Pool for -D, -C and -c switches */
+    apr_getopt_t *opt;
     apr_status_t rv;
-    int i;
-    int threads_created = 0;
-    int loops;
-    int prev_threads_created;
+    module **mod;
+    const char *optarg;
+    APR_OPTIONAL_FN_TYPE(ap_signal_server) *signal_server;
 
-    idle_worker_stack = worker_stack_create(pchild, ap_threads_per_child);
-    if (idle_worker_stack == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_ALERT, 0, ap_server_conf,
-                     "worker_stack_create() failed");
-        clean_child_exit(APEXIT_CHILDFATAL);
+    AP_MONCONTROL(0); /* turn off profiling of startup */
+
+    apr_app_initialize(&argc, &argv, NULL);
+
+    process = create_process(argc, argv);
+    pglobal = process->pool;
+    pconf = process->pconf;
+    ap_server_argv0 = process->short_name;
+
+#if APR_CHARSET_EBCDIC
+    if (ap_init_ebcdic(pglobal) != APR_SUCCESS) {
+        destroy_and_exit_process(process, 1);
     }
+#endif
 
-    worker_wakeups = (worker_wakeup_info **)
-        apr_palloc(pchild, sizeof(worker_wakeup_info *) *
-                   ap_threads_per_child);
+    ap_setup_prelinked_modules(process);
 
-    loops = prev_threads_created = 0;
-    while (1) {
-        for (i = 0; i < ap_threads_per_child; i++) {
-            int status = ap_scoreboard_image->servers[child_num_arg][i].status;
-            worker_wakeup_info *wakeup;
+    apr_pool_create(&pcommands, pglobal);
+    apr_pool_tag(pcommands, "pcommands");
+    ap_server_pre_read_config  = apr_array_make(pcommands, 1, sizeof(char *));
+    ap_server_post_read_config = apr_array_make(pcommands, 1, sizeof(char *));
+    ap_server_config_defines   = apr_array_make(pcommands, 1, sizeof(char *));
 
-            if (status != SERVER_GRACEFUL && status != SERVER_DEAD) {
-                continue;
-            }
+    ap_run_rewrite_args(process);
 
-            wakeup = worker_wakeup_create(pchild);
-            if (wakeup == NULL) {
-                ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, 0,
-                             ap_server_conf, "worker_wakeup_create failed");
-                clean_child_exit(APEXIT_CHILDFATAL);
-            }
-            worker_wakeups[threads_created] = wakeup;
-            my_info = (proc_info *)malloc(sizeof(proc_info));
-            if (my_info == NULL) {
-                ap_log_error(APLOG_MARK, APLOG_ALERT, errno, ap_server_conf,
-                             "malloc: out of memory");
-                clean_child_exit(APEXIT_CHILDFATAL);
-            }
-            my_info->pid = my_child_num;
-            my_info->tid = i;
-            my_info->sd = 0;
-        
-            /* We are creating threads right now */
-            ap_update_child_status_from_indexes(my_child_num, i,
-                                                SERVER_STARTING, NULL);
-            /* We let each thread update its own scoreboard entry.  This is
-             * done because it lets us deal with tid better.
-             */
-            rv = apr_thread_create(&threads[i], thread_attr, 
-                                   worker_thread, my_info, pchild);
-            if (rv != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
-                    "apr_thread_create: unable to create worker thread");
-                /* In case system resources are maxxed out, we don't want
-                   Apache running away with the CPU trying to fork over and
-                   over and over again if we exit. */
-                apr_sleep(10 * APR_USEC_PER_SEC);
-                clean_child_exit(APEXIT_CHILDFATAL);
-            }
-            threads_created++;
-        }
-        if (start_thread_may_exit || threads_created == ap_threads_per_child) {
-            break;
-        }
-        /* wait for previous generation to clean up an entry */
-        apr_sleep(1 * APR_USEC_PER_SEC);
-        ++loops;
-        if (loops % 120 == 0) { /* every couple of minutes */
-            if (prev_threads_created == threads_created) {
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                             "child %" APR_PID_T_FMT " isn't taking over "
-                             "slots very quickly (%d of %d)",
-                             ap_my_pid, threads_created, ap_threads_per_child);
-            }
-            prev_threads_created = threads_created;
-        }
-    }
-    
-    /* What state should this child_main process be listed as in the 
-     * scoreboard...?
-     *  ap_update_child_status_from_indexes(my_child_num, i, SERVER_STARTING, 
-     *                                      (request_rec *) NULL);
-     * 
-     *  This state should be listed separately in the scoreboard, in some kind
-     *  of process_status, not mixed in with the worker threads' status.   
-     *  "life_status" is almost right, but it's in the worker's structure, and 
-     *  the name could be clearer.   gla
+    /* Maintain AP_SERVER_BASEARGS list in http_main.h to allow the MPM
+     * to safely pass on our args from its rewrite_args() handler.
      */
-    apr_thread_exit(thd, APR_SUCCESS);
-    return NULL;
+    apr_getopt_init(&opt, pcommands, process->argc, process->argv);
+
+    while ((rv = apr_getopt(opt, AP_SERVER_BASEARGS, &c, &optarg))
+            == APR_SUCCESS) {
+        char **new;
+
+        switch (c) {
+        case 'c':
+            new = (char **)apr_array_push(ap_server_post_read_config);
+            *new = apr_pstrdup(pcommands, optarg);
+            break;
+
+        case 'C':
+            new = (char **)apr_array_push(ap_server_pre_read_config);
+            *new = apr_pstrdup(pcommands, optarg);
+            break;
+
+        case 'd':
+            def_server_root = optarg;
+            break;
+
+        case 'D':
+            new = (char **)apr_array_push(ap_server_config_defines);
+            *new = apr_pstrdup(pcommands, optarg);
+            break;
+
+        case 'e':
+            if (strcasecmp(optarg, "emerg") == 0) {
+                ap_default_loglevel = APLOG_EMERG;
+            }
+            else if (strcasecmp(optarg, "alert") == 0) {
+                ap_default_loglevel = APLOG_ALERT;
+            }
+            else if (strcasecmp(optarg, "crit") == 0) {
+                ap_default_loglevel = APLOG_CRIT;
+            }
+            else if (strncasecmp(optarg, "err", 3) == 0) {
+                ap_default_loglevel = APLOG_ERR;
+            }
+            else if (strncasecmp(optarg, "warn", 4) == 0) {
+                ap_default_loglevel = APLOG_WARNING;
+            }
+            else if (strcasecmp(optarg, "notice") == 0) {
+                ap_default_loglevel = APLOG_NOTICE;
+            }
+            else if (strcasecmp(optarg, "info") == 0) {
+                ap_default_loglevel = APLOG_INFO;
+            }
+            else if (strcasecmp(optarg, "debug") == 0) {
+                ap_default_loglevel = APLOG_DEBUG;
+            }
+            else {
+                usage(process);
+            }
+            break;
+
+        case 'E':
+            temp_error_log = apr_pstrdup(process->pool, optarg);
+            break;
+
+        case 'X':
+            new = (char **)apr_array_push(ap_server_config_defines);
+            *new = "DEBUG";
+            break;
+
+        case 'f':
+            confname = optarg;
+            break;
+
+        case 'v':
+            printf("Server version: %s\n", ap_get_server_version());
+            printf("Server built:   %s\n", ap_get_server_built());
+            destroy_and_exit_process(process, 0);
+
+        case 'V':
+            show_compile_settings();
+            destroy_and_exit_process(process, 0);
+
+        case 'l':
+            ap_show_modules();
+            destroy_and_exit_process(process, 0);
+
+        case 'L':
+            ap_show_directives();
+            destroy_and_exit_process(process, 0);
+
+        case 't':
+            configtestonly = 1;
+            break;
+
+        case 'h':
+        case '?':
+            usage(process);
+        }
+    }
+
+    /* bad cmdline option?  then we die */
+    if (rv != APR_EOF || opt->ind < opt->argc) {
+        usage(process);
+    }
+
+    apr_pool_create(&plog, pglobal);
+    apr_pool_tag(plog, "plog");
+    apr_pool_create(&ptemp, pconf);
+    apr_pool_tag(ptemp, "ptemp");
+
+    /* Note that we preflight the config file once
+     * before reading it _again_ in the main loop.
+     * This allows things, log files configuration
+     * for example, to settle down.
+     */
+
+    ap_server_root = def_server_root;
+    if (temp_error_log) {
+        ap_replace_stderr_log(process->pool, temp_error_log);
+    }
+    server_conf = ap_read_config(process, ptemp, confname, &ap_conftree);
+    if (ap_run_pre_config(pconf, plog, ptemp) != OK) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
+                     NULL, "Pre-configuration failed\n");
+        destroy_and_exit_process(process, 1);
+    }
+
+    ap_process_config_tree(server_conf, ap_conftree, process->pconf, ptemp);
+    ap_fixup_virtual_hosts(pconf, server_conf);
+    ap_fini_vhost_config(pconf, server_conf);
+    apr_sort_hooks();
+    if (configtestonly) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, "Syntax OK");
+        destroy_and_exit_process(process, 0);
+    }
+
+    signal_server = APR_RETRIEVE_OPTIONAL_FN(ap_signal_server);
+    if (signal_server) {
+        int exit_status;
+
+        if (signal_server(&exit_status, pconf) != 0) {
+            destroy_and_exit_process(process, exit_status);
+        }
+    }
+
+    apr_pool_clear(plog);
+
+    if ( ap_run_open_logs(pconf, plog, ptemp, server_conf) != OK) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                     0, NULL, "Unable to open logs\n");
+        destroy_and_exit_process(process, 1);
+    }
+
+    if ( ap_run_post_config(pconf, plog, ptemp, server_conf) != OK) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
+                     NULL, "Configuration Failed\n");
+        destroy_and_exit_process(process, 1);
+    }
+
+    apr_pool_destroy(ptemp);
+
+    for (;;) {
+        apr_hook_deregister_all();
+        apr_pool_clear(pconf);
+
+        for (mod = ap_prelinked_modules; *mod != NULL; mod++) {
+            ap_register_hooks(*mod, pconf);
+        }
+
+        /* This is a hack until we finish the code so that it only reads
+         * the config file once and just operates on the tree already in
+         * memory.  rbb
+         */
+        ap_conftree = NULL;
+        apr_pool_create(&ptemp, pconf);
+        apr_pool_tag(ptemp, "ptemp");
+        ap_server_root = def_server_root;
+        server_conf = ap_read_config(process, ptemp, confname, &ap_conftree);
+        if (ap_run_pre_config(pconf, plog, ptemp) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                         0, NULL, "Pre-configuration failed\n");
+            destroy_and_exit_process(process, 1);
+        }
+
+        ap_process_config_tree(server_conf, ap_conftree, process->pconf, ptemp);
+        ap_fixup_virtual_hosts(pconf, server_conf);
+        ap_fini_vhost_config(pconf, server_conf);
+        apr_sort_hooks();
+        apr_pool_clear(plog);
+        if (ap_run_open_logs(pconf, plog, ptemp, server_conf) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                         0, NULL, "Unable to open logs\n");
+            destroy_and_exit_process(process, 1);
+        }
+
+        if (ap_run_post_config(pconf, plog, ptemp, server_conf) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                         0, NULL, "Configuration Failed\n");
+            destroy_and_exit_process(process, 1);
+        }
+
+        apr_pool_destroy(ptemp);
+        apr_pool_lock(pconf, 1);
+
+        ap_run_optional_fn_retrieve();
+
+        if (ap_mpm_run(pconf, plog, server_conf))
+            break;
+
+        apr_pool_lock(pconf, 0);
+    }
+
+    apr_pool_lock(pconf, 0);
+    destroy_and_exit_process(process, 0);
+
+    return 0; /* Termination 'ok' */
 }

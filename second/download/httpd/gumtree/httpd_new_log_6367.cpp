@@ -1,1 +1,3 @@
-printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1796539 $");
+ap_log_cerror(APLOG_MARK, APLOG_WARNING, status, m->c, 
+                          APLOGNO(03385) "h2_task(%s): output shutdown "
+                          "incomplete", task->id);

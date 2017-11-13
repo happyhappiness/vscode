@@ -1,1 +1,2 @@
-io_printf(fd, "@ERROR: setgroups failed\n");
+rprintf(FERROR,"read %s: %s\n",
+			source,strerror(errno));

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server,
-                         "couldn't set child process attributes: %s", r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "mod_include: Options +Includes (or IncludesNoExec) "
+                      "wasn't set, INCLUDES filter removed");

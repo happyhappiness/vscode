@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                      "h2_task(%s): create request_rec failed, r->status=%d", 
-                      task->id, r->status);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02816)
+                    "could not acquire lock for cache status");

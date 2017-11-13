@@ -1,214 +1,446 @@
-static void * APR_THREAD_FUNC listener_thread(apr_thread_t *thd, void * dummy)
+void ssl_pphrase_Handle(server_rec *s, apr_pool_t *p)
 {
-    proc_info * ti = dummy;
-    int process_slot = ti->pid;
-    apr_pool_t *tpool = apr_thread_pool_get(thd);
-    void *csd = NULL;
-    apr_pool_t *ptrans = NULL;            /* Pool for per-transaction stuff */
-    apr_pollset_t *pollset;
+    SSLModConfigRec *mc = myModConfig(s);
+    SSLSrvConfigRec *sc;
+    server_rec *pServ;
+    char *cpVHostID;
+    char szPath[MAX_STRING_LEN];
+    EVP_PKEY *pPrivateKey;
+    ssl_asn1_t *asn1;
+    unsigned char *ucp;
+    long int length;
+    X509 *pX509Cert;
+    BOOL bReadable;
+    apr_array_header_t *aPassPhrase;
+    int nPassPhrase;
+    int nPassPhraseCur;
+    char *cpPassPhraseCur;
+    int nPassPhraseRetry;
+    int nPassPhraseDialog;
+    int nPassPhraseDialogCur;
+    BOOL bPassPhraseDialogOnce;
+    char **cpp;
+    int i, j;
+    ssl_algo_t algoCert, algoKey, at;
+    char *an;
+    apr_time_t pkey_mtime = 0;
     apr_status_t rv;
-    ap_listen_rec *lr;
-    int have_idle_worker = 0;
-    int last_poll_idx = 0;
-
-    free(ti);
-
-    rv = apr_pollset_create(&pollset, num_listensocks, tpool, 0);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
-                     "Couldn't create pollset in thread;"
-                     " check system or user limits");
-        /* let the parent decide how bad this really is */
-        clean_child_exit(APEXIT_CHILDSICK);
-    }
-
-    for (lr = ap_listeners; lr != NULL; lr = lr->next) {
-        apr_pollfd_t pfd = { 0 };
-
-        pfd.desc_type = APR_POLL_SOCKET;
-        pfd.desc.s = lr->sd;
-        pfd.reqevents = APR_POLLIN;
-        pfd.client_data = lr;
-
-        rv = apr_pollset_add(pollset, &pfd);
-        if (rv != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
-                         "Couldn't create add listener to pollset;"
-                         " check system or user limits");
-            /* let the parent decide how bad this really is */
-            clean_child_exit(APEXIT_CHILDSICK);
-        }
-
-        lr->accept_func = ap_unixd_accept;
-    }
-
-    /* Unblock the signal used to wake this thread up, and set a handler for
-     * it.
+    /*
+     * Start with a fresh pass phrase array
      */
-    unblock_signal(LISTENER_SIGNAL);
-    apr_signal(LISTENER_SIGNAL, dummy_signal_handler);
+    aPassPhrase       = apr_array_make(p, 2, sizeof(char *));
+    nPassPhrase       = 0;
+    nPassPhraseDialog = 0;
 
-    /* TODO: Switch to a system where threads reuse the results from earlier
-       poll calls - manoj */
-    while (1) {
-        /* TODO: requests_this_child should be synchronized - aaron */
-        if (requests_this_child <= 0) {
-            check_infinite_requests();
+    /*
+     * Walk through all configured servers
+     */
+    for (pServ = s; pServ != NULL; pServ = pServ->next) {
+        sc = mySrvConfig(pServ);
+        cpVHostID = ssl_util_vhostid(p, pServ);
+        if (!sc->enabled) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, pServ, APLOGNO(02199)
+                         "SSL not enabled on vhost %s, skipping SSL setup",
+                         cpVHostID);
+            continue;
         }
-        if (listener_may_exit) break;
 
-        if (!have_idle_worker) {
-            /* the following pops a recycled ptrans pool off a stack
-             * if there is one, in addition to reserving a worker thread
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, pServ, APLOGNO(02200)
+                     "Loading certificate & private key of SSL-aware server '%s'",
+                     cpVHostID);
+
+        /*
+         * Read in server certificate(s): This is the easy part
+         * because this file isn't encrypted in any way.
+         */
+        if (sc->server->pks->cert_files[0] == NULL
+            && sc->server->pkcs7 == NULL) {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, pServ, APLOGNO(02240)
+                         "Server should be SSL-aware but has no certificate "
+                         "configured [Hint: SSLCertificateFile] (%s:%d)",
+                         pServ->defn_name, pServ->defn_line_number);
+            ssl_die();
+        }
+
+        /* Bitmasks for all key algorithms configured for this server;
+         * initialize to zero. */
+        algoCert = SSL_ALGO_UNKNOWN;
+        algoKey  = SSL_ALGO_UNKNOWN;
+
+        /* Iterate through configured certificate files for this
+         * server. */
+        for (i = 0, j = 0; i < SSL_AIDX_MAX
+                 && (sc->server->pks->cert_files[i] != NULL
+                     || sc->server->pkcs7); i++) {
+            const char *key_id;
+            int using_cache = 0;
+
+            if (sc->server->pkcs7) {
+                STACK_OF(X509) *certs = ssl_read_pkcs7(pServ,
+                                                       sc->server->pkcs7);
+                pX509Cert = sk_X509_value(certs, 0);
+                i = SSL_AIDX_MAX;
+            } else {
+                apr_cpystrn(szPath, sc->server->pks->cert_files[i],
+                            sizeof(szPath));
+                if ((rv = exists_and_readable(szPath, p, NULL))
+                    != APR_SUCCESS) {
+                    ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(02201)
+                                 "Init: Can't open server certificate file %s",
+                                 szPath);
+                    ssl_die();
+                }
+                if ((pX509Cert = SSL_read_X509(szPath, NULL, NULL)) == NULL) {
+                    ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02241)
+                                 "Init: Unable to read server certificate from"
+                                 " file %s", szPath);
+                    ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
+                    ssl_die();
+                }
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02202)
+                             "Init: Read server certificate from '%s'",
+                             szPath);
+            }
+            /*
+             * check algorithm type of certificate and make
+             * sure only one certificate per type is used.
              */
-            rv = ap_queue_info_wait_for_idler(worker_queue_info,
-                                              &ptrans);
-            if (APR_STATUS_IS_EOF(rv)) {
-                break; /* we've been signaled to die now */
+            at = ssl_util_algotypeof(pX509Cert, NULL);
+            an = ssl_util_algotypestr(at);
+            if (algoCert & at) {
+                ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02242)
+                             "Init: Multiple %s server certificates not "
+                             "allowed", an);
+                ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
+                ssl_die();
             }
-            else if (rv != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
-                             "apr_queue_info_wait failed. Attempting to "
-                             " shutdown process gracefully.");
-                signal_threads(ST_GRACEFUL);
-                break;
-            }
-            have_idle_worker = 1;
-        }
+            algoCert |= at;
 
-        /* We've already decremented the idle worker count inside
-         * ap_queue_info_wait_for_idler. */
+            /* Determine the hash key used for this (vhost, algo-type)
+             * pair used to index both the mc->tPrivateKey and
+             * mc->tPublicCert tables: */
+            key_id = asn1_table_vhost_key(mc, p, cpVHostID, an);
 
-        if ((rv = SAFE_ACCEPT(apr_proc_mutex_lock(accept_mutex)))
-            != APR_SUCCESS) {
+            /*
+             * Insert the certificate into global module configuration to let it
+             * survive the processing between the 1st Apache API init round (where
+             * we operate here) and the 2nd Apache init round (where the
+             * certificate is actually used to configure mod_ssl's per-server
+             * configuration structures).
+             */
+            length = i2d_X509(pX509Cert, NULL);
+            ucp = ssl_asn1_table_set(mc->tPublicCert, key_id, length);
+            (void)i2d_X509(pX509Cert, &ucp); /* 2nd arg increments */
 
-            if (!listener_may_exit) {
-                accept_mutex_error("lock", rv, process_slot);
-            }
-            break;                    /* skip the lock release */
-        }
+            /*
+             * Free the X509 structure
+             */
+            X509_free(pX509Cert);
 
-        if (!ap_listeners->next) {
-            /* Only one listener, so skip the poll */
-            lr = ap_listeners;
-        }
-        else {
-            while (!listener_may_exit) {
-                apr_int32_t numdesc;
-                const apr_pollfd_t *pdesc;
+            /*
+             * Read in the private key: This is the non-trivial part, because the
+             * key is typically encrypted, so a pass phrase dialog has to be used
+             * to request it from the user (or it has to be alternatively gathered
+             * from a dialog program). The important point here is that ISPs
+             * usually have hundrets of virtual servers configured and a lot of
+             * them use SSL, so really we have to minimize the pass phrase
+             * dialogs.
+             *
+             * The idea is this: When N virtual hosts are configured and all of
+             * them use encrypted private keys with different pass phrases, we
+             * have no chance and have to pop up N pass phrase dialogs. But
+             * usually the admin is clever enough and uses the same pass phrase
+             * for more private key files (typically he even uses one single pass
+             * phrase for all). When this is the case we can minimize the dialogs
+             * by trying to re-use already known/entered pass phrases.
+             */
+            if (sc->server->pks->key_files[j] != NULL)
+                apr_cpystrn(szPath, sc->server->pks->key_files[j++], sizeof(szPath));
 
-                rv = apr_pollset_poll(pollset, -1, &numdesc, &pdesc);
-                if (rv != APR_SUCCESS) {
-                    if (APR_STATUS_IS_EINTR(rv)) {
-                        continue;
+            /*
+             * Try to read the private key file with the help of
+             * the callback function which serves the pass
+             * phrases to OpenSSL
+             */
+            myCtxVarSet(mc,  1, pServ);
+            myCtxVarSet(mc,  2, p);
+            myCtxVarSet(mc,  3, aPassPhrase);
+            myCtxVarSet(mc,  4, &nPassPhraseCur);
+            myCtxVarSet(mc,  5, &cpPassPhraseCur);
+            myCtxVarSet(mc,  6, cpVHostID);
+            myCtxVarSet(mc,  7, an);
+            myCtxVarSet(mc,  8, &nPassPhraseDialog);
+            myCtxVarSet(mc,  9, &nPassPhraseDialogCur);
+            myCtxVarSet(mc, 10, &bPassPhraseDialogOnce);
+
+            nPassPhraseCur        = 0;
+            nPassPhraseRetry      = 0;
+            nPassPhraseDialogCur  = 0;
+            bPassPhraseDialogOnce = TRUE;
+
+            pPrivateKey = NULL;
+
+            for (;;) {
+                /*
+                 * Try to read the private key file with the help of
+                 * the callback function which serves the pass
+                 * phrases to OpenSSL
+                 */
+                if ((rv = exists_and_readable(szPath, p,
+                                              &pkey_mtime)) != APR_SUCCESS ) {
+                     ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(02243)
+                                  "Init: Can't open server private key file "
+                                  "%s",szPath);
+                     ssl_die();
+                }
+
+                /*
+                 * if the private key is encrypted and SSLPassPhraseDialog
+                 * is configured to "builtin" it isn't possible to prompt for
+                 * a password after httpd has detached from the tty.
+                 * in this case if we already have a private key and the
+                 * file name/mtime hasn't changed, then reuse the existing key.
+                 * we also reuse existing private keys that were encrypted for
+                 * exec: and pipe: dialogs to minimize chances to snoop the
+                 * password.  that and pipe: dialogs might prompt the user
+                 * for password, which on win32 for example could happen 4
+                 * times at startup.  twice for each child and twice within
+                 * each since apache "restarts itself" on startup.
+                 * of course this will not work for the builtin dialog if
+                 * the server was started without LoadModule ssl_module
+                 * configured, then restarted with it configured.
+                 * but we fall through with a chance of success if the key
+                 * is not encrypted or can be handled via exec or pipe dialog.
+                 * and in the case of fallthrough, pkey_mtime and isatty()
+                 * are used to give a better idea as to what failed.
+                 */
+                if (pkey_mtime) {
+                    ssl_asn1_t *asn1 =
+                        ssl_asn1_table_get(mc->tPrivateKey, key_id);
+
+                    if (asn1 && (asn1->source_mtime == pkey_mtime)) {
+                        ap_log_error(APLOG_MARK, APLOG_INFO,
+                                     0, pServ, APLOGNO(02244)
+                                     "%s reusing existing "
+                                     "%s private key on restart",
+                                     cpVHostID, ssl_asn1_keystr(i));
+                        using_cache = 1;
+                        break;
                     }
-
-                    /* apr_pollset_poll() will only return errors in catastrophic
-                     * circumstances. Let's try exiting gracefully, for now. */
-                    ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
-                                 "apr_pollset_poll: (listen)");
-                    signal_threads(ST_GRACEFUL);
                 }
 
-                if (listener_may_exit) break;
+                cpPassPhraseCur = NULL;
+                ssl_pphrase_server_rec = s; /* to make up for sslc flaw */
 
-                /* We can always use pdesc[0], but sockets at position N
-                 * could end up completely starved of attention in a very
-                 * busy server. Therefore, we round-robin across the
-                 * returned set of descriptors. While it is possible that
-                 * the returned set of descriptors might flip around and
-                 * continue to starve some sockets, we happen to know the
-                 * internal pollset implementation retains ordering
-                 * stability of the sockets. Thus, the round-robin should
-                 * ensure that a socket will eventually be serviced.
+                /* Ensure that the error stack is empty; some SSL
+                 * functions will fail spuriously if the error stack
+                 * is not empty. */
+                ERR_clear_error();
+
+                bReadable = ((pPrivateKey = SSL_read_PrivateKey(szPath, NULL,
+                            ssl_pphrase_Handle_CB, s)) != NULL ? TRUE : FALSE);
+
+                /*
+                 * when the private key file now was readable,
+                 * it's fine and we go out of the loop
                  */
-                if (last_poll_idx >= numdesc)
-                    last_poll_idx = 0;
+                if (bReadable)
+                   break;
 
-                /* Grab a listener record from the client_data of the poll
-                 * descriptor, and advance our saved index to round-robin
-                 * the next fetch.
-                 *
-                 * ### hmm... this descriptor might have POLLERR rather
-                 * ### than POLLIN
+                /*
+                 * when we have more remembered pass phrases
+                 * try to reuse these first.
                  */
-                lr = pdesc[last_poll_idx++].client_data;
-                break;
-
-            } /* while */
-
-        } /* if/else */
-
-        if (!listener_may_exit) {
-            if (ptrans == NULL) {
-                /* we can't use a recycled transaction pool this time.
-                 * create a new transaction pool */
-                apr_allocator_t *allocator;
-
-                apr_allocator_create(&allocator);
-                apr_allocator_max_free_set(allocator, ap_max_mem_free);
-                apr_pool_create_ex(&ptrans, pconf, NULL, allocator);
-                apr_allocator_owner_set(allocator, ptrans);
-            }
-            apr_pool_tag(ptrans, "transaction");
-            rv = lr->accept_func(&csd, lr, ptrans);
-            /* later we trash rv and rely on csd to indicate success/failure */
-            AP_DEBUG_ASSERT(rv == APR_SUCCESS || !csd);
-
-            if (rv == APR_EGENERAL) {
-                /* E[NM]FILE, ENOMEM, etc */
-                resource_shortage = 1;
-                signal_threads(ST_GRACEFUL);
-            }
-            if ((rv = SAFE_ACCEPT(apr_proc_mutex_unlock(accept_mutex)))
-                != APR_SUCCESS) {
-
-                if (listener_may_exit) {
-                    break;
+                if (nPassPhraseCur < nPassPhrase) {
+                    nPassPhraseCur++;
+                    continue;
                 }
-                accept_mutex_error("unlock", rv, process_slot);
-            }
-            if (csd != NULL) {
-                rv = ap_queue_push(worker_queue, csd, ptrans);
-                if (rv) {
-                    /* trash the connection; we couldn't queue the connected
-                     * socket to a worker
-                     */
-                    apr_socket_close(csd);
-                    ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                                 "ap_queue_push failed");
+
+                /*
+                 * else it's not readable and we have no more
+                 * remembered pass phrases. Then this has to mean
+                 * that the callback function popped up the dialog
+                 * but a wrong pass phrase was entered.  We give the
+                 * user (but not the dialog program) a few more
+                 * chances...
+                 */
+#ifndef WIN32
+                if ((sc->server->pphrase_dialog_type == SSL_PPTYPE_BUILTIN
+                       || sc->server->pphrase_dialog_type == SSL_PPTYPE_PIPE)
+#else
+                if (sc->server->pphrase_dialog_type == SSL_PPTYPE_PIPE
+#endif
+                    && cpPassPhraseCur != NULL
+                    && nPassPhraseRetry < BUILTIN_DIALOG_RETRIES ) {
+                    apr_file_printf(writetty, "Apache:mod_ssl:Error: Pass phrase incorrect "
+                            "(%d more retr%s permitted).\n",
+                            (BUILTIN_DIALOG_RETRIES-nPassPhraseRetry),
+                            (BUILTIN_DIALOG_RETRIES-nPassPhraseRetry) == 1 ? "y" : "ies");
+                    nPassPhraseRetry++;
+                    if (nPassPhraseRetry > BUILTIN_DIALOG_BACKOFF)
+                        apr_sleep((nPassPhraseRetry-BUILTIN_DIALOG_BACKOFF)
+                                    * 5 * APR_USEC_PER_SEC);
+                    continue;
+                }
+#ifdef WIN32
+                if (sc->server->pphrase_dialog_type == SSL_PPTYPE_BUILTIN) {
+                    ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02245)
+                                 "Init: SSLPassPhraseDialog builtin is not "
+                                 "supported on Win32 (key file "
+                                 "%s)", szPath);
+                    ssl_die();
+                }
+#endif /* WIN32 */
+
+                /*
+                 * Ok, anything else now means a fatal error.
+                 */
+                if (cpPassPhraseCur == NULL) {
+                    if (nPassPhraseDialogCur && pkey_mtime &&
+                        !isatty(fileno(stdout))) /* XXX: apr_isatty() */
+                    {
+                        ap_log_error(APLOG_MARK, APLOG_ERR, 0,
+                                     pServ, APLOGNO(02246)
+                                     "Init: Unable to read pass phrase "
+                                     "[Hint: key introduced or changed "
+                                     "before restart?]");
+                        ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, pServ);
+                    }
+                    else {
+                        ap_log_error(APLOG_MARK, APLOG_ERR, 0,
+                                     pServ, APLOGNO(02203) "Init: Private key not found");
+                        ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, pServ);
+                    }
+                    if (writetty) {
+                        apr_file_printf(writetty, "Apache:mod_ssl:Error: Private key not found.\n");
+                        apr_file_printf(writetty, "**Stopped\n");
+                    }
                 }
                 else {
-                    have_idle_worker = 0;
-                }
-            }
-        }
-        else {
-            if ((rv = SAFE_ACCEPT(apr_proc_mutex_unlock(accept_mutex)))
-                != APR_SUCCESS) {
-                int level = APLOG_EMERG;
+                    ap_log_error(APLOG_MARK, APLOG_EMERG, 0, pServ, APLOGNO(02204)
+                                 "Init: Pass phrase incorrect for key of %s",
+                                 cpVHostID);
+                    ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, pServ);
 
-                if (ap_scoreboard_image->parent[process_slot].generation !=
-                    ap_scoreboard_image->global->running_generation) {
-                    level = APLOG_DEBUG; /* common to get these at restart time */
+                    if (writetty) {
+                        apr_file_printf(writetty, "Apache:mod_ssl:Error: Pass phrase incorrect.\n");
+                        apr_file_printf(writetty, "**Stopped\n");
+                    }
                 }
-                ap_log_error(APLOG_MARK, level, rv, ap_server_conf,
-                             "apr_proc_mutex_unlock failed. Attempting to "
-                             "shutdown process gracefully.");
-                signal_threads(ST_GRACEFUL);
+                ssl_die();
             }
-            break;
+
+            /* If a cached private key was found, nothing more to do
+             * here; loop through to the next configured cert for this
+             * vhost. */
+            if (using_cache)
+                continue;
+
+            if (pPrivateKey == NULL) {
+                ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02247)
+                            "Init: Unable to read server private key from "
+                            "file %s [Hint: Perhaps it is in a separate file? "
+                            "  See SSLCertificateKeyFile]", szPath);
+                ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
+                ssl_die();
+            }
+
+            /*
+             * check algorithm type of private key and make
+             * sure only one private key per type is used.
+             */
+            at = ssl_util_algotypeof(NULL, pPrivateKey);
+            an = ssl_util_algotypestr(at);
+            if (algoKey & at) {
+                ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02248)
+                             "Init: Multiple %s server private keys not "
+                             "allowed", an);
+                ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
+                ssl_die();
+            }
+            algoKey |= at;
+
+            /*
+             * Log the type of reading
+             */
+            if (nPassPhraseDialogCur == 0) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, pServ, APLOGNO(02249)
+                             "unencrypted %s private key - pass phrase not "
+                             "required", an);
+            }
+            else {
+                if (cpPassPhraseCur != NULL) {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                                 pServ, APLOGNO(02250)
+                                 "encrypted %s private key - pass phrase "
+                                 "requested", an);
+                }
+                else {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                                 pServ, APLOGNO(02251)
+                                 "encrypted %s private key - pass phrase"
+                                 " reused", an);
+                }
+            }
+
+            /*
+             * Ok, when we have one more pass phrase store it
+             */
+            if (cpPassPhraseCur != NULL) {
+                cpp = (char **)apr_array_push(aPassPhrase);
+                *cpp = cpPassPhraseCur;
+                nPassPhrase++;
+            }
+
+            /*
+             * Insert private key into the global module configuration
+             * (we convert it to a stand-alone DER byte sequence
+             * because the SSL library uses static variables inside a
+             * RSA structure which do not survive DSO reloads!)
+             */
+            length = i2d_PrivateKey(pPrivateKey, NULL);
+            ucp = ssl_asn1_table_set(mc->tPrivateKey, key_id, length);
+            (void)i2d_PrivateKey(pPrivateKey, &ucp); /* 2nd arg increments */
+
+            if (nPassPhraseDialogCur != 0) {
+                /* remember mtime of encrypted keys */
+                asn1 = ssl_asn1_table_get(mc->tPrivateKey, key_id);
+                asn1->source_mtime = pkey_mtime;
+            }
+
+            /*
+             * Free the private key structure
+             */
+            EVP_PKEY_free(pPrivateKey);
         }
     }
 
-    ap_close_listeners();
-    ap_queue_term(worker_queue);
-    dying = 1;
-    ap_scoreboard_image->parent[process_slot].quiescing = 1;
+    /*
+     * Let the user know when we're successful.
+     */
+    if (nPassPhraseDialog > 0) {
+        if (writetty) {
+            apr_file_printf(writetty, "\n"
+                            "OK: Pass Phrase Dialog successful.\n");
+        }
+    }
 
-    /* wake up the main thread */
-    kill(ap_my_pid, SIGTERM);
+    /*
+     * Wipe out the used memory from the
+     * pass phrase array and then deallocate it
+     */
+    if (aPassPhrase->nelts) {
+        pphrase_array_clear(aPassPhrase);
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(02205)
+                     "Init: Wiped out the queried pass phrases from memory");
+    }
 
-    apr_thread_exit(thd, APR_SUCCESS);
-    return NULL;
+    /* Close the pipes if they were opened
+     */
+    if (readtty) {
+        apr_file_close(readtty);
+        apr_file_close(writetty);
+        readtty = writetty = NULL;
+    }
+    return;
 }

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00505)
-                         "ThreadLimit of %d not allowed, increasing to 1",
-                         thread_limit);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00947)
+                 "connected %s to %s:%d", *url, conn->hostname, conn->port);

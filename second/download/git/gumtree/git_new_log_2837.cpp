@@ -1,1 +1,2 @@
-die_errno("could not read file '%s'", filename);
+die(_("'%s' is already checked out at '%s'"),
+	    branch, wt->path);

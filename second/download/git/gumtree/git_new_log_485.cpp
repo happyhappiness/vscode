@@ -1,2 +1,1 @@
-error("unable to normalize alternate object path: %s",
-		      pathbuf.buf);
+fprintf(stderr, _(commit_utf8_warn));

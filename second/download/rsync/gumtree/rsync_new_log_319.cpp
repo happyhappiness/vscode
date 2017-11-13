@@ -1,1 +1,1 @@
-fprintf(FERROR,"stat(%s) : %s\n", fname, strerror(errno));
+fprintf(FINFO,"received %d names\n",flist->count);

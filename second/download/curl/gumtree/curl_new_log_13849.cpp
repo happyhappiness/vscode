@@ -1,9 +1,11 @@
 fputs(
-"              (iOS  and macOS only) If curl is built against Secure Transport,\n"
-"              then the certificate string can either be the name of a certifi-\n"
-"              cate/private  key in the system or user keychain, or the path to\n"
-"              a PKCS#12-encoded certificate and private key. If  you  want  to\n"
-"              use  a  file  from the current directory, please precede it with\n"
-"              \"./\" prefix, in order to avoid confusion with a nickname.\n"
+"              curl to make SSL-connections much more  efficiently  than  using\n"
+"              --cacert if the --cacert file contains many CA certificates.\n"
 "\n"
+"              If this option is set, the default capath value will be ignored,\n"
+"              and if it is used several times, the last one will be used.\n"
+"\n"
+"       --cert-status\n"
+"              (TLS) Tells curl to verify the status of the server  certificate\n"
+"              by using the Certificate Status Request (aka. OCSP stapling) TLS\n"
 , stdout);

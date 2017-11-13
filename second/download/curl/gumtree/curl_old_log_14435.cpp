@@ -1,9 +1,11 @@
 fputs(
-"              prefix them with a dash '-'.  To make  commands  be  sent  after\n"
-"              curl has changed the working directory, just before the transfer\n"
-"              command(s), prefix the command with a '+'  (this  is  only  sup-\n"
-"              ported for FTP). You may specify any number of commands.\n"
+"              the proxy to use. If there's an environment variable  setting  a\n"
+"              proxy, you can set proxy to \"\" to override it.\n"
 "\n"
-"              If  the  server  returns  failure  for  one of the commands, the\n"
-"              entire operation will be aborted. You  must  send  syntactically\n"
+"              All operations that are performed over an HTTP proxy will trans-\n"
+"              parently be converted to HTTP. It means  that  certain  protocol\n"
+"              specific operations might not be available. This is not the case\n"
+"              if you can tunnel through the proxy, as one with the -p, --prox-\n"
+"              ytunnel option.\n"
+"\n"
 , stdout);

@@ -1,10 +1,11 @@
 fputs(
-"              the  connection(s).   Note  that  port  numbers  by nature are a\n"
-"              scarce resource that will be busy at times so setting this range\n"
-"              to something too narrow might cause unnecessary connection setup\n"
-"              failures. (Added in 7.15.2)\n"
+"              You  can  tell  curl to not change the non-GET request method to\n"
+"              GET after a 30x response by  using  the  dedicated  options  for\n"
+"              that: --post301, --post302 and -post303.\n"
 "\n"
-"       --location-trusted\n"
-"              (HTTP/HTTPS) Like -L, --location, but  will  allow  sending  the\n"
-"              name + password to all hosts that the site may redirect to. This\n"
+"       --libcurl <file>\n"
+"              Append  this  option  to any ordinary curl command line, and you\n"
+"              will get a libcurl-using C source code written to the file  that\n"
+"              does the equivalent of what your command-line operation does!\n"
+"\n"
 , stdout);

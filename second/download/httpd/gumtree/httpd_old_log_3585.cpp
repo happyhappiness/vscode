@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                    MODNAME ": line=%d desc=%s", m->lineno, m->desc);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
+                 "DBD: child init failed!");

@@ -1,1 +1,1 @@
-die("no branches given, and HEAD is not valid");
+error(_("%s: already exists in index"), new_name);

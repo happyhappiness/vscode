@@ -1,11 +1,11 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              eral disabled for security reasons: Since 7.19.4  FILE  and  SCP\n"
+"              are  disabled,  and since 7.40.0 SMB and SMBS are also disabled.\n"
+"              Specifying all  or  +all  enables  all  protocols  on  redirect,\n"
+"              including those disabled for security.\n"
 "\n"
-"       -x, --proxy [protocol://]host[:port]\n"
-"              Use the specified proxy.\n"
+"              Added in 7.20.2.\n"
 "\n"
-"              The proxy string can be specified with a protocol:// prefix.  No\n"
-"              protocol specified or http:// will be treated as HTTP proxy. Use\n"
-"              socks4://, socks4a://, socks5:// or socks5h:// to request a spe-\n"
-"              cific SOCKS version to be used.  (The protocol support was added\n"
+"       --proto <protocols>\n"
+"              Tells  curl  to limit what protocols it may use in the transfer.\n"
 , stdout);

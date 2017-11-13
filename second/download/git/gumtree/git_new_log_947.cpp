@@ -1,1 +1,1 @@
-die_errno("sigfillset");
+die(_("unable to auto-detect name (got '%s')"), name);

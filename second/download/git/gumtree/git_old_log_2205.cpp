@@ -1,1 +1,1 @@
-error("Malformed value for %s", var);
+die_errno(_("Could not create sequencer directory %s"), seq_dir);

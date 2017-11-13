@@ -1,249 +1,245 @@
-static int util_ldap_post_config(apr_pool_t *p, apr_pool_t *plog, 
-                                 apr_pool_t *ptemp, server_rec *s)
+static void output_results(void)
 {
-    int rc = LDAP_SUCCESS;
-    apr_status_t result;
-    char buf[MAX_STRING_LEN];
-    server_rec *s_vhost;
-    util_ldap_state_t *st_vhost;
+    apr_interval_time_t timetakenusec;
+    float timetaken;
 
-    util_ldap_state_t *st =
-        (util_ldap_state_t *)ap_get_module_config(s->module_config, &ldap_module);
-
-    void *data;
-    const char *userdata_key = "util_ldap_init";
-
-    /* util_ldap_post_config() will be called twice. Don't bother
-     * going through all of the initialization on the first call
-     * because it will just be thrown away.*/
-    apr_pool_userdata_get(&data, userdata_key, s->process->pool);
-    if (!data) {
-        apr_pool_userdata_set((const void *)1, userdata_key,
-                               apr_pool_cleanup_null, s->process->pool);
-
-#if APR_HAS_SHARED_MEMORY
-        /* If the cache file already exists then delete it.  Otherwise we are
-         * going to run into problems creating the shared memory. */
-        if (st->cache_file) {
-            char *lck_file = apr_pstrcat (st->pool, st->cache_file, ".lck", NULL);
-            apr_file_remove(st->cache_file, ptemp);
-            apr_file_remove(lck_file, ptemp);
-        }
-#endif
-        return OK;
-    }
-
-#if APR_HAS_SHARED_MEMORY
-    /* initializing cache if shared memory size is not zero and we already don't have shm address */
-    if (!st->cache_shm && st->cache_bytes > 0) {
-#endif
-        result = util_ldap_cache_init(p, st);
-        if (result != APR_SUCCESS) {
-            apr_strerror(result, buf, sizeof(buf));
-            ap_log_error(APLOG_MARK, APLOG_ERR, result, s,
-                         "LDAP cache: error while creating a shared memory segment: %s", buf);
-        }
-
-
-#if APR_HAS_SHARED_MEMORY
-        if (st->cache_file) {
-            st->lock_file = apr_pstrcat (st->pool, st->cache_file, ".lck", NULL);
-        }
-        else
-#endif
-            st->lock_file = ap_server_root_relative(st->pool, tmpnam(NULL));
-
-        result = apr_global_mutex_create(&st->util_ldap_cache_lock, st->lock_file, APR_LOCK_DEFAULT, st->pool);
-        if (result != APR_SUCCESS) {
-            return result;
-        }
-
-#ifdef UTIL_LDAP_SET_MUTEX_PERMS
-        result = unixd_set_global_mutex_perms(st->util_ldap_cache_lock);
-        if (result != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, result, s, 
-                         "LDAP cache: failed to set mutex permissions");
-            return result;
-        }
-#endif
-
-        /* merge config in all vhost */
-        s_vhost = s->next;
-        while (s_vhost) {
-            st_vhost = (util_ldap_state_t *)ap_get_module_config(s_vhost->module_config, &ldap_module);
-
-#if APR_HAS_SHARED_MEMORY
-            st_vhost->cache_shm = st->cache_shm;
-            st_vhost->cache_rmm = st->cache_rmm;
-            st_vhost->cache_file = st->cache_file;
-            ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s, 
-                         "LDAP merging Shared Cache conf: shm=0x%pp rmm=0x%pp for VHOST: %s",
-                         st->cache_shm, st->cache_rmm, s_vhost->server_hostname);
-#endif
-            st_vhost->lock_file = st->lock_file;
-            s_vhost = s_vhost->next;
-        }
-#if APR_HAS_SHARED_MEMORY
-    }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "LDAP cache: LDAPSharedCacheSize is zero, disabling shared memory cache");
-    }
-#endif
+    endtime = apr_time_now();
+    timetakenusec = endtime - start;
+    timetaken = ((float)apr_time_sec(timetakenusec)) +
+        ((float)apr_time_usec(timetakenusec)) / 1000000.0F;
     
-    /* log the LDAP SDK used 
+    printf("\n\n");
+    printf("Server Software:        %s\n", servername);
+    printf("Server Hostname:        %s\n", hostname);
+    printf("Server Port:            %hd\n", port);
+    printf("\n");
+    printf("Document Path:          %s\n", path);
+    printf("Document Length:        %" APR_SIZE_T_FMT " bytes\n", doclen);
+    printf("\n");
+    printf("Concurrency Level:      %d\n", concurrency);
+    printf("Time taken for tests:   %ld.%03ld seconds\n",
+           (long) apr_time_sec(timetakenusec),
+           (long) apr_time_usec(timetakenusec));
+    printf("Complete requests:      %ld\n", done);
+    printf("Failed requests:        %ld\n", bad);
+    if (bad)
+	printf("   (Connect: %d, Length: %d, Exceptions: %d)\n",
+	       err_conn, err_length, err_except);
+    printf("Write errors:           %ld\n", epipe);
+    if (err_response)
+	printf("Non-2xx responses:      %d\n", err_response);
+    if (keepalive)
+	printf("Keep-Alive requests:    %ld\n", doneka);
+    printf("Total transferred:      %ld bytes\n", totalread);
+    if (posting > 0)
+	printf("Total POSTed:           %ld\n", totalposted);
+    printf("HTML transferred:       %ld bytes\n", totalbread);
+
+    /* avoid divide by zero */
+    if (timetaken) {
+	printf("Requests per second:    %.2f [#/sec] (mean)\n", 
+               (float) (done / timetaken));
+	printf("Time per request:       %.3f [ms] (mean)\n", 
+               (float) (1000 * concurrency * timetaken / done));
+	printf("Time per request:       %.3f [ms] (mean, across all concurrent requests)\n",
+	       (float) (1000 * timetaken / done));
+	printf("Transfer rate:          %.2f [Kbytes/sec] received\n",
+	       (float) (totalread / 1024 / timetaken));
+	if (posting > 0) {
+	    printf("                        %.2f kb/s sent\n",
+		   (float) (totalposted / timetaken / 1024));
+	    printf("                        %.2f kb/s total\n",
+		   (float) ((totalread + totalposted) / timetaken / 1024));
+	}
+    }
+
+    if (requests) {
+	/* work out connection times */
+	long i;
+	apr_time_t totalcon = 0, total = 0, totald = 0, totalwait = 0;
+        apr_interval_time_t mincon = AB_MAX, mintot = AB_MAX, mind = AB_MAX, 
+                            minwait = AB_MAX;
+        apr_interval_time_t maxcon = 0, maxtot = 0, maxd = 0, maxwait = 0;
+        apr_interval_time_t meancon = 0, meantot = 0, meand = 0, meanwait = 0;
+        double sdtot = 0, sdcon = 0, sdd = 0, sdwait = 0;
+
+	for (i = 0; i < requests; i++) {
+	    struct data s = stats[i];
+	    mincon = ap_min(mincon, s.ctime);
+	    mintot = ap_min(mintot, s.time);
+	    mind = ap_min(mind, s.time - s.ctime);
+	    minwait = ap_min(minwait, s.waittime);
+
+	    maxcon = ap_max(maxcon, s.ctime);
+	    maxtot = ap_max(maxtot, s.time);
+	    maxd = ap_max(maxd, s.time - s.ctime);
+	    maxwait = ap_max(maxwait, s.waittime);
+
+	    totalcon += s.ctime;
+	    total += s.time;
+	    totald += s.time - s.ctime;
+	    totalwait += s.waittime;
+	}
+	totalcon /= requests;
+	total /= requests;
+	totald /= requests;
+	totalwait /= requests;
+
+	for (i = 0; i < requests; i++) {
+	    struct data s = stats[i];
+            double a;
+            a = ((double)s.time - total);
+            sdtot += a * a;
+	    a = ((double)s.ctime - totalcon);
+	    sdcon += a * a;
+	    a = ((double)s.time - (double)s.ctime - totald);
+	    sdd += a * a;
+	    a = ((double)s.waittime - totalwait);
+	    sdwait += a * a;
+	}
+
+	sdtot = (requests > 1) ? sqrt(sdtot / (requests - 1)) : 0;
+	sdcon = (requests > 1) ? sqrt(sdcon / (requests - 1)) : 0;
+	sdd = (requests > 1) ? sqrt(sdd / (requests - 1)) : 0;
+	sdwait = (requests > 1) ? sqrt(sdwait / (requests - 1)) : 0;
+
+	if (gnuplot) {
+	    FILE *out = fopen(gnuplot, "w");
+	    long i;
+	    apr_time_t sttime;
+	    char tmstring[1024];/* XXXX */
+	    if (!out) {
+		perror("Cannot open gnuplot output file");
+		exit(1);
+	    }
+	    fprintf(out, "starttime\tseconds\tctime\tdtime\tttime\twait\n");
+	    for (i = 0; i < requests; i++) {
+                apr_time_t diff = stats[i].time - stats[i].ctime;
+
+		sttime = stats[i].starttime;
+		(void) apr_ctime(tmstring, sttime);
+		fprintf(out, "%s\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\n",
+			tmstring,
+			sttime,
+			stats[i].ctime,
+			diff,
+			stats[i].time,
+			stats[i].waittime);
+	    }
+	    fclose(out);
+	}
+    /*
+     * XXX: what is better; this hideous cast of the compradre function; or
+     * the four warnings during compile ? dirkx just does not know and
+     * hates both/
      */
-    #if APR_HAS_NETSCAPE_LDAPSDK 
-    
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with Netscape LDAP SDK" );
+	qsort(stats, requests, sizeof(struct data),
+	      (int (*) (const void *, const void *)) compradre);
+	if ((requests > 1) && (requests % 2))
+	    meancon = (stats[requests / 2].ctime + stats[requests / 2 + 1].ctime) / 2;
+	else
+	    meancon = stats[requests / 2].ctime;
 
-    #elif APR_HAS_NOVELL_LDAPSDK
+	qsort(stats, requests, sizeof(struct data),
+	      (int (*) (const void *, const void *)) compri);
+	if ((requests > 1) && (requests % 2))
+	    meand = (stats[requests / 2].time + stats[requests / 2 + 1].time \
+	    -stats[requests / 2].ctime - stats[requests / 2 + 1].ctime) / 2;
+	else
+	    meand = stats[requests / 2].time - stats[requests / 2].ctime;
 
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with Novell LDAP SDK" );
+	qsort(stats, requests, sizeof(struct data),
+	      (int (*) (const void *, const void *)) compwait);
+	if ((requests > 1) && (requests % 2))
+	    meanwait = (stats[requests / 2].waittime + stats[requests / 2 + 1].waittime) / 2;
+	else
+	    meanwait = stats[requests / 2].waittime;
 
-    #elif APR_HAS_OPENLDAP_LDAPSDK
+	qsort(stats, requests, sizeof(struct data),
+	      (int (*) (const void *, const void *)) comprando);
+	if ((requests > 1) && (requests % 2))
+	    meantot = (stats[requests / 2].time + stats[requests / 2 + 1].time) / 2;
+	else
+	    meantot = stats[requests / 2].time;
 
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with OpenLDAP LDAP SDK" );
+	printf("\nConnection Times (ms)\n");
 
-    #elif APR_HAS_MICROSOFT_LDAPSDK
-    
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with Microsoft LDAP SDK" );
-    #else
-    
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with unknown LDAP SDK" );
+	if (confidence) {
+#define CONF_FMT_STRING "%5" APR_TIME_T_FMT " %4d %5.1f %6" APR_TIME_T_FMT " %7" APR_TIME_T_FMT "\n"
+	    printf("              min  mean[+/-sd] median   max\n");
+	    printf("Connect:    " CONF_FMT_STRING, 
+                   mincon, (int) (totalcon + 0.5), sdcon, meancon, maxcon);
+	    printf("Processing: " CONF_FMT_STRING,
+		   mind, (int) (totald + 0.5), sdd, meand, maxd);
+	    printf("Waiting:    " CONF_FMT_STRING,
+	           minwait, (int) (totalwait + 0.5), sdwait, meanwait, maxwait);
+	    printf("Total:      " CONF_FMT_STRING,
+		   mintot, (int) (total + 0.5), sdtot, meantot, maxtot);
+#undef CONF_FMT_STRING
 
-    #endif /* APR_HAS_NETSCAPE_LDAPSDK */
-
-
-
-    apr_pool_cleanup_register(p, s, util_ldap_cleanup_module,
-                              util_ldap_cleanup_module); 
-
-    /* initialize SSL support if requested
-    */
-    if (st->cert_auth_file)
-    {
-        #if APR_HAS_LDAP_SSL /* compiled with ssl support */
-
-        #if APR_HAS_NETSCAPE_LDAPSDK 
-
-            /* Netscape sdk only supports a cert7.db file 
-            */
-            if (st->cert_file_type == LDAP_CA_TYPE_CERT7_DB)
-            {
-                rc = ldapssl_client_init(st->cert_auth_file, NULL);
+#define     SANE(what,avg,mean,sd) \
+              { \
+                double d = (double)avg - mean; \
+                if (d < 0) d = -d; \
+                if (d > 2 * sd ) \
+                    printf("ERROR: The median and mean for " what " are more than twice the standard\n" \
+                           "       deviation apart. These results are NOT reliable.\n"); \
+                else if (d > sd ) \
+                    printf("WARNING: The median and mean for " what " are not within a normal deviation\n" \
+                           "        These results are probably not that reliable.\n"); \
             }
-            else
-            {
-                ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
-                         "LDAP: Invalid LDAPTrustedCAType directive - "
-                          "CERT7_DB_PATH type required");
-                rc = -1;
-            }
-
-        #elif APR_HAS_NOVELL_LDAPSDK
-        
-            /* Novell SDK supports DER or BASE64 files
-            */
-            if (st->cert_file_type == LDAP_CA_TYPE_DER  ||
-                st->cert_file_type == LDAP_CA_TYPE_BASE64 )
-            {
-                rc = ldapssl_client_init(NULL, NULL);
-                if (LDAP_SUCCESS == rc)
-                {
-                    if (st->cert_file_type == LDAP_CA_TYPE_BASE64)
-                        rc = ldapssl_add_trusted_cert(st->cert_auth_file, 
-                                                  LDAPSSL_CERT_FILETYPE_B64);
-                    else
-                        rc = ldapssl_add_trusted_cert(st->cert_auth_file, 
-                                                  LDAPSSL_CERT_FILETYPE_DER);
-
-                    if (LDAP_SUCCESS != rc)
-                        ldapssl_client_deinit();
-                }
-            }
-            else
-            {
-                ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
-                             "LDAP: Invalid LDAPTrustedCAType directive - "
-                             "DER_FILE or BASE64_FILE type required");
-                rc = -1;
-            }
-
-        #elif APR_HAS_OPENLDAP_LDAPSDK
-
-            /* OpenLDAP SDK supports BASE64 files
-            */
-            if (st->cert_file_type == LDAP_CA_TYPE_BASE64)
-            {
-                rc = ldap_set_option(NULL, LDAP_OPT_X_TLS_CACERTFILE, st->cert_auth_file);
-            }
-            else
-            {
-                ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
-                             "LDAP: Invalid LDAPTrustedCAType directive - "
-                             "BASE64_FILE type required");
-                rc = -1;
-            }
+	    SANE("the initial connection time", totalcon, meancon, sdcon);
+	    SANE("the processing time", totald, meand, sdd);
+	    SANE("the waiting time", totalwait, meanwait, sdwait);
+	    SANE("the total time", total, meantot, sdtot);
+	}
+	else {
+	    printf("              min   avg   max\n");
+#define CONF_FMT_STRING "%5" APR_TIME_T_FMT " %5" APR_TIME_T_FMT "%5" APR_TIME_T_FMT "\n"
+	    printf("Connect:    " CONF_FMT_STRING, 
+                   mincon, totalcon / requests, maxcon);
+	    printf("Processing: " CONF_FMT_STRING, mintot - mincon, 
+                   (total / requests) - (totalcon / requests), 
+                   maxtot - maxcon);
+	    printf("Total:      " CONF_FMT_STRING, 
+                   mintot, total / requests, maxtot);
+#undef CONF_FMT_STRING
+	}
 
 
-        #elif APR_HAS_MICROSOFT_LDAPSDK
-            
-            /* Microsoft SDK use the registry certificate store - always
-             * assume support is always available
-            */
-            rc = LDAP_SUCCESS;
-
-        #else
-            rc = -1;
-        #endif /* APR_HAS_NETSCAPE_LDAPSDK */
-
-        #else  /* not compiled with SSL Support */
-
-            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-                     "LDAP: Not built with SSL support." );
-            rc = -1;
-
-        #endif /* APR_HAS_LDAP_SSL */
-
-        if (LDAP_SUCCESS == rc)
-        {
-            st->ssl_support = 1;
+	/* Sorted on total connect times */
+	if (percentile && (requests > 1)) {
+	    printf("\nPercentage of the requests served within a certain time (ms)\n");
+	    for (i = 0; i < sizeof(percs) / sizeof(int); i++)
+		if (percs[i] <= 0)
+		    printf(" 0%%  <0> (never)\n");
+                else if (percs[i] >= 100)
+		    printf(" 100%%  %5" APR_TIME_T_FMT " (longest request)\n",
+                           stats[requests - 1].time);
+                else
+		    printf("  %d%%  %5" APR_TIME_T_FMT "\n", percs[i], 
+                           stats[(int) (requests * percs[i] / 100)].time);
+	}
+	if (csvperc) {
+	    FILE *out = fopen(csvperc, "w");
+	    int i;
+	    if (!out) {
+		perror("Cannot open CSV output file");
+		exit(1);
+	    }
+	    fprintf(out, "" "Percentage served" "," "Time in ms" "\n");
+	    for (i = 0; i < 100; i++) {
+		apr_time_t t;
+		if (i == 0)
+		    t = stats[0].time;
+		else if (i == 100)
+		    t = stats[requests - 1].time;
+		else
+		    t = stats[(int) (0.5 + requests * i / 100.0)].time;
+		fprintf(out, "%d,%e\n", i, (double)t);
+	    }
+	    fclose(out);
         }
-        else
-        {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, 
-                         "LDAP: SSL initialization failed");
-            st->ssl_support = 0;
-        }
-    }
-      
-        /* The Microsoft SDK uses the registry certificate store -
-         * always assume support is available
-        */
-    #if APR_HAS_MICROSOFT_LDAPSDK
-        st->ssl_support = 1;
-    #endif
-    
 
-        /* log SSL status - If SSL isn't available it isn't necessarily
-         * an error because the modules asking for LDAP connections 
-         * may not ask for SSL support
-        */
-    if (st->ssl_support)
-    {
-       ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-                         "LDAP: SSL support available" );
     }
-    else
-    {
-       ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-                         "LDAP: SSL support unavailable" );
-    }
-    
-    return(OK);
 }

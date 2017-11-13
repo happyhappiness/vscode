@@ -1,2 +1,1 @@
-error(_("cannot %s: Your index contains uncommitted changes."),
-			      _(action));
+print_verbose(args, _("Server supports ofs-delta"));

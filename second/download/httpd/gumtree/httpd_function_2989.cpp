@@ -1,106 +1,209 @@
-static void socache_dbm_expire(ap_socache_instance_t *ctx, server_rec *s)
+static authz_status ldapgroup_check_authorization(request_rec *r,
+                                             const char *require_args)
 {
-    apr_dbm_t *dbm;
-    apr_datum_t dbmkey;
-    apr_datum_t dbmval;
-    apr_time_t expiry;
-    int elts = 0;
-    int deleted = 0;
-    int expired;
-    apr_datum_t *keylist;
-    int keyidx;
+    int result = 0;
+    authn_ldap_request_t *req =
+        (authn_ldap_request_t *)ap_get_module_config(r->request_config, &authnz_ldap_module);
+    authn_ldap_config_t *sec =
+        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
+
+    util_ldap_connection_t *ldc = NULL;
+
+    const char *t;
+
+    char filtbuf[FILTER_LENGTH];
+    const char *dn = NULL;
+    struct mod_auth_ldap_groupattr_entry_t *ent;
     int i;
-    apr_time_t now;
-    apr_status_t rv;
 
-    /*
-     * make sure the expiration for still not-accessed
-     * socache entries is done only from time to time
-     */
-    now = apr_time_now();
-
-    if (now < ctx->last_expiry + ctx->expiry_interval) {
-        return;
+    if (!sec->have_ldap_url) {
+        return AUTHZ_DENIED;
     }
 
-    ctx->last_expiry = now;
+    if (sec->host) {
+        ldc = get_connection_for_authz(r, LDAP_COMPARE); /* for the top-level group only */
+        apr_pool_cleanup_register(r->pool, ldc,
+                                  authnz_ldap_cleanup_connection_close,
+                                  apr_pool_cleanup_null);
+    }
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorize: no sec->host - weird...?", getpid());
+        return AUTHZ_DENIED;
+    }
 
     /*
-     * Here we have to be very carefully: Not all DBM libraries are
-     * smart enough to allow one to iterate over the elements and at the
-     * same time delete expired ones. Some of them get totally crazy
-     * while others have no problems. So we have to do it the slower but
-     * more safe way: we first iterate over all elements and remember
-     * those which have to be expired. Then in a second pass we delete
-     * all those expired elements. Additionally we reopen the DBM file
-     * to be really safe in state.
+     * If there are no elements in the group attribute array, the default should be
+     * member and uniquemember; populate the array now.
+     */
+    if (sec->groupattr->nelts == 0) {
+        struct mod_auth_ldap_groupattr_entry_t *grp;
+#if APR_HAS_THREADS
+        apr_thread_mutex_lock(sec->lock);
+#endif
+        grp = apr_array_push(sec->groupattr);
+        grp->name = "member";
+        grp = apr_array_push(sec->groupattr);
+        grp->name = "uniqueMember";
+#if APR_HAS_THREADS
+        apr_thread_mutex_unlock(sec->lock);
+#endif
+    }
+
+    /*
+     * If there are no elements in the sub group classes array, the default
+     * should be groupOfNames and groupOfUniqueNames; populate the array now.
+     */
+    if (sec->subgroupclasses->nelts == 0) {
+        struct mod_auth_ldap_groupattr_entry_t *grp;
+#if APR_HAS_THREADS
+        apr_thread_mutex_lock(sec->lock);
+#endif
+        grp = apr_array_push(sec->subgroupclasses);
+        grp->name = "groupOfNames";
+        grp = apr_array_push(sec->subgroupclasses);
+        grp->name = "groupOfUniqueNames";
+#if APR_HAS_THREADS
+        apr_thread_mutex_unlock(sec->lock);
+#endif
+    }
+
+    /*
+     * If we have been authenticated by some other module than mod_auth_ldap,
+     * the req structure needed for authorization needs to be created
+     * and populated with the userid and DN of the account in LDAP
      */
 
-#define KEYMAX 1024
+    /* Check that we have a userid to start with */
+    if (!r->user) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+            "access to %s failed, reason: no authenticated user", r->uri);
+        return AUTHZ_DENIED;
+    }
 
-    for (;;) {
-        /* allocate the key array in a memory sub pool */
-        apr_pool_clear(ctx->pool);
+    if (!strlen(r->user)) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+            "ldap authorize: Userid is blank, AuthType=%s",
+            r->ap_auth_type);
+    }
 
-        if ((keylist = apr_palloc(ctx->pool, sizeof(dbmkey)*KEYMAX)) == NULL) {
-            break;
+    if(!req) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+            "ldap authorize: Creating LDAP req structure");
+
+        /* Build the username filter */
+        authn_ldap_build_filter(filtbuf, r, r->user, NULL, sec);
+
+        /* Search for the user DN */
+        result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
+             sec->scope, sec->attributes, filtbuf, &dn, &(req->vals));
+
+        /* Search failed, log error and return failure */
+        if(result != LDAP_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                "auth_ldap authorise: User DN not found, %s", ldc->reason);
+            return AUTHZ_DENIED;
         }
 
-        /* pass 1: scan DBM database */
-        keyidx = 0;
-        if ((rv = apr_dbm_open(&dbm, ctx->data_file, APR_DBM_RWCREATE,
-                               DBM_FILE_MODE, ctx->pool)) != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                         "Cannot open socache DBM file `%s' for "
-                         "scanning",
-                         ctx->data_file);
-            break;
+        req = (authn_ldap_request_t *)apr_pcalloc(r->pool,
+            sizeof(authn_ldap_request_t));
+        ap_set_module_config(r->request_config, &authnz_ldap_module, req);
+        req->dn = apr_pstrdup(r->pool, dn);
+        req->user = r->user;
+    }
+
+    ent = (struct mod_auth_ldap_groupattr_entry_t *) sec->groupattr->elts;
+
+    if (sec->group_attrib_is_dn) {
+        if (req->dn == NULL || strlen(req->dn) == 0) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "[%" APR_PID_T_FMT "] auth_ldap authorize: require group: "
+                          "user's DN has not been defined; failing authorization for user %s",
+                          getpid(), r->user);
+            return AUTHZ_DENIED;
         }
-        apr_dbm_firstkey(dbm, &dbmkey);
-        while (dbmkey.dptr != NULL) {
-            elts++;
-            expired = FALSE;
-            apr_dbm_fetch(dbm, dbmkey, &dbmval);
-            if (dbmval.dsize <= sizeof(apr_time_t) || dbmval.dptr == NULL)
-                expired = TRUE;
-            else {
-                memcpy(&expiry, dbmval.dptr, sizeof(apr_time_t));
-                if (expiry <= now)
-                    expired = TRUE;
+    }
+    else {
+        if (req->user == NULL || strlen(req->user) == 0) {
+            /* We weren't called in the authentication phase, so we didn't have a
+             * chance to set the user field. Do so now. */
+            req->user = r->user;
+        }
+    }
+
+    t = require_args;
+
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "[%" APR_PID_T_FMT "] auth_ldap authorize: require group: "
+                  "testing for group membership in \"%s\"",
+                  getpid(), t);
+
+    for (i = 0; i < sec->groupattr->nelts; i++) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorize: require group: "
+                      "testing for %s: %s (%s)", getpid(),
+                      ent[i].name, sec->group_attrib_is_dn ? req->dn : req->user, t);
+
+        result = util_ldap_cache_compare(r, ldc, sec->url, t, ent[i].name,
+                             sec->group_attrib_is_dn ? req->dn : req->user);
+        switch(result) {
+            case LDAP_COMPARE_TRUE: {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "[%" APR_PID_T_FMT "] auth_ldap authorize: require group: "
+                              "authorization successful (attribute %s) [%s][%d - %s]",
+                              getpid(), ent[i].name, ldc->reason, result, ldap_err2string(result));
+                set_request_vars(r, LDAP_AUTHZ);
+                return AUTHZ_GRANTED;
             }
-            if (expired) {
-                if ((keylist[keyidx].dptr = apr_pmemdup(ctx->pool, dbmkey.dptr, dbmkey.dsize)) != NULL) {
-                    keylist[keyidx].dsize = dbmkey.dsize;
-                    keyidx++;
-                    if (keyidx == KEYMAX)
-                        break;
+            case LDAP_NO_SUCH_ATTRIBUTE: 
+            case LDAP_COMPARE_FALSE: {
+                /* nested groups need searches and compares, so grab a new handle */
+                authnz_ldap_cleanup_connection_close(ldc);
+                apr_pool_cleanup_kill(r->pool, ldc,authnz_ldap_cleanup_connection_close);
+
+                ldc = get_connection_for_authz(r, LDAP_COMPARE_AND_SEARCH);
+                apr_pool_cleanup_register(r->pool, ldc,
+                                          authnz_ldap_cleanup_connection_close,
+                                          apr_pool_cleanup_null);
+
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                               "[%" APR_PID_T_FMT "] auth_ldap authorise: require group \"%s\": "
+                               "failed [%s][%d - %s], checking sub-groups",
+                               getpid(), t, ldc->reason, result, ldap_err2string(result));
+
+                result = util_ldap_cache_check_subgroups(r, ldc, sec->url, t, ent[i].name,
+                                                         sec->group_attrib_is_dn ? req->dn : req->user,
+                                                         sec->sgAttributes[0] ? sec->sgAttributes : default_attributes,
+                                                         sec->subgroupclasses,
+                                                         0, sec->maxNestingDepth);
+                if(result == LDAP_COMPARE_TRUE) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                   "[%" APR_PID_T_FMT "] auth_ldap authorise: require group (sub-group): "
+                                   "authorisation successful (attribute %s) [%s][%d - %s]",
+                                   getpid(), ent[i].name, ldc->reason, result, ldap_err2string(result));
+                    set_request_vars(r, LDAP_AUTHZ);
+                    return AUTHZ_GRANTED;
                 }
+                else {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                   "[%" APR_PID_T_FMT "] auth_ldap authorise: require group (sub-group) \"%s\": "
+                                   "authorisation failed [%s][%d - %s]",
+                                   getpid(), t, ldc->reason, result, ldap_err2string(result));
+                }
+                break;
             }
-            apr_dbm_nextkey(dbm, &dbmkey);
+            default: {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "[%" APR_PID_T_FMT "] auth_ldap authorize: require group \"%s\": "
+                              "authorization failed [%s][%d - %s]",
+                              getpid(), t, ldc->reason, result, ldap_err2string(result));
+            }
         }
-        apr_dbm_close(dbm);
-
-        /* pass 2: delete expired elements */
-        if (apr_dbm_open(&dbm, ctx->data_file, APR_DBM_RWCREATE,
-                         DBM_FILE_MODE, ctx->pool) != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                         "Cannot re-open socache DBM file `%s' for "
-                         "expiring",
-                         ctx->data_file);
-            break;
-        }
-        for (i = 0; i < keyidx; i++) {
-            apr_dbm_delete(dbm, keylist[i]);
-            deleted++;
-        }
-        apr_dbm_close(dbm);
-
-        if (keyidx < KEYMAX)
-            break;
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "DBM socache expiry: "
-                 "old: %d, new: %d, removed: %d",
-                 elts, elts-deleted, deleted);
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "[%" APR_PID_T_FMT "] auth_ldap authorize group: authorization denied for user %s to %s",
+                  getpid(), r->user, r->uri);
+
+    return AUTHZ_DENIED;
 }

@@ -1,242 +1,179 @@
-static apr_status_t ajp_marshal_into_msgb(ajp_msg_t *msg,
-                                          request_rec *r,
-                                          apr_uri_t *uri)
+static int dav_handler(request_rec *r)
 {
-    int method;
-    apr_uint32_t i, num_headers = 0;
-    apr_byte_t is_ssl;
-    char *remote_host;
-    const char *session_route, *envvar;
-    const apr_array_header_t *arr = apr_table_elts(r->subprocess_env);
-    const apr_table_entry_t *elts = (const apr_table_entry_t *)arr->elts;
+    if (strcmp(r->handler, DAV_HANDLER_NAME) != 0)
+        return DECLINED;
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "Into ajp_marshal_into_msgb");
-
-    if ((method = sc_for_req_method_by_id(r)) == UNKNOWN_METHOD) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-               "ajp_marshal_into_msgb - No such method %s",
-               r->method);
-        return AJP_EBAD_METHOD;
+    /* Reject requests with an unescaped hash character, as these may
+     * be more destructive than the user intended. */
+    if (r->parsed_uri.fragment != NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                     "buggy client used un-escaped hash in Request-URI");
+        return dav_error_response(r, HTTP_BAD_REQUEST,
+                                  "The request was invalid: the URI included "
+                                  "an un-escaped hash character");
     }
 
-    is_ssl = (apr_byte_t) ap_proxy_conn_is_https(r->connection);
+    /* ### do we need to do anything with r->proxyreq ?? */
 
-    if (r->headers_in && apr_table_elts(r->headers_in)) {
-        const apr_array_header_t *t = apr_table_elts(r->headers_in);
-        num_headers = t->nelts;
-    }
-
-    remote_host = (char *)ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_HOST, NULL);
-
-    ajp_msg_reset(msg);
-
-    if (ajp_msg_append_uint8(msg, CMD_AJP13_FORWARD_REQUEST)     ||
-        ajp_msg_append_uint8(msg, (apr_byte_t) method)           ||
-        ajp_msg_append_string(msg, r->protocol)                  ||
-        ajp_msg_append_string(msg, uri->path)                    ||
-        ajp_msg_append_string(msg, r->connection->remote_ip)     ||
-        ajp_msg_append_string(msg, remote_host)                  ||
-        ajp_msg_append_string(msg, ap_get_server_name(r))        ||
-        ajp_msg_append_uint16(msg, (apr_uint16_t)r->connection->local_addr->port) ||
-        ajp_msg_append_uint8(msg, is_ssl)                        ||
-        ajp_msg_append_uint16(msg, (apr_uint16_t) num_headers)) {
-
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-               "ajp_marshal_into_msgb: "
-               "Error appending the message begining");
-        return APR_EGENERAL;
-    }
-
-    for (i = 0 ; i < num_headers ; i++) {
-        int sc;
-        const apr_array_header_t *t = apr_table_elts(r->headers_in);
-        const apr_table_entry_t *elts = (apr_table_entry_t *)t->elts;
-
-        if ((sc = sc_for_req_header(elts[i].key)) != UNKNOWN_METHOD) {
-            if (ajp_msg_append_uint16(msg, (apr_uint16_t)sc)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                       "ajp_marshal_into_msgb: "
-                       "Error appending the header name");
-                return AJP_EOVERFLOW;
-            }
-        }
-        else {
-            if (ajp_msg_append_string(msg, elts[i].key)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                       "ajp_marshal_into_msgb: "
-                       "Error appending the header name");
-                return AJP_EOVERFLOW;
-            }
-        }
-
-        if (ajp_msg_append_string(msg, elts[i].val)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                   "ajp_marshal_into_msgb: "
-                   "Error appending the header value");
-            return AJP_EOVERFLOW;
-        }
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                   "ajp_marshal_into_msgb: Header[%d] [%s] = [%s]",
-                   i, elts[i].key, elts[i].val);
-    }
-
-/* XXXX need to figure out how to do this
-    if (s->secret) {
-        if (ajp_msg_append_uint8(msg, SC_A_SECRET) ||
-            ajp_msg_append_string(msg, s->secret)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                   "Error ajp_marshal_into_msgb - "
-                   "Error appending secret");
-            return APR_EGENERAL;
-        }
-    }
- */
-
-    if (r->user) {
-        if (ajp_msg_append_uint8(msg, SC_A_REMOTE_USER) ||
-            ajp_msg_append_string(msg, r->user)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                   "ajp_marshal_into_msgb: "
-                   "Error appending the remote user");
-            return AJP_EOVERFLOW;
-        }
-    }
-    if (r->ap_auth_type) {
-        if (ajp_msg_append_uint8(msg, SC_A_AUTH_TYPE) ||
-            ajp_msg_append_string(msg, r->ap_auth_type)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                   "ajp_marshal_into_msgb: "
-                   "Error appending the auth type");
-            return AJP_EOVERFLOW;
-        }
-    }
-    /* XXXX  ebcdic (args converted?) */
-    if (uri->query) {
-        if (ajp_msg_append_uint8(msg, SC_A_QUERY_STRING) ||
-            ajp_msg_append_string(msg, uri->query)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                   "ajp_marshal_into_msgb: "
-                   "Error appending the query string");
-            return AJP_EOVERFLOW;
-        }
-    }
-    if ((session_route = apr_table_get(r->notes, "session-route"))) {
-        if (ajp_msg_append_uint8(msg, SC_A_JVM_ROUTE) ||
-            ajp_msg_append_string(msg, session_route)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                   "ajp_marshal_into_msgb: "
-                   "Error appending the jvm route");
-            return AJP_EOVERFLOW;
-        }
-    }
-/* XXX: Is the subprocess_env a right place?
- * <Location /examples>
- *   ProxyPass ajp://remote:8009/servlets-examples
- *   SetEnv SSL_SESSION_ID CUSTOM_SSL_SESSION_ID
- * </Location>
- */
     /*
-     * Only lookup SSL variables if we are currently running HTTPS.
-     * Furthermore ensure that only variables get set in the AJP message
-     * that are not NULL and not empty.
+     * ### anything else to do here? could another module and/or
+     * ### config option "take over" the handler here? i.e. how do
+     * ### we lock down this hierarchy so that we are the ultimate
+     * ### arbiter? (or do we simply depend on the administrator
+     * ### to avoid conflicting configurations?)
      */
-    if (is_ssl) {
-        if ((envvar = ap_proxy_ssl_val(r->pool, r->server, r->connection, r,
-                                       AJP13_SSL_CLIENT_CERT_INDICATOR))
-            && envvar[0]) {
-            if (ajp_msg_append_uint8(msg, SC_A_SSL_CERT)
-                || ajp_msg_append_string(msg, envvar)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "ajp_marshal_into_msgb: "
-                             "Error appending the SSL certificates");
-                return AJP_EOVERFLOW;
-            }
-        }
 
-        if ((envvar = ap_proxy_ssl_val(r->pool, r->server, r->connection, r,
-                                       AJP13_SSL_CIPHER_INDICATOR))
-            && envvar[0]) {
-            if (ajp_msg_append_uint8(msg, SC_A_SSL_CIPHER)
-                || ajp_msg_append_string(msg, envvar)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "ajp_marshal_into_msgb: "
-                             "Error appending the SSL ciphers");
-                return AJP_EOVERFLOW;
-            }
-        }
-
-        if ((envvar = ap_proxy_ssl_val(r->pool, r->server, r->connection, r,
-                                       AJP13_SSL_SESSION_INDICATOR))
-            && envvar[0]) {
-            if (ajp_msg_append_uint8(msg, SC_A_SSL_SESSION)
-                || ajp_msg_append_string(msg, envvar)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "ajp_marshal_into_msgb: "
-                             "Error appending the SSL session");
-                return AJP_EOVERFLOW;
-            }
-        }
-
-        /* ssl_key_size is required by Servlet 2.3 API */
-        if ((envvar = ap_proxy_ssl_val(r->pool, r->server, r->connection, r,
-                                       AJP13_SSL_KEY_SIZE_INDICATOR))
-            && envvar[0]) {
-
-            if (ajp_msg_append_uint8(msg, SC_A_SSL_KEY_SIZE)
-                || ajp_msg_append_uint16(msg, (unsigned short) atoi(envvar))) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "Error ajp_marshal_into_msgb - "
-                             "Error appending the SSL key size");
-                return APR_EGENERAL;
-            }
-        }
-    }
-    /* Forward the remote port information, which was forgotten
-     * from the builtin data of the AJP 13 protocol.
-     * Since the servlet spec allows to retrieve it via getRemotePort(),
-     * we provide the port to the Tomcat connector as a request
-     * attribute. Modern Tomcat versions know how to retrieve
-     * the remote port from this attribute.
+    /*
+     * Set up the methods mask, since that's one of the reasons this handler
+     * gets called, and lower-level things may need the info.
+     *
+     * First, set the mask to the methods we handle directly.  Since by
+     * definition we own our managed space, we unconditionally set
+     * the r->allowed field rather than ORing our values with anything
+     * any other module may have put in there.
+     *
+     * These are the HTTP-defined methods that we handle directly.
      */
-    {
-        const char *key = SC_A_REQ_REMOTE_PORT;
-        char *val = apr_itoa(r->pool, r->connection->remote_addr->port);
-        if (ajp_msg_append_uint8(msg, SC_A_REQ_ATTRIBUTE) ||
-            ajp_msg_append_string(msg, key)   ||
-            ajp_msg_append_string(msg, val)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                    "ajp_marshal_into_msgb: "
-                    "Error appending attribute %s=%s",
-                    key, val);
-            return AJP_EOVERFLOW;
-        }
-    }
-    /* Use the environment vars prefixed with AJP_
-     * and pass it to the header striping that prefix.
+    r->allowed = 0
+        | (AP_METHOD_BIT << M_GET)
+        | (AP_METHOD_BIT << M_PUT)
+        | (AP_METHOD_BIT << M_DELETE)
+        | (AP_METHOD_BIT << M_OPTIONS)
+        | (AP_METHOD_BIT << M_INVALID);
+
+    /*
+     * These are the DAV methods we handle.
      */
-    for (i = 0; i < (apr_uint32_t)arr->nelts; i++) {
-        if (!strncmp(elts[i].key, "AJP_", 4)) {
-            if (ajp_msg_append_uint8(msg, SC_A_REQ_ATTRIBUTE) ||
-                ajp_msg_append_string(msg, elts[i].key + 4)   ||
-                ajp_msg_append_string(msg, elts[i].val)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                        "ajp_marshal_into_msgb: "
-                        "Error appending attribute %s=%s",
-                        elts[i].key, elts[i].val);
-                return AJP_EOVERFLOW;
-            }
-        }
+    r->allowed |= 0
+        | (AP_METHOD_BIT << M_COPY)
+        | (AP_METHOD_BIT << M_LOCK)
+        | (AP_METHOD_BIT << M_UNLOCK)
+        | (AP_METHOD_BIT << M_MKCOL)
+        | (AP_METHOD_BIT << M_MOVE)
+        | (AP_METHOD_BIT << M_PROPFIND)
+        | (AP_METHOD_BIT << M_PROPPATCH);
+
+    /*
+     * These are methods that we don't handle directly, but let the
+     * server's default handler do for us as our agent.
+     */
+    r->allowed |= 0
+        | (AP_METHOD_BIT << M_POST);
+
+    /* ### hrm. if we return HTTP_METHOD_NOT_ALLOWED, then an Allow header
+     * ### is sent; it will need the other allowed states; since the default
+     * ### handler is not called on error, then it doesn't add the other
+     * ### allowed states, so we must
+     */
+
+    /* ### we might need to refine this for just where we return the error.
+     * ### also, there is the issue with other methods (see ISSUES)
+     */
+
+    /* dispatch the appropriate method handler */
+    if (r->method_number == M_GET) {
+        return dav_method_get(r);
     }
 
-    if (ajp_msg_append_uint8(msg, SC_A_ARE_DONE)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-               "ajp_marshal_into_msgb: "
-               "Error appending the message end");
-        return AJP_EOVERFLOW;
+    if (r->method_number == M_PUT) {
+        return dav_method_put(r);
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-            "ajp_marshal_into_msgb: Done");
-    return APR_SUCCESS;
+    if (r->method_number == M_POST) {
+        return dav_method_post(r);
+    }
+
+    if (r->method_number == M_DELETE) {
+        return dav_method_delete(r);
+    }
+
+    if (r->method_number == M_OPTIONS) {
+        return dav_method_options(r);
+    }
+
+    if (r->method_number == M_PROPFIND) {
+        return dav_method_propfind(r);
+    }
+
+    if (r->method_number == M_PROPPATCH) {
+        return dav_method_proppatch(r);
+    }
+
+    if (r->method_number == M_MKCOL) {
+        return dav_method_mkcol(r);
+    }
+
+    if (r->method_number == M_COPY) {
+        return dav_method_copymove(r, DAV_DO_COPY);
+    }
+
+    if (r->method_number == M_MOVE) {
+        return dav_method_copymove(r, DAV_DO_MOVE);
+    }
+
+    if (r->method_number == M_LOCK) {
+        return dav_method_lock(r);
+    }
+
+    if (r->method_number == M_UNLOCK) {
+        return dav_method_unlock(r);
+    }
+
+    if (r->method_number == M_VERSION_CONTROL) {
+        return dav_method_vsn_control(r);
+    }
+
+    if (r->method_number == M_CHECKOUT) {
+        return dav_method_checkout(r);
+    }
+
+    if (r->method_number == M_UNCHECKOUT) {
+        return dav_method_uncheckout(r);
+    }
+
+    if (r->method_number == M_CHECKIN) {
+        return dav_method_checkin(r);
+    }
+
+    if (r->method_number == M_UPDATE) {
+        return dav_method_update(r);
+    }
+
+    if (r->method_number == M_LABEL) {
+        return dav_method_label(r);
+    }
+
+    if (r->method_number == M_REPORT) {
+        return dav_method_report(r);
+    }
+
+    if (r->method_number == M_MKWORKSPACE) {
+        return dav_method_make_workspace(r);
+    }
+
+    if (r->method_number == M_MKACTIVITY) {
+        return dav_method_make_activity(r);
+    }
+
+    if (r->method_number == M_BASELINE_CONTROL) {
+        return dav_method_baseline_control(r);
+    }
+
+    if (r->method_number == M_MERGE) {
+        return dav_method_merge(r);
+    }
+
+    /* BIND method */
+    if (r->method_number == dav_methods[DAV_M_BIND]) {
+        return dav_method_bind(r);
+    }
+
+    /* DASL method */
+    if (r->method_number == dav_methods[DAV_M_SEARCH]) {
+        return dav_method_search(r);
+    }
+
+    /* ### add'l methods for Advanced Collections, ACLs */
+
+    return DECLINED;
 }

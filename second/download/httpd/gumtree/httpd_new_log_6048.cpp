@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOTIMPL, f->c,
-                      APLOGNO(03472) 
-                      "h2_slave_in(%s), unsupported READ mode %d", 
-                      task->id, mode);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                  "h2_session(%ld-%d): consumed %ld bytes",
+                  session->id, stream_id, (long)bytes_read);

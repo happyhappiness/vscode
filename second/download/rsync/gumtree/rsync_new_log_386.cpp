@@ -1,1 +1,2 @@
-rprintf(FINFO,"make_file(%s)\n",fname);
+fprintf(FERROR,"ERROR: file corruption in %s. File changed during transfer?\n",
+			      fname);

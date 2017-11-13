@@ -1,30 +1,36 @@
-static const char *apply_command(const char *command, const char *arg)
+void format_ref_array_item(struct ref_array_item *info, const char *format,
+			   int quote_style, struct strbuf *final_buf)
 {
-	struct strbuf cmd = STRBUF_INIT;
-	struct strbuf buf = STRBUF_INIT;
-	struct child_process cp = CHILD_PROCESS_INIT;
-	const char *argv[] = {NULL, NULL};
-	const char *result;
+	const char *cp, *sp, *ep;
+	struct ref_formatting_state state = REF_FORMATTING_STATE_INIT;
 
-	strbuf_addstr(&cmd, command);
-	if (arg)
-		strbuf_replace(&cmd, TRAILER_ARG_STRING, arg);
+	state.quote_style = quote_style;
+	push_stack_element(&state.stack);
 
-	argv[0] = cmd.buf;
-	cp.argv = argv;
-	cp.env = local_repo_env;
-	cp.no_stdin = 1;
-	cp.use_shell = 1;
+	for (cp = format; *cp && (sp = find_next(cp)); cp = ep + 1) {
+		struct atom_value *atomv;
 
-	if (capture_command(&cp, &buf, 1024)) {
-		error("running trailer command '%s' failed", cmd.buf);
-		strbuf_release(&buf);
-		result = xstrdup("");
-	} else {
-		strbuf_trim(&buf);
-		result = strbuf_detach(&buf, NULL);
+		ep = strchr(sp, ')');
+		if (cp < sp)
+			append_literal(cp, sp, &state);
+		get_ref_atom_value(info, parse_ref_filter_atom(sp + 2, ep), &atomv);
+		atomv->handler(atomv, &state);
 	}
+	if (*cp) {
+		sp = cp + strlen(cp);
+		append_literal(cp, sp, &state);
+	}
+	if (need_color_reset_at_eol) {
+		struct atom_value resetv;
+		char color[COLOR_MAXLEN] = "";
 
-	strbuf_release(&cmd);
-	return result;
+		if (color_parse("reset", color) < 0)
+			die("BUG: couldn't parse 'reset' as a color");
+		resetv.s = color;
+		append_atom(&resetv, &state);
+	}
+	if (state.stack->prev)
+		die(_("format: %%(end) atom missing"));
+	strbuf_addbuf(final_buf, &state.stack->output);
+	pop_stack_element(&state.stack);
 }

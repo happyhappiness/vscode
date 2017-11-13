@@ -1,1 +1,1 @@
-recv_exclude_list(f_in);
+rprintf(FINFO,"recv_file_name(%s)\n",f_name(flist->files[i]));

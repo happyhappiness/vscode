@@ -1,1 +1,1 @@
-fprintf(FINFO,"%s is a hard link\n",f_name(file));
+fprintf(FINFO,"server_sender starting pid=%d\n",(int)getpid());

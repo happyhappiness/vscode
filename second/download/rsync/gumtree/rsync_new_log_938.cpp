@@ -1,1 +1,1 @@
-out_of_memory("make_output_option");
+out_of_memory("parse_arguments");

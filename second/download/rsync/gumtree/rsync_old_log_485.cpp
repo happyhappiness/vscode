@@ -1,1 +1,1 @@
-fprintf(FINFO,"built hash table\n");
+fprintf(f,"-t, --times              preserve times\n");

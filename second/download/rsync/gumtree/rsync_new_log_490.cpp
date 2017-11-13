@@ -1,1 +1,0 @@
-rprintf(FERROR,"\nError: MDupdate MD already done.");

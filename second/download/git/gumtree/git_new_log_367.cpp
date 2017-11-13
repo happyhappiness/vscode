@@ -1,1 +1,2 @@
-die(_("invalid unshallow line: %s"), line);
+error(_("cannot read object %s '%s'"),
+			     oid_to_hex(oid), path);

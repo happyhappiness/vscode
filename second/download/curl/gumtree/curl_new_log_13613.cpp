@@ -1,10 +1,10 @@
 fputs(
-"              requests into GET requests when following a 302 redirection. The\n"
-"              non-RFC  behaviour  is  ubiquitous in web browsers, so curl does\n"
-"              the conversion by default to maintain  consistency.  However,  a\n"
-"              server  may  require  a POST to remain a POST after such a redi-\n"
-"              rection. This option is meaningful only when using  -L,  --loca-\n"
-"              tion (Added in 7.19.1)\n"
+"              requires that the proxy allows direct connect to the remote port\n"
+"              number curl wants to tunnel through to.\n"
 "\n"
-"       --post303\n"
+"       -P, --ftp-port <address>\n"
+"              (FTP)  Reverses  the  default initiator/listener roles when con-\n"
+"              necting with FTP. This switch makes curl  use  active  mode.  In\n"
+"              practice,  curl  then  tells  the  server to connect back to the\n"
+"              client's specified address and port, while passive mode asks the\n"
 , stdout);

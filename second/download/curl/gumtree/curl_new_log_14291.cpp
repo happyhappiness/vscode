@@ -1,9 +1,9 @@
 fputs(
-"              likely  not  what  you  intended.  To address these issues set a\n"
-"              domain in Set-Cookie (doing that will include  sub  domains)  or\n"
-"              use the Netscape format.\n"
+"              in-memory cookie storage to the given file at the end of  opera-\n"
+"              tions.  If  no  cookies  are known, no data will be written. The\n"
+"              file will be written using the Netscape cookie file  format.  If\n"
+"              you set the file name to a single dash, \"-\", the cookies will be\n"
+"              written to stdout.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"              Users very often want to both read cookies from a file and write\n"
-"              updated cookies back to a file, so using both -b,  --cookie  and\n"
+"              This command line option will activate the  cookie  engine  that\n"
 , stdout);

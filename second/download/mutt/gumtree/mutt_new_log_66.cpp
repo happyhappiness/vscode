@@ -1,1 +1,1 @@
-(mutt_yesorno (buff, M_NO);
+fprintf (pgpin, "%s\n", PgpPass);

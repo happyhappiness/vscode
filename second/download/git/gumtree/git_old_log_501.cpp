@@ -1,4 +1,1 @@
-print_ref_status('*',
-			(starts_with(ref->name, "refs/tags/") ? "[new tag]" :
-			"[new branch]"),
-			ref, ref->peer_ref, NULL, porcelain);
+error("cannot feed the input to external filter %s", params->cmd);

@@ -1,2 +1,1 @@
-fprintf(stderr, _("Overwriting existing notes for object %s\n"),
-			sha1_to_hex(object));
+die("BUG: packed-ref cache cleared while locked");

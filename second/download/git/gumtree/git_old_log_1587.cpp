@@ -1,1 +1,1 @@
-packet_write(fd, "shallow %s\n", sha1_to_hex(graft->sha1));
+die_errno("can't find the current directory");

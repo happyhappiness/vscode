@@ -1,1 +1,1 @@
-state_attach_puts (p, s);
+mutt_yesorno (prompt, (v == M_ASKYES));

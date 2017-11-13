@@ -1,10 +1,10 @@
 fputs(
-"              cally  used for FTP on Unix. If used with HTTP, curl will enable\n"
-"              user authentication. See netrc(5) ftp(1) for details on the file\n"
-"              format.  Curl  will  not  complain if that file doesn't have the\n"
-"              right permissions (it should not be either world- or group-read-\n"
-"              able).  The environment variable \"HOME\" is used to find the home\n"
-"              directory.\n"
+"              (SMTP) Specify a single address, user name or mailing list name.\n"
+"              When  performing a mail transfer, the recipient should specify a\n"
+"              valid email address to send the mail to. (Added in 7.20.0)\n"
 "\n"
-"              A quick and very simple example of how  to  setup  a  .netrc  to\n"
+"              When performing an  address  verification  (VRFY  command),  the\n"
+"              recipient  should be specified as the user name or user name and\n"
+"              domain (as per Section 3.5 of RFC5321). (Added in 7.34.0)\n"
+"\n"
 , stdout);

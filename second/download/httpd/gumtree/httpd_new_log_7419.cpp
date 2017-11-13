@@ -1,3 +1,4 @@
-printf("<tr %s><th colspan=2 %s>Transfer rate:</th>"
-           "<td colspan=2 %s>%.2f kb/s received</td></tr>\n",
-           trstring, tdstring, tdstring, (double) totalread / 1024 / timetaken);
+printf("<tr %s><td colspan=2 %s>&nbsp;</td>"
+               "<td colspan=2 %s>%.2f kb/s sent</td></tr>\n",
+               trstring, tdstring, tdstring,
+               (double) totalposted / 1024 / timetaken);

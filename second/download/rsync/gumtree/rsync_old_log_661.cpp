@@ -1,1 +1,1 @@
-fprintf(f, POPT_("Usage:"));
+out_of_memory("read check");

@@ -1,199 +1,95 @@
-static int util_ldap_post_config(apr_pool_t *p, apr_pool_t *plog, 
-                                 apr_pool_t *ptemp, server_rec *s)
+int main(int argc, const char * const argv[])
 {
-    int rc = LDAP_SUCCESS;
-    apr_status_t result;
-    char buf[MAX_STRING_LEN];
+    apr_file_t *f;
+    apr_status_t rv;
+    char tn[] = "htdigest.tmp.XXXXXX";
+    char user[MAX_STRING_LEN];
+    char realm[MAX_STRING_LEN];
+    char line[MAX_STRING_LEN];
+    char l[MAX_STRING_LEN];
+    char w[MAX_STRING_LEN];
+    char x[MAX_STRING_LEN];
+    char command[MAX_STRING_LEN];
+    int found;
+   
+    apr_app_initialize(&argc, &argv, NULL);
+    atexit(terminate); 
+    apr_pool_create(&cntxt, NULL);
 
-    util_ldap_state_t *st =
-        (util_ldap_state_t *)ap_get_module_config(s->module_config, &ldap_module);
-
-#if APR_HAS_SHARED_MEMORY
-    server_rec *s_vhost;
-    util_ldap_state_t *st_vhost;
-    
-    /* initializing cache if file is here and we already don't have shm addr*/
-    if (st->cache_file && !st->cache_shm) {
-#endif
-        result = util_ldap_cache_init(p, st);
-        apr_strerror(result, buf, sizeof(buf));
-        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s,
-                     "LDAP cache init: %s", buf);
-
-#if APR_HAS_SHARED_MEMORY
-        /* merge config in all vhost */
-        s_vhost = s->next;
-        while (s_vhost) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s, 
-                         "LDAP merging Shared Cache conf: shm=0x%x rmm=0x%x for VHOST: %s",
-                         st->cache_shm, st->cache_rmm, s_vhost->server_hostname);
-
-            st_vhost = (util_ldap_state_t *)ap_get_module_config(s_vhost->module_config, &ldap_module);
-            st_vhost->cache_shm = st->cache_shm;
-            st_vhost->cache_rmm = st->cache_rmm;
-            st_vhost->cache_file = st->cache_file;
-            s_vhost = s_vhost->next;
-        }
-    }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0 , s, "LDAP cache: Unable to init Shared Cache: no file");
+#if APR_CHARSET_EBCDIC
+    rv = apr_xlate_open(&to_ascii, "ISO8859-1", APR_DEFAULT_CHARSET, cntxt);
+    if (rv) {
+        fprintf(stderr, "apr_xlate_open(): %s (%d)\n",
+                apr_strerror(rv, line, sizeof(line)), rv);
+        exit(1);
     }
 #endif
     
-    /* log the LDAP SDK used 
-     */
-    #if APR_HAS_NETSCAPE_LDAPSDK 
-    
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with Netscape LDAP SDK" );
+    apr_signal(SIGINT, (void (*)(int)) interrupted);
+    if (argc == 5) {
+	if (strcmp(argv[1], "-c"))
+	    usage();
+	rv = apr_file_open(&f, argv[2], APR_WRITE | APR_CREATE, -1, cntxt);
+        if (rv != APR_SUCCESS) {
+            char errmsg[120];
 
-    #elif APR_HAS_NOVELL_LDAPSDK
-
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with Novell LDAP SDK" );
-
-    #elif APR_HAS_OPENLDAP_LDAPSDK
-
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with OpenLDAP LDAP SDK" );
-
-    #elif APR_HAS_MICROSOFT_LDAPSDK
-    
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with Microsoft LDAP SDK" );
-    #else
-    
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with unknown LDAP SDK" );
-
-    #endif /* APR_HAS_NETSCAPE_LDAPSDK */
-
-
-
-    apr_pool_cleanup_register(p, s, util_ldap_cleanup_module,
-                              util_ldap_cleanup_module); 
-
-    /* initialize SSL support if requested
-    */
-    if (st->cert_auth_file)
-    {
-        #if APR_HAS_LDAP_SSL /* compiled with ssl support */
-
-        #if APR_HAS_NETSCAPE_LDAPSDK 
-
-            /* Netscape sdk only supports a cert7.db file 
-            */
-            if (st->cert_file_type == LDAP_CA_TYPE_CERT7_DB)
-            {
-                rc = ldapssl_client_init(st->cert_auth_file, NULL);
-            }
-            else
-            {
-                ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
-                         "LDAP: Invalid LDAPTrustedCAType directive - "
-                          "CERT7_DB_PATH type required");
-                rc = -1;
-            }
-
-        #elif APR_HAS_NOVELL_LDAPSDK
-        
-            /* Novell SDK supports DER or BASE64 files
-            */
-            if (st->cert_file_type == LDAP_CA_TYPE_DER  ||
-                st->cert_file_type == LDAP_CA_TYPE_BASE64 )
-            {
-                rc = ldapssl_client_init(NULL, NULL);
-                if (LDAP_SUCCESS == rc)
-                {
-                    if (st->cert_file_type == LDAP_CA_TYPE_BASE64)
-                        rc = ldapssl_add_trusted_cert(st->cert_auth_file, 
-                                                  LDAPSSL_CERT_FILETYPE_B64);
-                    else
-                        rc = ldapssl_add_trusted_cert(st->cert_auth_file, 
-                                                  LDAPSSL_CERT_FILETYPE_DER);
-
-                    if (LDAP_SUCCESS != rc)
-                        ldapssl_client_deinit();
-                }
-            }
-            else
-            {
-                ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
-                             "LDAP: Invalid LDAPTrustedCAType directive - "
-                             "DER_FILE or BASE64_FILE type required");
-                rc = -1;
-            }
-
-        #elif APR_HAS_OPENLDAP_LDAPSDK
-
-            /* OpenLDAP SDK supports BASE64 files
-            */
-            if (st->cert_file_type == LDAP_CA_TYPE_BASE64)
-            {
-                rc = ldap_set_option(NULL, LDAP_OPT_X_TLS_CACERTFILE, st->cert_auth_file);
-            }
-            else
-            {
-                ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
-                             "LDAP: Invalid LDAPTrustedCAType directive - "
-                             "BASE64_FILE type required");
-                rc = -1;
-            }
-
-
-        #elif APR_HAS_MICROSOFT_LDAPSDK
-            
-            /* Microsoft SDK use the registry certificate store - always
-             * assume support is always available
-            */
-            rc = LDAP_SUCCESS;
-
-        #else
-            rc = -1;
-        #endif /* APR_HAS_NETSCAPE_LDAPSDK */
-
-        #else  /* not compiled with SSL Support */
-
-            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-                     "LDAP: Not built with SSL support." );
-            rc = -1;
-
-        #endif /* APR_HAS_LDAP_SSL */
-
-        if (LDAP_SUCCESS == rc)
-        {
-            st->ssl_support = 1;
-        }
-        else
-        {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, 
-                         "LDAP: SSL initialization failed");
-            st->ssl_support = 0;
-        }
+	    fprintf(stderr, "Could not open passwd file %s for writing: %s\n",
+		    argv[2],
+                    apr_strerror(rv, errmsg, sizeof errmsg));
+	    exit(1);
+	}
+	printf("Adding password for %s in realm %s.\n", argv[4], argv[3]);
+	add_password(argv[4], argv[3], f);
+	apr_file_close(f);
+	exit(0);
     }
-      
-        /* The Microsoft SDK uses the registry certificate store -
-         * always assume support is available
-        */
-    #if APR_HAS_MICROSOFT_LDAPSDK
-        st->ssl_support = 1;
-    #endif
-    
+    else if (argc != 4)
+	usage();
 
-        /* log SSL status - If SSL isn't available it isn't necessarily
-         * an error because the modules asking for LDAP connections 
-         * may not ask for SSL support
-        */
-    if (st->ssl_support)
-    {
-       ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-                         "LDAP: SSL support available" );
+    if (apr_file_mktemp(&tfp, tn, 0, cntxt) != APR_SUCCESS) {
+	fprintf(stderr, "Could not open temp file.\n");
+	exit(1);
     }
-    else
-    {
-       ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-                         "LDAP: SSL support unavailable" );
+
+    if (apr_file_open(&f, argv[1], APR_READ, -1, cntxt) != APR_SUCCESS) {
+	fprintf(stderr,
+		"Could not open passwd file %s for reading.\n", argv[1]);
+	fprintf(stderr, "Use -c option to create new one.\n");
+	exit(1);
     }
-    
-    return(OK);
+    strcpy(user, argv[3]);
+    strcpy(realm, argv[2]);
+
+    found = 0;
+    while (!(get_line(line, MAX_STRING_LEN, f))) {
+	if (found || (line[0] == '#') || (!line[0])) {
+	    putline(tfp, line);
+	    continue;
+	}
+	strcpy(l, line);
+	getword(w, l, ':');
+	getword(x, l, ':');
+	if (strcmp(user, w) || strcmp(realm, x)) {
+	    putline(tfp, line);
+	    continue;
+	}
+	else {
+	    printf("Changing password for user %s in realm %s\n", user, realm);
+	    add_password(user, realm, tfp);
+	    found = 1;
+	}
+    }
+    if (!found) {
+	printf("Adding user %s in realm %s\n", user, realm);
+	add_password(user, realm, tfp);
+    }
+    apr_file_close(f);
+#if defined(OS2) || defined(WIN32)
+    sprintf(command, "copy \"%s\" \"%s\"", tn, argv[1]);
+#else
+    sprintf(command, "cp %s %s", tn, argv[1]);
+#endif
+    system(command);
+    apr_file_close(tfp);
+    return 0;
 }

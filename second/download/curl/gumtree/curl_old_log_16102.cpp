@@ -1,11 +1,9 @@
 fputs(
-"                     This  curl  supports  Metalink (both version 3 and 4 (RFC\n"
-"                     5854)), which describes mirrors and  hashes.   curl  will\n"
-"                     use mirrors for failover if there are errors (such as the\n"
-"                     file or server not being available).\n"
+"              (FTP LDAP) Enable ASCII transfer. For  FTP,  this  can  also  be\n"
+"              enforced  by  using  a URL that ends with \";type=A\". This option\n"
+"              causes data sent to stdout to be in text mode for win32 systems.\n"
 "\n"
-"              PSL    PSL is short for Public Suffix List and means  that  this\n"
-"                     curl  has  been  built  with knowledge about \"public suf-\n"
-"                     fixes\".\n"
-"\n"
+"       -A, --user-agent <name>\n"
+"              (HTTP) Specify the User-Agent string to send to the HTTP server.\n"
+"              To  encode blanks in the string, surround the string with single\n"
 , stdout);

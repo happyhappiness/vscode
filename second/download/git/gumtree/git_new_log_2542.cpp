@@ -1,1 +1,0 @@
-warning(_("failed to remove '%s'"), fname);

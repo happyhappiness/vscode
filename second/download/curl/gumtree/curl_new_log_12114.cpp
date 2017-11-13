@@ -1,11 +1,10 @@
 fputs(
-"              The method string you set with -X will be used for all requests,\n"
-"              which if you for example use -L, --location may cause unintended\n"
-"              side-effects  when  curl doesn't change request method according\n"
-"              to the HTTP 30x response codes - and similar.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              (FTP) Specifies a custom FTP command to use instead of LIST when\n"
-"              doing file lists with FTP.\n"
+"       -x, --proxy <[protocol://][user:password@]proxyhost[:port]>\n"
+"              Use the specified proxy.\n"
 "\n"
-"              (POP3) Specifies a custom POP3 command to use instead of LIST or\n"
+"              The proxy string can be specified with a protocol://  prefix  to\n"
+"              specify  alternative proxy protocols. Use socks4://, socks4a://,\n"
+"              socks5:// or socks5h:// to request the specific SOCKS version to\n"
 , stdout);

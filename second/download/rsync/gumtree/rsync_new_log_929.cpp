@@ -1,1 +1,1 @@
-out_of_memory("read_args");
+assert(f_out == iobuf.out_fd);

@@ -1,96 +1,46 @@
-static void hash_search(int f,struct sum_struct *s,
-			struct map_struct *buf,off_t len)
+static void usage(FILE *f)
 {
-	off_t offset;
-	int j,k;
-	int end;
-	char sum2[SUM_LENGTH];
-	uint32 s1, s2, sum; 
-	signed char *map;
+  fprintf(f,"rsync version %s Copyright Andrew Tridgell and Paul Mackerras\n\n",
+	  VERSION);
+  fprintf(f,"Usage:\t%s [options] src user@host:dest\nOR",RSYNC_NAME);
+  fprintf(f,"\t%s [options] user@host:src dest\n\n",RSYNC_NAME);
+  fprintf(f,"Options:\n");
+  fprintf(f,"-v, --verbose            increase verbosity\n");
+  fprintf(f,"-c, --checksum           always checksum\n");
+  fprintf(f,"-a, --archive            archive mode (same as -rlptDog)\n");
+  fprintf(f,"-r, --recursive          recurse into directories\n");
+  fprintf(f,"-R, --relative           use relative path names\n");
+  fprintf(f,"-b, --backup             make backups (default ~ extension)\n");
+  fprintf(f,"-u, --update             update only (don't overwrite newer files)\n");
+  fprintf(f,"-l, --links              preserve soft links\n");
+  fprintf(f,"-L, --copy-links         treat soft links like regular files\n");
+  fprintf(f,"-H, --hard-links         preserve hard links\n");
+  fprintf(f,"-p, --perms              preserve permissions\n");
+  fprintf(f,"-o, --owner              preserve owner (root only)\n");
+  fprintf(f,"-g, --group              preserve group\n");
+  fprintf(f,"-D, --devices            preserve devices (root only)\n");
+  fprintf(f,"-t, --times              preserve times\n");  
+  fprintf(f,"-S, --sparse             handle sparse files efficiently\n");
+  fprintf(f,"-n, --dry-run            show what would have been transferred\n");
+  fprintf(f,"-W, --whole-file         copy whole files, no incremental checks\n");
+  fprintf(f,"-x, --one-file-system    don't cross filesystem boundaries\n");
+  fprintf(f,"-B, --block-size SIZE    checksum blocking size\n");  
+  fprintf(f,"-e, --rsh COMMAND        specify rsh replacement\n");
+  fprintf(f,"    --rsync-path PATH    specify path to rsync on the remote machine\n");
+  fprintf(f,"-C, --cvs-exclude        auto ignore files in the same way CVS does\n");
+  fprintf(f,"    --delete             delete files that don't exist on the sending side\n");
+  fprintf(f,"    --force              force deletion of directories even if not empty\n");
+  fprintf(f,"    --numeric-ids        don't map uid/gid values by user/group name\n");
+  fprintf(f,"    --timeout TIME       set IO timeout in seconds\n");
+  fprintf(f,"-I, --ignore-times       don't exclude files that match length and time\n");
+  fprintf(f,"-T  --temp-dir DIR       create temporary files in directory DIR\n");
+  fprintf(f,"-z, --compress           compress file data\n");
+  fprintf(f,"    --exclude FILE       exclude file FILE\n");
+  fprintf(f,"    --exclude-from FILE  exclude files listed in FILE\n");
+  fprintf(f,"    --suffix SUFFIX      override backup suffix\n");  
+  fprintf(f,"    --version            print version number\n");  
 
-	if (verbose > 2)
-		fprintf(FINFO,"hash search b=%d len=%d\n",s->n,(int)len);
-
-	k = MIN(len, s->n);
-	
-	map = (signed char *)map_ptr(buf,0,k);
-	
-	sum = get_checksum1((char *)map, k);
-	s1 = sum & 0xFFFF;
-	s2 = sum >> 16;
-	if (verbose > 3)
-		fprintf(FINFO, "sum=%.8x k=%d\n", sum, k);
-	
-	offset = 0;
-	
-	end = len + 1 - s->sums[s->count-1].len;
-	
-	if (verbose > 3)
-		fprintf(FINFO,"hash search s->n=%d len=%d count=%d\n",
-			s->n,(int)len,s->count);
-	
-	do {
-		tag t = gettag2(s1,s2);
-		int done_csum2 = 0;
-			
-		j = tag_table[t];
-		if (verbose > 4)
-			fprintf(FINFO,"offset=%d sum=%08x\n",(int)offset,sum);
-		
-		if (j == NULL_TAG) {
-			goto null_tag;
-		}
-
-		sum = (s1 & 0xffff) | (s2 << 16);
-		tag_hits++;
-		for (; j<s->count && targets[j].t == t; j++) {
-			int i = targets[j].i;
-			
-			if (sum != s->sums[i].sum1) continue;
-			
-			if (verbose > 3)
-				fprintf(FINFO,"potential match at %d target=%d %d sum=%08x\n",
-					(int)offset,j,i,sum);
-			
-			if (!done_csum2) {
-				int l = MIN(s->n,len-offset);
-				map = (signed char *)map_ptr(buf,offset,l);
-				get_checksum2((char *)map,l,sum2);
-				done_csum2 = 1;
-			}
-			
-			if (memcmp(sum2,s->sums[i].sum2,csum_length) != 0) {
-				false_alarms++;
-				continue;
-			}
-			
-			matched(f,s,buf,offset,i);
-			offset += s->sums[i].len - 1;
-			k = MIN((len-offset), s->n);
-			map = (signed char *)map_ptr(buf,offset,k);
-			sum = get_checksum1((char *)map, k);
-			s1 = sum & 0xFFFF;
-			s2 = sum >> 16;
-			matches++;
-			break;
-		}
-		
-	null_tag:
-		/* Trim off the first byte from the checksum */
-		map = (signed char *)map_ptr(buf,offset,k+1);
-		s1 -= map[0] + CHAR_OFFSET;
-		s2 -= k * (map[0]+CHAR_OFFSET);
-		
-		/* Add on the next byte (if there is one) to the checksum */
-		if (k < (len-offset)) {
-			s1 += (map[k]+CHAR_OFFSET);
-			s2 += s1;
-		} else {
-			--k;
-		}
-		
-	} while (++offset < end);
-	
-	matched(f,s,buf,len,-1);
-	map_ptr(buf,len-1,1);
+  fprintf(f,"\n");
+  fprintf(f,"the backup suffix defaults to %s\n",BACKUP_SUFFIX);
+  fprintf(f,"the block size defaults to %d\n",BLOCK_SIZE);  
 }

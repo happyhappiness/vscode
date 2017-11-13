@@ -1,1 +1,0 @@
-fprintf(stderr, "cannot chmod %cx '%s'\n", flip, ce->name);

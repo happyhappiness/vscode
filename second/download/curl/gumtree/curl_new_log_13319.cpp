@@ -1,0 +1,15 @@
+fputs(
+"        curl -d \"name=Rafael%20Sagula&phone=3320780\" \\\n"
+"                http://www.where.com/guest.cgi\n"
+"\n"
+"  How to post a form with curl, lesson #1:\n"
+"\n"
+"  Dig out all the <input> tags in the form that you want to fill in. (There's\n"
+"  a perl program called formfind.pl on the curl site that helps with this).\n"
+"\n"
+"  If there's a \"normal\" post, you use -d to post. -d takes a full \"post\n"
+"  string\", which is in the format\n"
+"\n"
+"        <variable1>=<data1>&<variable2>=<data2>&...\n"
+"\n"
+, stdout);

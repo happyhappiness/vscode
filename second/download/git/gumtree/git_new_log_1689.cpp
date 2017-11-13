@@ -1,5 +1,1 @@
-status_printf_ln(s, GIT_COLOR_NORMAL,
-				_("%s"
-				"Date:      %s"),
-				ident_shown++ ? "" : "\n",
-				show_ident_date(&ai, DATE_MODE(NORMAL)));
+die("helper %s does not support --signed", data->name);

@@ -1,10 +1,11 @@
 fputs(
-"              If  this option is used twice, the second will override the pre-\n"
-"              vious use.\n"
+"              option to set user name and password. See also --ntlm, --negoti-\n"
+"              ate and --anyauth for related options.\n"
 "\n"
-"       --ftp-alternative-to-user <command>\n"
-"              (FTP) If authenticating with the USER and PASS  commands  fails,\n"
-"              send  this  command.   When  connecting  to  Tumbleweed's Secure\n"
-"              Transport server over FTPS using  a  client  certificate,  using\n"
-"              \"SITE  AUTH\"  will tell the server to retrieve the username from\n"
+"              If this option is used several times, the following  occurrences\n"
+"              make no difference.\n"
+"\n"
+"       --disable-eprt\n"
+"              (FTP) Tell curl to disable the use of the EPRT and LPRT commands\n"
+"              when doing active FTP transfers. Curl will normally always first\n"
 , stdout);

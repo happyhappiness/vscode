@@ -1,4 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                 APLOGNO(02303)
-                 "attach found %s: %"APR_SIZE_T_FMT"/%u", fname,
-                 *item_size, *item_num);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p, APLOGNO(02638)
+                          "make_sock: for address %pI, apr_socket_opt_set: "
+                          "(SO_REUSEPORT)",
+                          server->bind_addr);

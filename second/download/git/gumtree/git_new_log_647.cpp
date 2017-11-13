@@ -1,1 +1,1 @@
-error(_("unknown command: %d"), command);
+error(_("failed to finalize '%s'."), todo_path);

@@ -1,9 +1,9 @@
 fputs(
-"              after a completed operation. Curl writes all  cookies  from  its\n"
-"              in-memory  cookie storage to the given file at the end of opera-\n"
-"              tions. If no cookies are known, no data  will  be  written.  The\n"
-"              file  will  be written using the Netscape cookie file format. If\n"
-"              you set the file name to a single dash, \"-\", the cookies will be\n"
-"              written to stdout.\n"
+"              characters can be used as separators. If the option is specified\n"
+"              with one or two dashes, there can be no colon or equals  charac-\n"
+"              ter between the option and its parameter.\n"
 "\n"
+"              If the parameter is to contain whitespace, the parameter must be\n"
+"              enclosed within quotes.  Within  double  quotes,  the  following\n"
+"              escape  sequences  are  available:  \\\\, \\\", \\t, \\n, \\r and \\v. A\n"
 , stdout);

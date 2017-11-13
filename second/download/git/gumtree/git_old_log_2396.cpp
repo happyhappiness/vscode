@@ -1,1 +1,1 @@
-error("%s process failed to wait: %s", name, strerror(errno));
+die("bad %s argument: %s", opt->long_name, arg);

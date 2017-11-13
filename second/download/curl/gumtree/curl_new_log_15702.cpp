@@ -1,12 +1,9 @@
 fputs(
-"              instead of the standard, more informational, meter.\n"
+"              hashes)  to  verify the peer. This can be a path to a file which\n"
+"              contains a single public key in PEM or DER format, or any number\n"
+"              of base64 encoded sha256 hashes preceded by 'sha256//' and sepa-\n"
+"              rated by ';'\n"
 "\n"
-"              This progress bar draws a single line of '#'  characters  across\n"
-"              the screen and shows a percentage if the transfer size is known.\n"
-"              For transfers without a known size, it will instead  output  one\n"
-"              '#' character for every 1024 bytes transferred.\n"
-"\n"
-"       --proto-default <protocol>\n"
-"              Tells curl to use protocol for any URL missing a scheme name.\n"
-"\n"
+"              When negotiating a TLS or SSL connection,  the  server  sends  a\n"
+"              certificate  indicating  its identity. A public key is extracted\n"
 , stdout);

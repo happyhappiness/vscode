@@ -1,1 +1,1 @@
-printf("prerequisite-patch-id: %s\n", oid_to_hex(&bases->patch_id[i]));
+die("transport '%s' not allowed", type);

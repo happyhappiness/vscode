@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, output->task->c,
-                  "h2_task(%s): write response body (%ld bytes)", 
-                  output->task->id, (long)written);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, APLOGNO(02798)
+                         "%s: empty argument #%d", where, i + 1);

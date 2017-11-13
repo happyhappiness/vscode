@@ -1,70 +1,22 @@
-apr_status_t h2_mplx_dispatch_master_events(h2_mplx *m, 
-                                            stream_ev_callback *on_resume, 
-                                            stream_ev_callback *on_response, 
-                                            void *on_ctx)
+static int h2_h2_post_read_req(request_rec *r)
 {
-    apr_status_t status;
-    int acquired;
-    int streams[32];
-    h2_stream *stream;
-    h2_task *task;
-    size_t i, n;
-    
-    AP_DEBUG_ASSERT(m);
-    if ((status = enter_mutex(m, &acquired)) == APR_SUCCESS) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, m->c, 
-                      "h2_mplx(%ld): dispatch events", m->id);
-                      
-        /* update input windows for streams */
-        h2_ihash_iter(m->streams, update_window, m);
-
-        if (on_response && !h2_ihash_empty(m->sready)) {
-            n = h2_ihash_ishift(m->sready, streams, H2_ALEN(streams));
-            for (i = 0; i < n; ++i) {
-                stream = h2_ihash_get(m->streams, streams[i]);
-                if (!stream) {
-                    continue;
-                }
-                ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, m->c, 
-                              "h2_mplx(%ld-%d): on_response", 
-                              m->id, stream->id);
-                task = h2_ihash_get(m->tasks, stream->id);
-                if (task) {
-                    task->submitted = 1;
-                    if (task->rst_error) {
-                        h2_stream_rst(stream, task->rst_error);
-                    }
-                    else {
-                        AP_DEBUG_ASSERT(task->response);
-                        h2_stream_set_response(stream, task->response, task->output.beam);
-                    }
-                }
-                else {
-                    /* We have the stream ready without a task. This happens
-                     * when we fail streams early. A response should already
-                     * be present.  */
-                    AP_DEBUG_ASSERT(stream->response || stream->rst_error);
-                }
-                status = on_response(on_ctx, stream->id);
-            }
+    h2_ctx *ctx = h2_ctx_rget(r);
+    struct h2_task_env *env = h2_ctx_get_task(ctx);
+    if (env) {
+        /* h2_task connection for a stream, not for h2c */
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "adding h1_to_h2_resp output filter");
+        if (env->serialize_headers) {
+            ap_remove_output_filter_byhandle(r->output_filters, "H1_TO_H2_RESP");
+            ap_add_output_filter("H1_TO_H2_RESP", env, r, r->connection);
         }
-
-        if (on_resume && !h2_ihash_empty(m->sresume)) {
-            n = h2_ihash_ishift(m->sresume, streams, H2_ALEN(streams));
-            for (i = 0; i < n; ++i) {
-                stream = h2_ihash_get(m->streams, streams[i]);
-                if (!stream) {
-                    continue;
-                }
-                ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, m->c, 
-                              "h2_mplx(%ld-%d): on_resume", 
-                              m->id, stream->id);
-                h2_stream_set_suspended(stream, 0);
-                status = on_resume(on_ctx, stream->id);
-            }
+        else {
+            /* replace the core http filter that formats response headers
+             * in HTTP/1 with our own that collects status and headers */
+            ap_remove_output_filter_byhandle(r->output_filters, "HTTP_HEADER");
+            ap_remove_output_filter_byhandle(r->output_filters, "H2_RESPONSE");
+            ap_add_output_filter("H2_RESPONSE", env, r, r->connection);
         }
-        
-        leave_mutex(m, acquired);
     }
-    return status;
+    return DECLINED;
 }

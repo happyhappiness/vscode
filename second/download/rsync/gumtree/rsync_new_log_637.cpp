@@ -1,1 +1,2 @@
-io_printf(f_out, "@ERROR: max connections (%d) reached - try again later\n", lp_max_connections(i));
+io_printf(fd,"@ERROR: failed to open lock file %s : %s\n",
+				  lp_lock_file(), strerror(errno));

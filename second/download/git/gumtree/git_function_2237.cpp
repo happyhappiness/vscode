@@ -1,19 +1,14 @@
-FILE *mingw_freopen (const char *filename, const char *otype, FILE *stream)
+static void set_common_push_options(struct transport *transport,
+				   const char *name, int flags)
 {
-	int hide = needs_hiding(filename);
-	FILE *file;
-	wchar_t wfilename[MAX_PATH], wotype[4];
-	if (filename && !strcmp(filename, "/dev/null"))
-		filename = "nul";
-	if (xutftowcs_path(wfilename, filename) < 0 ||
-		xutftowcs(wotype, otype, ARRAY_SIZE(wotype)) < 0)
-		return NULL;
-	if (hide && !access(filename, F_OK) && set_hidden_flag(wfilename, 0)) {
-		error("could not unhide %s", filename);
-		return NULL;
+	if (flags & TRANSPORT_PUSH_DRY_RUN) {
+		if (set_helper_option(transport, "dry-run", "true") != 0)
+			die("helper %s does not support dry-run", name);
+	} else if (flags & TRANSPORT_PUSH_CERT_ALWAYS) {
+		if (set_helper_option(transport, TRANS_OPT_PUSH_CERT, "true") != 0)
+			die("helper %s does not support --signed", name);
+	} else if (flags & TRANSPORT_PUSH_CERT_IF_ASKED) {
+		if (set_helper_option(transport, TRANS_OPT_PUSH_CERT, "if-asked") != 0)
+			die("helper %s does not support --signed=if-asked", name);
 	}
-	file = _wfreopen(wfilename, wotype, stream);
-	if (file && hide && set_hidden_flag(wfilename, 1))
-		warning("could not mark '%s' as hidden.", filename);
-	return file;
 }

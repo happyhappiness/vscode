@@ -1,1 +1,1 @@
-write_or_die(bundle_fd, bundle_signature, strlen(bundle_signature));
+warning(_("no threads support, ignoring --threads"));

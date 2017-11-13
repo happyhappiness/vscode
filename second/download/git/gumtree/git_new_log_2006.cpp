@@ -1,3 +1,1 @@
-printf(" (from %s)",
-			       find_unique_abbrev(parent->object.oid.hash,
-						  abbrev_commit));
+die("unable to set up work tree using invalid config");

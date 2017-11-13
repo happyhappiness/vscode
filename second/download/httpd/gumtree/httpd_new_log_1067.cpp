@@ -1,2 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_ERR, rv, pool,
-                          "DBD[%s] Error: %s", svr->name, errmsg);
+apr_vformatter(file_printf_flush,
+                           (apr_vformatter_buff_t *)&data, format, ap);

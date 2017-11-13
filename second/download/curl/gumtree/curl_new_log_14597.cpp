@@ -1,10 +1,10 @@
 fputs(
-"              if  specify  -x,  --proxy  option. That is NO_PROXY=direct.exam-\n"
-"              ple.com  curl  -x  http://proxy.example.com  http://direct.exam-\n"
-"              ple.com     accesses    the    target    URL    directly,    and\n"
-"              NO_PROXY=direct.example.com  curl  -x   http://proxy.example.com\n"
-"              http://somewhere.example.com  accesses  the  target  URL through\n"
-"              proxy.\n"
+"                             and transfer before  the  final  transaction  was\n"
+"                             started.  time_redirect shows the complete execu-\n"
+"                             tion time for multiple  redirections.  (Added  in\n"
+"                             7.12.3)\n"
 "\n"
-"PROXY PROTOCOL PREFIXES\n"
+"              time_starttransfer\n"
+"                             The  time,  in  seconds,  it  took from the start\n"
+"                             until the first byte was just about to be  trans-\n"
 , stdout);

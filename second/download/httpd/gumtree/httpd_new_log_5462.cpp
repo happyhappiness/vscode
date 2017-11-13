@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c,
-                                  "h2_mplx(%ld): task(%s) has not-shutdown "
-                                  "engine(%s)", m->id, task->id, 
-                                  h2_req_engine_get_id(task->engine));
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf, APLOGNO(00004)
+                         "Unable to create or access scoreboard "
+                         "(anonymous shared memory failure)");

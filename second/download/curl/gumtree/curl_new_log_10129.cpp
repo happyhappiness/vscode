@@ -1,11 +1,10 @@
 fputs(
-"  as netscape's cookie file. Curl will determine what kind it is based on the\n"
-"  file contents.  In the above command, curl will parse the header and store\n"
-"  the cookies received from www.example.com.  curl will send to the server the\n"
-"  stored cookies which match the request as it follows the location.  The\n"
-"  file \"empty.txt\" may be a nonexistent file.\n"
-"\n"
-"  Alas, to both read and write cookies from a netscape cookie file, you can\n"
-"  set both -b and -c to use the same file:\n"
+"  headers that looks like 'Set-Cookie: <data>' where the data part then\n"
+"  typically contains a set of NAME=VALUE pairs (separated by semicolons ';'\n"
+"  like \"NAME1=VALUE1; NAME2=VALUE2;\"). The server can also specify for what\n"
+"  path the \"cookie\" should be used for (by specifying \"path=value\"), when the\n"
+"  cookie should expire (\"expire=DATE\"), for what domain to use it\n"
+"  (\"domain=NAME\") and if it should be used on secure connections only\n"
+"  (\"secure\").\n"
 "\n"
 , stdout);

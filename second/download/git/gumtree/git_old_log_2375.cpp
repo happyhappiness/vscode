@@ -1,1 +1,2 @@
-fputs(pp->children[i].err.buf, stderr);
+fprintf(stderr, "Detected mismatched boundaries, "
+					"can't recover\n");

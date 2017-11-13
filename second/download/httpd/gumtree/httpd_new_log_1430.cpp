@@ -1,6 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                              "Request header exceeds LimitRequestFieldSize%s"
-                              "%.*s",
-                              (field && *field) ? ": " : "",
-                              (field) ? field_name_len(field) : 0,
-                              (field) ? field : "");
+ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %lu: Failed to create a max_requests event.", my_pid);

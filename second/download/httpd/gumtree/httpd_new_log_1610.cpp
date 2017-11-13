@@ -1,2 +1,4 @@
-ap_rvputs(r, "<td", (d->style_sheet != NULL) ? " class=\"indexcolname\">" : ">", "<a href=\"", anchor, "\">",
-                          ap_escape_html(scratch, t2), "</a>", NULL);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r,
+                              "Response header '%s' value of '%s' contains "
+                              "invalid characters, aborting request",
+                              name, pos);

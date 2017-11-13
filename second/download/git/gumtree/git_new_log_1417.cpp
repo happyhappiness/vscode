@@ -1,1 +1,1 @@
-die(_("--author '%s' is not 'Name <email>' and matches no existing author"), name);
+error_errno("Could not write %s", output);

@@ -1,5 +1,18 @@
-puts(" -j/--junk-session-cookies Ignore session cookies read from file (H)\n"
-       "    --interface <interface> Specify the interface to be used\n"
-       "    --krb4 <level>  Enable krb4 with specified security level (F)\n"
-       " -K/--config        Specify which config file to read\n"
-       " -l/--list-only     List only names of an FTP directory (F)");
+puts(
+"          aborted download.\n"
+"     37   FILE  couldn't read file. Failed to open the file. Per�\n"
+"          missions?\n"
+"\n"
+"     38   LDAP cannot bind. LDAP bind operation failed.\n"
+"\n"
+"     39   LDAP search failed.\n"
+"\n"
+"     40   Library not found. The LDAP library was not found.\n"
+"\n"
+"     41   Function not found. A required LDAP  function  was  not\n"
+"          found.\n"
+"\n"
+"     42   Aborted  by callback. An application told curl to abort\n"
+"          the operation.\n"
+"\n"
+);

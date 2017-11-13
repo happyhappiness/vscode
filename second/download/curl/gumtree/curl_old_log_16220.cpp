@@ -1,10 +1,11 @@
 fputs(
-"       --form-string <name=string>\n"
-"              (HTTP) Similar to -F, --form except that the  value  string  for\n"
-"              the named parameter is used literally. Leading '@' and '<' char-\n"
-"              acters, and the ';type=' string in the  value  have  no  special\n"
-"              meaning.  Use  this  in  preference to -F, --form if there's any\n"
-"              possibility that the string value may accidentally  trigger  the\n"
-"              '@' or '<' features of -F, --form.\n"
+"              requires  that  the  underlying  libcurl was built to support c-\n"
+"              ares. Added in 7.33.0.\n"
 "\n"
+"       --dns-ipv6-addr <address>\n"
+"              (DNS) Tell curl to bind to <ip-address>  when  making  IPv6  DNS\n"
+"              requests,  so that the DNS requests originate from this address.\n"
+"              The argument should be a single IPv6 address.\n"
+"\n"
+"              See also --dns-interface  and  --dns-ipv4-addr.  --dns-ipv6-addr\n"
 , stdout);

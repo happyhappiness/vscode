@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-                          "h2_h2(%ld): tls protocol is indetermined", (long)c->id);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf, APLOGNO(00398)
+                     "Parent: Unable to send the start mutex to the child");

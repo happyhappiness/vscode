@@ -1,1 +1,2 @@
-die(_("Failed to resolve '%s' as a valid ref."), argv[0]);
+error(_("binary patch does not apply to '%s'"),
+				     name);

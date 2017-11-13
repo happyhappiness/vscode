@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, rv, f->r, APLOGNO(01590)
-                                      "Error reading/parsing chunk %s ",
-                                      (APR_ENOSPC == rv) ? "(overflow)" : "");
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00227)
+                "Graceful restart requested, doing restart");

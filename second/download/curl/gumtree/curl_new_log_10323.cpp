@@ -1,9 +1,12 @@
 fputs(
-"              forces a LIST command to be performed instead of RETR.  This  is\n"
-"              particularly  useful if the user wants to see if a specific mes-\n"
-"              sage id exists on the server and what size it is.\n"
+"              tries   the  following  candidates  in  order:  '~/.ssh/id_rsa',\n"
+"              '~/.ssh/id_dsa', './id_rsa', './id_dsa'.\n"
 "\n"
-"              Note: When combined with -X, --request  <command>,  this  option\n"
-"              can be used to send an UIDL command instead, so the user may use\n"
-"              the email's unique identifier rather than  it's  message  id  to\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --key-type <type>\n"
+"              (SSL) Private key file type. Specify which type your --key  pro-\n"
+"              vided  private  key  is. DER, PEM, and ENG are supported. If not\n"
+"              specified, PEM is assumed.\n"
+"\n"
 , stdout);

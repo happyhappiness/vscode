@@ -1,70 +1,82 @@
-static int rsync_transport_push(struct transport *transport,
-		int refspec_nr, const char **refspec, int flags)
+struct transport *transport_get(struct remote *remote, const char *url)
 {
-	struct strbuf buf = STRBUF_INIT, temp_dir = STRBUF_INIT;
-	int result = 0, i;
-	struct child_process rsync = CHILD_PROCESS_INIT;
-	const char *args[10];
+	const char *helper;
+	struct transport *ret = xcalloc(1, sizeof(*ret));
 
-	if (flags & TRANSPORT_PUSH_MIRROR)
-		return error("rsync transport does not support mirror mode");
+	ret->progress = isatty(2);
 
-	/* first push the objects */
+	if (!remote)
+		die("No remote provided to transport_get()");
 
-	strbuf_addstr(&buf, rsync_url(transport->url));
-	strbuf_addch(&buf, '/');
+	ret->got_remote_refs = 0;
+	ret->remote = remote;
+	helper = remote->foreign_vcs;
 
-	rsync.argv = args;
-	rsync.stdout_to_stderr = 1;
-	i = 0;
-	args[i++] = "rsync";
-	args[i++] = "-a";
-	if (flags & TRANSPORT_PUSH_DRY_RUN)
-		args[i++] = "--dry-run";
-	if (transport->verbose > 1)
-		args[i++] = "-v";
-	args[i++] = "--ignore-existing";
-	args[i++] = "--exclude";
-	args[i++] = "info";
-	args[i++] = get_object_directory();
-	args[i++] = buf.buf;
-	args[i++] = NULL;
+	if (!url && remote->url)
+		url = remote->url[0];
+	ret->url = url;
 
-	if (run_command(&rsync))
-		return error("Could not push objects to %s",
-				rsync_url(transport->url));
+	/* maybe it is a foreign URL? */
+	if (url) {
+		const char *p = url;
 
-	/* copy the refs to the temporary directory; they could be packed. */
+		while (is_urlschemechar(p == url, *p))
+			p++;
+		if (starts_with(p, "::"))
+			helper = xstrndup(url, p - url);
+	}
 
-	strbuf_addstr(&temp_dir, git_path("rsync-refs-XXXXXX"));
-	if (!mkdtemp(temp_dir.buf))
-		die_errno ("Could not make temporary directory");
-	strbuf_addch(&temp_dir, '/');
+	if (helper) {
+		transport_helper_init(ret, helper);
+	} else if (starts_with(url, "rsync:")) {
+		die("git-over-rsync is no longer supported");
+	} else if (url_is_local_not_ssh(url) && is_file(url) && is_bundle(url, 1)) {
+		struct bundle_transport_data *data = xcalloc(1, sizeof(*data));
+		transport_check_allowed("file");
+		ret->data = data;
+		ret->get_refs_list = get_refs_from_bundle;
+		ret->fetch = fetch_refs_from_bundle;
+		ret->disconnect = close_bundle;
+		ret->smart_options = NULL;
+	} else if (!is_url(url)
+		|| starts_with(url, "file://")
+		|| starts_with(url, "git://")
+		|| starts_with(url, "ssh://")
+		|| starts_with(url, "git+ssh://") /* deprecated - do not use */
+		|| starts_with(url, "ssh+git://") /* deprecated - do not use */
+		) {
+		/*
+		 * These are builtin smart transports; "allowed" transports
+		 * will be checked individually in git_connect.
+		 */
+		struct git_transport_data *data = xcalloc(1, sizeof(*data));
+		ret->data = data;
+		ret->set_option = NULL;
+		ret->get_refs_list = get_refs_via_connect;
+		ret->fetch = fetch_refs_via_pack;
+		ret->push_refs = git_transport_push;
+		ret->connect = connect_git;
+		ret->disconnect = disconnect_git;
+		ret->smart_options = &(data->options);
 
-	if (flags & TRANSPORT_PUSH_ALL) {
-		if (for_each_ref(write_one_ref, &temp_dir))
-			return -1;
-	} else if (write_refs_to_temp_dir(&temp_dir, refspec_nr, refspec))
-		return -1;
+		data->conn = NULL;
+		data->got_remote_heads = 0;
+	} else {
+		/* Unknown protocol in URL. Pass to external handler. */
+		int len = external_specification_len(url);
+		char *handler = xmemdupz(url, len);
+		transport_helper_init(ret, handler);
+	}
 
-	i = 2;
-	if (flags & TRANSPORT_PUSH_DRY_RUN)
-		args[i++] = "--dry-run";
-	if (!(flags & TRANSPORT_PUSH_FORCE))
-		args[i++] = "--ignore-existing";
-	args[i++] = temp_dir.buf;
-	args[i++] = rsync_url(transport->url);
-	args[i++] = NULL;
-	if (run_command(&rsync))
-		result = error("Could not push to %s",
-				rsync_url(transport->url));
+	if (ret->smart_options) {
+		ret->smart_options->thin = 1;
+		ret->smart_options->uploadpack = "git-upload-pack";
+		if (remote->uploadpack)
+			ret->smart_options->uploadpack = remote->uploadpack;
+		ret->smart_options->receivepack = "git-receive-pack";
+		if (remote->receivepack)
+			ret->smart_options->receivepack = remote->receivepack;
+	}
 
-	if (remove_dir_recursively(&temp_dir, 0))
-		warning ("Could not remove temporary directory %s.",
-				temp_dir.buf);
-
-	strbuf_release(&buf);
-	strbuf_release(&temp_dir);
-
-	return result;
+	return ret;
 }

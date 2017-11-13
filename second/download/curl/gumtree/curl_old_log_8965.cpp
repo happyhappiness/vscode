@@ -1,12 +1,10 @@
 fputs(
-"              login options please see RFC  2384,  RFC  5092  and  IETF  draft\n"
-"              draft-earhart-url-smtp-00.txt (Added in 7.31.0).\n"
+"              Enables a full trace dump of all  incoming  and  outgoing  data,\n"
+"              including descriptive information, to the given output file. Use\n"
+"              \"-\" as filename to have the output sent to stdout.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              This is very similar to --trace, but leaves out the hex part and\n"
+"              only  shows  the ASCII part of the dump. It makes smaller output\n"
+"              that might be easier to read for untrained humans.\n"
 "\n"
-"       -U, --proxy-user <user:password>\n"
-"              Specify  the user name and password to use for proxy authentica-\n"
-"              tion.\n"
-"\n"
-"              If you use an SSPI-enabled curl binary and do  NTLM  authentica-\n"
 , stdout);

@@ -1,49 +1,40 @@
-static struct commit *parse_insn_line(char *bol, char *eol, struct replay_opts *opts)
+void shortlog_output(struct shortlog *log)
 {
-	unsigned char commit_sha1[20];
-	enum replay_action action;
-	char *end_of_object_name;
-	int saved, status, padding;
+	int i, j;
+	struct strbuf sb = STRBUF_INIT;
 
-	if (starts_with(bol, "pick")) {
-		action = REPLAY_PICK;
-		bol += strlen("pick");
-	} else if (starts_with(bol, "revert")) {
-		action = REPLAY_REVERT;
-		bol += strlen("revert");
-	} else
-		return NULL;
+	if (log->sort_by_number)
+		qsort(log->list.items, log->list.nr, sizeof(struct string_list_item),
+			compare_by_number);
+	for (i = 0; i < log->list.nr; i++) {
+		struct string_list *onelines = log->list.items[i].util;
 
-	/* Eat up extra spaces/ tabs before object name */
-	padding = strspn(bol, " \t");
-	if (!padding)
-		return NULL;
-	bol += padding;
+		if (log->summary) {
+			printf("%6d\t%s\n", onelines->nr, log->list.items[i].string);
+		} else {
+			printf("%s (%d):\n", log->list.items[i].string, onelines->nr);
+			for (j = onelines->nr - 1; j >= 0; j--) {
+				const char *msg = onelines->items[j].string;
 
-	end_of_object_name = bol + strcspn(bol, " \t\n");
-	saved = *end_of_object_name;
-	*end_of_object_name = '\0';
-	status = get_sha1(bol, commit_sha1);
-	*end_of_object_name = saved;
+				if (log->wrap_lines) {
+					strbuf_reset(&sb);
+					add_wrapped_shortlog_msg(&sb, msg, log);
+					fwrite(sb.buf, sb.len, 1, stdout);
+				}
+				else
+					printf("      %s\n", msg);
+			}
+			putchar('\n');
+		}
 
-	/*
-	 * Verify that the action matches up with the one in
-	 * opts; we don't support arbitrary instructions
-	 */
-	if (action != opts->action) {
-		if (action == REPLAY_REVERT)
-		      error((opts->action == REPLAY_REVERT)
-			    ? _("Cannot revert during another revert.")
-			    : _("Cannot revert during a cherry-pick."));
-		else
-		      error((opts->action == REPLAY_REVERT)
-			    ? _("Cannot cherry-pick during a revert.")
-			    : _("Cannot cherry-pick during another cherry-pick."));
-		return NULL;
+		onelines->strdup_strings = 1;
+		string_list_clear(onelines, 0);
+		free(onelines);
+		log->list.items[i].util = NULL;
 	}
 
-	if (status < 0)
-		return NULL;
-
-	return lookup_commit_reference(commit_sha1);
+	strbuf_release(&sb);
+	log->list.strdup_strings = 1;
+	string_list_clear(&log->list, 1);
+	clear_mailmap(&log->mailmap);
 }

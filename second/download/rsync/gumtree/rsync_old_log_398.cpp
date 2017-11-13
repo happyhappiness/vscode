@@ -1,1 +1,1 @@
-fprintf(FINFO,"send_file_list done\n");
+fprintf(FERROR,"generator wrote %d\n",write_total());

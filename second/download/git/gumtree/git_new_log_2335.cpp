@@ -1,1 +1,3 @@
-error_errno("unable to unlink old '%s'", path.buf);
+die ("Tag %s tags unexported %s!",
+				     oid_to_hex(&tag->object.oid),
+				     typename(tagged->type));

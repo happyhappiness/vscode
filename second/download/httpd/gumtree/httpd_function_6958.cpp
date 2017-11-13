@@ -1,19 +1,41 @@
-static apr_status_t next_request(h2_proxy_ctx *ctx, int before_leave)
-{
-    if (ctx->next) {
-        return APR_SUCCESS;
+static void request_done(h2_proxy_ctx *ctx, request_rec *r,
+                         apr_status_t status, int touched)
+{   
+    const char *task_id = apr_table_get(r->connection->notes, H2_TASK_ID_NOTE);
+
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, r->connection, 
+                  "h2_proxy_session(%s): request done %s, touched=%d",
+                  ctx->engine_id, task_id, touched);
+    if (status != APR_SUCCESS) {
+        if (!touched) {
+            /* untouched request, need rescheduling */
+            status = h2_proxy_fifo_push(ctx->requests, r);
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, r->connection, 
+                          APLOGNO(03369)
+                          "h2_proxy_session(%s): rescheduled request %s",
+                          ctx->engine_id, task_id);
+            return;
+        }
+        else {
+            const char *uri;
+            uri = apr_uri_unparse(r->pool, &r->parsed_uri, 0);
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, r->connection, 
+                          APLOGNO(03471) "h2_proxy_session(%s): request %s -> %s "
+                          "not complete, cannot repeat", 
+                          ctx->engine_id, task_id, uri);
+        }
     }
-    else if (req_engine_pull && ctx->engine) {
-        apr_status_t status;
-        status = req_engine_pull(ctx->engine, before_leave? 
-                                 APR_BLOCK_READ: APR_NONBLOCK_READ, 
-                                 ctx->capacity, &ctx->next);
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE3, status, ctx->owner, 
-                      "h2_proxy_engine(%s): pulled request (%s) %s", 
-                      ctx->engine_id, 
-                      before_leave? "before leave" : "regular", 
-                      (ctx->next? ctx->next->the_request : "NULL"));
-        return APR_STATUS_IS_EAGAIN(status)? APR_SUCCESS : status;
+    
+    if (r == ctx->rbase) {
+        ctx->r_status = ((status == APR_SUCCESS)? APR_SUCCESS
+                         : HTTP_SERVICE_UNAVAILABLE);
     }
-    return APR_EOF;
+    
+    if (req_engine_done && ctx->engine) {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, r->connection, 
+                      APLOGNO(03370)
+                      "h2_proxy_session(%s): finished request %s",
+                      ctx->engine_id, task_id);
+        req_engine_done(ctx->engine, r->connection, status);
+    }
 }

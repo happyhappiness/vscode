@@ -1,12 +1,9 @@
 fputs(
-"              Specify the user name and password to use for server authentica-\n"
-"              tion. Overrides -n, --netrc and --netrc-optional.\n"
+"              Use  the file name \"-\" (a single dash) to use stdin instead of a\n"
+"              given file.  Alternately, the file name \".\"  (a  single  period)\n"
+"              may  be  specified  instead  of \"-\" to use stdin in non-blocking\n"
+"              mode to  allow  reading  server  output  while  stdin  is  being\n"
+"              uploaded.\n"
 "\n"
-"              If  you  simply  specify  the  user name, curl will prompt for a\n"
-"              password.\n"
-"\n"
-"              The user name and passwords are split up  on  the  first  colon,\n"
-"              which  makes  it impossible to use a colon in the user name with\n"
-"              this option. The password can, still.\n"
-"\n"
+"              You  can  specify one -T, --upload-file for each URL on the com-\n"
 , stdout);

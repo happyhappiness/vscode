@@ -1,1 +1,1 @@
-die_errno(_("Could not write to %s"), head_file);
+die("unable to generate diff for %s", name);

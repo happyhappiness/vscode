@@ -1,5 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
-                              0, r, "[%" APR_PID_T_FMT "] auth_ldap authorize: "
-                              "require ldap-filter: %s authorization "
-                              "failed [%s][%s]", getpid(),
-                              filtbuf, ldc->reason, ldap_err2string(result));
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                             "proxy: BALANCER: (%s).  Forcing worker (%s) into error state "
+                             "due to status code %d matching 'failonstatus' "
+                             "balancer parameter",
+                             balancer->name, worker->name, val);

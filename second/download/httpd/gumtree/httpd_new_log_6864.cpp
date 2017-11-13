@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, t->r, 
-                APLOGNO(02614) "mod_lua: Value for '%s' in table '%s' contains newline!",
-                  key, t->n);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
+                  H2_STRM_MSG(stream, "on_resume"));

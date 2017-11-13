@@ -1,1 +1,1 @@
-die (_("BUG: returned path string doesn't match cwd?"));
+error("key does not contain variable name: %s", key);

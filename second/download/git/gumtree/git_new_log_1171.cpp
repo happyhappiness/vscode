@@ -1,1 +1,1 @@
-error("Could not write requested capability");
+vreportf("fatal: ", err, params);

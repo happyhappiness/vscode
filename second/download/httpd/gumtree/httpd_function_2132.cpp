@@ -1,30 +1,71 @@
-static void usage(const char *argv0, const char *reason)
+static const char *set_loglevel(cmd_parms *cmd, void *config_, const char *arg_)
 {
-    if (reason) {
-        fprintf(stderr, "%s\n", reason);
+    char *level_str;
+    int level;
+    module *module;
+    char *arg = apr_pstrdup(cmd->temp_pool, arg_);
+    struct ap_logconf *log;
+    const char *err;
+
+    /* XXX: what check is necessary here? */
+#if 0
+    const char *err = ap_check_cmd_context(cmd, NOT_IN_DIR_LOC_FILE);
+    if (err != NULL) {
+        return err;
     }
-    fprintf(stderr,
-            "Usage: %s [-l] [-f] <logfile> "
-            "{<rotation time in seconds>|<rotation size in megabytes>} "
-            "[offset minutes from UTC]\n\n",
-            argv0);
-#ifdef OS2
-    fprintf(stderr,
-            "Add this:\n\nTransferLog \"|%s.exe /some/where 86400\"\n\n",
-            argv0);
-#else
-    fprintf(stderr,
-            "Add this:\n\nTransferLog \"|%s /some/where 86400\"\n\n",
-            argv0);
-    fprintf(stderr,
-            "or \n\nTransferLog \"|%s /some/where 5M\"\n\n", argv0);
 #endif
-    fprintf(stderr,
-            "to httpd.conf. The generated name will be /some/where.nnnn "
-            "where nnnn is the\nsystem time at which the log nominally "
-            "starts (N.B. if using a rotation time,\nthe time will always "
-            "be a multiple of the rotation time, so you can synchronize\n"
-            "cron scripts with it). At the end of each rotation time or "
-            "when the file size\nis reached a new log is started.\n");
-    exit(1);
+
+    if (cmd->path) {
+        core_dir_config *dconf = config_;
+        if (!dconf->log) {
+            dconf->log = ap_new_log_config(cmd->pool, NULL);
+        }
+        log = dconf->log;
+    }
+    else {
+        log = &cmd->server->log;
+    }
+
+    if (arg == NULL)
+        return "LogLevel requires level keyword or module loglevel specifier";
+
+    level_str = ap_strchr(arg, ':');
+
+    if (level_str == NULL) {
+        err = ap_parse_log_level(arg, &log->level);
+        if (err != NULL)
+            return err;
+        ap_reset_module_loglevels(log, APLOG_NO_MODULE);
+        ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, cmd->server,
+                     "Setting LogLevel for all modules to %s", arg);
+        return NULL;
+    }
+
+    *level_str++ = '\0';
+    if (!*level_str) {
+        return apr_psprintf(cmd->temp_pool, "Module specifier '%s' must be "
+                            "followed by a log level keyword", arg);
+    }
+
+    err = ap_parse_log_level(level_str, &level);
+    if (err != NULL)
+        return apr_psprintf(cmd->temp_pool, "%s:%s: %s", arg, level_str, err);
+
+    if ((module = find_module(cmd->server, arg)) == NULL) {
+        char *name = apr_psprintf(cmd->temp_pool, "%s_module", arg);
+        ap_log_error(APLOG_MARK, APLOG_TRACE6, 0, cmd->server,
+                     "Cannot find module '%s', trying '%s'", arg, name);
+        module = find_module(cmd->server, name);
+    }
+
+    if (module == NULL) {
+        return apr_psprintf(cmd->temp_pool, "Cannot find module %s", arg);
+    }
+
+    ap_set_module_loglevel(cmd->pool, log, module->module_index, level);
+    ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, cmd->server,
+                 "Setting LogLevel for module %s to %s", module->name,
+                 level_str);
+
+    return NULL;
 }

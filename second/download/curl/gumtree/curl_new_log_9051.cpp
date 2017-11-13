@@ -1,9 +1,11 @@
 fputs(
-"              match   local.com,  local.com:80,  and  www.local.com,  but  not\n"
-"              www.notlocal.com.  (Added in 7.19.4).\n"
+"              This option requires a library built with GSSAPI  support.  This\n"
+"              is  not  very  common.  Use -V, --version to see if your version\n"
+"              supports GSS-Negotiate.\n"
 "\n"
-"       --ntlm (HTTP) Enables  NTLM  authentication.  The  NTLM  authentication\n"
-"              method was designed by Microsoft and is used by IIS web servers.\n"
-"              It is a proprietary protocol, reverse-engineered by clever  peo-\n"
-"              ple and implemented in curl based on their efforts. This kind of\n"
+"              When using this option, you must also provide a fake -u,  --user\n"
+"              option  to  activate the authentication code properly. Sending a\n"
+"              '-u :' is enough as the user  name  and  password  from  the  -u\n"
+"              option aren't actually used.\n"
+"\n"
 , stdout);

@@ -1,7 +1,16 @@
-apr_status_t h2_session_pre_close(h2_session *session, int async)
+static void closeFile(rotate_config_t *config, apr_pool_t *pool, apr_file_t *file)
 {
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c, 
-                  "h2_session(%ld): pre_close", session->id);
-    dispatch_event(session, H2_SESSION_EV_PRE_CLOSE, 0, "timeout");
-    return APR_SUCCESS;
+    if (file != NULL) {
+        if (config->verbose) {
+            apr_finfo_t finfo;
+            apr_int32_t wanted = APR_FINFO_NAME;
+            if (apr_file_info_get(&finfo, wanted, file) == APR_SUCCESS) {
+                fprintf(stderr, "Closing file %s (%s)\n", finfo.name, finfo.fname);
+            }
+        }
+        apr_file_close(file);
+        if (pool) {
+            apr_pool_destroy(pool);
+        }
+    }
 }

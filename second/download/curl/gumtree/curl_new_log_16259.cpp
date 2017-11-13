@@ -1,11 +1,9 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              in the file, separated by whitespace, colon, or the equals sign.\n"
+"              Long option names can optionally be given  in  the  config  file\n"
+"              without the initial double dashes and if so, the colon or equals\n"
+"              characters can be used as separators. If the option is specified\n"
+"              with  one or two dashes, there can be no colon or equals charac-\n"
+"              ter between the option and its parameter.\n"
 "\n"
-"              See also -r, --range.\n"
-"\n"
-"       -c, --cookie-jar <filename>\n"
-"              (HTTP) Specify to which file you want curl to write all  cookies\n"
-"              after  a  completed  operation. Curl writes all cookies from its\n"
-"              in-memory cookie storage to the given file at the end of  opera-\n"
-"              tions.  If  no  cookies  are known, no data will be written. The\n"
 , stdout);

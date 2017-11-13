@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01270)
-                          "Error reading request entity data");
+ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL, APLOGNO(02163)
+                         "set dumpable failed - this child will not coredump"
+                         " after software errors");

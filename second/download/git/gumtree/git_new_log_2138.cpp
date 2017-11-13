@@ -1,1 +1,1 @@
-die("Cannot use notes ref %s", notes_ref);
+die_errno("Could not read '%s'", path);

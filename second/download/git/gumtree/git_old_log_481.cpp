@@ -1,1 +1,1 @@
-die("BUG: expected exactly one commit from walk");
+packet_write(1, "ACK\n");

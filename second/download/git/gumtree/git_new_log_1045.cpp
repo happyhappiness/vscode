@@ -1,2 +1,1 @@
-die("Timestamp+tz too large: %"PRItime" +%04d",
-			    time, tz);
+die(_("could not create directories for %s"), gitfile_sb.buf);

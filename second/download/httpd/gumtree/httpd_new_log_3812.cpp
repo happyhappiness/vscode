@@ -1,1 +1,3 @@
-ap_rvputs(r, bsel->s->name, "</h3>\n", NULL);
+ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server, APLOGNO(01252)
+                             "couldn't create child process: %d: %s", rc,
+                             apr_filepath_name_get(r->filename));

@@ -1,1 +1,1 @@
-printf(" %-*s |", max, qname.buf);
+status_printf_ln(s, c, "");

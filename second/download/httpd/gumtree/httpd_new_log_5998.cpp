@@ -1,4 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03364)
-                      "h2_proxy_sesssion(%s): stream(%d) closed "
-                      "(touched=%d, error=%d)", 
-                      session->id, stream_id, touched, stream->error_code);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(03051)
+                          "h2_h2(%ld): tls protocol is indetermined", (long)c->id);

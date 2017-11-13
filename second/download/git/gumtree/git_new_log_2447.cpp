@@ -1,2 +1,2 @@
-die(_("Argument not supported for format '%s': -%d"),
-					format, compression_level);
+error("bad tree pointer in commit %s",
+			     oid_to_hex(&item->object.oid));

@@ -1,14 +1,20 @@
-static void tls_usage(int ret)
+void io_printf(int fd, const char *format, ...)
 {
-  FILE *F = ret ? stderr : stdout;
-  fprintf(F,"usage: " PROGRAM " [OPTIONS] FILE ...\n");
-  fprintf(F,"Trivial file listing program for portably checking rsync\n");
-  fprintf(F,"\nOptions:\n");
-  fprintf(F," -l, --link-times            display the time on a symlink\n");
-  fprintf(F," -L, --link-owner            display the owner+group on a symlink\n");
-#ifdef SUPPORT_XATTRS
-  fprintf(F," -f, --fake-super            display attributes including fake-super xattrs\n");
-#endif
-  fprintf(F," -h, --help                  show this help\n");
-  exit(ret);
+	va_list ap;
+	char buf[BIGPATHBUFLEN];
+	int len;
+
+	va_start(ap, format);
+	len = vsnprintf(buf, sizeof buf, format, ap);
+	va_end(ap);
+
+	if (len < 0)
+		exit_cleanup(RERR_STREAMIO);
+
+	if (len > (int)sizeof buf) {
+		rprintf(FERROR, "io_printf() was too long for the buffer.\n");
+		exit_cleanup(RERR_STREAMIO);
+	}
+
+	write_sbuf(fd, buf);
 }

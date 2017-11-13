@@ -1,11 +1,11 @@
 fputs(
-"              connects etc. If this is a concern for you, try  the  --connect-\n"
-"              timeout option.\n"
+"              This option overrides any previous use of -x, --proxy,  as  they\n"
+"              are mutually exclusive.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              Since 7.21.7, this option is superfluous since you can specify a\n"
+"              socks4a proxy with -x, --proxy using a socks4a:// protocol  pre-\n"
+"              fix.\n"
 "\n"
-"       --ssl-allow-beast\n"
-"              This option tells curl to not work around a security flaw in the\n"
-"              SSL3 and TLS1.0 protocols known as BEAST.  If this option  isn't\n"
-"              used,  the SSL layer may use workarounds known to cause interop-\n"
+"              Since 7.52.0, --preproxy can be used to specify a SOCKS proxy at\n"
+"              the same time -x, --proxy is used with an HTTP/HTTPS  proxy.  In\n"
 , stdout);

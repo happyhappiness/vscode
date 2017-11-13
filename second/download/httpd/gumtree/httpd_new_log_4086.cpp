@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, APLOGNO(01829)
-                "apr_crypto_block_encrypt_init failed");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01555)
+                MODNAME ": revision_suffix checking %s", r->filename);

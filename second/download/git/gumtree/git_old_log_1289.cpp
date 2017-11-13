@@ -1,2 +1,1 @@
-die("bad pack.indexversion=%"PRIu32,
-			    pack_idx_opts.version);
+die(_("unable to read %s"), sha1_to_hex(entry->idx.sha1));

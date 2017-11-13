@@ -1,1 +1,1 @@
-die("no email was given and auto-detection is disabled");
+die(_("Error wrapping up %s."), git_path_todo_file());

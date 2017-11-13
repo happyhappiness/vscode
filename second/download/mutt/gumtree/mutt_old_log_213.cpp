@@ -1,1 +1,1 @@
-fputs (idx ? _(" aka ......: ") :_("Name ......: "), fp);
+state_attach_puts (_("*** End Notation ***\n"), s);

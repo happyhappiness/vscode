@@ -1,53 +1,84 @@
-static void ssl_init_ctx_cert_chain(server_rec *s,
-                                    apr_pool_t *p,
-                                    apr_pool_t *ptemp,
-                                    modssl_ctx_t *mctx)
+apr_status_t ajp_handle_cping_cpong(apr_socket_t *sock,
+                                    request_rec *r,
+                                    apr_interval_time_t timeout)
 {
-    BOOL skip_first = FALSE;
-    int i, n;
-    const char *chain = mctx->cert_chain;
+    ajp_msg_t *msg;
+    apr_status_t rc, rv;
+    apr_interval_time_t org;
+    apr_byte_t result;
 
-    if (mctx->pkcs7) {
-        ssl_init_ctx_pkcs7_cert_chain(s, mctx);
-        return;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "Into ajp_handle_cping_cpong");
+
+    rc = ajp_msg_create(r->pool, AJP_PING_PONG_SZ, &msg);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: ajp_msg_create failed");
+        return rc;
     }
 
-    /*
-     * Optionally configure extra server certificate chain certificates.
-     * This is usually done by OpenSSL automatically when one of the
-     * server cert issuers are found under SSLCACertificatePath or in
-     * SSLCACertificateFile. But because these are intended for client
-     * authentication it can conflict. For instance when you use a
-     * Global ID server certificate you've to send out the intermediate
-     * CA certificate, too. When you would just configure this with
-     * SSLCACertificateFile and also use client authentication mod_ssl
-     * would accept all clients also issued by this CA. Obviously this
-     * isn't what we want in this situation. So this feature here exists
-     * to allow one to explicity configure CA certificates which are
-     * used only for the server certificate chain.
-     */
-    if (!chain) {
-        return;
+    rc = ajp_msg_serialize_cping(msg);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: ajp_marshal_into_msgb failed");
+        return rc;
     }
 
-    for (i = 0; (i < SSL_AIDX_MAX) && mctx->pks->cert_files[i]; i++) {
-        if (strEQ(mctx->pks->cert_files[i], chain)) {
-            skip_first = TRUE;
-            break;
-        }
+    rc = ajp_ilink_send(sock, msg);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: ajp_ilink_send failed");
+        return rc;
     }
 
-    n = SSL_CTX_use_certificate_chain(mctx->ssl_ctx,
-                                      (char *)chain,
-                                      skip_first, NULL);
-    if (n < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                "Failed to configure CA certificate chain!");
-        ssl_die();
+    rc = apr_socket_timeout_get(sock, &org);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: apr_socket_timeout_get failed");
+        return rc;
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "Configuring server certificate chain "
-                 "(%d CA certificate%s)",
-                 n, n == 1 ? "" : "s");
+    /* Set CPING/CPONG response timeout */
+    rc = apr_socket_timeout_set(sock, timeout);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: apr_socket_timeout_set failed");
+        return rc;
+    }
+    ajp_msg_reuse(msg);
+
+    /* Read CPONG reply */
+    rv = ajp_ilink_receive(sock, msg);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: ajp_ilink_receive failed");
+        goto cleanup;
+    }
+
+    rv = ajp_msg_get_uint8(msg, &result);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: invalid CPONG message");
+        goto cleanup;
+    }
+    if (result != CMD_AJP13_CPONG) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: awaited CPONG, received %d ",
+               result);
+        rv = APR_EGENERAL;
+        goto cleanup;
+    }
+
+cleanup:
+    /* Restore original socket timeout */
+    rc = apr_socket_timeout_set(sock, org);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: apr_socket_timeout_set failed");
+        return rc;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "ajp_handle_cping_cpong: Done");
+    return rv;
 }

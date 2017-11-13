@@ -1,92 +1,104 @@
-static int lua_map_handler(request_rec *r)
+apr_status_t h2_proxy_session_process(h2_proxy_session *session)
 {
-    int rc, n = 0;
-    apr_pool_t *pool;
-    lua_State *L;
-    const char *filename, *function_name;
-    const char *values[10];
-    ap_lua_vm_spec *spec;
-    ap_regmatch_t match[10];
-    ap_lua_server_cfg *server_cfg = ap_get_module_config(r->server->module_config,
-                                                         &lua_module);
-    const ap_lua_dir_cfg *cfg = ap_get_module_config(r->per_dir_config,
-                                                     &lua_module);
-    for (n = 0; n < cfg->mapped_handlers->nelts; n++) {
-        ap_lua_mapped_handler_spec *hook_spec =
-            ((ap_lua_mapped_handler_spec **) cfg->mapped_handlers->elts)[n];
+    apr_status_t status;
+    int have_written = 0, have_read = 0;
 
-        if (hook_spec == NULL) {
-            continue;
-        }
-        if (!ap_regexec(hook_spec->uri_pattern, r->uri, 10, match, 0)) {
-            int i;
-            for (i=0 ; i < 10; i++) {
-                if (match[i].rm_eo >= 0) {
-                    values[i] = apr_pstrndup(r->pool, r->uri+match[i].rm_so, match[i].rm_eo - match[i].rm_so);
-                }
-                else values[i] = "";
-            }
-            filename = ap_lua_interpolate_string(r->pool, hook_spec->file_name, values);
-            function_name = ap_lua_interpolate_string(r->pool, hook_spec->function_name, values);
-            spec = create_vm_spec(&pool, r, cfg, server_cfg,
-                                    filename,
-                                    hook_spec->bytecode,
-                                    hook_spec->bytecode_len,
-                                    function_name,
-                                    "mapped handler");
-            L = ap_lua_get_lua_state(pool, spec, r);
-
-            if (!L) {
-                ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(02330)
-                                "lua: Failed to obtain lua interpreter for %s %s",
-                                function_name, filename);
-                ap_lua_release_state(L, spec, r);
-                return HTTP_INTERNAL_SERVER_ERROR;
-            }
-
-            if (function_name != NULL) {
-                lua_getglobal(L, function_name);
-                if (!lua_isfunction(L, -1)) {
-                    ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(02331)
-                                    "lua: Unable to find function %s in %s",
-                                    function_name,
-                                    filename);
-                    ap_lua_release_state(L, spec, r);
-                    return HTTP_INTERNAL_SERVER_ERROR;
-                }
-
-                ap_lua_run_lua_request(L, r);
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
+                  "h2_proxy_session(%s): process", session->id);
+           
+run_loop:
+    switch (session->state) {
+        case H2_PROXYS_ST_INIT:
+            status = session_start(session);
+            if (status == APR_SUCCESS) {
+                dispatch_event(session, H2_PROXYS_EV_INIT, 0, NULL);
+                goto run_loop;
             }
             else {
-                int t;
-                ap_lua_run_lua_request(L, r);
+                dispatch_event(session, H2_PROXYS_EV_CONN_ERROR, status, NULL);
+            }
+            break;
+            
+        case H2_PROXYS_ST_BUSY:
+        case H2_PROXYS_ST_LOCAL_SHUTDOWN:
+        case H2_PROXYS_ST_REMOTE_SHUTDOWN:
+            while (nghttp2_session_want_write(session->ngh2)) {
+                int rv = nghttp2_session_send(session->ngh2);
+                if (rv < 0 && nghttp2_is_fatal(rv)) {
+                    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
+                                  "h2_proxy_session(%s): write, rv=%d", session->id, rv);
+                    dispatch_event(session, H2_PROXYS_EV_CONN_ERROR, rv, NULL);
+                    break;
+                }
+                have_written = 1;
+            }
+            
+            if (nghttp2_session_want_read(session->ngh2)) {
+                status = h2_proxy_session_read(session, 0, 0);
+                if (status == APR_SUCCESS) {
+                    have_read = 1;
+                }
+            }
+            
+            if (!have_written && !have_read 
+                && !nghttp2_session_want_write(session->ngh2)) {
+                dispatch_event(session, H2_PROXYS_EV_NO_IO, 0, NULL);
+                goto run_loop;
+            }
+            break;
+            
+        case H2_PROXYS_ST_WAIT:
+            if (check_suspended(session) == APR_EAGAIN) {
+                /* no stream has become resumed. Do a blocking read with
+                 * ever increasing timeouts... */
+                if (session->wait_timeout < 25) {
+                    session->wait_timeout = 25;
+                }
+                else {
+                    session->wait_timeout = H2MIN(apr_time_from_msec(100), 
+                                                  2*session->wait_timeout);
+                }
+                
+                status = h2_proxy_session_read(session, 1, session->wait_timeout);
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c, 
+                              APLOGNO(03365)
+                              "h2_proxy_session(%s): WAIT read, timeout=%fms", 
+                              session->id, (float)session->wait_timeout/1000.0);
+                if (status == APR_SUCCESS) {
+                    have_read = 1;
+                    dispatch_event(session, H2_PROXYS_EV_DATA_READ, 0, NULL);
+                }
+                else if (APR_STATUS_IS_TIMEUP(status)
+                    || APR_STATUS_IS_EAGAIN(status)) {
+                    /* go back to checking all inputs again */
+                    transit(session, "wait cycle", H2_PROXYS_ST_BUSY);
+                }
+            }
+            break;
+            
+        case H2_PROXYS_ST_IDLE:
+            break;
 
-                t = lua_gettop(L);
-                lua_setglobal(L, "r");
-                lua_settop(L, t);
-            }
-
-            if (lua_pcall(L, 1, 1, 0)) {
-                report_lua_error(L, r);
-                ap_lua_release_state(L, spec, r);
-                return HTTP_INTERNAL_SERVER_ERROR;
-            }
-            rc = DECLINED;
-            if (lua_isnumber(L, -1)) {
-                rc = lua_tointeger(L, -1);
-            }
-            else { 
-                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02483)
-                              "lua: Lua handler %s in %s did not return a value, assuming apache2.OK",
-                              function_name,
-                              filename);
-                rc = OK;
-            }
-            ap_lua_release_state(L, spec, r);
-            if (rc != DECLINED) {
-                return rc;
-            }
-        }
+        case H2_PROXYS_ST_DONE: /* done, session terminated */
+            return APR_EOF;
+            
+        default:
+            ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_EGENERAL, session->c,
+                          APLOGNO(03346)"h2_proxy_session(%s): unknown state %d", 
+                          session->id, session->state);
+            dispatch_event(session, H2_PROXYS_EV_PROTO_ERROR, 0, NULL);
+            break;
     }
-    return DECLINED;
+
+
+    if (have_read || have_written) {
+        session->wait_timeout = 0;
+    }
+    
+    if (!nghttp2_session_want_read(session->ngh2)
+        && !nghttp2_session_want_write(session->ngh2)) {
+        dispatch_event(session, H2_PROXYS_EV_NGH2_DONE, 0, NULL);
+    }
+    
+    return APR_SUCCESS; /* needs to be called again */
 }

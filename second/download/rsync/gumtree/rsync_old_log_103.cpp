@@ -1,1 +1,1 @@
-fprintf(stderr,"received %d names\n",flist->count);
+fprintf(am_server?stderr:stdout,"%s is uptodate\n",fname);

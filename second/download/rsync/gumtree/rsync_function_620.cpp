@@ -1,19 +1,49 @@
-struct file_list *flist_new()
+int local_child(int argc, char **argv,int *f_in,int *f_out)
 {
-	struct file_list *flist;
+	int pid;
+	int to_child_pipe[2];
+	int from_child_pipe[2];
 
-	flist = (struct file_list *)malloc(sizeof(flist[0]));
-	if (!flist) out_of_memory("send_file_list");
+	if (pipe(to_child_pipe) < 0 ||
+	    pipe(from_child_pipe) < 0) {
+		fprintf(FERROR,"pipe: %s\n",strerror(errno));
+		exit_cleanup(1);
+	}
 
-	flist->count=0;
-	flist->malloced = 1000;
-	flist->files = (struct file_struct **)malloc(sizeof(flist->files[0])*
-						     flist->malloced);
-	if (!flist->files) out_of_memory("send_file_list");
-#if ARENA_SIZE > 0
-	flist->string_area = string_area_new(0);
-#else
-	flist->string_area = 0;
-#endif
-	return flist;
+
+	pid = do_fork();
+	if (pid < 0) {
+		fprintf(FERROR,"fork: %s\n",strerror(errno));
+		exit_cleanup(1);
+	}
+
+	if (pid == 0) {
+		extern int am_sender;
+		extern int am_server;
+
+		am_sender = !am_sender;
+		am_server = 1;		
+
+		if (dup2(to_child_pipe[0], STDIN_FILENO) < 0 ||
+		    close(to_child_pipe[1]) < 0 ||
+		    close(from_child_pipe[0]) < 0 ||
+		    dup2(from_child_pipe[1], STDOUT_FILENO) < 0) {
+			fprintf(FERROR,"Failed to dup/close : %s\n",strerror(errno));
+			exit_cleanup(1);
+		}
+		if (to_child_pipe[0] != STDIN_FILENO) close(to_child_pipe[0]);
+		if (from_child_pipe[1] != STDOUT_FILENO) close(from_child_pipe[1]);
+		start_server(argc, argv);
+	}
+
+	if (close(from_child_pipe[1]) < 0 ||
+	    close(to_child_pipe[0]) < 0) {
+		fprintf(FERROR,"Failed to close : %s\n",strerror(errno));   
+		exit_cleanup(1);
+	}
+
+	*f_in = from_child_pipe[0];
+	*f_out = to_child_pipe[1];
+  
+	return pid;
 }

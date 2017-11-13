@@ -1,28 +1,19 @@
-int gpg_verify_tag(const unsigned char *sha1, const char *name_to_report,
-		unsigned flags)
+static void show_name(const struct object *obj,
+		      const char *caller_name,
+		      int always, int allow_undefined, int name_only)
 {
-	enum object_type type;
-	char *buf;
-	unsigned long size;
-	int ret;
+	const char *name;
+	const unsigned char *sha1 = obj->sha1;
 
-	type = sha1_object_info(sha1, NULL);
-	if (type != OBJ_TAG)
-		return error("%s: cannot verify a non-tag object of type %s.",
-				name_to_report ?
-				name_to_report :
-				find_unique_abbrev(sha1, DEFAULT_ABBREV),
-				typename(type));
-
-	buf = read_sha1_file(sha1, &type, &size);
-	if (!buf)
-		return error("%s: unable to read file.",
-				name_to_report ?
-				name_to_report :
-				find_unique_abbrev(sha1, DEFAULT_ABBREV));
-
-	ret = run_gpg_verify(buf, size, flags);
-
-	free(buf);
-	return ret;
+	if (!name_only)
+		printf("%s ", caller_name ? caller_name : sha1_to_hex(sha1));
+	name = get_rev_name(obj);
+	if (name)
+		printf("%s\n", name);
+	else if (allow_undefined)
+		printf("undefined\n");
+	else if (always)
+		printf("%s\n", find_unique_abbrev(sha1, DEFAULT_ABBREV));
+	else
+		die("cannot describe '%s'", sha1_to_hex(sha1));
 }

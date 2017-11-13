@@ -1,247 +1,266 @@
-static int uldap_cache_check_subgroups(request_rec *r,
-                                       util_ldap_connection_t *ldc,
-                                       const char *url, const char *dn,
-                                       const char *attrib, const char *value,
-                                       char **subgroupAttrs,
-                                       apr_array_header_t *subgroupclasses,
-                                       int cur_subgroup_depth,
-                                       int max_subgroup_depth)
+apr_status_t isapi_handler (request_rec *r)
 {
-    int result = LDAP_COMPARE_FALSE;
-    util_url_node_t *curl;
-    util_url_node_t curnode;
-    util_compare_node_t *compare_nodep;
-    util_compare_node_t the_compare_node;
-    util_compare_subgroup_t *tmp_local_sgl = NULL;
-    int sgl_cached_empty = 0, sgindex = 0, base_sgcIndex = 0;
-    struct mod_auth_ldap_groupattr_entry_t *sgc_ents =
-            (struct mod_auth_ldap_groupattr_entry_t *) subgroupclasses->elts;
-    util_ldap_state_t *st = (util_ldap_state_t *)
-                            ap_get_module_config(r->server->module_config,
-                                                 &ldap_module);
+    isapi_dir_conf *dconf;
+    apr_table_t *e;
+    apr_status_t rv;
+    isapi_loaded *isa;
+    isapi_cid *cid;
+    const char *val;
+    apr_uint32_t read;
+    int res;
 
-    /*
-     * Stop looking at deeper levels of nested groups if we have reached the
-     * max. Since we already checked the top-level group in uldap_cache_compare,
-     * we don't need to check it again here - so if max_subgroup_depth is set
-     * to 0, we won't check it (i.e. that is why we check < rather than <=).
-     * We'll be calling uldap_cache_compare from here to check if the user is
-     * in the next level before we recurse into that next level looking for
-     * more subgroups.
-     */
-    if (cur_subgroup_depth >= max_subgroup_depth) {
-        return LDAP_COMPARE_FALSE;
-    }
-
-    /*
-     * 1. Check the "groupiness" of the specified basedn. Stopping at the first
-     *    TRUE return.
-     */
-    while ((base_sgcIndex < subgroupclasses->nelts)
-           && (result != LDAP_COMPARE_TRUE)) {
-        result = uldap_cache_compare(r, ldc, url, dn, "objectClass",
-                                     sgc_ents[base_sgcIndex].name);
-        if (result != LDAP_COMPARE_TRUE) {
-            base_sgcIndex++;
-        }
-    }
-
-    if (result != LDAP_COMPARE_TRUE) {
-        ldc->reason = "DN failed group verification.";
-        return result;
-    }
-
-    /*
-     * 2. Find previously created cache entry and check if there is already a
-     *    subgrouplist.
-     */
-    LDAP_CACHE_LOCK();
-    curnode.url = url;
-    curl = util_ald_cache_fetch(st->util_ldap_cache, &curnode);
-    LDAP_CACHE_UNLOCK();
-
-    if (curl && curl->compare_cache) {
-        /* make a comparison to the cache */
-        LDAP_CACHE_LOCK();
-
-        the_compare_node.dn = (char *)dn;
-        the_compare_node.attrib = (char *)"objectClass";
-        the_compare_node.value = (char *)sgc_ents[base_sgcIndex].name;
-        the_compare_node.result = 0;
-        the_compare_node.sgl_processed = 0;
-        the_compare_node.subgroupList = NULL;
-
-        compare_nodep = util_ald_cache_fetch(curl->compare_cache,
-                                             &the_compare_node);
-
-        if (compare_nodep != NULL) {
-            /*
-             * Found the generic group entry... but the user isn't in this
-             * group or we wouldn't be here.
-             */
-            if (compare_nodep->sgl_processed) {
-                if (compare_nodep->subgroupList) {
-                    /* Make a local copy of the subgroup list */
-                    int i;
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                  "[%" APR_PID_T_FMT "] util_ldap:"
-                                  " Making local copy of SGL for "
-                                  "group (%s)(objectClass=%s) ",
-                                  getpid(), dn,
-                                  (char *)sgc_ents[base_sgcIndex].name);
-                    tmp_local_sgl = apr_pcalloc(r->pool,
-                                                sizeof(util_compare_subgroup_t));
-                    tmp_local_sgl->len = compare_nodep->subgroupList->len;
-                    tmp_local_sgl->subgroupDNs =
-                        apr_pcalloc(r->pool,
-                                    sizeof(char *) * compare_nodep->subgroupList->len);
-                    for (i = 0; i < compare_nodep->subgroupList->len; i++) {
-                        tmp_local_sgl->subgroupDNs[i] =
-                            apr_pstrdup(r->pool,
-                                        compare_nodep->subgroupList->subgroupDNs[i]);
-                    }
-                }
-                else {
-                    sgl_cached_empty = 1;
-                }
-            }
-        }
-        LDAP_CACHE_UNLOCK();
-    }
-
-    if (!tmp_local_sgl && !sgl_cached_empty) {
-        /* No Cached SGL, retrieve from LDAP */
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "[%" APR_PID_T_FMT "] util_ldap: no cached SGL for %s,"
-                      " retrieving from LDAP" , getpid(), dn);
-        tmp_local_sgl = uldap_get_subgroups(r, ldc, url, dn, subgroupAttrs,
-                                            subgroupclasses);
-        if (!tmp_local_sgl) {
-            /* No SGL aailable via LDAP either */
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "[%" APR_PID_T_FMT "]"
-                          " util_ldap: no subgroups for %s" , getpid(), dn);
-        }
-
-      if (curl && curl->compare_cache) {
-        /*
-         * Find the generic group cache entry and add the sgl we just retrieved.
+    if(strcmp(r->handler, "isapi-isa")
+        && strcmp(r->handler, "isapi-handler")) {
+        /* Hang on to the isapi-isa for compatibility with older docs
+         * (wtf did '-isa' mean in the first place?) but introduce
+         * a newer and clearer "isapi-handler" name.
          */
-        LDAP_CACHE_LOCK();
-
-        the_compare_node.dn = (char *)dn;
-        the_compare_node.attrib = (char *)"objectClass";
-        the_compare_node.value = (char *)sgc_ents[base_sgcIndex].name;
-        the_compare_node.result = 0;
-        the_compare_node.sgl_processed = 0;
-        the_compare_node.subgroupList = NULL;
-
-        compare_nodep = util_ald_cache_fetch(curl->compare_cache,
-                                             &the_compare_node);
-
-        if (compare_nodep == NULL) {
-            /*
-             * The group entry we want to attach our SGL to doesn't exist.
-             * We only got here if we verified this DN was actually a group
-             * based on the objectClass, but we can't call the compare function
-             * while we already hold the cache lock -- only the insert.
-             */
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "[%" APR_PID_T_FMT "] util_ldap: Cache entry "
-                          "for %s doesn't exist",
-                           getpid(), dn);
-            the_compare_node.result = LDAP_COMPARE_TRUE;
-            util_ald_cache_insert(curl->compare_cache, &the_compare_node);
-            compare_nodep = util_ald_cache_fetch(curl->compare_cache,
-                                                 &the_compare_node);
-            if (compare_nodep == NULL) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "[%" APR_PID_T_FMT "] util_ldap: Couldn't "
-                              "retrieve group entry for %s from cache",
-                               getpid(), dn);
-            }
-        }
-
-        /*
-         * We have a valid cache entry and a locally generated SGL.
-         * Attach the SGL to the cache entry
-         */
-        if (compare_nodep && !compare_nodep->sgl_processed) {
-            if (!tmp_local_sgl) {
-                /* We looked up an SGL for a group and found it to be empty */
-                if (compare_nodep->subgroupList == NULL) {
-                    compare_nodep->sgl_processed = 1;
-                }
-            }
-            else {
-                util_compare_subgroup_t *sgl_copy =
-                    util_ald_sgl_dup(curl->compare_cache, tmp_local_sgl);
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                             "Copying local SGL of len %d for group %s into cache",
-                             tmp_local_sgl->len, dn);
-                if (sgl_copy) {
-                    if (compare_nodep->subgroupList) {
-                        util_ald_sgl_free(curl->compare_cache,
-                                          &(compare_nodep->subgroupList));
-                    }
-                    compare_nodep->subgroupList = sgl_copy;
-                    compare_nodep->sgl_processed = 1;
-                }
-                else {
-                    ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                                 "Copy of SGL failed to obtain shared memory, "
-                                 "couldn't update cache");
-                }
-            }
-        }
-        LDAP_CACHE_UNLOCK();
-      }
+        return DECLINED;
     }
+    dconf = ap_get_module_config(r->per_dir_config, &isapi_module);
+    e = r->subprocess_env;
 
-    /*
-     * tmp_local_sgl has either been created, or copied out of the cache
-     * If tmp_local_sgl is NULL, there are no subgroups to process and we'll
-     * return false
+    /* Use similar restrictions as CGIs
+     *
+     * If this fails, it's pointless to load the isapi dll.
      */
-    result = LDAP_COMPARE_FALSE;
-    if (!tmp_local_sgl) {
-        return result;
+    if (!(ap_allow_options(r) & OPT_EXECCGI)) {
+        return HTTP_FORBIDDEN;
+    }
+    if (r->finfo.filetype == APR_NOFILE) {
+        return HTTP_NOT_FOUND;
+    }
+    if (r->finfo.filetype != APR_REG) {
+        return HTTP_FORBIDDEN;
+    }
+    if ((r->used_path_info == AP_REQ_REJECT_PATH_INFO) &&
+        r->path_info && *r->path_info) {
+        /* default to accept */
+        return HTTP_NOT_FOUND;
     }
 
-    while ((result != LDAP_COMPARE_TRUE) && (sgindex < tmp_local_sgl->len)) {
-        const char *group = NULL;
-        group = tmp_local_sgl->subgroupDNs[sgindex];
-        /*
-         * 4. Now loop through the subgroupList and call uldap_cache_compare
-         * to check for the user.
+    if (isapi_lookup(r->pool, r->server, r, r->filename, &isa)
+           != APR_SUCCESS) {
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+    /* Set up variables */
+    ap_add_common_vars(r);
+    ap_add_cgi_vars(r);
+    apr_table_setn(e, "UNMAPPED_REMOTE_USER", "REMOTE_USER");
+    if ((val = apr_table_get(e, "HTTPS")) && strcmp(val, "on"))
+        apr_table_setn(e, "SERVER_PORT_SECURE", "1");
+    else
+        apr_table_setn(e, "SERVER_PORT_SECURE", "0");
+    apr_table_setn(e, "URL", r->uri);
+
+    /* Set up connection structure and ecb,
+     * NULL or zero out most fields.
+     */
+    cid = apr_pcalloc(r->pool, sizeof(isapi_cid));
+
+    /* Fixup defaults for dconf */
+    cid->dconf.read_ahead_buflen = (dconf->read_ahead_buflen == ISAPI_UNDEF)
+                                     ? 49152 : dconf->read_ahead_buflen;
+    cid->dconf.log_unsupported   = (dconf->log_unsupported == ISAPI_UNDEF)
+                                     ? 0 : dconf->log_unsupported;
+    cid->dconf.log_to_errlog     = (dconf->log_to_errlog == ISAPI_UNDEF)
+                                     ? 0 : dconf->log_to_errlog;
+    cid->dconf.log_to_query      = (dconf->log_to_query == ISAPI_UNDEF)
+                                     ? 1 : dconf->log_to_query;
+    cid->dconf.fake_async        = (dconf->fake_async == ISAPI_UNDEF)
+                                     ? 0 : dconf->fake_async;
+
+    cid->ecb = apr_pcalloc(r->pool, sizeof(EXTENSION_CONTROL_BLOCK));
+    cid->ecb->ConnID = cid;
+    cid->isa = isa;
+    cid->r = r;
+    r->status = 0;
+
+    cid->ecb->cbSize = sizeof(EXTENSION_CONTROL_BLOCK);
+    cid->ecb->dwVersion = isa->report_version;
+    cid->ecb->dwHttpStatusCode = 0;
+    strcpy(cid->ecb->lpszLogData, "");
+    /* TODO: are copies really needed here?
+     */
+    cid->ecb->lpszMethod = (char*) r->method;
+    cid->ecb->lpszQueryString = (char*) apr_table_get(e, "QUERY_STRING");
+    cid->ecb->lpszPathInfo = (char*) apr_table_get(e, "PATH_INFO");
+    cid->ecb->lpszPathTranslated = (char*) apr_table_get(e, "PATH_TRANSLATED");
+    cid->ecb->lpszContentType = (char*) apr_table_get(e, "CONTENT_TYPE");
+
+    /* Set up the callbacks */
+    cid->ecb->GetServerVariable = GetServerVariable;
+    cid->ecb->WriteClient = WriteClient;
+    cid->ecb->ReadClient = ReadClient;
+    cid->ecb->ServerSupportFunction = ServerSupportFunction;
+
+    /* Set up client input */
+    res = ap_setup_client_block(r, REQUEST_CHUNKED_ERROR);
+    if (res) {
+        isapi_unload(isa, 0);
+        return res;
+    }
+
+    if (ap_should_client_block(r)) {
+        /* Time to start reading the appropriate amount of data,
+         * and allow the administrator to tweak the number
          */
-        result = uldap_cache_compare(r, ldc, url, group, attrib, value);
-        if (result == LDAP_COMPARE_TRUE) {
-            /*
-             * 4.A. We found the user in the subgroup. Return
-             * LDAP_COMPARE_TRUE.
-             */
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "[%" APR_PID_T_FMT "]"
-                          " util_ldap: Found user %s in a subgroup (%s) at"
-                          " level %d of %d.", getpid(), r->user, group,
-                          cur_subgroup_depth+1, max_subgroup_depth);
+        if (r->remaining) {
+            cid->ecb->cbTotalBytes = (apr_size_t)r->remaining;
+            if (cid->ecb->cbTotalBytes > (apr_uint32_t)cid->dconf.read_ahead_buflen)
+                cid->ecb->cbAvailable = cid->dconf.read_ahead_buflen;
+            else
+                cid->ecb->cbAvailable = cid->ecb->cbTotalBytes;
         }
-        else {
-            /*
-             * 4.B. We didn't find the user in this subgroup, so recurse into
-             * it and keep looking.
-             */
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "[%" APR_PID_T_FMT "]"
-                          " util_ldap: user %s not found in subgroup (%s) at"
-                          " level %d of %d.", getpid(), r->user, group,
-                          cur_subgroup_depth+1, max_subgroup_depth);
-            result = uldap_cache_check_subgroups(r, ldc, url, group, attrib,
-                                                 value, subgroupAttrs,
-                                                 subgroupclasses,
-                                                 cur_subgroup_depth+1,
-                                                 max_subgroup_depth);
+        else
+        {
+            cid->ecb->cbTotalBytes = 0xffffffff;
+            cid->ecb->cbAvailable = cid->dconf.read_ahead_buflen;
         }
-        sgindex++;
+
+        cid->ecb->lpbData = apr_pcalloc(r->pool, cid->ecb->cbAvailable + 1);
+
+        read = 0;
+        while (read < cid->ecb->cbAvailable &&
+               ((res = ap_get_client_block(r, (char*)cid->ecb->lpbData + read,
+                                        cid->ecb->cbAvailable - read)) > 0)) {
+            read += res;
+        }
+
+        if (res < 0) {
+            isapi_unload(isa, 0);
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+
+        /* Although it's not to spec, IIS seems to null-terminate
+         * its lpdData string. So we will too.
+         */
+        if (res == 0)
+            cid->ecb->cbAvailable = cid->ecb->cbTotalBytes = read;
+        else
+            cid->ecb->cbAvailable = read;
+        cid->ecb->lpbData[read] = '\0';
+    }
+    else {
+        cid->ecb->cbTotalBytes = 0;
+        cid->ecb->cbAvailable = 0;
+        cid->ecb->lpbData = NULL;
     }
 
-    return result;
+    /* To emulate async behavior...
+     *
+     * We create a cid->completed mutex and lock on it so that the
+     * app can believe is it running async.
+     *
+     * This request completes upon a notification through
+     * ServerSupportFunction(HSE_REQ_DONE_WITH_SESSION), which
+     * unlocks this mutex.  If the HttpExtensionProc() returns
+     * HSE_STATUS_PENDING, we will attempt to gain this lock again
+     * which may *only* happen once HSE_REQ_DONE_WITH_SESSION has
+     * unlocked the mutex.
+     */
+    if (cid->dconf.fake_async) {
+        rv = apr_thread_mutex_create(&cid->completed,
+                                     APR_THREAD_MUTEX_UNNESTED,
+                                     r->pool);
+        if (cid->completed && (rv == APR_SUCCESS)) {
+            rv = apr_thread_mutex_lock(cid->completed);
+        }
+
+        if (!cid->completed || (rv != APR_SUCCESS)) {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: Failed to create completion mutex");
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+    }
+
+    /* All right... try and run the sucker */
+    rv = (*isa->HttpExtensionProc)(cid->ecb);
+
+    /* Check for a log message - and log it */
+    if (cid->ecb->lpszLogData && *cid->ecb->lpszLogData)
+        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                      "ISAPI: %s: %s", r->filename, cid->ecb->lpszLogData);
+
+    switch(rv) {
+        case 0:  /* Strange, but MS isapi accepts this as success */
+        case HSE_STATUS_SUCCESS:
+        case HSE_STATUS_SUCCESS_AND_KEEP_CONN:
+            /* Ignore the keepalive stuff; Apache handles it just fine without
+             * the ISAPI Handler's "advice".
+             * Per Microsoft: "In IIS versions 4.0 and later, the return
+             * values HSE_STATUS_SUCCESS and HSE_STATUS_SUCCESS_AND_KEEP_CONN
+             * are functionally identical: Keep-Alive connections are
+             * maintained, if supported by the client."
+             * ... so we were pat all this time
+             */
+            break;
+
+        case HSE_STATUS_PENDING:
+            /* emulating async behavior...
+             */
+            if (cid->completed) {
+                /* The completion port was locked prior to invoking
+                 * HttpExtensionProc().  Once we can regain the lock,
+                 * when ServerSupportFunction(HSE_REQ_DONE_WITH_SESSION)
+                 * is called by the extension to release the lock,
+                 * we may finally destroy the request.
+                 */
+                (void)apr_thread_mutex_lock(cid->completed);
+                break;
+            }
+            else if (cid->dconf.log_unsupported) {
+                 ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                               "ISAPI: asynch I/O result HSE_STATUS_PENDING "
+                               "from HttpExtensionProc() is not supported: %s",
+                               r->filename);
+                 r->status = HTTP_INTERNAL_SERVER_ERROR;
+            }
+            break;
+
+        case HSE_STATUS_ERROR:
+            /* end response if we have yet to do so.
+             */
+            r->status = HTTP_INTERNAL_SERVER_ERROR;
+            break;
+
+        default:
+            /* TODO: log unrecognized retval for debugging
+             */
+             ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                           "ISAPI: return code %d from HttpExtensionProc() "
+                           "was not not recognized", rv);
+            r->status = HTTP_INTERNAL_SERVER_ERROR;
+            break;
+    }
+
+    /* Flush the response now, including headers-only responses */
+    if (cid->headers_set) {
+        conn_rec *c = r->connection;
+        apr_bucket_brigade *bb;
+        apr_bucket *b;
+        apr_status_t rv;
+
+        bb = apr_brigade_create(r->pool, c->bucket_alloc);
+        b = apr_bucket_eos_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        b = apr_bucket_flush_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        rv = ap_pass_brigade(r->output_filters, bb);
+        cid->response_sent = 1;
+
+        return OK;  /* NOT r->status or cid->r->status, even if it has changed. */
+    }
+
+    /* As the client returned no error, and if we did not error out
+     * ourselves, trust dwHttpStatusCode to say something relevant.
+     */
+    if (!ap_is_HTTP_SERVER_ERROR(r->status) && cid->ecb->dwHttpStatusCode) {
+        r->status = cid->ecb->dwHttpStatusCode;
+    }
+
+    /* For all missing-response situations simply return the status.
+     * and let the core deal respond to the client.
+     */
+    return r->status;
 }

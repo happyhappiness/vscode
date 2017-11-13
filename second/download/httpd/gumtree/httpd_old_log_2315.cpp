@@ -1,1 +1,2 @@
-fprintf(stderr, "Invalid rotation size parameter\n");
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(),
+                     NULL, "Could not register window class for WatchWindow");

@@ -1,1 +1,1 @@
-die(_("unable to write index file"));
+fprintf(stdout, "%s", item->string);

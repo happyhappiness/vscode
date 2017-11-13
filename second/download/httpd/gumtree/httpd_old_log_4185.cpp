@@ -1,6 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
-                         base_server,
-                         "Init: (%s) You configured HTTPS(%d) "
-                         "on the standard HTTP(%d) port!",
-                         ssl_util_vhostid(p, s),
-                         DEFAULT_HTTPS_PORT, DEFAULT_HTTP_PORT);
+ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                     "proxy: AJP: request failed to %pI (%s)",
+                     conn->worker->cp->addr,
+                     conn->worker->hostname);

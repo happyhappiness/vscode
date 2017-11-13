@@ -1,2 +1,2 @@
-error("%s: not a valid attribute name",
-					     argv[i]);
+die_errno("Invalid path '%s'",
+						  resolved->buf);

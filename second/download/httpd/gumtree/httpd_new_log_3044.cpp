@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00846)
-                     "finished force-expire, subcache: idx_used=%d, "
-                     "data_used=%d", subcache->idx_used, subcache->data_used);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "util_ldap: Couldn't retrieve group entry "
+                              "for %s from cache",
+                              dn);

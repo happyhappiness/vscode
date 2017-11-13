@@ -1,1 +1,1 @@
-state_attach_puts (p, s);
+fprintf (msg->fp, "From %s %s", p ? p->mailbox : NONULL(Username), ctime (&t));

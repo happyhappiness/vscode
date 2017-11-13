@@ -1,11 +1,10 @@
 fputs(
-"              --socks5-gssapi-nec allows the unprotected exchange of the  pro-\n"
-"              tection mode negotiation. (Added in 7.19.4).\n"
+"              service  sockd/real-name  would  use  sockd/real-name  for cases\n"
+"              where the proxy-name does not match the principal name.   (Added\n"
+"              in 7.19.4).\n"
 "\n"
-"       --stderr <file>\n"
-"              Redirect  all writes to stderr to the specified file instead. If\n"
-"              the file name is a plain '-', it is instead written  to  stdout.\n"
-"              This  option  has no point when you're using a shell with decent\n"
-"              redirecting capabilities.\n"
-"\n"
+"       --socks5-gssapi-nec\n"
+"              As  part  of the gssapi negotiation a protection mode is negoti-\n"
+"              ated. RFC 1961 says in section 4.3/4.4 it should  be  protected,\n"
+"              but  the  NEC  reference  implementation  does  not.  The option\n"
 , stdout);

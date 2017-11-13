@@ -1,10 +1,9 @@
 fputs(
-"              the  file  to  read cookies from should be plain HTTP headers or\n"
-"              the Netscape/Mozilla cookie file format.\n"
+"              headers, thus possibly inducing  an  extra  network  round-trip.\n"
+"              This  is  used  instead  of  setting  a  specific authentication\n"
+"              method, which you can do with  --basic,  --digest,  --ntlm,  and\n"
+"              --negotiate.\n"
 "\n"
-"              NOTE that the file specified with -b, --cookie is only  used  as\n"
-"              input.  No cookies will be stored in the file. To store cookies,\n"
-"              use the -c, --cookie-jar option or you could even save the  HTTP\n"
-"              headers to a file using -D, --dump-header!\n"
-"\n"
+"              Note  that  using --anyauth is not recommended if you do uploads\n"
+"              from stdin, since it may require data to be sent twice and  then\n"
 , stdout);

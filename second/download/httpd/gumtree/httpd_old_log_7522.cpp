@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
-                                 pServ, APLOGNO(02251)
-                                 "encrypted %s private key - pass phrase"
-                                 " reused", an);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(02205)
+                     "Init: Wiped out the queried pass phrases from memory");

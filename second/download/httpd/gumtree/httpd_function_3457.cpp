@@ -1,29 +1,15 @@
-static const char *util_ldap_set_trusted_mode(cmd_parms *cmd, void *dummy,
-                                              const char *mode)
+static int try_chown(apr_pool_t *p, server_rec *s,
+                     const char *name, const char *suffix)
 {
-    util_ldap_state_t *st =
-    (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config,
-                                              &ldap_module);
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
-                      "LDAP: SSL trusted mode - %s",
-                       mode);
-
-    if (0 == strcasecmp("NONE", mode)) {
-        st->secure = APR_LDAP_NONE;
+    if (suffix)
+        name = apr_pstrcat(p, name, suffix, NULL);
+    if (-1 == chown(name, ap_unixd_config.user_id,
+                    (gid_t)-1 /* no gid change */ ))
+    {
+        if (errno != ENOENT)
+            ap_log_error(APLOG_MARK, APLOG_ERR, APR_FROM_OS_ERROR(errno), s, APLOGNO(00802)
+                         "Can't change owner of %s", name);
+        return -1;
     }
-    else if (0 == strcasecmp("SSL", mode)) {
-        st->secure = APR_LDAP_SSL;
-    }
-    else if (   (0 == strcasecmp("TLS", mode))
-             || (0 == strcasecmp("STARTTLS", mode))) {
-        st->secure = APR_LDAP_STARTTLS;
-    }
-    else {
-        return "Invalid LDAPTrustedMode setting: must be one of NONE, "
-               "SSL, or TLS/STARTTLS";
-    }
-
-    st->secure_set = 1;
-    return(NULL);
+    return 0;
 }

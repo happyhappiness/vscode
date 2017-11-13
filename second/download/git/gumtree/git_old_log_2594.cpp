@@ -1,1 +1,2 @@
-not_found("Cannot open '%s': %s", p, strerror(errno));
+die("Failed to simplify parents of commit %s",
+			    sha1_to_hex(commit->object.sha1));

@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "proxy: FTP: error listening to ftp data socket %pI", local_addr);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                 "ldap cache: Setting operation cache TTL to %ld microseconds.",
+                 st->compare_cache_ttl);

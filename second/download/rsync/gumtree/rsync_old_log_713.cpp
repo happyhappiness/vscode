@@ -1,1 +1,1 @@
-out_of_memory("make_exclude");
+fprintf(f, " %s\n", POPT_("[OPTION...]"));

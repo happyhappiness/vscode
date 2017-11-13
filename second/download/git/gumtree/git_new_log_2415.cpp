@@ -1,1 +1,1 @@
-error(_("cannot abort from a branch yet to be born"));
+die("no branches given, and HEAD is not valid");

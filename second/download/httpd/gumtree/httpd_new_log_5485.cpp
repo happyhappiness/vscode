@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c, APLOGNO(03062)
-                  "h2_session: send error");
+ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(00080)
+                          "a content filter was added without a request: %s", frec->name);

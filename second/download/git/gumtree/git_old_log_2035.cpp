@@ -1,1 +1,1 @@
-die("filename too long");
+fprintf(stderr, "%s%s\n", prefix, msg);

@@ -1,109 +1,71 @@
-static apr_status_t h2_session_start(h2_session *session, int *rv)
+static int fcgi_do_request(apr_pool_t *p, request_rec *r,
+                           proxy_conn_rec *conn,
+                           conn_rec *origin,
+                           proxy_dir_conf *conf,
+                           apr_uri_t *uri,
+                           char *url, char *server_portstr)
 {
-    apr_status_t status = APR_SUCCESS;
-    nghttp2_settings_entry settings[3];
-    size_t slen;
-    int win_size;
-    
-    ap_assert(session);
-    /* Start the conversation by submitting our SETTINGS frame */
-    *rv = 0;
-    if (session->r) {
-        const char *s, *cs;
-        apr_size_t dlen; 
-        h2_stream * stream;
+    /* Request IDs are arbitrary numbers that we assign to a
+     * single request. This would allow multiplex/pipelining of
+     * multiple requests to the same FastCGI connection, but
+     * we don't support that, and always use a value of '1' to
+     * keep things simple. */
+    apr_uint16_t request_id = 1;
+    apr_status_t rv;
+    apr_pool_t *temp_pool;
+    const char *err;
+    int bad_request = 0,
+        has_responded = 0;
 
-        /* 'h2c' mode: we should have a 'HTTP2-Settings' header with
-         * base64 encoded client settings. */
-        s = apr_table_get(session->r->headers_in, "HTTP2-Settings");
-        if (!s) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_EINVAL, session->r,
-                          APLOGNO(02931) 
-                          "HTTP2-Settings header missing in request");
-            return APR_EINVAL;
-        }
-        cs = NULL;
-        dlen = h2_util_base64url_decode(&cs, s, session->pool);
-        
-        if (APLOGrdebug(session->r)) {
-            char buffer[128];
-            h2_util_hex_dump(buffer, 128, (char*)cs, dlen);
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, session->r, APLOGNO(03070)
-                          "upgrading h2c session with HTTP2-Settings: %s -> %s (%d)",
-                          s, buffer, (int)dlen);
-        }
-        
-        *rv = nghttp2_session_upgrade(session->ngh2, (uint8_t*)cs, dlen, NULL);
-        if (*rv != 0) {
-            status = APR_EINVAL;
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, session->r,
-                          APLOGNO(02932) "nghttp2_session_upgrade: %s", 
-                          nghttp2_strerror(*rv));
-            return status;
-        }
-        
-        /* Now we need to auto-open stream 1 for the request we got. */
-        stream = h2_session_open_stream(session, 1, 0, NULL);
-        if (!stream) {
-            status = APR_EGENERAL;
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, session->r,
-                          APLOGNO(02933) "open stream 1: %s", 
-                          nghttp2_strerror(*rv));
-            return status;
-        }
-        
-        status = h2_stream_set_request_rec(stream, session->r);
-        if (status != APR_SUCCESS) {
-            return status;
-        }
-        status = stream_schedule(session, stream, 1);
-        if (status != APR_SUCCESS) {
-            return status;
-        }
+    /* Step 1: Send AP_FCGI_BEGIN_REQUEST */
+    rv = send_begin_request(conn, request_id);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01073)
+                      "Failed Writing Request to %s:", server_portstr);
+        conn->close = 1;
+        return HTTP_SERVICE_UNAVAILABLE;
     }
 
-    slen = 0;
-    settings[slen].settings_id = NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS;
-    settings[slen].value = (uint32_t)session->max_stream_count;
-    ++slen;
-    win_size = h2_config_geti(session->config, H2_CONF_WIN_SIZE);
-    if (win_size != H2_INITIAL_WINDOW_SIZE) {
-        settings[slen].settings_id = NGHTTP2_SETTINGS_INITIAL_WINDOW_SIZE;
-        settings[slen].value = win_size;
-        ++slen;
+    apr_pool_create(&temp_pool, r->pool);
+
+    /* Step 2: Send Environment via FCGI_PARAMS */
+    rv = send_environment(conn, r, temp_pool, request_id);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01074)
+                      "Failed writing Environment to %s:", server_portstr);
+        conn->close = 1;
+        return HTTP_SERVICE_UNAVAILABLE;
     }
-    
-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c, APLOGNO(03201)
-                  "h2_session(%ld): start, INITIAL_WINDOW_SIZE=%ld, "
-                  "MAX_CONCURRENT_STREAMS=%d", 
-                  session->id, (long)win_size, (int)session->max_stream_count);
-    *rv = nghttp2_submit_settings(session->ngh2, NGHTTP2_FLAG_NONE,
-                                  settings, slen);
-    if (*rv != 0) {
-        status = APR_EGENERAL;
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, status, session->c,
-                      APLOGNO(02935) "nghttp2_submit_settings: %s", 
-                      nghttp2_strerror(*rv));
-    }
-    else {
-        /* use maximum possible value for connection window size. We are only
-         * interested in per stream flow control. which have the initial window
-         * size configured above.
-         * Therefore, for our use, the connection window can only get in the
-         * way. Example: if we allow 100 streams with a 32KB window each, we
-         * buffer up to 3.2 MB of data. Unless we do separate connection window
-         * interim updates, any smaller connection window will lead to blocking
-         * in DATA flow.
-         */
-        *rv = nghttp2_submit_window_update(session->ngh2, NGHTTP2_FLAG_NONE,
-                                           0, NGHTTP2_MAX_WINDOW_SIZE - win_size);
-        if (*rv != 0) {
-            status = APR_EGENERAL;
-            ap_log_cerror(APLOG_MARK, APLOG_ERR, status, session->c,
-                          APLOGNO(02970) "nghttp2_submit_window_update: %s", 
-                          nghttp2_strerror(*rv));        
+
+    /* Step 3: Read records from the back end server and handle them. */
+    rv = dispatch(conn, conf, r, temp_pool, request_id,
+                  &err, &bad_request, &has_responded);
+    if (rv != APR_SUCCESS) {
+        /* If the client aborted the connection during retrieval or (partially)
+         * sending the response, don't return a HTTP_SERVICE_UNAVAILABLE, since
+         * this is not a backend problem. */
+        if (r->connection->aborted) {
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE1, rv, r, 
+                          "The client aborted the connection.");
+            conn->close = 1;
+            return OK;
         }
+
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01075)
+                      "Error dispatching request to %s: %s%s%s",
+                      server_portstr,
+                      err ? "(" : "",
+                      err ? err : "",
+                      err ? ")" : "");
+        conn->close = 1;
+        if (has_responded) {
+            return AP_FILTER_ERROR;
+        }
+        if (bad_request) {
+            return ap_map_http_request_error(rv, HTTP_BAD_REQUEST);
+        }
+        return HTTP_SERVICE_UNAVAILABLE;
     }
-    
-    return status;
+
+    return OK;
 }

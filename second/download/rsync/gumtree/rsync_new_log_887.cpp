@@ -1,1 +1,1 @@
-S_ISDIR(st.st_mode);
+ENSURE_MEMSPACE(glob.argv, char *, glob.maxargs, 100);

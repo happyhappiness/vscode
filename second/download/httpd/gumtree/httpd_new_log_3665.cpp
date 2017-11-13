@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, status, NULL, APLOGNO(01032)
-                     "ajp_ilink_receive() error while receiving message body "
-                     "of length %" APR_SIZE_T_FMT,
-                     hlen);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01385)
+                              "Zlib error %d flushing zlib output buffer (%s)",
+                              zRC, ctx->stream.msg);

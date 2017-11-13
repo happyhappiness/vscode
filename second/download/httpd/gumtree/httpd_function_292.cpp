@@ -1,246 +1,115 @@
-int main(int argc, const char * const argv[])
+static void set_signals(void)
 {
-    int r, l;
-    char tmp[1024];
-    apr_status_t status;
-    apr_getopt_t *opt;
-    const char *optarg;
-    char c;
+#ifndef NO_USE_SIGACTION
+    struct sigaction sa;
 
-    /* table defaults  */
-    tablestring = "";
-    trstring = "";
-    tdstring = "bgcolor=white";
-    cookie = "";
-    auth = "";
-    proxyhost[0] = '\0';
-    hdrs = "";
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
 
-    apr_app_initialize(&argc, &argv, NULL);
-    atexit(apr_terminate);
-    apr_pool_create(&cntxt, NULL);
-
-#ifdef NOT_ASCII
-    status = apr_xlate_open(&to_ascii, "ISO8859-1", APR_DEFAULT_CHARSET, cntxt);
-    if (status) {
-	fprintf(stderr, "apr_xlate_open(to ASCII)->%d\n", status);
-	exit(1);
-    }
-    status = apr_xlate_open(&from_ascii, APR_DEFAULT_CHARSET, "ISO8859-1", cntxt);
-    if (status) {
-	fprintf(stderr, "apr_xlate_open(from ASCII)->%d\n", status);
-	exit(1);
-    }
-    status = apr_base64init_ebcdic(to_ascii, from_ascii);
-    if (status) {
-	fprintf(stderr, "apr_base64init_ebcdic()->%d\n", status);
-	exit(1);
-    }
+    if (!one_process) {
+        sa.sa_handler = sig_coredump;
+#if defined(SA_ONESHOT)
+        sa.sa_flags = SA_ONESHOT;
+#elif defined(SA_RESETHAND)
+        sa.sa_flags = SA_RESETHAND;
 #endif
-
-    apr_getopt_init(&opt, cntxt, argc, argv);
-    while ((status = apr_getopt(opt, "n:c:t:T:p:v:kVhwix:y:z:C:H:P:A:g:X:de:Sq"
-#ifdef USE_SSL
-				"s"
+        if (sigaction(SIGSEGV, &sa, NULL) < 0)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
+                         "sigaction(SIGSEGV)");
+#ifdef SIGBUS
+        if (sigaction(SIGBUS, &sa, NULL) < 0)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
+                         "sigaction(SIGBUS)");
 #endif
-				,&c, &optarg)) == APR_SUCCESS) {
-	switch (c) {
-	case 's':
-#ifdef USE_SSL
-        ssl = 1;
-        break;
-#else
-        fprintf(stderr, "SSL not compiled in; no https support\n");
-        exit(1);
+#ifdef SIGABORT
+        if (sigaction(SIGABORT, &sa, NULL) < 0)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
+                         "sigaction(SIGABORT)");
 #endif
-	case 'n':
-	    requests = atoi(optarg);
-	    if (!requests) {
-		err("Invalid number of requests\n");
-	    }
-	    break;
-	case 'k':
-	    keepalive = 1;
-	    break;
-	case 'q':
-	    heartbeatres = 0;
-	    break;
-	case 'c':
-	    concurrency = atoi(optarg);
-	    break;
-	case 'i':
-	    if (posting == 1)
-		err("Cannot mix POST and HEAD\n");
-	    posting = -1;
-	    break;
-	case 'g':
-	    gnuplot = strdup(optarg);
-	    break;
-	case 'd':
-	    percentile = 0;
-	    break;
-	case 'e':
-	    csvperc = strdup(optarg);
-	    break;
-	case 'S':
-	    confidence = 0;
-	    break;
-	case 'p':
-	    if (posting != 0)
-		err("Cannot mix POST and HEAD\n");
-
-	    if (0 == (r = open_postfile(optarg))) {
-		posting = 1;
-	    }
-	    else if (postdata) {
-		exit(r);
-	    }
-	    break;
-	case 'v':
-	    verbosity = atoi(optarg);
-	    break;
-	case 't':
-	    tlimit = atoi(optarg);
-	    requests = MAX_REQUESTS;	/* need to size data array on
-					 * something */
-	    break;
-	case 'T':
-	    strcpy(content_type, optarg);
-	    break;
-	case 'C':
-            cookie = apr_pstrcat(cntxt, "Cookie: ", optarg, "\r\n", NULL);
-	    break;
-	case 'A':
-	    /*
-	     * assume username passwd already to be in colon separated form.
-	     * Ready to be uu-encoded.
-	     */
-	    while (apr_isspace(*optarg))
-		optarg++;
-            if (apr_base64_encode_len(strlen(optarg)) > sizeof(tmp)) {
-                err("Authentication credentials too long\n");
-            }
-	    l = apr_base64_encode(tmp, optarg, strlen(optarg));
-	    tmp[l] = '\0';
-
-            auth = apr_pstrcat(cntxt, auth, "Authorization: Basic ", tmp,
-                               "\r\n", NULL);
-	    break;
-	case 'P':
-	    /*
-             * assume username passwd already to be in colon separated form.
-             */
-	    while (apr_isspace(*optarg))
-		optarg++;
-            if (apr_base64_encode_len(strlen(optarg)) > sizeof(tmp)) {
-                err("Proxy credentials too long\n");
-            }
-	    l = apr_base64_encode(tmp, optarg, strlen(optarg));
-	    tmp[l] = '\0';
-
-            auth = apr_pstrcat(cntxt, auth, "Proxy-Authorization: Basic ",
-                               tmp, "\r\n", NULL);
-	    break;
-	case 'H':
-            hdrs = apr_pstrcat(cntxt, hdrs, optarg, "\r\n", NULL);
-	    break;
-	case 'w':
-	    use_html = 1;
-	    break;
-	    /*
-	     * if any of the following three are used, turn on html output
-	     * automatically
-	     */
-	case 'x':
-	    use_html = 1;
-	    tablestring = optarg;
-	    break;
-	case 'X':
-	    {
-		char *p;
-		/*
-                 * assume proxy-name[:port]
-                 */
-		if ((p = strchr(optarg, ':'))) {
-		    *p = '\0';
-		    p++;
-		    proxyport = atoi(p);
-		}
-		strcpy(proxyhost, optarg);
-		isproxy = 1;
-	    }
-	    break;
-	case 'y':
-	    use_html = 1;
-	    trstring = optarg;
-	    break;
-	case 'z':
-	    use_html = 1;
-	    tdstring = optarg;
-	    break;
-	case 'h':
-	    usage(argv[0]);
-	    break;
-	case 'V':
-	    copyright();
-	    return 0;
-	}
-    }
-
-    if (opt->ind != argc - 1) {
-	fprintf(stderr, "%s: wrong number of arguments\n", argv[0]);
-	usage(argv[0]);
-    }
-
-    if (parse_url(apr_pstrdup(cntxt, opt->argv[opt->ind++]))) {
-	fprintf(stderr, "%s: invalid URL\n", argv[0]);
-	usage(argv[0]);
-    }
-
-    if ((concurrency < 0) || (concurrency > MAX_CONCURRENCY)) {
-       fprintf(stderr, "%s: Invalid Concurrency [Range 0..%d]\n",
-                argv[0], MAX_CONCURRENCY);
-        usage(argv[0]);
-    }
-
-    if ((heartbeatres) && (requests > 150)) {
-	heartbeatres = requests / 10;	/* Print line every 10% of requests */
-	if (heartbeatres < 100)
-	    heartbeatres = 100;	/* but never more often than once every 100
-				 * connections. */
-    }
-    else
-	heartbeatres = 0;
-
-#ifdef USE_SSL
-#ifdef RSAREF
-    R_malloc_init();
-#else
-    CRYPTO_malloc_init();
+#ifdef SIGABRT
+        if (sigaction(SIGABRT, &sa, NULL) < 0)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
+                         "sigaction(SIGABRT)");
 #endif
-    SSL_load_error_strings();
-    SSL_library_init();
-    bio_out=BIO_new_fp(stdout,BIO_NOCLOSE);
-    bio_err=BIO_new_fp(stderr,BIO_NOCLOSE);
-
-    /* TODO: Allow force SSLv2_client_method() (TLSv1?) */
-    if (!(ctx = SSL_CTX_new(SSLv23_client_method()))) {
-	fprintf(stderr, "Could not init SSL CTX");
-	ERR_print_errors_fp(stderr);
-	exit(1);
-    }
-    SSL_CTX_set_options(ctx, SSL_OP_ALL);
-#ifdef USE_THREADS
-    ssl_util_thread_setup(cntxt);
+#ifdef SIGILL
+        if (sigaction(SIGILL, &sa, NULL) < 0)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
+                         "sigaction(SIGILL)");
 #endif
+        sa.sa_flags = 0;
+    }
+    sa.sa_handler = sig_term;
+    if (sigaction(SIGTERM, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
+                     "sigaction(SIGTERM)");
+#ifdef SIGINT
+    if (sigaction(SIGINT, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
+                     "sigaction(SIGINT)");
+#endif
+#ifdef SIGXCPU
+    sa.sa_handler = SIG_DFL;
+    if (sigaction(SIGXCPU, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
+                     "sigaction(SIGXCPU)");
+#endif
+#ifdef SIGXFSZ
+    sa.sa_handler = SIG_DFL;
+    if (sigaction(SIGXFSZ, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
+                     "sigaction(SIGXFSZ)");
 #endif
 #ifdef SIGPIPE
-    apr_signal(SIGPIPE, SIG_IGN);       /* Ignore writes to connections that
-					 * have been closed at the other end. */
+    sa.sa_handler = SIG_IGN;
+    if (sigaction(SIGPIPE, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
+                     "sigaction(SIGPIPE)");
 #endif
-    copyright();
-    test();
-    apr_pool_destroy(cntxt);
 
-    return 0;
+    /* we want to ignore HUPs and AP_SIG_GRACEFUL while we're busy 
+     * processing one */
+    sigaddset(&sa.sa_mask, SIGHUP);
+    sigaddset(&sa.sa_mask, AP_SIG_GRACEFUL);
+    sa.sa_handler = restart;
+    if (sigaction(SIGHUP, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
+                     "sigaction(SIGHUP)");
+    if (sigaction(AP_SIG_GRACEFUL, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
+                     "sigaction(" AP_SIG_GRACEFUL_STRING ")");
+#else
+    if (!one_process) {
+        apr_signal(SIGSEGV, sig_coredump);
+#ifdef SIGBUS
+        apr_signal(SIGBUS, sig_coredump);
+#endif /* SIGBUS */
+#ifdef SIGABORT
+        apr_signal(SIGABORT, sig_coredump);
+#endif /* SIGABORT */
+#ifdef SIGABRT
+        apr_signal(SIGABRT, sig_coredump);
+#endif /* SIGABRT */
+#ifdef SIGILL
+        apr_signal(SIGILL, sig_coredump);
+#endif /* SIGILL */
+#ifdef SIGXCPU
+        apr_signal(SIGXCPU, SIG_DFL);
+#endif /* SIGXCPU */
+#ifdef SIGXFSZ
+        apr_signal(SIGXFSZ, SIG_DFL);
+#endif /* SIGXFSZ */
+    }
+
+    apr_signal(SIGTERM, sig_term);
+#ifdef SIGHUP
+    apr_signal(SIGHUP, restart);
+#endif /* SIGHUP */
+#ifdef AP_SIG_GRACEFUL
+    apr_signal(AP_SIG_GRACEFUL, restart);
+#endif /* AP_SIG_GRACEFUL */
+#ifdef SIGPIPE
+    apr_signal(SIGPIPE, SIG_IGN);
+#endif /* SIGPIPE */
+
+#endif
 }

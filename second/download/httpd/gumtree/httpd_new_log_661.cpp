@@ -1,3 +1,12 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
-                         "mod_rewrite: Invalid RewriteLog "
-                         "path %s", conf->rewritelogfile+1);
+apr_file_printf(stderr_log,
+                    "(%d)%s: %s\n",
+                    err,
+                    apr_strerror(err, errbuf, sizeof(errbuf)),
+#ifndef AP_UNSAFE_ERROR_LOG_UNESCAPED
+                    ap_escape_logitem(pool,
+#endif
+                    description
+#ifndef AP_UNSAFE_ERROR_LOG_UNESCAPED
+                    )
+#endif
+                    );

@@ -1,10 +1,11 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              available: \\\\, \\\", \\t, \\n, \\r and \\v. A backslash preceding  any\n"
+"              other letter is ignored. If the first column of a config line is\n"
+"              a '#' character, the rest of the line will be treated as a  com-\n"
+"              ment.  Only  write  one  option  per physical line in the config\n"
+"              file.\n"
 "\n"
-"       -y, --speed-time <time>\n"
-"              If a download is slower than speed-limit bytes per second during\n"
-"              a speed-time period, the download gets aborted. If speed-time is\n"
-"              used, the default speed-limit will be 1 unless set with -Y.\n"
+"              Specify the filename to -K, --config as '-' to  make  curl  read\n"
+"              the file from stdin.\n"
 "\n"
-"              This  option  controls  transfers  and thus will not affect slow\n"
 , stdout);

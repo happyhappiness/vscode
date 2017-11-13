@@ -1,1 +1,1 @@
-error(_("Invalid %s: '%s'"), var, value);
+die("internal error in blame::blame_chunk_cb");

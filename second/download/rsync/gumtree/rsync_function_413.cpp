@@ -1,73 +1,33 @@
-static int writefd(int fd,char *buf,int len)
+void setup_protocol(int f_out,int f_in)
 {
-  int total = 0;
-  fd_set w_fds, r_fds;
-  int fd_count, count, got_select=0;
-  struct timeval tv;
+  if (am_server) {
+    remote_version = read_int(f_in);
+    write_int(f_out,PROTOCOL_VERSION);
+    write_flush(f_out);
+  } else {
+    write_int(f_out,PROTOCOL_VERSION);
+    write_flush(f_out);
+    remote_version = read_int(f_in);
+  }
 
-  if (buffer_f_in == -1) 
-    return write(fd,buf,len);
+  if (remote_version < MIN_PROTOCOL_VERSION ||
+      remote_version > MAX_PROTOCOL_VERSION) {
+    fprintf(FERROR,"protocol version mismatch - is your shell clean?\n");
+    exit_cleanup(1);
+  }	
 
-  while (total < len) {
-    int ret = write(fd,buf+total,len-total);
+  if (verbose > 2)
+	  fprintf(FINFO, "local_version=%d remote_version=%d\n",
+		  PROTOCOL_VERSION, remote_version);
 
-    if (ret == 0) return total;
-
-    if (ret == -1 && !(errno == EWOULDBLOCK || errno == EAGAIN)) 
-      return -1;
-
-    if (ret == -1 && got_select) {
-	    /* hmmm, we got a write select on the fd and then failed to write.
-	       Why doesn't that mean that the fd is dead? It doesn't on some
-	       systems it seems (eg. IRIX) */
-	    u_sleep(1000);
-#if 0
-	    fprintf(FERROR,"write exception\n");
-	    exit_cleanup(1);
-#endif
-    }
-
-    got_select = 0;
-
-
-    if (ret == -1) {
-      read_check(buffer_f_in);
-
-      fd_count = fd+1;
-      FD_ZERO(&w_fds);
-      FD_ZERO(&r_fds);
-      FD_SET(fd,&w_fds);
-      if (buffer_f_in != -1) {
-	      FD_SET(buffer_f_in,&r_fds);
-	      if (buffer_f_in > fd) 
-		      fd_count = buffer_f_in+1;
-      }
-
-      tv.tv_sec = BLOCKING_TIMEOUT;
-      tv.tv_usec = 0;
-      count = select(fd_count,buffer_f_in == -1? NULL: &r_fds,
-		     &w_fds,NULL,&tv);
-      if (count == -1 && errno != EINTR) {
-	      if (verbose > 1) 
-		      fprintf(FERROR,"select error: %s\n", strerror(errno));
-	      exit_cleanup(1);
-      }
-
-      if (count == 0) {
-	      check_timeout();
-	      continue;
-      }
-      
-      if (FD_ISSET(fd, &w_fds)) {
-	      got_select = 1;
-      }
+  if (remote_version >= 12) {
+    if (am_server) {
+      checksum_seed = time(NULL);
+      write_int(f_out,checksum_seed);
     } else {
-      total += ret;
+      checksum_seed = read_int(f_in);
     }
   }
 
-  if (io_timeout)
-	  last_io = time(NULL);
-
-  return total;
+  checksum_init();
 }

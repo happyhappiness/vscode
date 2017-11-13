@@ -1,1 +1,1 @@
-fprintf(am_server?stderr:stdout,"%s\n",fname);
+fprintf(stderr,"nothing to do\n");

@@ -1,1 +1,1 @@
-die("no such path %s in %s", path, final_commit_name);
+printf("  %s\n", needs_pushing->items[i].string);

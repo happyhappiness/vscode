@@ -1,1 +1,1 @@
-error_errno(_("could not create temporary file '%s'"), path);
+error_errno(_("failed writing detached signature to '%s'"), path);

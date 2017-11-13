@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02545)
-                         "%s: has determined UDS as %s",
-                         uri->scheme, conn->uds_path);
+ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
+                                      H2_SSSN_MSG(session, 
+                                      "(1 sec timeout) read failed"));

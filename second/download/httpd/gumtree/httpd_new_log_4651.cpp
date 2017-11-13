@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00168) "killpg SIGTERM");
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, APLOGNO(01886)
+                     "SSL FIPS mode disabled");

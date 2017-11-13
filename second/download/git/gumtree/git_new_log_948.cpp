@@ -1,1 +1,1 @@
-die_errno("sigprocmask");
+die(_("empty ident name (for <%s>) not allowed"), email);

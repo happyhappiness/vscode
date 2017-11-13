@@ -1,1 +1,1 @@
-fprintf(stderr,"failed to load config file %s\n", config_file);
+rprintf(FINFO,"generate_files phase=%d\n",phase);

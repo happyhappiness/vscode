@@ -1,1 +1,1 @@
-strbuf_swap(&sb, &next_sb);
+child_die(CHILD_ERR_ERRNO);

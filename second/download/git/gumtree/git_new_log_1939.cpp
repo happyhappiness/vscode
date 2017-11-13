@@ -1,1 +1,1 @@
-fputs(oid_to_hex(&commit->object.oid), stdout);
+die("failed to prepare '%s' for appending", path);

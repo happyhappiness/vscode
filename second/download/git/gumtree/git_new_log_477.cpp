@@ -1,1 +1,1 @@
-error(_("failed to finalize '%s'."), todo_path);
+die(_("pack exceeds maximum allowed size"));

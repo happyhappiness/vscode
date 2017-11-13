@@ -1,1 +1,1 @@
-ap_rputs("</D:responsedescription>" DEBUG_CR, r);
+printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.120 $");

@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, rv, main_server,
-                         "mod_unique_id: using low-order bits of IPv6 address "
-                         "as if they were unique");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Within the DAV:activity-set element, the "
+                                  "DAV:new element must be used, or at least "
+                                  "one DAV:href must be specified.");

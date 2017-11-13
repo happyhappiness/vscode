@@ -1,2 +1,4 @@
-apr_file_printf(errfile, "%s: unable to update file %s\n", 
-                        argv[0], pwfilename);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0,
+                             ap_server_conf,
+                             "removed PID file %s (pid=%ld)",
+                             pidfile, (long)getpid());

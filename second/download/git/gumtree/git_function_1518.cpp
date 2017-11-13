@@ -1,44 +1,16 @@
-static void fix_unresolved_deltas(struct sha1file *f, int nr_unresolved)
+static void prepare_move_submodule(const char *src, int first,
+				   const char **submodule_gitfile)
 {
-	struct delta_entry **sorted_by_pos;
-	int i, n = 0;
-
-	/*
-	 * Since many unresolved deltas may well be themselves base objects
-	 * for more unresolved deltas, we really want to include the
-	 * smallest number of base objects that would cover as much delta
-	 * as possible by picking the
-	 * trunc deltas first, allowing for other deltas to resolve without
-	 * additional base objects.  Since most base objects are to be found
-	 * before deltas depending on them, a good heuristic is to start
-	 * resolving deltas in the same order as their position in the pack.
-	 */
-	sorted_by_pos = xmalloc(nr_unresolved * sizeof(*sorted_by_pos));
-	for (i = 0; i < nr_deltas; i++) {
-		if (objects[deltas[i].obj_no].real_type != OBJ_REF_DELTA)
-			continue;
-		sorted_by_pos[n++] = &deltas[i];
-	}
-	qsort(sorted_by_pos, n, sizeof(*sorted_by_pos), delta_pos_compare);
-
-	for (i = 0; i < n; i++) {
-		struct delta_entry *d = sorted_by_pos[i];
-		enum object_type type;
-		struct base_data *base_obj = alloc_base_data();
-
-		if (objects[d->obj_no].real_type != OBJ_REF_DELTA)
-			continue;
-		base_obj->data = read_sha1_file(d->base.sha1, &type, &base_obj->size);
-		if (!base_obj->data)
-			continue;
-
-		if (check_sha1_signature(d->base.sha1, base_obj->data,
-				base_obj->size, typename(type)))
-			die(_("local object %s is corrupt"), sha1_to_hex(d->base.sha1));
-		base_obj->obj = append_obj_to_pack(f, d->base.sha1,
-					base_obj->data, base_obj->size, type);
-		find_unresolved_deltas(base_obj);
-		display_progress(progress, nr_resolved_deltas);
-	}
-	free(sorted_by_pos);
+	struct strbuf submodule_dotgit = STRBUF_INIT;
+	if (!S_ISGITLINK(active_cache[first]->ce_mode))
+		die(_("Directory %s is in index and no submodule?"), src);
+	if (!is_staging_gitmodules_ok())
+		die(_("Please stage your changes to .gitmodules or stash them to proceed"));
+	strbuf_addf(&submodule_dotgit, "%s/.git", src);
+	*submodule_gitfile = read_gitfile(submodule_dotgit.buf);
+	if (*submodule_gitfile)
+		*submodule_gitfile = xstrdup(*submodule_gitfile);
+	else
+		*submodule_gitfile = SUBMODULE_WITH_GITDIR;
+	strbuf_release(&submodule_dotgit);
 }

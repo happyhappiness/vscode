@@ -1,1 +1,0 @@
-error("Unknown object type for %s", sha1_to_hex(obj->sha1));

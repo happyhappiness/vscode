@@ -1,1 +1,2 @@
-die(_("Could not read %s."), todo_file);
+error("%s: %s", strerror(errno),
+					newlog_path);

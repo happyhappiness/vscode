@@ -1,1 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(01375) "%s", fname);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01727)
+                          "auth_ldap authorize: "
+                          "require dn \"%s\": LDAP error [%s][%s]",
+                          t, ldc->reason, ldap_err2string(result));

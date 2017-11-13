@@ -1,1 +1,1 @@
-fprintf(FERROR,"skipping %s\n",fname);
+fprintf(FINFO,"done hash search\n");

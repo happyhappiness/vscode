@@ -1,51 +1,72 @@
-int read_args(int f_in, char *mod_name, char *buf, size_t bufsiz, int rl_nulls,
-	      char ***argv_p, int *argc_p, char **request_p)
+char *sanitize_path(char *dest, const char *p, const char *rootdir, int depth)
 {
-	int maxargs = MAX_ARGS;
-	int dot_pos = 0;
-	int argc = 0;
-	char **argv, *p;
-	int rl_flags = (rl_nulls ? RL_EOL_NULLS : 0);
+	char *start, *sanp;
+	int rlen = 0;
 
-#ifdef ICONV_OPTION
-	rl_flags |= (protect_args && ic_recv != (iconv_t)-1 ? RL_CONVERT : 0);
-#endif
-
-	if (!(argv = new_array(char *, maxargs)))
-		out_of_memory("read_args");
-	if (mod_name)
-		argv[argc++] = "rsyncd";
-
-	while (1) {
-		if (read_line(f_in, buf, bufsiz, rl_flags) == 0)
-			break;
-
-		if (argc == maxargs) {
-			maxargs += MAX_ARGS;
-			if (!(argv = realloc_array(argv, char *, maxargs)))
-				out_of_memory("read_args");
+	if (dest != p) {
+		int plen = strlen(p);
+		if (*p == '/') {
+			if (!rootdir)
+				rootdir = lp_path(module_id);
+			rlen = strlen(rootdir);
+			depth = 0;
+			p++;
 		}
-
-		if (dot_pos) {
-			if (request_p) {
-				*request_p = strdup(buf);
-				request_p = NULL;
-			}
-			if (mod_name)
-				glob_expand_module(mod_name, buf, &argv, &argc, &maxargs);
-			else
-				glob_expand(buf, &argv, &argc, &maxargs);
-		} else {
-			if (!(p = strdup(buf)))
-				out_of_memory("read_args");
-			argv[argc++] = p;
-			if (*p == '.' && p[1] == '\0')
-				dot_pos = argc;
+		if (dest) {
+			if (rlen + plen + 1 >= MAXPATHLEN)
+				return NULL;
+		} else if (!(dest = new_array(char, rlen + plen + 1)))
+			out_of_memory("sanitize_path");
+		if (rlen) {
+			memcpy(dest, rootdir, rlen);
+			if (rlen > 1)
+				dest[rlen++] = '/';
 		}
 	}
 
-	*argc_p = argc;
-	*argv_p = argv;
+	start = sanp = dest + rlen;
+	while (*p != '\0') {
+		/* discard leading or extra slashes */
+		if (*p == '/') {
+			p++;
+			continue;
+		}
+		/* this loop iterates once per filename component in p.
+		 * both p (and sanp if the original had a slash) should
+		 * always be left pointing after a slash
+		 */
+		if (*p == '.' && (p[1] == '/' || p[1] == '\0')) {
+			/* skip "." component */
+			p++;
+			continue;
+		}
+		if (*p == '.' && p[1] == '.' && (p[2] == '/' || p[2] == '\0')) {
+			/* ".." component followed by slash or end */
+			if (depth <= 0 || sanp != start) {
+				p += 2;
+				if (sanp != start) {
+					/* back up sanp one level */
+					--sanp; /* now pointing at slash */
+					while (sanp > start && sanp[-1] != '/') {
+						/* skip back up to slash */
+						sanp--;
+					}
+				}
+				continue;
+			}
+			/* allow depth levels of .. at the beginning */
+			depth--;
+			/* move the virtual beginning to leave the .. alone */
+			start = sanp + 3;
+		}
+		/* copy one component through next slash */
+		while (*p && (*sanp++ = *p++) != '/') {}
+	}
+	if (sanp == dest) {
+		/* ended up with nothing, so put in "." component */
+		*sanp++ = '.';
+	}
+	*sanp = '\0';
 
-	return dot_pos ? dot_pos : argc;
+	return dest;
 }

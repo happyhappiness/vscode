@@ -1,11 +1,10 @@
 fputs(
-"              config  file will not be read and used. See the -K, --config for\n"
-"              details on the default config file search path.\n"
+"              cause curl to pass the data to the server using the content-type\n"
+"              application/x-www-form-urlencoded.  Compare to -F, --form.\n"
 "\n"
-"       --dns-interface <interface>\n"
-"              (DNS) Tell curl to send outgoing DNS  requests  through  <inter-\n"
-"              face>.  This  option is a counterpart to --interface (which does\n"
-"              not affect DNS). The supplied string must be an  interface  name\n"
-"              (not an address).\n"
+"              --data-raw is almost the same but does not have a special inter-\n"
+"              pretation  of  the  @ character. To post data purely binary, you\n"
+"              should instead use the --data-binary option.  To URL-encode  the\n"
+"              value of a form field you may use --data-urlencode.\n"
 "\n"
 , stdout);

@@ -1,52 +1,125 @@
-static int prune_refs(struct refspec *refs, int ref_count, struct ref *ref_map,
-		const char *raw_url)
+int notes_merge(struct notes_merge_options *o,
+		struct notes_tree *local_tree,
+		unsigned char *result_sha1)
 {
-	int url_len, i, result = 0;
-	struct ref *ref, *stale_refs = get_stale_heads(refs, ref_count, ref_map);
-	char *url;
-	const char *dangling_msg = dry_run
-		? _("   (%s will become dangling)")
-		: _("   (%s has become dangling)");
+	unsigned char local_sha1[20], remote_sha1[20];
+	struct commit *local, *remote;
+	struct commit_list *bases = NULL;
+	const unsigned char *base_sha1, *base_tree_sha1;
+	int result = 0;
 
-	if (raw_url)
-		url = transport_anonymize_url(raw_url);
-	else
-		url = xstrdup("foreign");
+	assert(o->local_ref && o->remote_ref);
+	assert(!strcmp(o->local_ref, local_tree->ref));
+	hashclr(result_sha1);
 
-	url_len = strlen(url);
-	for (i = url_len - 1; url[i] == '/' && 0 <= i; i--)
-		;
+	trace_printf("notes_merge(o->local_ref = %s, o->remote_ref = %s)\n",
+	       o->local_ref, o->remote_ref);
 
-	url_len = i + 1;
-	if (4 < i && !strncmp(".git", url + i - 3, 4))
-		url_len = i - 3;
+	/* Dereference o->local_ref into local_sha1 */
+	if (read_ref_full(o->local_ref, 0, local_sha1, NULL))
+		die("Failed to resolve local notes ref '%s'", o->local_ref);
+	else if (!check_refname_format(o->local_ref, 0) &&
+		is_null_sha1(local_sha1))
+		local = NULL; /* local_sha1 == null_sha1 indicates unborn ref */
+	else if (!(local = lookup_commit_reference(local_sha1)))
+		die("Could not parse local commit %s (%s)",
+		    sha1_to_hex(local_sha1), o->local_ref);
+	trace_printf("\tlocal commit: %.7s\n", sha1_to_hex(local_sha1));
 
-	if (!dry_run) {
-		struct string_list refnames = STRING_LIST_INIT_NODUP;
-
-		for (ref = stale_refs; ref; ref = ref->next)
-			string_list_append(&refnames, ref->name);
-
-		result = delete_refs(&refnames, 0);
-		string_list_clear(&refnames, 0);
-	}
-
-	if (verbosity >= 0) {
-		for (ref = stale_refs; ref; ref = ref->next) {
-			struct strbuf sb = STRBUF_INIT;
-			if (!shown_url) {
-				fprintf(stderr, _("From %.*s\n"), url_len, url);
-				shown_url = 1;
-			}
-			format_display(&sb, '-', _("[deleted]"), NULL,
-				       _("(none)"), prettify_refname(ref->name));
-			fprintf(stderr, " %s\n",sb.buf);
-			strbuf_release(&sb);
-			warn_dangling_symref(stderr, dangling_msg, ref->name);
+	/* Dereference o->remote_ref into remote_sha1 */
+	if (get_sha1(o->remote_ref, remote_sha1)) {
+		/*
+		 * Failed to get remote_sha1. If o->remote_ref looks like an
+		 * unborn ref, perform the merge using an empty notes tree.
+		 */
+		if (!check_refname_format(o->remote_ref, 0)) {
+			hashclr(remote_sha1);
+			remote = NULL;
+		} else {
+			die("Failed to resolve remote notes ref '%s'",
+			    o->remote_ref);
 		}
+	} else if (!(remote = lookup_commit_reference(remote_sha1))) {
+		die("Could not parse remote commit %s (%s)",
+		    sha1_to_hex(remote_sha1), o->remote_ref);
+	}
+	trace_printf("\tremote commit: %.7s\n", sha1_to_hex(remote_sha1));
+
+	if (!local && !remote)
+		die("Cannot merge empty notes ref (%s) into empty notes ref "
+		    "(%s)", o->remote_ref, o->local_ref);
+	if (!local) {
+		/* result == remote commit */
+		hashcpy(result_sha1, remote_sha1);
+		goto found_result;
+	}
+	if (!remote) {
+		/* result == local commit */
+		hashcpy(result_sha1, local_sha1);
+		goto found_result;
+	}
+	assert(local && remote);
+
+	/* Find merge bases */
+	bases = get_merge_bases(local, remote);
+	if (!bases) {
+		base_sha1 = null_sha1;
+		base_tree_sha1 = EMPTY_TREE_SHA1_BIN;
+		if (o->verbosity >= 4)
+			printf("No merge base found; doing history-less merge\n");
+	} else if (!bases->next) {
+		base_sha1 = bases->item->object.sha1;
+		base_tree_sha1 = bases->item->tree->object.sha1;
+		if (o->verbosity >= 4)
+			printf("One merge base found (%.7s)\n",
+				sha1_to_hex(base_sha1));
+	} else {
+		/* TODO: How to handle multiple merge-bases? */
+		base_sha1 = bases->item->object.sha1;
+		base_tree_sha1 = bases->item->tree->object.sha1;
+		if (o->verbosity >= 3)
+			printf("Multiple merge bases found. Using the first "
+				"(%.7s)\n", sha1_to_hex(base_sha1));
 	}
 
-	free(url);
-	free_refs(stale_refs);
+	if (o->verbosity >= 4)
+		printf("Merging remote commit %.7s into local commit %.7s with "
+			"merge-base %.7s\n", sha1_to_hex(remote->object.sha1),
+			sha1_to_hex(local->object.sha1),
+			sha1_to_hex(base_sha1));
+
+	if (!hashcmp(remote->object.sha1, base_sha1)) {
+		/* Already merged; result == local commit */
+		if (o->verbosity >= 2)
+			printf("Already up-to-date!\n");
+		hashcpy(result_sha1, local->object.sha1);
+		goto found_result;
+	}
+	if (!hashcmp(local->object.sha1, base_sha1)) {
+		/* Fast-forward; result == remote commit */
+		if (o->verbosity >= 2)
+			printf("Fast-forward\n");
+		hashcpy(result_sha1, remote->object.sha1);
+		goto found_result;
+	}
+
+	result = merge_from_diffs(o, base_tree_sha1, local->tree->object.sha1,
+				  remote->tree->object.sha1, local_tree);
+
+	if (result != 0) { /* non-trivial merge (with or without conflicts) */
+		/* Commit (partial) result */
+		struct commit_list *parents = NULL;
+		commit_list_insert(remote, &parents); /* LIFO order */
+		commit_list_insert(local, &parents);
+		create_notes_commit(local_tree, parents,
+				    o->commit_msg.buf, o->commit_msg.len,
+				    result_sha1);
+	}
+
+found_result:
+	free_commit_list(bases);
+	strbuf_release(&(o->commit_msg));
+	trace_printf("notes_merge(): result = %i, result_sha1 = %.7s\n",
+	       result, sha1_to_hex(result_sha1));
 	return result;
 }

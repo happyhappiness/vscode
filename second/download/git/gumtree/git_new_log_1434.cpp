@@ -1,1 +1,1 @@
-die("BUG: verify called with old_sha1 set to NULL");
+error_errno("Could not open %s", filename);

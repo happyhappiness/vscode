@@ -1,1 +1,1 @@
-die("Missing space after tree-ish: %s", command_buf.buf);
+die("update %s: extra input: %s", refname, next);

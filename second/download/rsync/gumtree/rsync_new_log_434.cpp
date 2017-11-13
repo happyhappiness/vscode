@@ -1,1 +1,1 @@
-setup_protocol(f_out, f_in);
+rprintf(FINFO,"receiving file list ... ");

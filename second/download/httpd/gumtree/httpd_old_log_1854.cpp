@@ -1,2 +1,2 @@
-ap_log_perror(file, line, APLOG_DEBUG, 0, l->pool, 
-                      "Acquiring mutex %s:%d", l->file, l->line);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r,
+                          "Unexpected body state (%i)", (int)ctx->state);

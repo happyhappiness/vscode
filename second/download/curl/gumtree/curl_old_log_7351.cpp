@@ -1,8 +1,10 @@
 fputs(
-"  from sites that require valid certificates. The only drawback is that the\n"
-"  certificate needs to be in PEM-format. PEM is a standard and open format to\n"
-"  store certificates with, but it is not used by the most commonly used\n"
-"  browsers (Netscape and MSIE both use the so called PKCS#12 format). If you\n"
-"  want curl to use the certificates you use with your (favourite) browser, you\n"
-"  may need to download/compile a converter that can convert your browser's\n"
+"  If the server for example, is behind a firewall that don't allow connections\n"
+"  on other ports than 21 (or if it just doesn't support the PASV command), the\n"
+"  other way to do it is to use the PORT command and instruct the server to\n"
+"  connect to the client on the given (as parameters to the PORT command) IP\n"
+"  number and port.\n"
+"\n"
+"  The -P flag to curl supports a few different options. Your machine may have\n"
+"  several IP-addresses and/or network interfaces and curl allows you to select\n"
 , stdout);

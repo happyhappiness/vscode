@@ -1,1 +1,1 @@
-error(_("Your local changes would be overwritten by cherry-pick."));
+error("Failed to remove 'git notes merge' worktree");

@@ -1,73 +1,75 @@
-static void dav_send_multistatus(request_rec *r, int status,
-                                 dav_response *first,
-                                 apr_array_header_t *namespaces)
+static int make_secure_socket(apr_pool_t *pconf, const struct sockaddr_in *server,
+                              char* key, int mutual, server_rec *sconf)
 {
-    /* Set the correct status and Content-Type */
-    r->status = status;
-    ap_set_content_type(r, DAV_XML_CONTENT_TYPE);
+    int s;
+    int one = 1;
+    char addr[MAX_ADDRESS];
+    struct sslserveropts opts;
+    unsigned int optParam;
+    WSAPROTOCOL_INFO SecureProtoInfo;
+    int no = 1;
+    
+    if (server->sin_addr.s_addr != htonl(INADDR_ANY))
+        apr_snprintf(addr, sizeof(addr), "address %s port %d",
+            inet_ntoa(server->sin_addr), ntohs(server->sin_port));
+    else
+        apr_snprintf(addr, sizeof(addr), "port %d", ntohs(server->sin_port));
 
-    /* Send the headers and actual multistatus response now... */
-    ap_rputs(DAV_XML_HEADER DEBUG_CR
-             "<D:multistatus xmlns:D=\"DAV:\"", r);
+    /* note that because we're about to slack we don't use psocket */
+    memset(&SecureProtoInfo, 0, sizeof(WSAPROTOCOL_INFO));
 
-    if (namespaces != NULL) {
-       int i;
+    SecureProtoInfo.iAddressFamily = AF_INET;
+    SecureProtoInfo.iSocketType = SOCK_STREAM;
+    SecureProtoInfo.iProtocol = IPPROTO_TCP;   
+    SecureProtoInfo.iSecurityScheme = SECURITY_PROTOCOL_SSL;
 
-       for (i = namespaces->nelts; i--; ) {
-           ap_rprintf(r, " xmlns:ns%d=\"%s\"", i,
-                      APR_XML_GET_URI_ITEM(namespaces, i));
-       }
+    s = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP,
+            (LPWSAPROTOCOL_INFO)&SecureProtoInfo, 0, 0);
+            
+    if (s == INVALID_SOCKET) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), sconf,
+                     "make_secure_socket: failed to get a socket for %s", 
+                     addr);
+        return -1;
+    }
+        
+    if (!mutual) {
+        optParam = SO_SSL_ENABLE | SO_SSL_SERVER;
+		    
+        if (WSAIoctl(s, SO_SSL_SET_FLAGS, (char *)&optParam,
+            sizeof(optParam), NULL, 0, NULL, NULL, NULL)) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), sconf,
+                         "make_secure_socket: for %s, WSAIoctl: "
+                         "(SO_SSL_SET_FLAGS)", addr);
+            return -1;
+        }
     }
 
-    /* ap_rputc('>', r); */
-    ap_rputs(">" DEBUG_CR, r);
+    opts.cert = key;
+    opts.certlen = strlen(key);
+    opts.sidtimeout = 0;
+    opts.sidentries = 0;
+    opts.siddir = NULL;
 
-    for (; first != NULL; first = first->next) {
-        apr_text *t;
-
-        if (first->propresult.xmlns == NULL) {
-            ap_rputs("<D:response>", r);
-        }
-        else {
-            ap_rputs("<D:response", r);
-            for (t = first->propresult.xmlns; t; t = t->next) {
-                ap_rputs(t->text, r);
-            }
-            ap_rputc('>', r);
-        }
-
-        ap_rputs(DEBUG_CR "<D:href>", r);
-        ap_rputs(dav_xml_escape_uri(r->pool, first->href), r);
-        ap_rputs("</D:href>" DEBUG_CR, r);
-
-        if (first->propresult.propstats == NULL) {
-            /* use the Status-Line text from Apache.  Note, this will
-             * default to 500 Internal Server Error if first->status
-             * is not a known (or valid) status code.
-             */
-            ap_rprintf(r,
-                       "<D:status>HTTP/1.1 %s</D:status>" DEBUG_CR,
-                       ap_get_status_line(first->status));
-        }
-        else {
-            /* assume this includes <propstat> and is quoted properly */
-            for (t = first->propresult.propstats; t; t = t->next) {
-                ap_rputs(t->text, r);
-            }
-        }
-
-        if (first->desc != NULL) {
-            /*
-             * We supply the description, so we know it doesn't have to
-             * have any escaping/encoding applied to it.
-             */
-            ap_rputs("<D:responsedescription>", r);
-            ap_rputs(first->desc, r);
-            ap_rputs("</D:responsedescription>" DEBUG_CR, r);
-        }
-
-        ap_rputs("</D:response>" DEBUG_CR, r);
+    if (WSAIoctl(s, SO_SSL_SET_SERVER, (char *)&opts, sizeof(opts),
+        NULL, 0, NULL, NULL, NULL) != 0) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), sconf,
+                     "make_secure_socket: for %s, WSAIoctl: "
+                     "(SO_SSL_SET_SERVER)", addr);
+        return -1;
     }
 
-    ap_rputs("</D:multistatus>" DEBUG_CR, r);
+    if (mutual) {
+        optParam = 0x07;               // SO_SSL_AUTH_CLIENT
+
+        if(WSAIoctl(s, SO_SSL_SET_FLAGS, (char*)&optParam,
+            sizeof(optParam), NULL, 0, NULL, NULL, NULL)) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), sconf,
+                         "make_secure_socket: for %s, WSAIoctl: "
+                         "(SO_SSL_SET_FLAGS)", addr);
+            return -1;
+        }
+    }
+
+    return s;
 }

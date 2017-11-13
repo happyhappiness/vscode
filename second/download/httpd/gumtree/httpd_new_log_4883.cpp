@@ -1,6 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING,
-                     0, ap_server_conf, APLOGNO(00045)
-                     "child process %" APR_PID_T_FMT
-                     " still did not exit, "
-                     "sending a SIGTERM",
-                     pid);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01939)
+                     "stapling_renew_response: Error parsing uri %s",
+                      ocspuri);

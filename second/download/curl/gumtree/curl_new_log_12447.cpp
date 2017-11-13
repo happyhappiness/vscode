@@ -1,9 +1,10 @@
 fputs(
-"              should not replace internally set headers without  knowing  per-\n"
-"              fectly well what you're doing. Remove an internal header by giv-\n"
-"              ing a replacement without content  on  the  right  side  of  the\n"
-"              colon, as in: -H \"Host:\". If you send the custom header with no-\n"
-"              value then its header must be terminated with a semicolon,  such\n"
-"              as -H \"X-Custom-Header;\" to send \"X-Custom-Header:\".\n"
+"              (FTP)  Use  CCC  (Clear  Command Channel) Sets the CCC mode. The\n"
+"              passive mode will not initiate the shutdown,  but  instead  wait\n"
+"              for the server to do it, and will not reply to the shutdown from\n"
+"              the server. The active mode initiates the shutdown and waits for\n"
+"              a reply from the server.  (Added in 7.16.2)\n"
 "\n"
+"       --ftp-ssl-control\n"
+"              (FTP)  Require  SSL/TLS  for  the FTP login, clear for transfer.\n"
 , stdout);

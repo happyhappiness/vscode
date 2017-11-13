@@ -1,11 +1,11 @@
 fputs(
-"              (HTTP)  This  posts data exactly as specified with no extra pro-\n"
-"              cessing whatsoever.\n"
+"              file will be written using the Netscape cookie file  format.  If\n"
+"              you set the file name to a single dash, \"-\", the cookies will be\n"
+"              written to stdout.\n"
 "\n"
-"              If you start the data with the letter @, the rest  should  be  a\n"
-"              filename.   Data  is  posted  in  a similar manner as -d, --data\n"
-"              does, except that newlines and carriage  returns  are  preserved\n"
-"              and conversions are never done.\n"
+"              This command line option will activate the  cookie  engine  that\n"
+"              makes curl record and use cookies. Another way to activate it is\n"
+"              to use the -b, --cookie option.\n"
 "\n"
-"              If  this  option  is  used several times, the ones following the\n"
+"              If the cookie jar can't be created or written to, the whole curl\n"
 , stdout);

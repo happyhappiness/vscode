@@ -1,25 +1,33 @@
-static struct child_process *git_proxy_connect(int fd[2], char *host)
+static int check_object(struct object *obj, int type, void *data, struct fsck_options *options)
 {
-	const char *port = STR(DEFAULT_GIT_PORT);
-	struct child_process *proxy;
+	struct obj_buffer *obj_buf;
 
-	get_host_and_port(&host, &port);
+	if (!obj)
+		return 1;
 
-	if (looks_like_command_line_option(host))
-		die("strange hostname '%s' blocked", host);
-	if (looks_like_command_line_option(port))
-		die("strange port '%s' blocked", port);
+	if (obj->flags & FLAG_WRITTEN)
+		return 0;
 
-	proxy = xmalloc(sizeof(*proxy));
-	child_process_init(proxy);
-	argv_array_push(&proxy->args, git_proxy_command);
-	argv_array_push(&proxy->args, host);
-	argv_array_push(&proxy->args, port);
-	proxy->in = -1;
-	proxy->out = -1;
-	if (start_command(proxy))
-		die("cannot start proxy %s", git_proxy_command);
-	fd[0] = proxy->out; /* read from proxy stdout */
-	fd[1] = proxy->in;  /* write to proxy stdin */
-	return proxy;
+	if (type != OBJ_ANY && obj->type != type)
+		die("object type mismatch");
+
+	if (!(obj->flags & FLAG_OPEN)) {
+		unsigned long size;
+		int type = sha1_object_info(obj->sha1, &size);
+		if (type != obj->type || type <= 0)
+			die("object of unexpected type");
+		obj->flags |= FLAG_WRITTEN;
+		return 0;
+	}
+
+	obj_buf = lookup_object_buffer(obj);
+	if (!obj_buf)
+		die("Whoops! Cannot find object '%s'", sha1_to_hex(obj->sha1));
+	if (fsck_object(obj, obj_buf->buffer, obj_buf->size, &fsck_options))
+		die("Error in object");
+	fsck_options.walk = check_object;
+	if (fsck_walk(obj, NULL, &fsck_options))
+		die("Error on reachable objects of %s", sha1_to_hex(obj->sha1));
+	write_cached_object(obj, obj_buf);
+	return 0;
 }

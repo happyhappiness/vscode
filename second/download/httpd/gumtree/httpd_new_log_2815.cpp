@@ -1,1 +1,1 @@
-apr_psprintf(p, "ip address '%s' appears to be invalid", w);
+printf("Total transferred:      %" APR_INT64_T_FMT " bytes\n", totalread);

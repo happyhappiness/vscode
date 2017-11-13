@@ -1,1 +1,1 @@
-out_of_memory("read_args");
+fprintf(stderr, "failed to fork: %s\n", strerror(errno));

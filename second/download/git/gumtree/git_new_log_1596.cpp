@@ -1,1 +1,2 @@
-packet_write(1, "%s %s^{}\n", oid_to_hex(&peeled), refname_nons);
+git_die_config("pack.indexversion",
+					"bad pack.indexversion=%"PRIu32, pack_idx_opts.version);

@@ -1,1 +1,1 @@
-fprintf(stderr, "flushed.\n");
+die(_("--merged and --no-merged option are only allowed with -l"));

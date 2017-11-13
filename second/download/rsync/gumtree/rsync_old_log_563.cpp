@@ -1,1 +1,2 @@
-fprintf(FINFO,"calling match_sums %s\n",fname);
+fprintf(FINFO,"chunk[%d] of size %d at %d offset=%d\n",
+		i,len,(int)offset2,(int)offset);

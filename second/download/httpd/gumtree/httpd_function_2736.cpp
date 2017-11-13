@@ -1,214 +1,84 @@
-static authz_status ldapgroup_check_authorization(request_rec *r,
-                                             const char *require_args)
+static int proxy_status_hook(request_rec *r, int flags)
 {
-    int result = 0;
-    authn_ldap_request_t *req =
-        (authn_ldap_request_t *)ap_get_module_config(r->request_config, &authnz_ldap_module);
-    authn_ldap_config_t *sec =
-        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
+    int i, n;
+    void *sconf = r->server->module_config;
+    proxy_server_conf *conf = (proxy_server_conf *)
+        ap_get_module_config(sconf, &proxy_module);
+    proxy_balancer *balancer = NULL;
+    proxy_worker *worker = NULL;
 
-    util_ldap_connection_t *ldc = NULL;
+    if (flags & AP_STATUS_SHORT || conf->balancers->nelts == 0 ||
+        conf->proxy_status == status_off)
+        return OK;
 
-    const char *t;
-
-    char filtbuf[FILTER_LENGTH];
-    const char *dn = NULL;
-    struct mod_auth_ldap_groupattr_entry_t *ent;
-    int i;
-
-    if (!r->user) {
-        return AUTHZ_DENIED_NO_USER;
-    }
-
-    if (!sec->have_ldap_url) {
-        return AUTHZ_DENIED;
-    }
-
-    if (sec->host) {
-        ldc = get_connection_for_authz(r, LDAP_COMPARE); /* for the top-level group only */
-        apr_pool_cleanup_register(r->pool, ldc,
-                                  authnz_ldap_cleanup_connection_close,
-                                  apr_pool_cleanup_null);
-    }
-    else {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                      "auth_ldap authorize: no sec->host - weird...?");
-        return AUTHZ_DENIED;
-    }
-
-    /*
-     * If there are no elements in the group attribute array, the default should be
-     * member and uniquemember; populate the array now.
-     */
-    if (sec->groupattr->nelts == 0) {
-        struct mod_auth_ldap_groupattr_entry_t *grp;
-#if APR_HAS_THREADS
-        apr_thread_mutex_lock(sec->lock);
-#endif
-        grp = apr_array_push(sec->groupattr);
-        grp->name = "member";
-        grp = apr_array_push(sec->groupattr);
-        grp->name = "uniqueMember";
-#if APR_HAS_THREADS
-        apr_thread_mutex_unlock(sec->lock);
-#endif
-    }
-
-    /*
-     * If there are no elements in the sub group classes array, the default
-     * should be groupOfNames and groupOfUniqueNames; populate the array now.
-     */
-    if (sec->subgroupclasses->nelts == 0) {
-        struct mod_auth_ldap_groupattr_entry_t *grp;
-#if APR_HAS_THREADS
-        apr_thread_mutex_lock(sec->lock);
-#endif
-        grp = apr_array_push(sec->subgroupclasses);
-        grp->name = "groupOfNames";
-        grp = apr_array_push(sec->subgroupclasses);
-        grp->name = "groupOfUniqueNames";
-#if APR_HAS_THREADS
-        apr_thread_mutex_unlock(sec->lock);
-#endif
-    }
-
-    /*
-     * If we have been authenticated by some other module than mod_auth_ldap,
-     * the req structure needed for authorization needs to be created
-     * and populated with the userid and DN of the account in LDAP
-     */
-
-    if (!strlen(r->user)) {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-            "ldap authorize: Userid is blank, AuthType=%s",
-            r->ap_auth_type);
-    }
-
-    if(!req) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-            "ldap authorize: Creating LDAP req structure");
-
-        /* Build the username filter */
-        authn_ldap_build_filter(filtbuf, r, r->user, NULL, sec);
-
-        /* Search for the user DN */
-        result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
-             sec->scope, sec->attributes, filtbuf, &dn, &(req->vals));
-
-        /* Search failed, log error and return failure */
-        if(result != LDAP_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                "auth_ldap authorise: User DN not found, %s", ldc->reason);
-            return AUTHZ_DENIED;
+    balancer = (proxy_balancer *)conf->balancers->elts;
+    for (i = 0; i < conf->balancers->nelts; i++) {
+        ap_rputs("<hr />\n<h1>Proxy LoadBalancer Status for ", r);
+        ap_rvputs(r, balancer->name, "</h1>\n\n", NULL);
+        ap_rputs("\n\n<table border=\"0\"><tr>"
+                 "<th>SSes</th><th>Timeout</th><th>Method</th>"
+                 "</tr>\n<tr>", r);
+        if (balancer->sticky) {
+            ap_rvputs(r, "<td>", balancer->sticky, NULL);
         }
-
-        req = (authn_ldap_request_t *)apr_pcalloc(r->pool,
-            sizeof(authn_ldap_request_t));
-        ap_set_module_config(r->request_config, &authnz_ldap_module, req);
-        req->dn = apr_pstrdup(r->pool, dn);
-        req->user = r->user;
-    }
-
-    ent = (struct mod_auth_ldap_groupattr_entry_t *) sec->groupattr->elts;
-
-    if (sec->group_attrib_is_dn) {
-        if (req->dn == NULL || strlen(req->dn) == 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "auth_ldap authorize: require group: user's DN has "
-                          "not been defined; failing authorization for user %s",
-                          r->user);
-            return AUTHZ_DENIED;
+        else {
+            ap_rputs("<td> - ", r);
         }
-    }
-    else {
-        if (req->user == NULL || strlen(req->user) == 0) {
-            /* We weren't called in the authentication phase, so we didn't have a
-             * chance to set the user field. Do so now. */
-            req->user = r->user;
+        ap_rprintf(r, "</td><td>%" APR_TIME_T_FMT "</td>",
+                   apr_time_sec(balancer->timeout));
+        ap_rprintf(r, "<td>%s</td>\n",
+                   balancer->lbmethod->name);
+        ap_rputs("</table>\n", r);
+        ap_rputs("\n\n<table border=\"0\"><tr>"
+                 "<th>Sch</th><th>Host</th><th>Stat</th>"
+                 "<th>Route</th><th>Redir</th>"
+                 "<th>F</th><th>Set</th><th>Acc</th><th>Wr</th><th>Rd</th>"
+                 "</tr>\n", r);
+
+        worker = (proxy_worker *)balancer->workers->elts;
+        for (n = 0; n < balancer->workers->nelts; n++) {
+            char fbuf[50];
+            ap_rvputs(r, "<tr>\n<td>", worker->scheme, "</td>", NULL);
+            ap_rvputs(r, "<td>", worker->hostname, "</td><td>", NULL);
+            if (worker->s->status & PROXY_WORKER_DISABLED)
+                ap_rputs("Dis", r);
+            else if (worker->s->status & PROXY_WORKER_IN_ERROR)
+                ap_rputs("Err", r);
+            else if (worker->s->status & PROXY_WORKER_INITIALIZED)
+                ap_rputs("Ok", r);
+            else
+                ap_rputs("-", r);
+            ap_rvputs(r, "</td><td>", worker->s->route, NULL);
+            ap_rvputs(r, "</td><td>", worker->s->redirect, NULL);
+            ap_rprintf(r, "</td><td>%d</td>", worker->s->lbfactor);
+            ap_rprintf(r, "<td>%d</td>", worker->s->lbset);
+            ap_rprintf(r, "<td>%" APR_SIZE_T_FMT "</td><td>", worker->s->elected);
+            ap_rputs(apr_strfsize(worker->s->transferred, fbuf), r);
+            ap_rputs("</td><td>", r);
+            ap_rputs(apr_strfsize(worker->s->read, fbuf), r);
+            ap_rputs("</td>\n", r);
+
+            /* TODO: Add the rest of dynamic worker data */
+            ap_rputs("</tr>\n", r);
+
+            ++worker;
         }
+        ap_rputs("</table>\n", r);
+        ++balancer;
     }
+    ap_rputs("<hr /><table>\n"
+             "<tr><th>SSes</th><td>Sticky session name</td></tr>\n"
+             "<tr><th>Timeout</th><td>Balancer Timeout</td></tr>\n"
+             "<tr><th>Sch</th><td>Connection scheme</td></tr>\n"
+             "<tr><th>Host</th><td>Backend Hostname</td></tr>\n"
+             "<tr><th>Stat</th><td>Worker status</td></tr>\n"
+             "<tr><th>Route</th><td>Session Route</td></tr>\n"
+             "<tr><th>Redir</th><td>Session Route Redirection</td></tr>\n"
+             "<tr><th>F</th><td>Load Balancer Factor in %</td></tr>\n"
+             "<tr><th>Acc</th><td>Number of requests</td></tr>\n"
+             "<tr><th>Wr</th><td>Number of bytes transferred</td></tr>\n"
+             "<tr><th>Rd</th><td>Number of bytes read</td></tr>\n"
+             "</table>", r);
 
-    t = require_args;
-
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "auth_ldap authorize: require group: testing for group "
-                  "membership in \"%s\"",
-                  t);
-
-    for (i = 0; i < sec->groupattr->nelts; i++) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "auth_ldap authorize: require group: testing for %s: "
-                      "%s (%s)",
-                      ent[i].name,
-                      sec->group_attrib_is_dn ? req->dn : req->user, t);
-
-        result = util_ldap_cache_compare(r, ldc, sec->url, t, ent[i].name,
-                             sec->group_attrib_is_dn ? req->dn : req->user);
-        switch(result) {
-            case LDAP_COMPARE_TRUE: {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "auth_ldap authorize: require group: "
-                              "authorization successful (attribute %s) "
-                              "[%s][%d - %s]",
-                              ent[i].name, ldc->reason, result,
-                              ldap_err2string(result));
-                set_request_vars(r, LDAP_AUTHZ);
-                return AUTHZ_GRANTED;
-            }
-            case LDAP_NO_SUCH_ATTRIBUTE: 
-            case LDAP_COMPARE_FALSE: {
-                /* nested groups need searches and compares, so grab a new handle */
-                authnz_ldap_cleanup_connection_close(ldc);
-                apr_pool_cleanup_kill(r->pool, ldc,authnz_ldap_cleanup_connection_close);
-
-                ldc = get_connection_for_authz(r, LDAP_COMPARE_AND_SEARCH);
-                apr_pool_cleanup_register(r->pool, ldc,
-                                          authnz_ldap_cleanup_connection_close,
-                                          apr_pool_cleanup_null);
-
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                               "auth_ldap authorise: require group \"%s\": "
-                               "failed [%s][%d - %s], checking sub-groups",
-                               t, ldc->reason, result, ldap_err2string(result));
-
-                result = util_ldap_cache_check_subgroups(r, ldc, sec->url, t, ent[i].name,
-                                                         sec->group_attrib_is_dn ? req->dn : req->user,
-                                                         sec->sgAttributes[0] ? sec->sgAttributes : default_attributes,
-                                                         sec->subgroupclasses,
-                                                         0, sec->maxNestingDepth);
-                if(result == LDAP_COMPARE_TRUE) {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                  "auth_ldap authorise: require group "
-                                  "(sub-group): authorisation successful "
-                                  "(attribute %s) [%s][%d - %s]",
-                                  ent[i].name, ldc->reason, result,
-                                  ldap_err2string(result));
-                    set_request_vars(r, LDAP_AUTHZ);
-                    return AUTHZ_GRANTED;
-                }
-                else {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                  "auth_ldap authorise: require group "
-                                  "(sub-group) \"%s\": authorisation failed "
-                                  "[%s][%d - %s]",
-                                  t, ldc->reason, result,
-                                  ldap_err2string(result));
-                }
-                break;
-            }
-            default: {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "auth_ldap authorize: require group \"%s\": "
-                              "authorization failed [%s][%d - %s]",
-                              t, ldc->reason, result, ldap_err2string(result));
-            }
-        }
-    }
-
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "auth_ldap authorize group: authorization denied for "
-                  "user %s to %s",
-                  r->user, r->uri);
-
-    return AUTHZ_DENIED;
+    return OK;
 }

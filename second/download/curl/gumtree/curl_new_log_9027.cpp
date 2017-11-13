@@ -1,9 +1,10 @@
 fputs(
-"              Specify the maximum transfer rate you want  curl  to  use.  This\n"
-"              feature is useful if you have a limited pipe and you'd like your\n"
-"              transfer not to use your entire bandwidth.\n"
+"              Note:  When  combined  with -X, --request <command>, this option\n"
+"              can be used to send an UIDL command instead, so the user may use\n"
+"              the  email's  unique  identifier  rather than it's message id to\n"
+"              make the request. (Added in 7.21.5)\n"
 "\n"
-"              The given speed is measured in bytes/second, unless a suffix  is\n"
-"              appended.   Appending  'k' or 'K' will count the number as kilo-\n"
-"              bytes, 'm' or M' makes it megabytes, while 'g' or 'G'  makes  it\n"
+"       -L, --location\n"
+"              (HTTP/HTTPS) If the server reports that the requested  page  has\n"
+"              moved to a different location (indicated with a Location: header\n"
 , stdout);

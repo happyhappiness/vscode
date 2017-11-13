@@ -1,11 +1,11 @@
 fputs(
-"              Fail and exit on the first detected transfer error.\n"
+"              If  the  server is an IPv6 host, this option will have no effect\n"
+"              as EPSV is necessary then.\n"
 "\n"
-"              When  curl is used to do multiple transfers on the command line,\n"
-"              it will attempt to operate on each given URL,  one  by  one.  By\n"
-"              default,  it will ignore errors if there are more URLs given and\n"
-"              the last URL's  success  will  determine  the  error  code  curl\n"
-"              returns.  So  early failures will be \"hidden\" by subsequent suc-\n"
-"              cessful transfers.\n"
+"              Disabling EPSV only changes the passive behavior. If you want to\n"
+"              switch to active mode you need to use -P, --ftp-port.\n"
 "\n"
+"       -q, --disable\n"
+"              If  used  as the first parameter on the command line, the curlrc\n"
+"              config file will not be read and used. See the -K, --config  for\n"
 , stdout);

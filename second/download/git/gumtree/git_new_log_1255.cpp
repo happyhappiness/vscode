@@ -1,1 +1,1 @@
-error(_("bad config file line %d in %s"), cf->linenr, cf->name);
+die(_("SHA1 COLLISION FOUND WITH %s !"), oid_to_hex(oid));

@@ -1,44 +1,54 @@
-static struct commit *get_revision_1(struct rev_info *revs)
+static int process_diff_filepair(struct rev_info *rev,
+				 struct diff_filepair *pair,
+				 struct line_log_data *range,
+				 struct diff_ranges **diff_out)
 {
-	if (!revs->commits)
-		return NULL;
+	struct line_log_data *rg = range;
+	struct range_set tmp;
+	struct diff_ranges diff;
+	mmfile_t file_parent, file_target;
 
-	do {
-		struct commit *commit = pop_commit(&revs->commits);
+	assert(pair->two->path);
+	while (rg) {
+		assert(rg->path);
+		if (!strcmp(rg->path, pair->two->path))
+			break;
+		rg = rg->next;
+	}
 
-		if (revs->reflog_info) {
-			save_parents(revs, commit);
-			fake_reflog_parent(revs->reflog_info, commit);
-			commit->object.flags &= ~(ADDED | SEEN | SHOWN);
-		}
+	if (!rg)
+		return 0;
+	if (rg->ranges.nr == 0)
+		return 0;
 
-		/*
-		 * If we haven't done the list limiting, we need to look at
-		 * the parents here. We also need to do the date-based limiting
-		 * that we'd otherwise have done in limit_list().
-		 */
-		if (!revs->limited) {
-			if (revs->max_age != -1 &&
-			    (commit->date < revs->max_age))
-				continue;
-			if (add_parents_to_list(revs, commit, &revs->commits, NULL) < 0) {
-				if (!revs->ignore_missing_links)
-					die("Failed to traverse parents of commit %s",
-						sha1_to_hex(commit->object.sha1));
-			}
-		}
+	assert(pair->two->sha1_valid);
+	diff_populate_filespec(pair->two, 0);
+	file_target.ptr = pair->two->data;
+	file_target.size = pair->two->size;
 
-		switch (simplify_commit(revs, commit)) {
-		case commit_ignore:
-			continue;
-		case commit_error:
-			die("Failed to simplify parents of commit %s",
-			    sha1_to_hex(commit->object.sha1));
-		default:
-			if (revs->track_linear)
-				track_linear(revs, commit);
-			return commit;
-		}
-	} while (revs->commits);
-	return NULL;
+	if (pair->one->sha1_valid) {
+		diff_populate_filespec(pair->one, 0);
+		file_parent.ptr = pair->one->data;
+		file_parent.size = pair->one->size;
+	} else {
+		file_parent.ptr = "";
+		file_parent.size = 0;
+	}
+
+	diff_ranges_init(&diff);
+	if (collect_diff(&file_parent, &file_target, &diff))
+		die("unable to generate diff for %s", pair->one->path);
+
+	/* NEEDSWORK should apply some heuristics to prevent mismatches */
+	free(rg->path);
+	rg->path = xstrdup(pair->one->path);
+
+	range_set_init(&tmp, 0);
+	range_set_map_across_diff(&tmp, &rg->ranges, &diff, diff_out);
+	range_set_release(&rg->ranges);
+	range_set_move(&rg->ranges, &tmp);
+
+	diff_ranges_release(&diff);
+
+	return ((*diff_out)->parent.nr > 0);
 }

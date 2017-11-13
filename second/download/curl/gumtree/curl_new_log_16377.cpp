@@ -1,9 +1,10 @@
 fputs(
-"              method was designed by Microsoft and is used by IIS web servers.\n"
-"              It is a proprietary protocol, reverse-engineered by clever  peo-\n"
-"              ple and implemented in curl based on their efforts. This kind of\n"
-"              behavior should not be endorsed, you should  encourage  everyone\n"
-"              who  uses  NTLM to switch to a public and documented authentica-\n"
-"              tion method instead, such as Digest.\n"
+"              user's home directory for login name and password. This is typi-\n"
+"              cally used for FTP on Unix. If used with HTTP, curl will  enable\n"
+"              user authentication. See netrc(5) ftp(1) for details on the file\n"
+"              format. Curl will not complain if that  file  doesn't  have  the\n"
+"              right permissions (it should not be either world- or group-read-\n"
+"              able). The environment variable \"HOME\" is used to find the  home\n"
+"              directory.\n"
 "\n"
 , stdout);

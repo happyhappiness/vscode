@@ -1,5 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, session->c,
-                              APLOGNO(02921) 
-                              "h2_session:  stream(%ld-%d): HEADERS frame "
-                              "for unknown stream", session->id,
-                              (int)frame->hd.stream_id);
+ap_log_error(APLOG_MARK,APLOG_ERR, apr_get_os_error(), ap_server_conf,
+                             "Parent: SetEvent for child process %d failed", event_handles[CHILD_HANDLE]);

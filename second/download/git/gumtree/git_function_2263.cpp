@@ -1,71 +1,69 @@
-static struct commit *get_base_commit(const char *base_commit,
-				      struct commit **list,
-				      int total)
+static void combine_diff(const struct object_id *parent, unsigned int mode,
+			 mmfile_t *result_file,
+			 struct sline *sline, unsigned int cnt, int n,
+			 int num_parent, int result_deleted,
+			 struct userdiff_driver *textconv,
+			 const char *path, long flags)
 {
-	struct commit *base = NULL;
-	struct commit **rev;
-	int i = 0, rev_nr = 0;
+	unsigned int p_lno, lno;
+	unsigned long nmask = (1UL << n);
+	xpparam_t xpp;
+	xdemitconf_t xecfg;
+	mmfile_t parent_file;
+	struct combine_diff_state state;
+	unsigned long sz;
 
-	if (base_commit && strcmp(base_commit, "auto")) {
-		base = lookup_commit_reference_by_name(base_commit);
-		if (!base)
-			die(_("Unknown commit %s"), base_commit);
-	} else if ((base_commit && !strcmp(base_commit, "auto")) || base_auto) {
-		struct branch *curr_branch = branch_get(NULL);
-		const char *upstream = branch_get_upstream(curr_branch, NULL);
-		if (upstream) {
-			struct commit_list *base_list;
-			struct commit *commit;
-			unsigned char sha1[20];
+	if (result_deleted)
+		return; /* result deleted */
 
-			if (get_sha1(upstream, sha1))
-				die(_("Failed to resolve '%s' as a valid ref."), upstream);
-			commit = lookup_commit_or_die(sha1, "upstream base");
-			base_list = get_merge_bases_many(commit, total, list);
-			/* There should be one and only one merge base. */
-			if (!base_list || base_list->next)
-				die(_("Could not find exact merge base."));
-			base = base_list->item;
-			free_commit_list(base_list);
-		} else {
-			die(_("Failed to get upstream, if you want to record base commit automatically,\n"
-			      "please use git branch --set-upstream-to to track a remote branch.\n"
-			      "Or you could specify base commit by --base=<base-commit-id> manually."));
-		}
-	}
+	parent_file.ptr = grab_blob(parent, mode, &sz, textconv, path);
+	parent_file.size = sz;
+	memset(&xpp, 0, sizeof(xpp));
+	xpp.flags = flags;
+	memset(&xecfg, 0, sizeof(xecfg));
+	memset(&state, 0, sizeof(state));
+	state.nmask = nmask;
+	state.sline = sline;
+	state.lno = 1;
+	state.num_parent = num_parent;
+	state.n = n;
 
-	ALLOC_ARRAY(rev, total);
-	for (i = 0; i < total; i++)
-		rev[i] = list[i];
+	if (xdi_diff_outf(&parent_file, result_file, consume_line, &state,
+			  &xpp, &xecfg))
+		die("unable to generate combined diff for %s",
+		    oid_to_hex(parent));
+	free(parent_file.ptr);
 
-	rev_nr = total;
-	/*
-	 * Get merge base through pair-wise computations
-	 * and store it in rev[0].
+	/* Assign line numbers for this parent.
+	 *
+	 * sline[lno].p_lno[n] records the first line number
+	 * (counting from 1) for parent N if the final hunk display
+	 * started by showing sline[lno] (possibly showing the lost
+	 * lines attached to it first).
 	 */
-	while (rev_nr > 1) {
-		for (i = 0; i < rev_nr / 2; i++) {
-			struct commit_list *merge_base;
-			merge_base = get_merge_bases(rev[2 * i], rev[2 * i + 1]);
-			if (!merge_base || merge_base->next)
-				die(_("Failed to find exact merge base"));
+	for (lno = 0,  p_lno = 1; lno <= cnt; lno++) {
+		struct lline *ll;
+		sline[lno].p_lno[n] = p_lno;
 
-			rev[i] = merge_base->item;
+		/* Coalesce new lines */
+		if (sline[lno].plost.lost_head) {
+			struct sline *sl = &sline[lno];
+			sl->lost = coalesce_lines(sl->lost, &sl->lenlost,
+						  sl->plost.lost_head,
+						  sl->plost.len, n, flags);
+			sl->plost.lost_head = sl->plost.lost_tail = NULL;
+			sl->plost.len = 0;
 		}
 
-		if (rev_nr % 2)
-			rev[i] = rev[2 * i];
-		rev_nr = (rev_nr + 1) / 2;
+		/* How many lines would this sline advance the p_lno? */
+		ll = sline[lno].lost;
+		while (ll) {
+			if (ll->parent_map & nmask)
+				p_lno++; /* '-' means parent had it */
+			ll = ll->next;
+		}
+		if (lno < cnt && !(sline[lno].flag & nmask))
+			p_lno++; /* no '+' means parent had it */
 	}
-
-	if (!in_merge_bases(base, rev[0]))
-		die(_("base commit should be the ancestor of revision list"));
-
-	for (i = 0; i < total; i++) {
-		if (base == list[i])
-			die(_("base commit shouldn't be in revision list"));
-	}
-
-	free(rev);
-	return base;
+	sline[lno].p_lno[n] = p_lno; /* trailer */
 }

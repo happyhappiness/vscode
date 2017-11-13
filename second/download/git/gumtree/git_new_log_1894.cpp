@@ -1,2 +1,2 @@
-printf("dangling %s %s\n", typename(obj->type),
-			       oid_to_hex(&obj->oid));
+die("cannot find commit %s (%s)",
+			    ref_name[num_rev], oid_to_hex(&revkey));

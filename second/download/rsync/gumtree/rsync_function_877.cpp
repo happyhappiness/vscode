@@ -1,29 +1,39 @@
-static void add_nocompress_suffixes(const char *str)
+void recv_uid_list(int f, struct file_list *flist)
 {
-	char *buf, *t;
-	const char *f = str;
+	int id, i;
+	char *name;
 
-	if (!(buf = new_array(char, strlen(f) + 1)))
-		out_of_memory("add_nocompress_suffixes");
-
-	while (*f) {
-		if (*f == '/') {
-			f++;
-			continue;
+	if (preserve_uid && !numeric_ids) {
+		/* read the uid list */
+		while ((id = read_int(f)) != 0) {
+			int len = read_byte(f);
+			name = new_array(char, len+1);
+			if (!name)
+				out_of_memory("recv_uid_list");
+			read_sbuf(f, name, len);
+			recv_add_uid(id, name); /* node keeps name's memory */
 		}
-
-		t = buf;
-		do {
-			if (isUpper(f))
-				*t++ = toLower(f);
-			else
-				*t++ = *f;
-		} while (*++f != '/' && *f);
-		*t++ = '\0';
-
-		fprintf(stderr, "adding `%s'\n", buf);
-		add_suffix(&suftree, *buf, buf+1);
 	}
 
-	free(buf);
+	if (preserve_gid && !numeric_ids) {
+		/* read the gid list */
+		while ((id = read_int(f)) != 0) {
+			int len = read_byte(f);
+			name = new_array(char, len+1);
+			if (!name)
+				out_of_memory("recv_uid_list");
+			read_sbuf(f, name, len);
+			recv_add_gid(id, name); /* node keeps name's memory */
+		}
+	}
+
+	/* Now convert all the uids/gids from sender values to our values. */
+	if (am_root && preserve_uid && !numeric_ids) {
+		for (i = 0; i < flist->count; i++)
+			flist->files[i]->uid = match_uid(flist->files[i]->uid);
+	}
+	if (preserve_gid && (!am_root || !numeric_ids)) {
+		for (i = 0; i < flist->count; i++)
+			flist->files[i]->gid = match_gid(flist->files[i]->gid);
+	}
 }

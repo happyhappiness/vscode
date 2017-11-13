@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c, APLOGNO(02008)
-                          "SSL library error %d in handshake "
-                          "(server %s)", ssl_err,
-                          ssl_util_vhostid(c->pool, server));
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00890)
+                      "Processing of request failed backend: %i, "
+                      "output: %i", backend_failed, output_failed);

@@ -1,1 +1,2 @@
-fprintf(fout, "%s: %.*s\n", hdr, len, sp);
+error("copy-fd: read returned %s",
+				     strerror(errno));

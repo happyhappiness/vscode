@@ -1,2 +1,2 @@
-die(_("Pathspec '%s' is in submodule '%.*s'"),
-			    item->original, ce_len, ce->name);
+error(_("git %s: failed to refresh the index"),
+				_(action_name(opts)));

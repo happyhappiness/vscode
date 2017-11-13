@@ -1,98 +1,55 @@
-void parse_pathspec(struct pathspec *pathspec,
-		    unsigned magic_mask, unsigned flags,
-		    const char *prefix, const char **argv)
+static int notes_copy_from_stdin(int force, const char *rewrite_cmd)
 {
-	struct pathspec_item *item;
-	const char *entry = argv ? *argv : NULL;
-	int i, n, prefixlen, warn_empty_string, nr_exclude = 0;
+	struct strbuf buf = STRBUF_INIT;
+	struct notes_rewrite_cfg *c = NULL;
+	struct notes_tree *t = NULL;
+	int ret = 0;
+	const char *msg = "Notes added by 'git notes copy'";
 
-	memset(pathspec, 0, sizeof(*pathspec));
-
-	if (flags & PATHSPEC_MAXDEPTH_VALID)
-		pathspec->magic |= PATHSPEC_MAXDEPTH;
-
-	/* No arguments, no prefix -> no pathspec */
-	if (!entry && !prefix)
-		return;
-
-	if ((flags & PATHSPEC_PREFER_CWD) &&
-	    (flags & PATHSPEC_PREFER_FULL))
-		die("BUG: PATHSPEC_PREFER_CWD and PATHSPEC_PREFER_FULL are incompatible");
-
-	/* No arguments with prefix -> prefix pathspec */
-	if (!entry) {
-		static const char *raw[2];
-
-		if (flags & PATHSPEC_PREFER_FULL)
-			return;
-
-		if (!(flags & PATHSPEC_PREFER_CWD))
-			die("BUG: PATHSPEC_PREFER_CWD requires arguments");
-
-		pathspec->items = item = xcalloc(1, sizeof(*item));
-		item->match = prefix;
-		item->original = prefix;
-		item->nowildcard_len = item->len = strlen(prefix);
-		item->prefix = item->len;
-		raw[0] = prefix;
-		raw[1] = NULL;
-		pathspec->nr = 1;
-		pathspec->_raw = raw;
-		return;
+	if (rewrite_cmd) {
+		c = init_copy_notes_for_rewrite(rewrite_cmd);
+		if (!c)
+			return 0;
+	} else {
+		init_notes(NULL, NULL, NULL, NOTES_INIT_WRITABLE);
+		t = &default_notes_tree;
 	}
 
-	n = 0;
-	warn_empty_string = 1;
-	while (argv[n]) {
-		if (*argv[n] == '\0' && warn_empty_string) {
-			warning(_("empty strings as pathspecs will be made invalid in upcoming releases. "
-				  "please use . instead if you meant to match all paths"));
-			warn_empty_string = 0;
-		}
-		n++;
-	}
+	while (strbuf_getline_lf(&buf, stdin) != EOF) {
+		unsigned char from_obj[20], to_obj[20];
+		struct strbuf **split;
+		int err;
 
-	pathspec->nr = n;
-	ALLOC_ARRAY(pathspec->items, n);
-	item = pathspec->items;
-	pathspec->_raw = argv;
-	prefixlen = prefix ? strlen(prefix) : 0;
+		split = strbuf_split(&buf, ' ');
+		if (!split[0] || !split[1])
+			die(_("Malformed input line: '%s'."), buf.buf);
+		strbuf_rtrim(split[0]);
+		strbuf_rtrim(split[1]);
+		if (get_sha1(split[0]->buf, from_obj))
+			die(_("Failed to resolve '%s' as a valid ref."), split[0]->buf);
+		if (get_sha1(split[1]->buf, to_obj))
+			die(_("Failed to resolve '%s' as a valid ref."), split[1]->buf);
 
-	for (i = 0; i < n; i++) {
-		unsigned short_magic;
-		entry = argv[i];
+		if (rewrite_cmd)
+			err = copy_note_for_rewrite(c, from_obj, to_obj);
+		else
+			err = copy_note(t, from_obj, to_obj, force,
+					combine_notes_overwrite);
 
-		item[i].magic = prefix_pathspec(item + i, &short_magic,
-						argv + i, flags,
-						prefix, prefixlen, entry);
-		if ((flags & PATHSPEC_LITERAL_PATH) &&
-		    !(magic_mask & PATHSPEC_LITERAL))
-			item[i].magic |= PATHSPEC_LITERAL;
-		if (item[i].magic & PATHSPEC_EXCLUDE)
-			nr_exclude++;
-		if (item[i].magic & magic_mask)
-			unsupported_magic(entry,
-					  item[i].magic & magic_mask,
-					  short_magic);
-
-		if ((flags & PATHSPEC_SYMLINK_LEADING_PATH) &&
-		    has_symlink_leading_path(item[i].match, item[i].len)) {
-			die(_("pathspec '%s' is beyond a symbolic link"), entry);
+		if (err) {
+			error(_("Failed to copy notes from '%s' to '%s'"),
+			      split[0]->buf, split[1]->buf);
+			ret = 1;
 		}
 
-		if (item[i].nowildcard_len < item[i].len)
-			pathspec->has_wildcard = 1;
-		pathspec->magic |= item[i].magic;
+		strbuf_list_free(split);
 	}
 
-	if (nr_exclude == n)
-		die(_("There is nothing to exclude from by :(exclude) patterns.\n"
-		      "Perhaps you forgot to add either ':/' or '.' ?"));
-
-
-	if (pathspec->magic & PATHSPEC_MAXDEPTH) {
-		if (flags & PATHSPEC_KEEP_ORDER)
-			die("BUG: PATHSPEC_MAXDEPTH_VALID and PATHSPEC_KEEP_ORDER are incompatible");
-		QSORT(pathspec->items, pathspec->nr, pathspec_item_cmp);
+	if (!rewrite_cmd) {
+		commit_notes(t, msg);
+		free_notes(t);
+	} else {
+		finish_copy_notes_for_rewrite(c, msg);
 	}
+	return ret;
 }

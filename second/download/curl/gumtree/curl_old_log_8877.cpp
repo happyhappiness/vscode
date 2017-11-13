@@ -1,9 +1,11 @@
 fputs(
-"              (HTTP/HTTPS) Like -L, --location, but  will  allow  sending  the\n"
-"              name + password to all hosts that the site may redirect to. This\n"
-"              may or may not introduce a security breach if the site redirects\n"
-"              you  to  a  site  to  which you'll send your authentication info\n"
-"              (which is plaintext in the case of HTTP Basic authentication).\n"
+"              Append this option to any ordinary curl command  line,  and  you\n"
+"              will  get a libcurl-using C source code written to the file that\n"
+"              does the equivalent of what your command-line operation does!\n"
 "\n"
-"       -m, --max-time <seconds>\n"
+"              If this option is used several times, the last given  file  name\n"
+"              will be used. (Added in 7.16.1)\n"
+"\n"
+"       --limit-rate <speed>\n"
+"              Specify  the  maximum  transfer  rate you want curl to use. This\n"
 , stdout);

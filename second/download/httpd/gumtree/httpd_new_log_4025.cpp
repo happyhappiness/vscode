@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00931)
-                 "initialized single connection worker in child %" APR_PID_T_FMT " for (%s)",
-                 getpid(), worker->s->hostname);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00670)
+                     "Options FollowSymLinks and SymLinksIfOwnerMatch are both off, "
+                     "so the RewriteRule directive is also forbidden "
+                     "due to its similar ability to circumvent directory restrictions : "
+                     "%s", r->filename);

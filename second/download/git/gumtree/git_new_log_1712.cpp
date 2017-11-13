@@ -1,1 +1,0 @@
-die("BUG: cannot create anonymous strftime date_mode struct");

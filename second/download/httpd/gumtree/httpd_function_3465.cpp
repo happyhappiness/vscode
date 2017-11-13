@@ -1,140 +1,65 @@
-static int util_ldap_post_config(apr_pool_t *p, apr_pool_t *plog,
-                                 apr_pool_t *ptemp, server_rec *s)
+static apr_status_t socache_dbm_retrieve(ap_socache_instance_t *ctx, server_rec *s, 
+                                         const unsigned char *id, unsigned int idlen,
+                                         unsigned char *dest, unsigned int *destlen,
+                                         apr_pool_t *p)
 {
-    apr_status_t result;
-    server_rec *s_vhost;
-    util_ldap_state_t *st_vhost;
+    apr_dbm_t *dbm;
+    apr_datum_t dbmkey;
+    apr_datum_t dbmval;
+    unsigned int nData;
+    apr_time_t expiry;
+    apr_time_t now;
+    apr_status_t rc;
 
-    util_ldap_state_t *st = (util_ldap_state_t *)
-                            ap_get_module_config(s->module_config,
-                                                 &ldap_module);
+    /* allow the regular expiring to occur */
+    socache_dbm_expire(ctx, s);
 
-    void *data;
-    const char *userdata_key = "util_ldap_init";
-    apr_ldap_err_t *result_err = NULL;
-    int rc;
+    /* create DBM key and values */
+    dbmkey.dptr  = (char *)id;
+    dbmkey.dsize = idlen;
 
-    /* util_ldap_post_config() will be called twice. Don't bother
-     * going through all of the initialization on the first call
-     * because it will just be thrown away.*/
-    apr_pool_userdata_get(&data, userdata_key, s->process->pool);
-    if (!data) {
-        apr_pool_userdata_set((const void *)1, userdata_key,
-                               apr_pool_cleanup_null, s->process->pool);
-
-#if APR_HAS_SHARED_MEMORY
-        /* If the cache file already exists then delete it.  Otherwise we are
-         * going to run into problems creating the shared memory. */
-        if (st->cache_file) {
-            char *lck_file = apr_pstrcat(ptemp, st->cache_file, ".lck",
-                                         NULL);
-            apr_file_remove(lck_file, ptemp);
-        }
-#endif
-        return OK;
-    }
-
-#if APR_HAS_SHARED_MEMORY
-    /* initializing cache if shared memory size is not zero and we already
-     * don't have shm address
+    /* and fetch it from the DBM file
+     * XXX: Should we open the dbm against r->pool so the cleanup will
+     * do the apr_dbm_close? This would make the code a bit cleaner.
      */
-    if (!st->cache_shm && st->cache_bytes > 0) {
-#endif
-        result = util_ldap_cache_init(p, st);
-        if (result != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, result, s,
-                         "LDAP cache: could not create shared memory segment");
-            return DONE;
-        }
-
-        result = ap_global_mutex_create(&st->util_ldap_cache_lock, NULL,
-                                        ldap_cache_mutex_type, NULL, s, p, 0);
-        if (result != APR_SUCCESS) {
-            return result;
-        }
-
-        /* merge config in all vhost */
-        s_vhost = s->next;
-        while (s_vhost) {
-            st_vhost = (util_ldap_state_t *)
-                       ap_get_module_config(s_vhost->module_config,
-                                            &ldap_module);
-
-#if APR_HAS_SHARED_MEMORY
-            st_vhost->cache_shm = st->cache_shm;
-            st_vhost->cache_rmm = st->cache_rmm;
-            st_vhost->cache_file = st->cache_file;
-            st_vhost->util_ldap_cache = st->util_ldap_cache;
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, result, s,
-                         "LDAP merging Shared Cache conf: shm=0x%pp rmm=0x%pp "
-                         "for VHOST: %s", st->cache_shm, st->cache_rmm,
-                         s_vhost->server_hostname);
-#endif
-            s_vhost = s_vhost->next;
-        }
-#if APR_HAS_SHARED_MEMORY
+    apr_pool_clear(ctx->pool);
+    if ((rc = apr_dbm_open(&dbm, ctx->data_file, APR_DBM_RWCREATE, 
+                           DBM_FILE_MODE, ctx->pool)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rc, s,
+                     "Cannot open socache DBM file `%s' for reading "
+                     "(fetch)",
+                     ctx->data_file);
+        return rc;
     }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "LDAP cache: LDAPSharedCacheSize is zero, disabling "
-                     "shared memory cache");
+    rc = apr_dbm_fetch(dbm, dbmkey, &dbmval);
+    if (rc != APR_SUCCESS) {
+        apr_dbm_close(dbm);
+        return APR_NOTFOUND;
     }
-#endif
-
-    /* log the LDAP SDK used
-     */
-    {
-        apr_ldap_err_t *result = NULL;
-        apr_ldap_info(p, &(result));
-        if (result != NULL) {
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, "%s", result->reason);
-        }
+    if (dbmval.dptr == NULL || dbmval.dsize <= sizeof(apr_time_t)) {
+        apr_dbm_close(dbm);
+        return APR_EGENERAL;
     }
 
-    apr_pool_cleanup_register(p, s, util_ldap_cleanup_module,
-                              util_ldap_cleanup_module);
+    /* parse resulting data */
+    nData = dbmval.dsize-sizeof(apr_time_t);
+    if (nData > *destlen) {
+        apr_dbm_close(dbm);
+        return APR_ENOSPC;
+    }    
 
-    /*
-     * Initialize SSL support, and log the result for the benefit of the admin.
-     *
-     * If SSL is not supported it is not necessarily an error, as the
-     * application may not want to use it.
-     */
-    rc = apr_ldap_ssl_init(p,
-                      NULL,
-                      0,
-                      &(result_err));
-    if (APR_SUCCESS == rc) {
-        rc = apr_ldap_set_option(ptemp, NULL, APR_LDAP_OPT_TLS_CERT,
-                                 (void *)st->global_certs, &(result_err));
+    *destlen = nData;
+    memcpy(&expiry, dbmval.dptr, sizeof(apr_time_t));
+    memcpy(dest, (char *)dbmval.dptr + sizeof(apr_time_t), nData);
+
+    apr_dbm_close(dbm);
+
+    /* make sure the stuff is still not expired */
+    now = apr_time_now();
+    if (expiry <= now) {
+        socache_dbm_remove(ctx, s, id, idlen, p);
+        return APR_NOTFOUND;
     }
 
-    if (APR_SUCCESS == rc) {
-        st->ssl_supported = 1;
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                     "LDAP: SSL support available" );
-    }
-    else {
-        st->ssl_supported = 0;
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                     "LDAP: SSL support unavailable%s%s",
-                     result_err ? ": " : "",
-                     result_err ? result_err->reason : "");
-    }
-
-    /* Initialize the rebind callback's cross reference list. */
-    apr_ldap_rebind_init (p);
-
-#ifdef AP_LDAP_OPT_DEBUG
-    if (st->debug_level > 0) { 
-        result = ldap_set_option(NULL, AP_LDAP_OPT_DEBUG, &st->debug_level);
-        if (result != LDAP_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                    "LDAP: Could not set the LDAP library debug level to %d:(%d) %s", 
-                    st->debug_level, result, ldap_err2string(result));
-        }
-    }
-#endif
-
-    return(OK);
+    return APR_SUCCESS;
 }

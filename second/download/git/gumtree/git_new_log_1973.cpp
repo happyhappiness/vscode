@@ -1,2 +1,2 @@
-error("Object %s not a commit",
-			     oid_to_hex(&item->object.oid));
+write_file(file_name.buf, 1, "gitdir: %s\n",
+		   relative_path(git_dir, real_work_tree, &rel_path));

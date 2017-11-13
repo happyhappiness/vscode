@@ -1,56 +1,77 @@
-static apr_status_t cgi_bucket_read(apr_bucket *b, const char **str,
-                                    apr_size_t *len, apr_read_type_e block)
+static int make_secure_socket(apr_pool_t *pconf, const struct sockaddr_in *server,
+                              char* key, int mutual, server_rec *sconf)
 {
-    struct cgi_bucket_data *data = b->data;
-    apr_interval_time_t timeout;
-    apr_status_t rv;
-    int gotdata = 0;
+    int s;
+    char addr[MAX_ADDRESS];
+    struct sslserveropts opts;
+    unsigned int optParam;
+    WSAPROTOCOL_INFO SecureProtoInfo;
 
-    timeout = block == APR_NONBLOCK_READ ? 0 : data->r->server->timeout;
+    if (server->sin_addr.s_addr != htonl(INADDR_ANY))
+        apr_snprintf(addr, sizeof(addr), "address %s port %d",
+            inet_ntoa(server->sin_addr), ntohs(server->sin_port));
+    else
+        apr_snprintf(addr, sizeof(addr), "port %d", ntohs(server->sin_port));
 
-    do {
-        const apr_pollfd_t *results;
-        apr_int32_t num;
+    /* note that because we're about to slack we don't use psocket */
+    memset(&SecureProtoInfo, 0, sizeof(WSAPROTOCOL_INFO));
 
-        rv = apr_pollset_poll(data->pollset, timeout, &num, &results);
-        if (APR_STATUS_IS_TIMEUP(rv)) {
-            if (timeout) {
-                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, data->r,
-                              "Timeout waiting for output from CGI script %s",
-                              data->r->filename);
-                return rv;
-            }
-            else {
-                return APR_EAGAIN;
-            }
+    SecureProtoInfo.iAddressFamily = AF_INET;
+    SecureProtoInfo.iSocketType = SOCK_STREAM;
+    SecureProtoInfo.iProtocol = IPPROTO_TCP;
+    SecureProtoInfo.iSecurityScheme = SECURITY_PROTOCOL_SSL;
+
+    s = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP,
+            (LPWSAPROTOCOL_INFO)&SecureProtoInfo, 0, 0);
+
+    if (s == INVALID_SOCKET) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
+                     "make_secure_socket: failed to get a socket for %s",
+                     addr);
+        return -1;
+    }
+
+    if (!mutual) {
+        optParam = SO_SSL_ENABLE | SO_SSL_SERVER;
+
+        if (WSAIoctl(s, SO_SSL_SET_FLAGS, (char *)&optParam,
+            sizeof(optParam), NULL, 0, NULL, NULL, NULL)) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
+                         "make_secure_socket: for %s, WSAIoctl: "
+                         "(SO_SSL_SET_FLAGS)", addr);
+            return -1;
         }
-        else if (APR_STATUS_IS_EINTR(rv)) {
-            continue;
-        }
-        else if (rv != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, data->r,
-                          "poll failed waiting for CGI child");
-            return rv;
-        }
+    }
 
-        for (; num; num--, results++) {
-            if (results[0].client_data == (void *)1) {
-                /* stdout */
-                rv = cgi_read_stdout(b, results[0].desc.f, str, len);
-                if (APR_STATUS_IS_EOF(rv)) {
-                    rv = APR_SUCCESS;
-                }
-                gotdata = 1;
-            } else {
-                /* stderr */
-                apr_status_t rv2 = log_script_err(data->r, results[0].desc.f);
-                if (APR_STATUS_IS_EOF(rv2)) {
-                    apr_pollset_remove(data->pollset, &results[0]);
-                }
-            }
+    opts.cert = key;
+    opts.certlen = strlen(key);
+    opts.sidtimeout = 0;
+    opts.sidentries = 0;
+    opts.siddir = NULL;
+
+    if (WSAIoctl(s, SO_SSL_SET_SERVER, (char *)&opts, sizeof(opts),
+        NULL, 0, NULL, NULL, NULL) != 0) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
+                     "make_secure_socket: for %s, WSAIoctl: "
+                     "(SO_SSL_SET_SERVER)", addr);
+        return -1;
+    }
+
+    if (mutual) {
+        optParam = 0x07;  // SO_SSL_AUTH_CLIENT
+
+        if(WSAIoctl(s, SO_SSL_SET_FLAGS, (char*)&optParam,
+            sizeof(optParam), NULL, 0, NULL, NULL, NULL)) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
+                         "make_secure_socket: for %s, WSAIoctl: "
+                         "(SO_SSL_SET_FLAGS)", addr);
+            return -1;
         }
+    }
 
-    } while (!gotdata);
+    optParam = SO_TLS_UNCLEAN_SHUTDOWN;
+    WSAIoctl(s, SO_SSL_SET_FLAGS, (char *)&optParam, sizeof(optParam),
+             NULL, 0, NULL, NULL, NULL);
 
-    return rv;
+    return s;
 }

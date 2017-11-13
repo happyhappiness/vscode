@@ -1,1 +1,3 @@
-die(_("unable to write new index file"));
+warning("Cannot handle more than %d bases. "
+				"Ignoring %s.",
+				(int)ARRAY_SIZE(bases)-1, argv[i]);

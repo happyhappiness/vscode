@@ -1,1 +1,1 @@
-io_printf(f_out, "@ERROR: getpwuid failed\n");
+io_printf(f_out, "%.*s\n", modlen, modname);

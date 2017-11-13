@@ -1,11 +1,9 @@
 fputs(
-"              ten. The file will be written using  the  Netscape  cookie  file\n"
-"              format.  If  you  set  the  file name to a single dash, \"-\", the\n"
-"              cookies will be written to stdout.\n"
+"              should  be used in this session if they match. Using this method\n"
+"              also activates the \"cookie parser\" which will make  curl  record\n"
+"              incoming cookies too, which may be handy if you're using this in\n"
+"              combination with the -L, --location option. The file  format  of\n"
+"              the  file  to  read cookies from should be plain HTTP headers or\n"
+"              the Netscape/Mozilla cookie file format.\n"
 "\n"
-"              This command line option will activate the  cookie  engine  that\n"
-"              makes curl record and use cookies. Another way to activate it is\n"
-"              to use the -b, --cookie option.\n"
-"\n"
-"              If the cookie jar can't be created or written to, the whole curl\n"
 , stdout);

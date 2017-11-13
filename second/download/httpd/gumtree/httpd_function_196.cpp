@@ -1,349 +1,363 @@
-static void output_directories(struct ent **ar, int n,
-                               autoindex_config_rec *d, request_rec *r,
-                               apr_int32_t autoindex_opts, char keyid, 
-                               char direction, const char *colargs)
+static apr_status_t send_parsed_content(apr_bucket_brigade **bb, 
+                                        request_rec *r, ap_filter_t *f)
 {
-    int x;
-    apr_size_t rv;
-    char *name = r->uri;
-    char *tp;
-    int static_columns = !!(autoindex_opts & SUPPRESS_COLSORT);
-    apr_pool_t *scratch;
-    int name_width;
-    int desc_width;
-    char *name_scratch;
-    char *pad_scratch;
-    char *breakrow = "";
+    include_ctx_t *ctx = f->ctx;
+    apr_bucket *dptr = APR_BRIGADE_FIRST(*bb);
+    apr_bucket *tmp_dptr;
+    apr_bucket_brigade *tag_and_after;
+    apr_status_t rv = APR_SUCCESS;
 
-    apr_pool_create(&scratch, r->pool);
-    if (name[0] == '\0') {
-        name = "/";
+    if (r->args) {               /* add QUERY stuff to env cause it ain't yet */
+        char *arg_copy = apr_pstrdup(r->pool, r->args);
+
+        apr_table_setn(r->subprocess_env, "QUERY_STRING", r->args);
+        ap_unescape_url(arg_copy);
+        apr_table_setn(r->subprocess_env, "QUERY_STRING_UNESCAPED",
+                  ap_escape_shell_cmd(r->pool, arg_copy));
     }
 
-    name_width = d->name_width;
-    desc_width = d->desc_width; 
+    while (dptr != APR_BRIGADE_SENTINEL(*bb) && !APR_BUCKET_IS_EOS(dptr)) {
+        /* State to check for the STARTING_SEQUENCE. */
+        if ((ctx->state == PRE_HEAD) || (ctx->state == PARSE_HEAD)) {
+            int do_cleanup = 0;
+            apr_size_t cleanup_bytes = ctx->parse_pos;
 
-    if ((autoindex_opts & (FANCY_INDEXING | TABLE_INDEXING)) 
-                        == FANCY_INDEXING) {
-        if (d->name_adjust == K_ADJUST) {
-            for (x = 0; x < n; x++) {
-                int t = strlen(ar[x]->name);
-                if (t > name_width) {
-                    name_width = t;
+            tmp_dptr = find_start_sequence(dptr, ctx, *bb, &do_cleanup);
+            if (!APR_STATUS_IS_SUCCESS(ctx->status)) {
+                return ctx->status;
+            }
+
+            /* The few bytes stored in the ssi_tag_brigade turned out not to
+             * be a tag after all. This can only happen if the starting
+             * tag actually spans brigades. This should be very rare.
+             */
+            if ((do_cleanup) && (!APR_BRIGADE_EMPTY(ctx->ssi_tag_brigade))) {
+                apr_bucket *tmp_bkt;
+
+                tmp_bkt = apr_bucket_immortal_create(ctx->start_seq,
+                                                  cleanup_bytes,
+                                                  r->connection->bucket_alloc);
+                APR_BRIGADE_INSERT_HEAD(*bb, tmp_bkt);
+                apr_brigade_cleanup(ctx->ssi_tag_brigade);
+            }
+
+            /* If I am inside a conditional (if, elif, else) that is false
+             *   then I need to throw away anything contained in it.
+             */
+            if ((!(ctx->flags & FLAG_PRINTING)) && (tmp_dptr != NULL) &&
+                (dptr != APR_BRIGADE_SENTINEL(*bb))) {
+                while ((dptr != APR_BRIGADE_SENTINEL(*bb)) &&
+                       (dptr != tmp_dptr)) {
+                    apr_bucket *free_bucket = dptr;
+
+                    dptr = APR_BUCKET_NEXT (dptr);
+                    apr_bucket_delete(free_bucket);
                 }
+            }
+
+            /* Adjust the current bucket position based on what was found... */
+            if ((tmp_dptr != NULL) && (ctx->state == PARSE_DIRECTIVE)) {
+                if (ctx->tag_start_bucket != NULL) {
+                    dptr = ctx->tag_start_bucket;
+                }
+                else {
+                    dptr = APR_BRIGADE_SENTINEL(*bb);
+                }
+            }
+            else if ((tmp_dptr != NULL) &&
+                     (ctx->output_now ||
+                      (ctx->bytes_parsed >= BYTE_COUNT_THRESHOLD))) {
+                /* Send the large chunk of pre-tag bytes...  */
+                tag_and_after = apr_brigade_split(*bb, tmp_dptr);
+                if (ctx->output_flush) {
+                    APR_BRIGADE_INSERT_TAIL(*bb, apr_bucket_flush_create((*bb)->bucket_alloc));
+                }
+
+                rv = ap_pass_brigade(f->next, *bb);
+                if (rv != APR_SUCCESS) {
+                    return rv;
+                }
+                *bb  = tag_and_after;
+                dptr = tmp_dptr;
+                ctx->output_flush = 0;
+                ctx->bytes_parsed = 0;
+                ctx->output_now = 0;
+            }
+            else if (tmp_dptr == NULL) { 
+                /* There was no possible SSI tag in the
+                 * remainder of this brigade... */
+                dptr = APR_BRIGADE_SENTINEL(*bb);  
             }
         }
 
-        if (d->desc_adjust == K_ADJUST) { 
-            for (x = 0; x < n; x++) {
-                if (ar[x]->desc != NULL) { 
-                    int t = strlen(ar[x]->desc); 
-                    if (t > desc_width) { 
-                        desc_width = t; 
-                    } 
-                } 
-            } 
-        } 
-    }
-    name_scratch = apr_palloc(r->pool, name_width + 1);
-    pad_scratch = apr_palloc(r->pool, name_width + 1);
-    memset(pad_scratch, ' ', name_width);
-    pad_scratch[name_width] = '\0';
+        /* State to check for the ENDING_SEQUENCE. */
+        if (((ctx->state == PARSE_DIRECTIVE) ||
+             (ctx->state == PARSE_TAG)       ||
+             (ctx->state == PARSE_TAIL))       &&
+            (dptr != APR_BRIGADE_SENTINEL(*bb))) {
+            tmp_dptr = find_end_sequence(dptr, ctx, *bb);
+            if (!APR_STATUS_IS_SUCCESS(ctx->status)) {
+                return ctx->status;
+            }
 
-    if (autoindex_opts & TABLE_INDEXING) {
-        int cols = 1;
-        ap_rputs("<table><tr>", r);
-        if (!(autoindex_opts & SUPPRESS_ICON)) {
-            ap_rputs("<th>", r);
-            if ((tp = find_default_icon(d, "^^BLANKICON^^"))) {
-                ap_rvputs(r, "<img src=\"", ap_escape_html(scratch, tp),
-                             "\" alt=\"[ICO]\"", NULL);
-                if (d->icon_width) {
-                    ap_rprintf(r, " width=\"%d\"", d->icon_width);
+            if (tmp_dptr != NULL) {
+                dptr = tmp_dptr;  /* Adjust bucket pos... */
+                
+                /* If some of the tag has already been set aside then set
+                 * aside remainder of tag. Now the full tag is in 
+                 * ssi_tag_brigade.
+                 * If none has yet been set aside, then leave it all where it 
+                 * is.
+                 * In any event after this the entire set of tag buckets will 
+                 * be in one place or another.
+                 */
+                if (!APR_BRIGADE_EMPTY(ctx->ssi_tag_brigade)) {
+                    tag_and_after = apr_brigade_split(*bb, dptr);
+                    APR_BRIGADE_CONCAT(ctx->ssi_tag_brigade, *bb);
+                    *bb = tag_and_after;
                 }
-                if (d->icon_height) {
-                    ap_rprintf(r, " height=\"%d\"", d->icon_height);
+                else if (ctx->output_now ||
+                         (ctx->bytes_parsed >= BYTE_COUNT_THRESHOLD)) {
+                    SPLIT_AND_PASS_PRETAG_BUCKETS(*bb, ctx, f->next, rv);
+                    if (rv != APR_SUCCESS) {
+                        return rv;
+                    }
+                    ctx->output_flush = 0;
+                    ctx->output_now = 0;
                 }
-                ap_rputs(" /></th>", r);
             }
             else {
-                ap_rputs("&nbsp;</th>", r);
+                /* remainder of this brigade...    */
+                dptr = APR_BRIGADE_SENTINEL(*bb);  
+            }
+        }
+
+        /* State to processed the directive... */
+        if (ctx->state == PARSED) {
+            apr_bucket    *content_head = NULL, *tmp_bkt;
+            apr_size_t    tmp_i;
+            char          tmp_buf[TMP_BUF_SIZE];
+            int (*handle_func)(include_ctx_t *, apr_bucket_brigade **,
+                               request_rec *, ap_filter_t *, apr_bucket *,
+                               apr_bucket **);
+
+            /* By now the full tag (all buckets) should either be set aside into
+             *  ssi_tag_brigade or contained within the current bb. All tag
+             *  processing from here on can assume that.
+             */
+
+            /* At this point, everything between ctx->head_start_bucket and
+             * ctx->tail_start_bucket is an SSI
+             * directive, we just have to deal with it now.
+             */
+            if (get_combined_directive(ctx, r, *bb, tmp_buf,
+                                        TMP_BUF_SIZE) != APR_SUCCESS) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                            "mod_include: error copying directive in %s",
+                            r->filename);
+                CREATE_ERROR_BUCKET(ctx, tmp_bkt, dptr, content_head);
+
+                /* DO CLEANUP HERE!!!!! */
+                tmp_dptr = ctx->head_start_bucket;
+                if (!APR_BRIGADE_EMPTY(ctx->ssi_tag_brigade)) {
+                    apr_brigade_cleanup(ctx->ssi_tag_brigade);
+                }
+                else {
+                    do {
+                        tmp_bkt  = tmp_dptr;
+                        tmp_dptr = APR_BUCKET_NEXT (tmp_dptr);
+                        apr_bucket_delete(tmp_bkt);
+                    } while ((tmp_dptr != dptr) &&
+                             (tmp_dptr != APR_BRIGADE_SENTINEL(*bb)));
+                }
+
+                return APR_SUCCESS;
+            }
+
+            /* Can't destroy the tag buckets until I'm done processing
+             * because the combined_tag might just be pointing to
+             * the contents of a single bucket!
+             */
+
+            /* Retrieve the handler function to be called for this directive 
+             * from the functions registered in the hash table.
+             * Need to lower case the directive for proper matching. Also need 
+             * to have it NULL terminated for proper hash matching.
+             */
+            for (tmp_i = 0; tmp_i < ctx->directive_length; tmp_i++) {
+                ctx->combined_tag[tmp_i] = 
+                                          apr_tolower(ctx->combined_tag[tmp_i]);
+            }
+            ctx->combined_tag[ctx->directive_length] = '\0';
+            ctx->curr_tag_pos = &ctx->combined_tag[ctx->directive_length+1];
+
+            handle_func = 
+                (include_handler_fn_t *)apr_hash_get(include_hash, 
+                                                     ctx->combined_tag, 
+                                                     ctx->directive_length);
+            if (handle_func != NULL) {
+                rv = (*handle_func)(ctx, bb, r, f, dptr, &content_head);
+                if ((rv != 0) && (rv != 1)) {
+                    return (rv);
+                }
+            }
+            else {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "unknown directive \"%s\" in parsed doc %s",
+                              ctx->combined_tag, r->filename);
+                CREATE_ERROR_BUCKET(ctx, tmp_bkt, dptr, content_head);
+            }
+
+            /* This chunk of code starts at the first bucket in the chain
+             * of tag buckets (assuming that by this point the bucket for
+             * the STARTING_SEQUENCE has been split) and loops through to
+             * the end of the tag buckets freeing them all.
+             *
+             * Remember that some part of this may have been set aside
+             * into the ssi_tag_brigade and the remainder (possibly as
+             * little as one byte) will be in the current brigade.
+             *
+             * The value of dptr should have been set during the
+             * PARSE_TAIL state to the first bucket after the
+             * ENDING_SEQUENCE.
+             *
+             * The value of content_head may have been set during processing
+             * of the directive. If so, the content was inserted in front
+             * of the dptr bucket. The inserted buckets should not be thrown
+             * away here, but they should also not be parsed later.
+             */
+            if (content_head == NULL) {
+                content_head = dptr;
+            }
+            tmp_dptr = ctx->head_start_bucket;
+            if (!APR_BRIGADE_EMPTY(ctx->ssi_tag_brigade)) {
+                apr_brigade_cleanup(ctx->ssi_tag_brigade);
+            }
+            else {
+                do {
+                    tmp_bkt  = tmp_dptr;
+                    tmp_dptr = APR_BUCKET_NEXT (tmp_dptr);
+                    apr_bucket_delete(tmp_bkt);
+                } while ((tmp_dptr != content_head) &&
+                         (tmp_dptr != APR_BRIGADE_SENTINEL(*bb)));
+            }
+            if (ctx->combined_tag == tmp_buf) {
+                ctx->combined_tag = NULL;
+            }
+
+            /* Don't reset the flags or the nesting level!!! */
+            ctx->parse_pos         = 0;
+            ctx->head_start_bucket = NULL;
+            ctx->head_start_index  = 0;
+            ctx->tag_start_bucket  = NULL;
+            ctx->tag_start_index   = 0;
+            ctx->tail_start_bucket = NULL;
+            ctx->tail_start_index  = 0;
+            ctx->curr_tag_pos      = NULL;
+            ctx->tag_length        = 0;
+            ctx->directive_length  = 0;
+
+            if (!APR_BRIGADE_EMPTY(ctx->ssi_tag_brigade)) {
+                apr_brigade_cleanup(ctx->ssi_tag_brigade);
+            }
+
+            ctx->state     = PRE_HEAD;
+        }
+    }
+
+    /* We have nothing more to send, stop now. */
+    if (dptr != APR_BRIGADE_SENTINEL(*bb) &&
+        APR_BUCKET_IS_EOS(dptr)) {
+        /* We might have something saved that we never completed, but send
+         * down unparsed.  This allows for <!-- at the end of files to be
+         * sent correctly. */
+        if (!APR_BRIGADE_EMPTY(ctx->ssi_tag_brigade)) {
+            APR_BRIGADE_CONCAT(ctx->ssi_tag_brigade, *bb);
+            return ap_pass_brigade(f->next, ctx->ssi_tag_brigade);
+        }
+        return ap_pass_brigade(f->next, *bb);
+    }
+
+    /* If I am in the middle of parsing an SSI tag then I need to set aside
+     *   the pertinent trailing buckets and pass on the initial part of the
+     *   brigade. The pertinent parts of the next brigades will be added to
+     *   these set aside buckets to form the whole tag and will be processed
+     *   once the whole tag has been found.
+     */
+    if (ctx->state == PRE_HEAD) {
+        /* Inside a false conditional (if, elif, else), so toss it all... */
+        if ((dptr != APR_BRIGADE_SENTINEL(*bb)) &&
+            (!(ctx->flags & FLAG_PRINTING))) {
+            apr_bucket *free_bucket;
+            do {
+                free_bucket = dptr;
+                dptr = APR_BUCKET_NEXT (dptr);
+                apr_bucket_delete(free_bucket);
+            } while (dptr != APR_BRIGADE_SENTINEL(*bb));
+        }
+        else { 
+            /* Otherwise pass it along...
+             * No SSI tags in this brigade... */
+            rv = ap_pass_brigade(f->next, *bb);  
+            if (rv != APR_SUCCESS) {
+                return rv;
+            }
+            ctx->bytes_parsed = 0;
+        }
+    }
+    else if (ctx->state == PARSED) {         /* Invalid internal condition... */
+        apr_bucket *content_head = NULL, *tmp_bkt;
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Invalid mod_include state during file %s", r->filename);
+        CREATE_ERROR_BUCKET(ctx, tmp_bkt, APR_BRIGADE_FIRST(*bb), content_head);
+    }
+    else {                    /* Entire brigade is middle chunk of SSI tag... */
+        if (!APR_BRIGADE_EMPTY(ctx->ssi_tag_brigade)) {
+            APR_BRIGADE_CONCAT(ctx->ssi_tag_brigade, *bb);
+        }
+        else {                  /* End of brigade contains part of SSI tag... */
+            apr_bucket *last;
+            if (ctx->head_start_index > 0) {
+                apr_bucket_split(ctx->head_start_bucket, ctx->head_start_index);
+                ctx->head_start_bucket = 
+                                        APR_BUCKET_NEXT(ctx->head_start_bucket);
+                ctx->head_start_index = 0;
+            }
+                           /* Set aside tag, pass pre-tag... */
+            tag_and_after = apr_brigade_split(*bb, ctx->head_start_bucket);
+            rv = ap_pass_brigade(f->next, *bb);
+            if (rv != APR_SUCCESS) {
+                return rv;
             }
             
-            ++cols;
-        }
-        ap_rputs("<th>", r);
-        emit_link(r, "Name", K_NAME, keyid, direction, 
-                  colargs, static_columns);
-        if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-            ap_rputs("</th><th>", r);
-            emit_link(r, "Last modified", K_LAST_MOD, keyid, direction, 
-                      colargs, static_columns);
-            ++cols;
-        }
-        if (!(autoindex_opts & SUPPRESS_SIZE)) {
-            ap_rputs("</th><th>", r);
-            emit_link(r, "Size", K_SIZE, keyid, direction, 
-                      colargs, static_columns);
-            ++cols;
-        }
-        if (!(autoindex_opts & SUPPRESS_DESC)) {
-            ap_rputs("</th><th>", r);
-            emit_link(r, "Description", K_DESC, keyid, direction, 
-                      colargs, static_columns);
-            ++cols;
-        }
-        if (!(autoindex_opts & SUPPRESS_RULES)) {
-            breakrow = apr_psprintf(r->pool,
-                                    "<tr><th colspan=\"%d\">"
-                                    "<hr /></th></tr>\n", cols);
-        }
-        ap_rvputs(r, "</th></tr>", breakrow, NULL);
-    }
-    else if (autoindex_opts & FANCY_INDEXING) {
-        ap_rputs("<pre>", r);
-        if (!(autoindex_opts & SUPPRESS_ICON)) {
-            if ((tp = find_default_icon(d, "^^BLANKICON^^"))) {
-                ap_rvputs(r, "<img src=\"", ap_escape_html(scratch, tp),
-                             "\" alt=\"Icon \"", NULL);
-                if (d->icon_width) {
-                    ap_rprintf(r, " width=\"%d\"", d->icon_width);
-                }
-                if (d->icon_height) {
-                    ap_rprintf(r, " height=\"%d\"", d->icon_height);
-                }
-                ap_rputs(" /> ", r);
-            }
-            else {
-                ap_rputs("      ", r);
-            }
-        }
-        emit_link(r, "Name", K_NAME, keyid, direction, 
-                  colargs, static_columns);
-        ap_rputs(pad_scratch + 4, r);
-        /*
-         * Emit the guaranteed-at-least-one-space-between-columns byte.
-         */
-        ap_rputs(" ", r);
-        if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-            emit_link(r, "Last modified", K_LAST_MOD, keyid, direction,
-                      colargs, static_columns);
-            ap_rputs("      ", r);
-        }
-        if (!(autoindex_opts & SUPPRESS_SIZE)) {
-            emit_link(r, "Size", K_SIZE, keyid, direction, 
-                      colargs, static_columns);
-            ap_rputs("  ", r);
-        }
-        if (!(autoindex_opts & SUPPRESS_DESC)) {
-            emit_link(r, "Description", K_DESC, keyid, direction,
-                      colargs, static_columns);
-        }
-        if (!(autoindex_opts & SUPPRESS_RULES)) {
-            ap_rputs("<hr />", r);
-        }
-        else {
-            ap_rputc('\n', r);
-        }
-    }
-    else {
-        ap_rputs("<ul>", r);
-    }
-
-    for (x = 0; x < n; x++) {
-        char *anchor, *t, *t2;
-        int nwidth;
-
-        apr_pool_clear(scratch);
-
-        t = ar[x]->name;
-        anchor = ap_escape_html(scratch, ap_os_escape_path(scratch, t, 0));
-
-        if (!x && t[0] == '/') {
-            t2 = "Parent Directory";
-        }
-        else {
-            t2 = t;
-        }
-
-        if (autoindex_opts & TABLE_INDEXING) {
-            if (!(autoindex_opts & SUPPRESS_ICON)) {
-                ap_rputs("<tr><td valign=\"top\">", r);
-                if (autoindex_opts & ICONS_ARE_LINKS) {
-                    ap_rvputs(r, "<a href=\"", anchor, "\">", NULL);
-                }
-                if ((ar[x]->icon) || d->default_icon) {
-                    ap_rvputs(r, "<img src=\"",
-                              ap_escape_html(scratch,
-                                             ar[x]->icon ? ar[x]->icon
-                                                         : d->default_icon),
-                              "\" alt=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
-                              "]\"", NULL);
-                    if (d->icon_width) {
-                        ap_rprintf(r, " width=\"%d\"", d->icon_width);
-                    }
-                    if (d->icon_height) {
-                        ap_rprintf(r, " height=\"%d\"", d->icon_height);
-                    }
-                    ap_rputs(" />", r);
-                }
-                else {
-                    ap_rputs("&nbsp;", r);            
-                }
-                if (autoindex_opts & ICONS_ARE_LINKS) {
-                    ap_rputs("</a></td>", r);
-                }
-                else {
-                    ap_rputs("</td>", r);
-                }
-            }
-            if (d->name_adjust == K_ADJUST) {
-                ap_rvputs(r, "<td><a href=\"", anchor, "\">",
-                          ap_escape_html(scratch, t2), "</a>", NULL);
-            }
-            else {
-                nwidth = strlen(t2);
-                if (nwidth > name_width) {
-                  memcpy(name_scratch, t2, name_width - 3);
-                  name_scratch[name_width - 3] = '.';
-                  name_scratch[name_width - 2] = '.';
-                  name_scratch[name_width - 1] = '>';
-                  name_scratch[name_width] = 0;
-                  t2 = name_scratch;
-                  nwidth = name_width;
-                }
-                ap_rvputs(r, "<td><a href=\"", anchor, "\">",
-                          ap_escape_html(scratch, t2),
-                          "</a>", pad_scratch + nwidth, NULL);
-            }
-            if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-                if (ar[x]->lm != -1) {
-                    char time_str[MAX_STRING_LEN];
-                    apr_time_exp_t ts;
-                    apr_time_exp_lt(&ts, ar[x]->lm);
-                    apr_strftime(time_str, &rv, MAX_STRING_LEN, 
-                                 "</td><td align=\"right\">%d-%b-%Y %H:%M  ", &ts);
-                    ap_rputs(time_str, r);
-                }
-                else {
-                    ap_rputs("</td><td>&nbsp;", r);
-                }
-            }
-            if (!(autoindex_opts & SUPPRESS_SIZE)) {
-                char buf[5];
-                ap_rvputs(r, "</td><td align=\"right\">",
-                          apr_strfsize(ar[x]->size, buf), NULL);
-            }
-            if (!(autoindex_opts & SUPPRESS_DESC)) {
-                if (ar[x]->desc) {
-                    if (d->desc_adjust == K_ADJUST) {
-                        ap_rvputs(r, "</td><td>", ar[x]->desc, NULL);
-                    }
-                    else {
-                        ap_rvputs(r, "</td><td>", 
-                                  terminate_description(d, ar[x]->desc,
-                                                        autoindex_opts, 
-                                                        desc_width), NULL);
-                    }
-                }
-            }
-            else {
-                ap_rputs("</td><td>&nbsp;", r);
-            }
-            ap_rputs("</td></tr>\n", r);
-        }
-        else if (autoindex_opts & FANCY_INDEXING) {
-            if (!(autoindex_opts & SUPPRESS_ICON)) {
-                if (autoindex_opts & ICONS_ARE_LINKS) {
-                    ap_rvputs(r, "<a href=\"", anchor, "\">", NULL);
-                }
-                if ((ar[x]->icon) || d->default_icon) {
-                    ap_rvputs(r, "<img src=\"",
-                              ap_escape_html(scratch,
-                                             ar[x]->icon ? ar[x]->icon
-                                                         : d->default_icon),
-                              "\" alt=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
-                              "]\"", NULL);
-                    if (d->icon_width) {
-                        ap_rprintf(r, " width=\"%d\"", d->icon_width);
-                    }
-                    if (d->icon_height) {
-                        ap_rprintf(r, " height=\"%d\"", d->icon_height);
-                    }
-                    ap_rputs(" />", r);
-                }
-                else {
-                    ap_rputs("     ", r);
-                }
-                if (autoindex_opts & ICONS_ARE_LINKS) {
-                    ap_rputs("</a> ", r);
-                }
-                else {
-                    ap_rputc(' ', r);
-                }
-            }
-            nwidth = strlen(t2);
-            if (nwidth > name_width) {
-                memcpy(name_scratch, t2, name_width - 3);
-                name_scratch[name_width - 3] = '.';
-                name_scratch[name_width - 2] = '.';
-                name_scratch[name_width - 1] = '>';
-                name_scratch[name_width] = 0;
-                t2 = name_scratch;
-                nwidth = name_width;
-            }
-            ap_rvputs(r, "<a href=\"", anchor, "\">",
-                      ap_escape_html(scratch, t2),
-                      "</a>", pad_scratch + nwidth, NULL);
-            /*
-             * The blank before the storm.. er, before the next field.
+            /* Set aside the partial tag
+             * Exception: if there's an EOS at the end of this brigade,
+             * the tag will never be completed, so send an error and EOS
              */
-            ap_rputs(" ", r);
-            if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-                if (ar[x]->lm != -1) {
-                    char time_str[MAX_STRING_LEN];
-                    apr_time_exp_t ts;
-                    apr_time_exp_lt(&ts, ar[x]->lm);
-                    apr_strftime(time_str, &rv, MAX_STRING_LEN, 
-                                "%d-%b-%Y %H:%M  ", &ts);
-                    ap_rputs(time_str, r);
+            last = APR_BRIGADE_LAST(tag_and_after);
+            if (APR_BUCKET_IS_EOS(last)) {
+                /* Remove everything before the EOS (i.e., the partial tag)
+                 * and replace it with an error msg */
+                apr_bucket *b;
+                apr_bucket *err_bucket = NULL;
+                for (b = APR_BRIGADE_FIRST(tag_and_after);
+                     !APR_BUCKET_IS_EOS(b);
+                     b = APR_BRIGADE_FIRST(tag_and_after)) {
+                    APR_BUCKET_REMOVE(b);
+                    apr_bucket_destroy(b);
                 }
-                else {
-                    /*Length="22-Feb-1998 23:42  " (see 4 lines above) */
-                    ap_rputs("                   ", r);
-                }
+                CREATE_ERROR_BUCKET(ctx, err_bucket, b, err_bucket);
+                rv = ap_pass_brigade(f->next, tag_and_after);
             }
-            if (!(autoindex_opts & SUPPRESS_SIZE)) {
-                char buf[5];
-                ap_rputs(apr_strfsize(ar[x]->size, buf), r);
-                ap_rputs("  ", r);
+            else {
+                ap_save_brigade(f, &ctx->ssi_tag_brigade,
+                                &tag_and_after, r->pool);
             }
-            if (!(autoindex_opts & SUPPRESS_DESC)) {
-                if (ar[x]->desc) {
-                    ap_rputs(terminate_description(d, ar[x]->desc,
-                                                   autoindex_opts,
-                                                   desc_width), r);
-                }
+            if (rv != APR_SUCCESS) {
+                return rv;
             }
-            ap_rputc('\n', r);
-        }
-        else {
-            ap_rvputs(r, "<li><a href=\"", anchor, "\"> ", t2,
-                         "</a></li>\n", NULL);
+            ctx->bytes_parsed = 0;
         }
     }
-    if (autoindex_opts & TABLE_INDEXING) {
-        ap_rvputs(r, breakrow, "</table>\n", NULL);
-    }
-    else if (autoindex_opts & FANCY_INDEXING) {
-        if (!(autoindex_opts & SUPPRESS_RULES)) {
-            ap_rputs("<hr /></pre>\n", r);
-        }
-        else {
-            ap_rputs("</pre>\n", r);
-        }
-    }
-    else {
-        ap_rputs("</ul>\n", r);
-    }
+    return APR_SUCCESS;
 }

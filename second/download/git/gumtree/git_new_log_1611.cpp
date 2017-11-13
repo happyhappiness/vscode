@@ -1,1 +1,1 @@
-error("unable to rename '%s' to '%s': %s", oldrefname, newrefname, err.buf);
+strbuf_reset(&link);

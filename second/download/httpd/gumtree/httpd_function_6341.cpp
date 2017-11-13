@@ -1,92 +1,53 @@
-static int proxy_wstunnel_handler(request_rec *r, proxy_worker *worker,
-                             proxy_server_conf *conf,
-                             char *url, const char *proxyname,
-                             apr_port_t proxyport)
+static const char *set_override_list(cmd_parms *cmd, void *d_, int argc, char *const argv[])
 {
-    int status;
-    char server_portstr[32];
-    proxy_conn_rec *backend = NULL;
-    const char *upgrade;
-    char *scheme;
-    int retry;
-    conn_rec *c = r->connection;
-    apr_pool_t *p = r->pool;
-    apr_uri_t *uri;
-    int is_ssl = 0;
+    core_dir_config *d = d_;
+    int i;
+    const char *err;
 
-    if (strncasecmp(url, "wss:", 4) == 0) {
-        scheme = "WSS";
-        is_ssl = 1;
+    /* Throw a warning if we're in <Location> or <Files> */
+    if (ap_check_cmd_context(cmd, NOT_IN_LOCATION | NOT_IN_FILES)) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(00115)
+                     "Useless use of AllowOverrideList at %s:%d",
+                     cmd->directive->filename, cmd->directive->line_num);
     }
-    else if (strncasecmp(url, "ws:", 3) == 0) {
-        scheme = "WS";
-    }
-    else {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02450) "declining URL %s", url);
-        return DECLINED;
-    }
+    if ((err = ap_check_cmd_context(cmd, NOT_IN_HTACCESS)) != NULL)
+        return err;
 
-    upgrade = apr_table_get(r->headers_in, "Upgrade");
-    if (!upgrade || strcasecmp(upgrade, "WebSocket") != 0) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02900)
-                      "declining URL %s  (not WebSocket)", url);
-        return DECLINED;
-    }
+    d->override_list = apr_table_make(cmd->pool, argc);
 
-    uri = apr_palloc(p, sizeof(*uri));
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02451) "serving URL %s", url);
-
-    /* create space for state information */
-    status = ap_proxy_acquire_connection(scheme, &backend, worker,
-                                         r->server);
-    if (status != OK) {
-        if (backend) {
-            backend->close = 1;
-            ap_proxy_release_connection(scheme, backend, r->server);
+    for (i=0;i<argc;i++){
+        if (!strcasecmp(argv[i], "None")) {
+            if (argc != 1) {
+                return "'None' not allowed with other directives in "
+                       "AllowOverrideList";
+            }
+            return NULL;
         }
-        return status;
+        else {
+            const command_rec *result = NULL;
+            module *mod = ap_top_module;
+            result = ap_find_command_in_modules(argv[i], &mod);
+            if (result == NULL) {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                             APLOGNO(00116) "Discarding unrecognized "
+                             "directive `%s' in AllowOverrideList at %s:%d",
+                             argv[i], cmd->directive->filename,
+                             cmd->directive->line_num);
+                continue;
+            }
+            else if ((result->req_override & (OR_ALL|ACCESS_CONF)) == 0) {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                             APLOGNO(02304) "Discarding directive `%s' not "
+                             "allowed in AllowOverrideList at %s:%d",
+                             argv[i], cmd->directive->filename,
+                             cmd->directive->line_num);
+                continue;
+            }
+            else {
+                apr_table_set(d->override_list, argv[i], "1");
+            }
+        }
     }
 
-    backend->is_ssl = is_ssl;
-    backend->close = 0;
-
-    retry = 0;
-    while (retry < 2) {
-        char *locurl = url;
-        /* Step One: Determine Who To Connect To */
-        status = ap_proxy_determine_connection(p, r, conf, worker, backend,
-                                               uri, &locurl, proxyname, proxyport,
-                                               server_portstr,
-                                               sizeof(server_portstr));
-
-        if (status != OK)
-            break;
-
-        /* Step Two: Make the Connection */
-        if (ap_proxy_connect_backend(scheme, backend, worker, r->server)) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02452)
-                          "failed to make connection to backend: %s",
-                          backend->hostname);
-            status = HTTP_SERVICE_UNAVAILABLE;
-            break;
-        }
-        /* Step Three: Create conn_rec */
-        if (!backend->connection) {
-            if ((status = ap_proxy_connection_create(scheme, backend,
-                                                     c, r->server)) != OK)
-                break;
-        }
-
-        backend->close = 1; /* must be after ap_proxy_determine_connection */
-
-
-        /* Step Three: Process the Request */
-        status = proxy_wstunnel_request(p, r, backend, worker, conf, uri, locurl,
-                                      server_portstr);
-        break;
-    }
-
-    /* Do not close the socket */
-    ap_proxy_release_connection(scheme, backend, r->server);
-    return status;
+    return NULL;
 }

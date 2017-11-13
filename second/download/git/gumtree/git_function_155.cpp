@@ -1,111 +1,105 @@
-void wt_status_print(struct wt_status *s)
+int read_ref_at(const char *refname, unsigned long at_time, int cnt,
+		unsigned char *sha1, char **msg,
+		unsigned long *cutoff_time, int *cutoff_tz, int *cutoff_cnt)
 {
-	const char *branch_color = color(WT_STATUS_ONBRANCH, s);
-	const char *branch_status_color = color(WT_STATUS_HEADER, s);
-	struct wt_status_state state;
+	const char *logfile, *logdata, *logend, *rec, *lastgt, *lastrec;
+	char *tz_c;
+	int logfd, tz, reccnt = 0;
+	struct stat st;
+	unsigned long date;
+	unsigned char logged_sha1[20];
+	void *log_mapped;
+	size_t mapsz;
 
-	memset(&state, 0, sizeof(state));
-	wt_status_get_state(&state,
-			    s->branch && !strcmp(s->branch, "HEAD"));
+	logfile = git_path("logs/%s", refname);
+	logfd = open(logfile, O_RDONLY, 0);
+	if (logfd < 0)
+		die_errno("Unable to read log '%s'", logfile);
+	fstat(logfd, &st);
+	if (!st.st_size)
+		die("Log %s is empty.", logfile);
+	mapsz = xsize_t(st.st_size);
+	log_mapped = xmmap(NULL, mapsz, PROT_READ, MAP_PRIVATE, logfd, 0);
+	logdata = log_mapped;
+	close(logfd);
 
-	if (s->branch) {
-		const char *on_what = _("On branch ");
-		const char *branch_name = s->branch;
-		if (starts_with(branch_name, "refs/heads/"))
-			branch_name += 11;
-		else if (!strcmp(branch_name, "HEAD")) {
-			branch_status_color = color(WT_STATUS_NOBRANCH, s);
-			if (state.rebase_in_progress || state.rebase_interactive_in_progress) {
-				on_what = _("rebase in progress; onto ");
-				branch_name = state.onto;
-			} else if (state.detached_from) {
-				unsigned char sha1[20];
-				branch_name = state.detached_from;
-				if (!get_sha1("HEAD", sha1) &&
-				    !hashcmp(sha1, state.detached_sha1))
-					on_what = _("HEAD detached at ");
-				else
-					on_what = _("HEAD detached from ");
-			} else {
-				branch_name = "";
-				on_what = _("Not currently on any branch.");
+	lastrec = NULL;
+	rec = logend = logdata + st.st_size;
+	while (logdata < rec) {
+		reccnt++;
+		if (logdata < rec && *(rec-1) == '\n')
+			rec--;
+		lastgt = NULL;
+		while (logdata < rec && *(rec-1) != '\n') {
+			rec--;
+			if (*rec == '>')
+				lastgt = rec;
+		}
+		if (!lastgt)
+			die("Log %s is corrupt.", logfile);
+		date = strtoul(lastgt + 1, &tz_c, 10);
+		if (date <= at_time || cnt == 0) {
+			tz = strtoul(tz_c, NULL, 10);
+			if (msg)
+				*msg = ref_msg(rec, logend);
+			if (cutoff_time)
+				*cutoff_time = date;
+			if (cutoff_tz)
+				*cutoff_tz = tz;
+			if (cutoff_cnt)
+				*cutoff_cnt = reccnt - 1;
+			if (lastrec) {
+				if (get_sha1_hex(lastrec, logged_sha1))
+					die("Log %s is corrupt.", logfile);
+				if (get_sha1_hex(rec + 41, sha1))
+					die("Log %s is corrupt.", logfile);
+				if (hashcmp(logged_sha1, sha1)) {
+					warning("Log %s has gap after %s.",
+						logfile, show_date(date, tz, DATE_RFC2822));
+				}
 			}
+			else if (date == at_time) {
+				if (get_sha1_hex(rec + 41, sha1))
+					die("Log %s is corrupt.", logfile);
+			}
+			else {
+				if (get_sha1_hex(rec + 41, logged_sha1))
+					die("Log %s is corrupt.", logfile);
+				if (hashcmp(logged_sha1, sha1)) {
+					warning("Log %s unexpectedly ended on %s.",
+						logfile, show_date(date, tz, DATE_RFC2822));
+				}
+			}
+			munmap(log_mapped, mapsz);
+			return 0;
 		}
-		status_printf(s, color(WT_STATUS_HEADER, s), "");
-		status_printf_more(s, branch_status_color, "%s", on_what);
-		status_printf_more(s, branch_color, "%s\n", branch_name);
-		if (!s->is_initial)
-			wt_status_print_tracking(s);
+		lastrec = rec;
+		if (cnt > 0)
+			cnt--;
 	}
 
-	wt_status_print_state(s, &state);
-	free(state.branch);
-	free(state.onto);
-	free(state.detached_from);
-
-	if (s->is_initial) {
-		status_printf_ln(s, color(WT_STATUS_HEADER, s), "");
-		status_printf_ln(s, color(WT_STATUS_HEADER, s), _("Initial commit"));
-		status_printf_ln(s, color(WT_STATUS_HEADER, s), "");
+	rec = logdata;
+	while (rec < logend && *rec != '>' && *rec != '\n')
+		rec++;
+	if (rec == logend || *rec == '\n')
+		die("Log %s is corrupt.", logfile);
+	date = strtoul(rec + 1, &tz_c, 10);
+	tz = strtoul(tz_c, NULL, 10);
+	if (get_sha1_hex(logdata, sha1))
+		die("Log %s is corrupt.", logfile);
+	if (is_null_sha1(sha1)) {
+		if (get_sha1_hex(logdata + 41, sha1))
+			die("Log %s is corrupt.", logfile);
 	}
+	if (msg)
+		*msg = ref_msg(logdata, logend);
+	munmap(log_mapped, mapsz);
 
-	wt_status_print_updated(s);
-	wt_status_print_unmerged(s);
-	wt_status_print_changed(s);
-	if (s->submodule_summary &&
-	    (!s->ignore_submodule_arg ||
-	     strcmp(s->ignore_submodule_arg, "all"))) {
-		wt_status_print_submodule_summary(s, 0);  /* staged */
-		wt_status_print_submodule_summary(s, 1);  /* unstaged */
-	}
-	if (s->show_untracked_files) {
-		wt_status_print_other(s, &s->untracked, _("Untracked files"), "add");
-		if (s->show_ignored_files)
-			wt_status_print_other(s, &s->ignored, _("Ignored files"), "add -f");
-		if (advice_status_u_option && 2000 < s->untracked_in_ms) {
-			status_printf_ln(s, GIT_COLOR_NORMAL, "");
-			status_printf_ln(s, GIT_COLOR_NORMAL,
-					 _("It took %.2f seconds to enumerate untracked files. 'status -uno'\n"
-					   "may speed it up, but you have to be careful not to forget to add\n"
-					   "new files yourself (see 'git help status')."),
-					 s->untracked_in_ms / 1000.0);
-		}
-	} else if (s->commitable)
-		status_printf_ln(s, GIT_COLOR_NORMAL, _("Untracked files not listed%s"),
-			s->hints
-			? _(" (use -u option to show untracked files)") : "");
-
-	if (s->verbose)
-		wt_status_print_verbose(s);
-	if (!s->commitable) {
-		if (s->amend)
-			status_printf_ln(s, GIT_COLOR_NORMAL, _("No changes"));
-		else if (s->nowarn)
-			; /* nothing */
-		else if (s->workdir_dirty) {
-			if (s->hints)
-				printf(_("no changes added to commit "
-					 "(use \"git add\" and/or \"git commit -a\")\n"));
-			else
-				printf(_("no changes added to commit\n"));
-		} else if (s->untracked.nr) {
-			if (s->hints)
-				printf(_("nothing added to commit but untracked files "
-					 "present (use \"git add\" to track)\n"));
-			else
-				printf(_("nothing added to commit but untracked files present\n"));
-		} else if (s->is_initial) {
-			if (s->hints)
-				printf(_("nothing to commit (create/copy files "
-					 "and use \"git add\" to track)\n"));
-			else
-				printf(_("nothing to commit\n"));
-		} else if (!s->show_untracked_files) {
-			if (s->hints)
-				printf(_("nothing to commit (use -u to show untracked files)\n"));
-			else
-				printf(_("nothing to commit\n"));
-		} else
-			printf(_("nothing to commit, working directory clean\n"));
-	}
+	if (cutoff_time)
+		*cutoff_time = date;
+	if (cutoff_tz)
+		*cutoff_tz = tz;
+	if (cutoff_cnt)
+		*cutoff_cnt = reccnt;
+	return 1;
 }

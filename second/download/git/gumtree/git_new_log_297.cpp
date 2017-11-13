@@ -1,1 +1,0 @@
-error(_("Failed to find tree of %s."), oid_to_hex(oid));

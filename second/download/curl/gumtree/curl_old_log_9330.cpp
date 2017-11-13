@@ -1,9 +1,10 @@
 fputs(
-"              NAME2=VALUE2\".\n"
+"              (FTP/SFTP) When used in an upload, this will tell curl to append\n"
+"              to  the  target  file  instead  of  overwriting  it. If the file\n"
+"              doesn't exist, it will be  created.   Note  that  this  flag  is\n"
+"              ignored by some SSH servers (including OpenSSH).\n"
 "\n"
-"              If  no  '=' symbol is used in the line, it is treated as a file-\n"
-"              name to use to read previously stored cookie lines  from,  which\n"
-"              should  be used in this session if they match. Using this method\n"
-"              also activates the \"cookie parser\" which will make  curl  record\n"
-"              incoming cookies too, which may be handy if you're using this in\n"
+"       -A, --user-agent <agent string>\n"
+"              (HTTP) Specify the User-Agent string to send to the HTTP server.\n"
+"              Some  badly  done  CGIs  fail  if  this  field  isn't   set   to\n"
 , stdout);

@@ -1,5 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02648)
-                                    "Inflated content length of %" APR_OFF_T_FMT
-                                    " is larger than the configured limit"
-                                    " of %" APR_OFF_T_FMT, 
-                                    ctx->inflate_total, inflate_limit);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                          H2_STRM_LOG(APLOGNO(03071), stream, "suspending"));

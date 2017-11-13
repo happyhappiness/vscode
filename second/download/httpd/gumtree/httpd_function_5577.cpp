@@ -1,37 +1,106 @@
-static apr_status_t open_response(h2_task_output *output, ap_filter_t *f,
-                                  apr_bucket_brigade *bb, const char *caller)
+static const char *macro_section(cmd_parms * cmd,
+                                 void *dummy, const char *arg)
 {
-    h2_response *response;
-    response = h2_from_h1_get_response(output->from_h1);
-    if (!response) {
-        if (f) {
-            /* This happens currently when ap_die(status, r) is invoked
-             * by a read request filter. */
-            ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, output->task->c, APLOGNO(03204)
-                          "h2_task_output(%s): write without response by %s "
-                          "for %s %s %s",
-                          output->task->id, caller, 
-                          output->task->request->method, 
-                          output->task->request->authority, 
-                          output->task->request->path);
-            output->task->c->aborted = 1;
-        }
-        if (output->task->io) {
-            apr_thread_cond_broadcast(output->task->io);
-        }
-        return APR_ECONNABORTED;
+    apr_pool_t *pool;
+    char *endp, *name, *where;
+    const char *errmsg;
+    ap_macro_t *macro;
+
+    debug(fprintf(stderr, "macro_section: arg='%s'\n", arg));
+
+    /* lazy initialization */
+    if (ap_macros == NULL)
+        ap_macros = apr_hash_make(cmd->temp_pool);
+    ap_assert(ap_macros != NULL);
+
+    pool = apr_hash_pool_get(ap_macros);
+
+    endp = (char *) ap_strrchr_c(arg, '>');
+
+    if (endp == NULL) {
+        return BEGIN_MACRO "> directive missing closing '>'";
     }
-    
-    if (h2_task_logio_add_bytes_out) {
-        /* count headers as if we'd do a HTTP/1.1 serialization */
-        output->written = h2_util_table_bytes(response->headers, 3)+1;
-        h2_task_logio_add_bytes_out(output->task->c, output->written);
+
+    if (endp == arg) {
+        return BEGIN_MACRO " macro definition: empty name";
     }
-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, output->task->c, APLOGNO(03348)
-                  "h2_task(%s): open response to %s %s %s",
-                  output->task->id, output->task->request->method, 
-                  output->task->request->authority, 
-                  output->task->request->path);
-    return h2_mplx_out_open(output->task->mplx, output->task->stream_id, 
-                            response, f, bb, output->task->io);
+
+    warn_if_non_blank("non blank chars found after " BEGIN_MACRO " closing '>'",
+                      endp+1, cmd->config_file);
+
+    /* coldly drop '>[^>]*$' out */
+    *endp = '\0';
+
+    /* get lowercase macro name */
+    name = ap_getword_conf(pool, &arg);
+    if (empty_string_p(name)) {
+        return BEGIN_MACRO " macro definition: name not found";
+    }
+
+    ap_str_tolower(name);
+    macro = apr_hash_get(ap_macros, name, APR_HASH_KEY_STRING);
+
+    if (macro != NULL) {
+        /* already defined: warn about the redefinition */
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_WARNING, 0, NULL,
+                     "macro '%s' multiply defined: "
+                     "%s, redefined on line %d of \"%s\"",
+                     macro->name, macro->location,
+                     cmd->config_file->line_number, cmd->config_file->name);
+    }
+    else {
+        /* allocate a new macro */
+        macro = (ap_macro_t *) apr_palloc(pool, sizeof(ap_macro_t));
+        macro->name = name;
+    }
+
+    debug(fprintf(stderr, "macro_section: name=%s\n", name));
+
+    /* get macro arguments */
+    macro->location = apr_psprintf(pool,
+                                   "defined on line %d of \"%s\"",
+                                   cmd->config_file->line_number,
+                                   cmd->config_file->name);
+    debug(fprintf(stderr, "macro_section: location=%s\n", macro->location));
+
+    where =
+        apr_psprintf(pool, "macro '%s' (%s)", macro->name, macro->location);
+
+    if (looks_like_an_argument(name)) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_WARNING, 0, NULL,
+                     "%s better prefix a macro name with any of '%s'",
+                     where, ARG_PREFIX);
+    }
+
+    /* get macro parameters */
+    macro->arguments = get_arguments(pool, arg);
+
+    errmsg = check_macro_arguments(cmd->temp_pool, macro);
+
+    if (errmsg) {
+        return errmsg;
+    }
+
+    errmsg = get_lines_till_end_token(pool, cmd->config_file,
+                                      END_MACRO, BEGIN_MACRO,
+                                      where, &macro->contents);
+
+    if (errmsg) {
+        return apr_psprintf(cmd->temp_pool,
+                            "%s" APR_EOL_STR "\tcontents error: %s",
+                            where, errmsg);
+    }
+
+    errmsg = check_macro_contents(cmd->temp_pool, macro);
+
+    if (errmsg) {
+        return apr_psprintf(cmd->temp_pool,
+                            "%s" APR_EOL_STR "\tcontents checking error: %s",
+                            where, errmsg);
+    }
+
+    /* store the new macro */
+    apr_hash_set(ap_macros, name, APR_HASH_KEY_STRING, macro);
+
+    return NULL;
 }

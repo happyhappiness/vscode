@@ -1,3 +1,1 @@
-die((side == DIFF_NEW_NAME) ?
-			    _("git apply: bad git-diff - inconsistent new filename on line %d") :
-			    _("git apply: bad git-diff - inconsistent old filename on line %d"), linenr);
+die(_("git apply: bad git-diff - expected /dev/null on line %d"), linenr);

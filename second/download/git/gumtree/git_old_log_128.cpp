@@ -1,1 +1,1 @@
-die("Log %s is corrupt.", logfile);
+fputs(str, stream);

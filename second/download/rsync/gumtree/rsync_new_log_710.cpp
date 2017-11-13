@@ -1,1 +1,1 @@
-io_printf(f_out, "@ERROR: failed to open lock file\n");
+fprintf(fp, POPT_("Usage:"));

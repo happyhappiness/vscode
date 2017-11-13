@@ -1,2 +1,2 @@
-ap_rvputs(r, "<input type=hidden name='nonce' id='nonce' value='",
-                      bsel->s->nonce, "'>\n", NULL);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01269)
+                              "Timeout during reading request entity data");

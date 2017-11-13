@@ -1,1 +1,1 @@
-ref_transaction_free(transaction);
+die("Can't load object %s", oid_to_hex(oid));

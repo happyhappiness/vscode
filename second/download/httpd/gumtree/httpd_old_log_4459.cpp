@@ -1,3 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p,
-                    "make_sock: for address %pI, apr_socket_opt_set: (SO_REUSEADDR)",
-                     server->bind_addr);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
+                         "proxy: Starting body due to bogus non-header in headers "
+                         "returned by %s (%s)", r->uri, r->method);

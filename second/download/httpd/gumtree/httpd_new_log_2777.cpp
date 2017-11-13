@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, status, s, APLOGNO(01751)
-                     "could not open charset conversion config file %s.",
-                     charset_confname);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                   "proxy: NOT Closing connection to client"
+                                   " although reading from backend server %s"
+                                   " failed.", backend->hostname);

@@ -1,1 +1,1 @@
-printf("matching subject ");
+printf(" -D APACHE_XLATE\n");

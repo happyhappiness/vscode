@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01409)
-                              "Zlib error %d inflating data (%s)", zRC,
-                              ctx->stream.msg);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01709)
+            "ldap authorize: Userid is blank, AuthType=%s",
+            r->ap_auth_type);

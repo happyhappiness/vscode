@@ -1,1 +1,2 @@
-die_errno("cannot unlink stray '%s'", path);
+die(_("did not receive expected object %s"),
+			      oid_to_hex(&obj->oid));

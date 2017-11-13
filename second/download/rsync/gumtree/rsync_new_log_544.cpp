@@ -1,1 +1,1 @@
-rprintf(FERROR,"filename too long\n");
+rprintf(FINFO,"recv_generator(%s,%d)\n",fname,i);

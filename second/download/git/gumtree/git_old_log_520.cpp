@@ -1,1 +1,1 @@
-die("corrupt tree file");
+die("Option '--stat-graph-width' requires a value");

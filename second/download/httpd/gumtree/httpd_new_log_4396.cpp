@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, status, ap_server_conf, APLOGNO(02177)
-                         "apr_socket_accept: giving up.");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01151)
+                  "set r->filename to %s", r->filename);

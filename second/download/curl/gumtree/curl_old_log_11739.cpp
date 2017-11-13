@@ -1,11 +1,11 @@
 fputs(
-"              by using the Certificate Status Request (aka. OCSP stapling) TLS\n"
-"              extension.\n"
+"              curl  recognizes the environment variable named 'CURL_CA_BUNDLE'\n"
+"              if it is set, and uses the given path as a path  to  a  CA  cert\n"
+"              bundle. This option overrides that variable.\n"
 "\n"
-"              If  this option is enabled and the server sends an invalid (e.g.\n"
-"              expired) response, if the response suggests that the server cer-\n"
-"              tificate  has  been  revoked, or no response at all is received,\n"
-"              the verification fails.\n"
+"              The  windows  version  of  curl will automatically look for a CA\n"
+"              certs file named 'curl-ca-bundle.crt', either in the same direc-\n"
+"              tory as curl.exe, or in the Current Working Directory, or in any\n"
+"              folder along your PATH.\n"
 "\n"
-"              This is currently only implemented in the  OpenSSL,  GnuTLS  and\n"
 , stdout);

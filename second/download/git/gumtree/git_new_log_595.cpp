@@ -1,2 +1,1 @@
-die_errno("Invalid path '%s'",
-						  resolved->buf);
+error("packet write with format failed");

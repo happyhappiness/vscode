@@ -1,3 +1,2 @@
-fprintf(stderr,
-				"%.*s is not a valid attribute name: %s:%d\n",
-				namelen, name, src, lineno);
+die("Could not run 'git rev-list %s --not --remotes -n 1' command in submodule %s",
+				sha1_to_hex(sha1), path);

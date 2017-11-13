@@ -1,1 +1,1 @@
-printf("%s is the first bad commit\n", bisect_rev_hex);
+error("unable to update %s", path1);

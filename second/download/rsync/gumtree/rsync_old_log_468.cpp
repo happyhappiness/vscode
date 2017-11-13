@@ -1,1 +1,1 @@
-fprintf(f,"    --suffix SUFFIX      override backup suffix\n");
+fprintf(f,"Usage:\t%s [options] src user@host:dest\nOR",RSYNC_NAME);

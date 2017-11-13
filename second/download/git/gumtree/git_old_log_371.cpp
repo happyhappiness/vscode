@@ -1,1 +1,1 @@
-die("expected shallow/unshallow, got %s", line);
+die("object %s changed type!?", sha1_to_hex(sha1));

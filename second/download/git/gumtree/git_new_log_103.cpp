@@ -1,1 +1,1 @@
-error("core.commentChar should only be one character");
+die("unexpected character after quoted argument: %s", orig);

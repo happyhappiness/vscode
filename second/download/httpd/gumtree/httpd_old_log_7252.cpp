@@ -1,2 +1,2 @@
-apr_file_printf(errfile, " -s  Force SHA encryption of the password"
-            " (insecure)." NL);
+apr_file_printf(errfile, " -b  Use the password from the command line "
+            "rather than prompting for it." NL);

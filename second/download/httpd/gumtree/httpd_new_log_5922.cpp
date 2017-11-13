@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00768)
-                "cache: %s not cached for request %s. Reason: %s",
-                cache->key, r->unparsed_uri, reason);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, status, c,
+                          APLOGNO(02908) "protocol switch to '%s' failed",
+                          proposed);

@@ -1,1 +1,1 @@
-die("unable to join lazy_name_thread");
+printf(_("Applied autostash."));

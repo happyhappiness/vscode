@@ -1,1 +1,1 @@
-error_errno("open(\"%s\")", path);
+printf("%s\n", oid_to_hex(&result->item->object.oid));

@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(03238)
-                         "stapling_cb: still must refresh cached response "
-                         "after obtaining refresh mutex");
+ap_log_error(SCRIPT_LOG_MARK, APLOG_ERR, 0, r->server,
+                             APLOGNO(02660) "CGI Interface Error: "
+                             "Script headers apparently ASCII: (CGI = %s)",
+                             r->filename);

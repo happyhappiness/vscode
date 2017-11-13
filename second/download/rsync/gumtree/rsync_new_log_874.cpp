@@ -1,1 +1,1 @@
-fprintf(F," -h, --help                  show this help\n");
+out_of_memory("add_suffix");

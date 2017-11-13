@@ -1,10 +1,10 @@
 fputs(
-"              default and this option is usually pointless, unless you use  it\n"
-"              to  override  a  previously  set  option  that  sets a different\n"
-"              authentication method (such as --ntlm,  --digest,  or  --negoti-\n"
-"              ate).\n"
+"              from stdin, since it may require data to be sent twice and  then\n"
+"              the client must be able to rewind. If the need should arise when\n"
+"              uploading from stdin, the upload operation will fail.\n"
 "\n"
-"       -c, --cookie-jar <file name>\n"
-"              (HTTP)  Specify to which file you want curl to write all cookies\n"
-"              after a completed operation. Curl writes all cookies  previously\n"
+"       -b, --cookie <name=data>\n"
+"              (HTTP) Pass the data to the HTTP server as a cookie. It is  sup-\n"
+"              posedly  the data previously received from the server in a \"Set-\n"
+"              Cookie:\" line.  The data should be in the format  \"NAME1=VALUE1;\n"
 , stdout);

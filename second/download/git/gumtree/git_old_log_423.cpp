@@ -1,2 +1,1 @@
-printf("Concatenating local and remote notes for %s\n",
-							sha1_to_hex(p->obj));
+die(_("Malformed input line: '%s'."), buf.buf);

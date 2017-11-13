@@ -1,11 +1,10 @@
 fputs(
-"              correct  FTP  commands as RFC 959 defines to FTP servers, or one\n"
-"              of the commands listed below to SFTP servers.\n"
+"              User and password that might be provided in the proxy string are\n"
+"              URL decoded by curl. This allows you to pass in special  charac-\n"
+"              ters such as @ by using %40 or pass in a colon with %3a.\n"
 "\n"
-"              This option can be used multiple times. When speaking to an  FTP\n"
-"              server,  prefix  the  command  with an asterisk (*) to make curl\n"
-"              continue even if the command fails as by default curl will  stop\n"
-"              at first failure.\n"
+"              The  proxy host can be specified the exact same way as the proxy\n"
+"              environment variables, including the protocol  prefix  (http://)\n"
+"              and the embedded user + password.\n"
 "\n"
-"              SFTP  is a binary protocol. Unlike for FTP, curl interprets SFTP\n"
 , stdout);

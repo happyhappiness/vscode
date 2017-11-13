@@ -1,2 +1,1 @@
-warning(_("ignore invalid color '%.*s' in log.graphColors"),
-				(int)(comma - start), start);
+rollback_lock_file(&index_lock);

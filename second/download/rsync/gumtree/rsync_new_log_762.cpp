@@ -1,1 +1,1 @@
-io_printf(f_out, "%.*s\n", modlen, modname);
+io_printf(f_out, "@ERROR: Unknown module '%s'\n", name);

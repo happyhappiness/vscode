@@ -1,1 +1,2 @@
-die("strange hostname '%s' blocked", ssh_host);
+printf("Using remote notes for %s\n",
+						oid_to_hex(&p->obj));

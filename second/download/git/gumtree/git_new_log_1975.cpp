@@ -1,1 +1,2 @@
-printf(format, oid_to_hex(&list->item->object.oid));
+error("problems writing temporary file %s: %s",
+			     buf->buf, strerror(errno));

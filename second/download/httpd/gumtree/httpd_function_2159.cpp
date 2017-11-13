@@ -1,90 +1,312 @@
-static apr_status_t store_body(cache_handle_t *h, request_rec *r,
-                               apr_bucket_brigade *bb)
+int main(int argc, const char * const argv[])
 {
-    apr_bucket *e;
+    char c;
+    int configtestonly = 0, showcompile = 0;
+    const char *confname = SERVER_CONFIG_FILE;
+    const char *def_server_root = HTTPD_ROOT;
+    const char *temp_error_log = NULL;
+    const char *error;
+    process_rec *process;
+    apr_pool_t *pconf;
+    apr_pool_t *plog; /* Pool of log streams, reset _after_ each read of conf */
+    apr_pool_t *ptemp; /* Pool for temporary config stuff, reset often */
+    apr_pool_t *pcommands; /* Pool for -D, -C and -c switches */
+    apr_getopt_t *opt;
     apr_status_t rv;
-    disk_cache_object_t *dobj = (disk_cache_object_t *) h->cache_obj->vobj;
-    disk_cache_conf *conf = ap_get_module_config(r->server->module_config,
-                                                 &disk_cache_module);
+    module **mod;
+    const char *optarg;
+    APR_OPTIONAL_FN_TYPE(ap_signal_server) *signal_server;
 
-    /* We write to a temp file and then atomically rename the file over
-     * in file_cache_el_final().
+    AP_MONCONTROL(0); /* turn off profiling of startup */
+
+    process = init_process(&argc, &argv);
+    ap_pglobal = process->pool;
+    pconf = process->pconf;
+    ap_server_argv0 = process->short_name;
+
+    /* Set up the OOM callback in the global pool, so all pools should
+     * by default inherit it. */
+    apr_pool_abort_set(abort_on_oom, apr_pool_parent_get(process->pool));
+
+#if APR_CHARSET_EBCDIC
+    if (ap_init_ebcdic(ap_pglobal) != APR_SUCCESS) {
+        destroy_and_exit_process(process, 1);
+    }
+#endif
+    if (ap_expr_init(ap_pglobal) != APR_SUCCESS) {
+        destroy_and_exit_process(process, 1);
+    }
+
+    apr_pool_create(&pcommands, ap_pglobal);
+    apr_pool_tag(pcommands, "pcommands");
+    ap_server_pre_read_config  = apr_array_make(pcommands, 1, sizeof(char *));
+    ap_server_post_read_config = apr_array_make(pcommands, 1, sizeof(char *));
+    ap_server_config_defines   = apr_array_make(pcommands, 1, sizeof(char *));
+
+    error = ap_setup_prelinked_modules(process);
+    if (error) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_EMERG, 0, NULL, "%s: %s",
+                     ap_server_argv0, error);
+        destroy_and_exit_process(process, 1);
+    }
+
+    ap_run_rewrite_args(process);
+
+    /* Maintain AP_SERVER_BASEARGS list in http_main.h to allow the MPM
+     * to safely pass on our args from its rewrite_args() handler.
      */
-    if (!dobj->tfd) {
-        rv = apr_file_mktemp(&dobj->tfd, dobj->tempfile,
-                             APR_CREATE | APR_WRITE | APR_BINARY |
-                             APR_BUFFERED | APR_EXCL, r->pool);
-        if (rv != APR_SUCCESS) {
-            return rv;
+    apr_getopt_init(&opt, pcommands, process->argc, process->argv);
+
+    while ((rv = apr_getopt(opt, AP_SERVER_BASEARGS, &c, &optarg))
+            == APR_SUCCESS) {
+        char **new;
+
+        switch (c) {
+        case 'c':
+            new = (char **)apr_array_push(ap_server_post_read_config);
+            *new = apr_pstrdup(pcommands, optarg);
+            break;
+
+        case 'C':
+            new = (char **)apr_array_push(ap_server_pre_read_config);
+            *new = apr_pstrdup(pcommands, optarg);
+            break;
+
+        case 'd':
+            def_server_root = optarg;
+            break;
+
+        case 'D':
+            new = (char **)apr_array_push(ap_server_config_defines);
+            *new = apr_pstrdup(pcommands, optarg);
+            /* Setting -D DUMP_VHOSTS is equivalent to setting -S */
+            if (strcmp(optarg, "DUMP_VHOSTS") == 0)
+                configtestonly = 1;
+            /* Setting -D DUMP_MODULES is equivalent to setting -M */
+            if (strcmp(optarg, "DUMP_MODULES") == 0)
+                configtestonly = 1;
+            break;
+
+        case 'e':
+            if (ap_parse_log_level(optarg, &ap_default_loglevel) != NULL)
+                usage(process);
+            break;
+
+        case 'E':
+            temp_error_log = apr_pstrdup(process->pool, optarg);
+            break;
+
+        case 'X':
+            new = (char **)apr_array_push(ap_server_config_defines);
+            *new = "DEBUG";
+            break;
+
+        case 'f':
+            confname = optarg;
+            break;
+
+        case 'v':
+            printf("Server version: %s\n", ap_get_server_description());
+            printf("Server built:   %s\n", ap_get_server_built());
+            destroy_and_exit_process(process, 0);
+
+        case 'V':
+            if (strcmp(ap_show_mpm(), "")) { /* MPM built-in? */
+                show_compile_settings();
+                destroy_and_exit_process(process, 0);
+            }
+            else {
+                showcompile = 1;
+            }
+            break;
+
+        case 'l':
+            ap_show_modules();
+            destroy_and_exit_process(process, 0);
+
+        case 'L':
+            ap_show_directives();
+            destroy_and_exit_process(process, 0);
+
+        case 't':
+            configtestonly = 1;
+            break;
+
+       case 'T':
+           ap_document_root_check = 0;
+           break;
+
+        case 'S':
+            configtestonly = 1;
+            new = (char **)apr_array_push(ap_server_config_defines);
+            *new = "DUMP_VHOSTS";
+            break;
+
+        case 'M':
+            configtestonly = 1;
+            new = (char **)apr_array_push(ap_server_config_defines);
+            *new = "DUMP_MODULES";
+            break;
+
+        case 'h':
+        case '?':
+            usage(process);
         }
-        dobj->file_size = 0;
     }
 
-    for (e = APR_BRIGADE_FIRST(bb);
-         e != APR_BRIGADE_SENTINEL(bb);
-         e = APR_BUCKET_NEXT(e))
-    {
-        const char *str;
-        apr_size_t length, written;
-        rv = apr_bucket_read(e, &str, &length, APR_BLOCK_READ);
-        if (rv != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                         "cache_disk: Error when reading bucket for URL %s",
-                         h->cache_obj->key);
-            /* Remove the intermediate cache file and return non-APR_SUCCESS */
-            file_cache_errorcleanup(dobj, r);
-            return rv;
-        }
-        rv = apr_file_write_full(dobj->tfd, str, length, &written);
-        if (rv != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                         "cache_disk: Error when writing cache file for URL %s",
-                         h->cache_obj->key);
-            /* Remove the intermediate cache file and return non-APR_SUCCESS */
-            file_cache_errorcleanup(dobj, r);
-            return rv;
-        }
-        dobj->file_size += written;
-        if (dobj->file_size > conf->maxfs) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "cache_disk: URL %s failed the size check "
-                         "(%" APR_OFF_T_FMT ">%" APR_SIZE_T_FMT ")",
-                         h->cache_obj->key, dobj->file_size, conf->maxfs);
-            /* Remove the intermediate cache file and return non-APR_SUCCESS */
-            file_cache_errorcleanup(dobj, r);
-            return APR_EGENERAL;
-        }
+    /* bad cmdline option?  then we die */
+    if (rv != APR_EOF || opt->ind < opt->argc) {
+        usage(process);
     }
 
-    /* Was this the final bucket? If yes, close the temp file and perform
-     * sanity checks.
+    apr_pool_create(&plog, ap_pglobal);
+    apr_pool_tag(plog, "plog");
+    apr_pool_create(&ptemp, pconf);
+    apr_pool_tag(ptemp, "ptemp");
+
+    /* Note that we preflight the config file once
+     * before reading it _again_ in the main loop.
+     * This allows things, log files configuration
+     * for example, to settle down.
      */
-    if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(bb))) {
-        if (r->connection->aborted || r->no_cache) {
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                         "disk_cache: Discarding body for URL %s "
-                         "because connection has been aborted.",
-                         h->cache_obj->key);
-            /* Remove the intermediate cache file and return non-APR_SUCCESS */
-            file_cache_errorcleanup(dobj, r);
-            return APR_EGENERAL;
-        }
-        if (dobj->file_size < conf->minfs) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "cache_disk: URL %s failed the size check "
-                         "(%" APR_OFF_T_FMT "<%" APR_SIZE_T_FMT ")",
-                         h->cache_obj->key, dobj->file_size, conf->minfs);
-            /* Remove the intermediate cache file and return non-APR_SUCCESS */
-            file_cache_errorcleanup(dobj, r);
-            return APR_EGENERAL;
-        }
 
-        /* All checks were fine. Move tempfile to final destination */
-        /* Link to the perm file, and close the descriptor */
-        file_cache_el_final(dobj, r);
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "disk_cache: Body for URL %s cached.",  dobj->name);
+    ap_server_root = def_server_root;
+    if (temp_error_log) {
+        ap_replace_stderr_log(process->pool, temp_error_log);
+    }
+    ap_server_conf = ap_read_config(process, ptemp, confname, &ap_conftree);
+    if (!ap_server_conf) {
+        destroy_and_exit_process(process, 1);
     }
 
-    return APR_SUCCESS;
+    if (ap_run_pre_config(pconf, plog, ptemp) != OK) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
+                     NULL, "Pre-configuration failed");
+        destroy_and_exit_process(process, 1);
+    }
+
+    rv = ap_process_config_tree(ap_server_conf, ap_conftree,
+                                process->pconf, ptemp);
+    if (rv == OK) {
+        ap_fixup_virtual_hosts(pconf, ap_server_conf);
+        ap_fini_vhost_config(pconf, ap_server_conf);
+        apr_hook_sort_all();
+
+        if (ap_run_check_config(pconf, plog, ptemp, ap_server_conf) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
+                         NULL, "Configuration check failed");
+            destroy_and_exit_process(process, 1);
+        }
+
+        if (configtestonly) {
+            ap_run_test_config(pconf, ap_server_conf);
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, "Syntax OK");
+            destroy_and_exit_process(process, 0);
+        }
+        else if (showcompile) { /* deferred due to dynamically loaded MPM */
+            show_compile_settings();
+            destroy_and_exit_process(process, 0);
+        }
+    }
+
+    signal_server = APR_RETRIEVE_OPTIONAL_FN(ap_signal_server);
+    if (signal_server) {
+        int exit_status;
+
+        if (signal_server(&exit_status, pconf) != 0) {
+            destroy_and_exit_process(process, exit_status);
+        }
+    }
+
+    /* If our config failed, deal with that here. */
+    if (rv != OK) {
+        destroy_and_exit_process(process, 1);
+    }
+
+    apr_pool_clear(plog);
+
+    if ( ap_run_open_logs(pconf, plog, ptemp, ap_server_conf) != OK) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                     0, NULL, "Unable to open logs");
+        destroy_and_exit_process(process, 1);
+    }
+
+    if ( ap_run_post_config(pconf, plog, ptemp, ap_server_conf) != OK) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
+                     NULL, "Configuration Failed");
+        destroy_and_exit_process(process, 1);
+    }
+
+    apr_pool_destroy(ptemp);
+
+    for (;;) {
+        apr_hook_deregister_all();
+        apr_pool_clear(pconf);
+        ap_clear_auth_internal();
+
+        for (mod = ap_prelinked_modules; *mod != NULL; mod++) {
+            ap_register_hooks(*mod, pconf);
+        }
+
+        /* This is a hack until we finish the code so that it only reads
+         * the config file once and just operates on the tree already in
+         * memory.  rbb
+         */
+        ap_conftree = NULL;
+        apr_pool_create(&ptemp, pconf);
+        apr_pool_tag(ptemp, "ptemp");
+        ap_server_root = def_server_root;
+        ap_server_conf = ap_read_config(process, ptemp, confname, &ap_conftree);
+        if (!ap_server_conf) {
+            destroy_and_exit_process(process, 1);
+        }
+
+        if (ap_run_pre_config(pconf, plog, ptemp) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                         0, NULL, "Pre-configuration failed");
+            destroy_and_exit_process(process, 1);
+        }
+
+        if (ap_process_config_tree(ap_server_conf, ap_conftree, process->pconf,
+                                   ptemp) != OK) {
+            destroy_and_exit_process(process, 1);
+        }
+        ap_fixup_virtual_hosts(pconf, ap_server_conf);
+        ap_fini_vhost_config(pconf, ap_server_conf);
+        apr_hook_sort_all();
+
+        if (ap_run_check_config(pconf, plog, ptemp, ap_server_conf) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
+                         NULL, "Configuration check failed");
+            destroy_and_exit_process(process, 1);
+        }
+
+        apr_pool_clear(plog);
+        if (ap_run_open_logs(pconf, plog, ptemp, ap_server_conf) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                         0, NULL, "Unable to open logs");
+            destroy_and_exit_process(process, 1);
+        }
+
+        if (ap_run_post_config(pconf, plog, ptemp, ap_server_conf) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                         0, NULL, "Configuration Failed");
+            destroy_and_exit_process(process, 1);
+        }
+
+        apr_pool_destroy(ptemp);
+        apr_pool_lock(pconf, 1);
+
+        ap_run_optional_fn_retrieve();
+
+        if (ap_run_mpm(pconf, plog, ap_server_conf) != OK)
+            break;
+
+        apr_pool_lock(pconf, 0);
+    }
+
+    apr_pool_lock(pconf, 0);
+    destroy_and_exit_process(process, 0);
+
+    return 0; /* Termination 'ok' */
 }

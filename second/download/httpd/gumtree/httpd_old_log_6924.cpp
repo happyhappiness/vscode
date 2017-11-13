@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                  "h2_stream(%ld-%d): add %ld input bytes", 
-                  stream->session->id, stream->id, (long)len);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, stream->session->c,
+                  "h2_stream(%ld-%d): beam_received",
+                  stream->session->id, stream->id);

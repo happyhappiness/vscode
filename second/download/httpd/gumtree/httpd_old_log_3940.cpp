@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: FTP: pre_connection setup failed (%d)",
-                     rc);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, cmd->server,
+                 "LDAP: Connection timeout option not supported by the "
+                 "LDAP SDK in use." );

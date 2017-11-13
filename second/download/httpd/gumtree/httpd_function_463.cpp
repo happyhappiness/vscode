@@ -1,39 +1,56 @@
-static apr_table_t *groups_for_user(request_rec *r, char *user, char *grpfile)
+static int create_entity(cache_handle_t *h, request_rec *r,
+                         const char *key,
+                         apr_off_t len)
 {
-    apr_pool_t *p = r->pool;
-    ap_configfile_t *f;
-    apr_table_t *grps = apr_table_make(p, 15);
-    apr_pool_t *sp;
-    char l[MAX_STRING_LEN];
-    const char *group_name, *ll, *w;
-    apr_status_t status;
+    disk_cache_conf *conf = ap_get_module_config(r->server->module_config,
+                                                 &disk_cache_module);
+    apr_status_t rv;
+    cache_object_t *obj;
+    disk_cache_object_t *dobj;
+    apr_file_t *tmpfile;
 
-    if ((status = ap_pcfg_openfile(&f, p, grpfile)) != APR_SUCCESS) {
-         ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                       "Could not open group file: %s", grpfile);
-        return NULL;
+    if (conf->cache_root == NULL) {
+        return DECLINED;
     }
 
-    apr_pool_create(&sp, p);
-
-    while (!(ap_cfg_getline(l, MAX_STRING_LEN, f))) {
-        if ((l[0] == '#') || (!l[0])) {
-            continue;
-        }
-        ll = l;
-        apr_pool_clear(sp);
-
-        group_name = ap_getword(sp, &ll, ':');
-
-        while (ll[0]) {
-            w = ap_getword_conf(sp, &ll);
-            if (!strcmp(w, user)) {
-                apr_table_setn(grps, apr_pstrdup(p, group_name), "in");
-                break;
-            }
-        }
+    /* If the Content-Length is still unknown, cache anyway */
+    if (len != -1 && (len < conf->minfs || len > conf->maxfs)) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "cache_disk: URL %s failed the size check, "
+                     "or is incomplete",
+                     key);
+        return DECLINED;
     }
-    ap_cfg_closefile(f);
-    apr_pool_destroy(sp);
-    return grps;
+
+    /* Allocate and initialize cache_object_t and disk_cache_object_t */
+    obj = apr_pcalloc(r->pool, sizeof(*obj));
+    obj->vobj = dobj = apr_pcalloc(r->pool, sizeof(*dobj));
+
+    obj->key = apr_pstrdup(r->pool, key);
+    /* XXX Bad Temporary Cast - see cache_object_t notes */
+    obj->info.len = (apr_size_t) len;
+    obj->complete = 0;   /* Cache object is not complete */
+
+    dobj->name = obj->key;
+
+    /* open temporary file */
+    dobj->tempfile = apr_pstrcat(r->pool, conf->cache_root, AP_TEMPFILE, NULL);
+    rv = apr_file_mktemp(&tmpfile, dobj->tempfile,
+                         APR_CREATE | APR_READ | APR_WRITE | APR_EXCL, r->pool);
+
+    if (rv == APR_SUCCESS) {
+        /* Populate the cache handle */
+        h->cache_obj = obj;
+
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                     "disk_cache: Storing URL %s",  key);
+    }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                     "disk_cache: Could not store URL %s [%d]", key, rv);
+
+        return DECLINED;
+    }
+
+    return OK;
 }

@@ -1,1 +1,1 @@
-die("strange hostname '%s' blocked", ssh_host);
+printf("worktree %s\n", wt->path);

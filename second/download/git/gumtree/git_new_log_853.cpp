@@ -1,1 +1,1 @@
-die("cannot use '%c' for value matching", *src);
+fprintf(f, "%d\n", todo_list->done_nr);

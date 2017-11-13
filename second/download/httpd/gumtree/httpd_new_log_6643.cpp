@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "apr_xlate_open(): %pm (%d)\n",
-                &rv, rv);
+ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
+                                      "h2_session(%ld): input gone", session->id);

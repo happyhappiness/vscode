@@ -1,43 +1,26 @@
-static int check_dir_access(request_rec *r)
+static void show_server_data()
 {
-    int method = r->method_number;
-    int ret = OK;
-    access_compat_dir_conf *a = (access_compat_dir_conf *)
-        ap_get_module_config(r->per_dir_config, &access_compat_module);
+    ap_listen_rec *lr;
+    module **m;
 
-    if (a->order[method] == ALLOW_THEN_DENY) {
-        ret = HTTP_FORBIDDEN;
-        if (find_allowdeny(r, a->allows, method)) {
-            ret = OK;
-        }
-        if (find_allowdeny(r, a->denys, method)) {
-            ret = HTTP_FORBIDDEN;
-        }
-    }
-    else if (a->order[method] == DENY_THEN_ALLOW) {
-        if (find_allowdeny(r, a->denys, method)) {
-            ret = HTTP_FORBIDDEN;
-        }
-        if (find_allowdeny(r, a->allows, method)) {
-            ret = OK;
-        }
-    }
-    else {
-        if (find_allowdeny(r, a->allows, method)
-            && !find_allowdeny(r, a->denys, method)) {
-            ret = OK;
-        }
-        else {
-            ret = HTTP_FORBIDDEN;
-        }
-    }
+    printf("%s\n", ap_get_server_version());
+    if (ap_my_addrspace && (ap_my_addrspace[0] != 'O') && (ap_my_addrspace[1] != 'S'))
+        printf("   Running in address space %s\n", ap_my_addrspace);
 
-    if (ret == HTTP_FORBIDDEN) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "client denied by server configuration: %s%s",
-                      r->filename ? "" : "uri ",
-                      r->filename ? r->filename : r->uri);
-    }
 
-    return ret;
+    /* Display listening ports */
+    printf("   Listening on port(s):");
+    lr = ap_listeners;
+    do {
+       printf(" %d", lr->bind_addr->port);
+       lr = lr->next;
+    } while(lr && lr != ap_listeners);
+
+    /* Display dynamic modules loaded */
+    printf("\n");
+    for (m = ap_loaded_modules; *m != NULL; m++) {
+        if (((module*)*m)->dynamic_load_handle) {
+            printf("   Loaded dynamic module %s\n", ((module*)*m)->name);
+        }
+    }
 }

@@ -1,1 +1,1 @@
-fprintf(FERROR,"%s : not a regular file\n",fname);
+fprintf(FERROR,"hash search b=%d len=%d\n",s->n,(int)len);

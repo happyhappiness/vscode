@@ -1,1 +1,1 @@
-fprintf(stderr,"EOF in map_ptr!\n");
+fprintf(stderr,"deleting %s\n",f->name);

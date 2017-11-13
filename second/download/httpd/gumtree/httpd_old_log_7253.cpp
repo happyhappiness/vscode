@@ -1,2 +1,1 @@
-apr_file_printf(errfile, " -b  Use the password from the command line "
-            "rather than prompting for it." NL);
+apr_file_printf(errfile, " -D  Delete the specified user." NL);

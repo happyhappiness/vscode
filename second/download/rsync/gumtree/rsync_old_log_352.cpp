@@ -1,1 +1,0 @@
-fprintf(FERROR,"recv_files finished\n");

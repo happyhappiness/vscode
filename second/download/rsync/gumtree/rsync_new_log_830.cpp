@@ -1,1 +1,1 @@
-io_printf(f_out, "@ERROR: invalid gid %s\n", gname);
+io_printf(f_out, "@ERROR: protocol startup error\n");

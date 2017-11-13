@@ -1,1 +1,1 @@
-die("CRLF would be replaced by LF in %s.", path);
+die(_("internal error"));

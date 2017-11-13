@@ -1,1 +1,1 @@
-die_errno("Failed seeking to start of '%s'", p->pack_name);
+memcpy(m, name, nlen + 1);

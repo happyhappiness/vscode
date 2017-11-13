@@ -1,11 +1,9 @@
 fputs(
-"              recipient  should be specified as the user name or user name and\n"
-"              domain (as per Section 3.5 of RFC5321). (Added in 7.34.0)\n"
+"              name + password to all hosts that the site may redirect to. This\n"
+"              may or may not introduce a security breach if the site redirects\n"
+"              you  to  a  site  to  which you'll send your authentication info\n"
+"              (which is plaintext in the case of HTTP Basic authentication).\n"
 "\n"
-"              When performing a mailing list expand (EXPN command), the recip-\n"
-"              ient  should  be  specified using the mailing list name, such as\n"
-"              \"Friends\" or \"London-Office\".  (Added in 7.34.0)\n"
-"\n"
-"       --max-redirs <num>\n"
-"              Set maximum number of  redirection-followings  allowed.  If  -L,\n"
+"       -m, --max-time <seconds>\n"
+"              Maximum time in seconds that you allow the  whole  operation  to\n"
 , stdout);

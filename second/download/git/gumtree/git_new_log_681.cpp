@@ -1,2 +1,2 @@
-error(_("invalid contents: '%s'"),
-				rebase_path_amend());
+print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+				 "fetch first", porcelain, summary_width);

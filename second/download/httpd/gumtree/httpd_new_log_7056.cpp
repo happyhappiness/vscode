@@ -1,3 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                          "Content-Type condition for '%s' did not match: "
-                          "no Content-Type", provider->frec->name);
+ap_rputs("<h2><a name=\"providers\">Providers</a></h2>\n<dl>", r);

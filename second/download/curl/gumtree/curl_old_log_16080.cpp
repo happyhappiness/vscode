@@ -1,10 +1,11 @@
 fputs(
-"              given  time  and date, or one that has been modified before that\n"
-"              time. The <date expression> can be all sorts of date strings  or\n"
-"              if it doesn't match any internal ones, it is taken as a filename\n"
-"              and tries to get  the  modification  date  (mtime)  from  <file>\n"
-"              instead.  See  the curl_getdate(3) man pages for date expression\n"
-"              details.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              Start the date expression with a dash (-) to make it request for\n"
+"       -y, --speed-time <seconds>\n"
+"              If a download is slower than speed-limit bytes per second during\n"
+"              a speed-time period, the download gets aborted. If speed-time is\n"
+"              used,  the  default  speed-limit  will  be 1 unless set with -Y,\n"
+"              --speed-limit.\n"
+"\n"
+"              This option controls transfers and thus  will  not  affect  slow\n"
 , stdout);

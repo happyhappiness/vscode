@@ -1,1 +1,1 @@
-warnf(config->global, "curl_mime_subparts failed!\n");
+warnf(config->global, "curl_mime_init failed!\n");

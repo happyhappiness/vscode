@@ -1,7 +1,25 @@
-static int show_tree_object(const unsigned char *sha1,
-		struct strbuf *base,
-		const char *pathname, unsigned mode, int stage, void *context)
+static void print_value(struct atom_value *v, int quote_style)
 {
-	printf("%s%s\n", pathname, S_ISDIR(mode) ? "/" : "");
-	return 0;
+	struct strbuf sb = STRBUF_INIT;
+	switch (quote_style) {
+	case QUOTE_NONE:
+		fputs(v->s, stdout);
+		break;
+	case QUOTE_SHELL:
+		sq_quote_buf(&sb, v->s);
+		break;
+	case QUOTE_PERL:
+		perl_quote_buf(&sb, v->s);
+		break;
+	case QUOTE_PYTHON:
+		python_quote_buf(&sb, v->s);
+		break;
+	case QUOTE_TCL:
+		tcl_quote_buf(&sb, v->s);
+		break;
+	}
+	if (quote_style != QUOTE_NONE) {
+		fputs(sb.buf, stdout);
+		strbuf_release(&sb);
+	}
 }

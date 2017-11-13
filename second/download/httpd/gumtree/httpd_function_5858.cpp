@@ -1,27 +1,51 @@
-apr_status_t h2_stream_set_response(h2_stream *stream, h2_response *response,
-                                    h2_bucket_beam *output)
+struct h2_stream *h2_session_push(h2_session *session, h2_stream *is,
+                                  h2_push *push)
 {
-    apr_status_t status = APR_SUCCESS;
-    conn_rec *c = stream->session->c;
+    apr_status_t status;
+    h2_stream *stream;
+    h2_ngheader *ngh;
+    int nid;
     
-    if (!output_open(stream)) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                      "h2_stream(%ld-%d): output closed", 
-                      stream->session->id, stream->id);
-        return APR_ECONNRESET;
+    ngh = h2_util_ngheader_make_req(is->pool, push->req);
+    nid = nghttp2_submit_push_promise(session->ngh2, 0, is->id, 
+                                      ngh->nv, ngh->nvlen, NULL);
+                                      
+    if (nid <= 0) {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                      "h2_stream(%ld-%d): submitting push promise fail: %s",
+                      session->id, is->id, nghttp2_strerror(nid));
+        return NULL;
+    }
+
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                  "h2_stream(%ld-%d): promised new stream %d for %s %s on %d",
+                  session->id, is->id, nid,
+                  push->req->method, push->req->path, is->id);
+                  
+    stream = h2_session_open_stream(session, nid);
+    if (stream) {
+        h2_stream_set_h2_request(stream, is->id, push->req);
+        status = stream_schedule(session, stream, 1);
+        if (status != APR_SUCCESS) {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
+                          "h2_stream(%ld-%d): scheduling push stream",
+                          session->id, stream->id);
+            h2_stream_cleanup(stream);
+            stream = NULL;
+        }
+        ++session->unsent_promises;
+    }
+    else {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                      "h2_stream(%ld-%d): failed to create stream obj %d",
+                      session->id, is->id, nid);
+    }
+
+    if (!stream) {
+        /* try to tell the client that it should not wait. */
+        nghttp2_submit_rst_stream(session->ngh2, NGHTTP2_FLAG_NONE, nid,
+                                  NGHTTP2_INTERNAL_ERROR);
     }
     
-    stream->response = response;
-    stream->output = output;
-    stream->buffer = apr_brigade_create(stream->pool, c->bucket_alloc);
-    
-    h2_stream_filter(stream);
-    if (stream->output) {
-        status = fill_buffer(stream, 0);
-    }
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, c,
-                  "h2_stream(%ld-%d): set_response(%d)", 
-                  stream->session->id, stream->id, 
-                  stream->response->http_status);
-    return status;
+    return stream;
 }

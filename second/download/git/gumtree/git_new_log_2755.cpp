@@ -1,1 +1,1 @@
-fprintf(outfile, "\n");
+die_errno(_("could not stat %s"), file);

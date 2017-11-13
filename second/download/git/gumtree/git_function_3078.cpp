@@ -1,47 +1,25 @@
-static void parse_traditional_patch(const char *first, const char *second, struct patch *patch)
+static char *gitdiff_verify_name(const char *line, int isnull, char *orig_name, int side)
 {
-	char *name;
+	if (!orig_name && !isnull)
+		return find_name(line, NULL, p_value, TERM_TAB);
 
-	first += 4;	/* skip "--- " */
-	second += 4;	/* skip "+++ " */
-	if (!p_value_known) {
-		int p, q;
-		p = guess_p_value(first);
-		q = guess_p_value(second);
-		if (p < 0) p = q;
-		if (0 <= p && p == q) {
-			p_value = p;
-			p_value_known = 1;
-		}
-	}
-	if (is_dev_null(first)) {
-		patch->is_new = 1;
-		patch->is_delete = 0;
-		name = find_name_traditional(second, NULL, p_value);
-		patch->new_name = name;
-	} else if (is_dev_null(second)) {
-		patch->is_new = 0;
-		patch->is_delete = 1;
-		name = find_name_traditional(first, NULL, p_value);
-		patch->old_name = name;
+	if (orig_name) {
+		int len = strlen(orig_name);
+		char *another;
+		if (isnull)
+			die(_("git apply: bad git-diff - expected /dev/null, got %s on line %d"),
+			    orig_name, linenr);
+		another = find_name(line, NULL, p_value, TERM_TAB);
+		if (!another || memcmp(another, orig_name, len + 1))
+			die((side == DIFF_NEW_NAME) ?
+			    _("git apply: bad git-diff - inconsistent new filename on line %d") :
+			    _("git apply: bad git-diff - inconsistent old filename on line %d"), linenr);
+		free(another);
+		return orig_name;
 	} else {
-		char *first_name;
-		first_name = find_name_traditional(first, NULL, p_value);
-		name = find_name_traditional(second, first_name, p_value);
-		free(first_name);
-		if (has_epoch_timestamp(first)) {
-			patch->is_new = 1;
-			patch->is_delete = 0;
-			patch->new_name = name;
-		} else if (has_epoch_timestamp(second)) {
-			patch->is_new = 0;
-			patch->is_delete = 1;
-			patch->old_name = name;
-		} else {
-			patch->old_name = name;
-			patch->new_name = xstrdup_or_null(name);
-		}
+		/* expect "/dev/null" */
+		if (memcmp("/dev/null", line, 9) || line[9] != '\n')
+			die(_("git apply: bad git-diff - expected /dev/null on line %d"), linenr);
+		return NULL;
 	}
-	if (!name)
-		die(_("unable to find filename in patch at line %d"), linenr);
 }

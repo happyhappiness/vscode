@@ -1,1 +1,1 @@
-state_puts (txt, s);
+state_puts (_("The CRL is not available\n"), s);

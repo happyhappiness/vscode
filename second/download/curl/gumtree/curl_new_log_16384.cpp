@@ -1,9 +1,11 @@
 fputs(
-"              hashes)  to  verify the peer. This can be a path to a file which\n"
-"              contains a single public key in PEM or DER format, or any number\n"
-"              of base64 encoded sha256 hashes preceded by 'sha256//' and sepa-\n"
-"              rated by ';'\n"
+"              underlying libcurl was built to support TLS. Added in 7.36.0.\n"
 "\n"
-"              When negotiating a TLS or SSL connection,  the  server  sends  a\n"
-"              certificate  indicating  its identity. A public key is extracted\n"
+"       --no-sessionid\n"
+"              (TLS)  Disable curl's use of SSL session-ID caching.  By default\n"
+"              all transfers are done using the cache. Note that while  nothing\n"
+"              should  ever  get  hurt  by attempting to reuse SSL session-IDs,\n"
+"              there seem to be broken SSL implementations in the wild that may\n"
+"              require you to disable this in order for you to succeed.\n"
+"\n"
 , stdout);

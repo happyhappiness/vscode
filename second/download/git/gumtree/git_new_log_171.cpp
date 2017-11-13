@@ -1,2 +1,1 @@
-logerror("interpolated path too large: %s",
-				 interp_path);
+error("unable to rewind rpc post data - try increasing http.postBuffer");

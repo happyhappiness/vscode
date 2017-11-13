@@ -1,1 +1,1 @@
-io_printf(f_out, "@ERROR: failed to open lock file\n");
+io_printf(f_out, "@RSYNCD: %d\n", PROTOCOL_VERSION);

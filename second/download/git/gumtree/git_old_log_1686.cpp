@@ -1,1 +1,2 @@
-die_errno("unable to overwrite old ref-pack file");
+die_errno("failed to write to %s",
+				  shallow_lock.filename);

@@ -1,1 +1,1 @@
-die(_("Failed to resolve '%s' as a valid ref."), upstream);
+die("unable to generate diff for %s", name);

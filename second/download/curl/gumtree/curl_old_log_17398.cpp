@@ -1,8 +1,14 @@
-puts(" -E/--cert <cert[:passwd]> Specifies your certificate file and password (HTTPS)\n"
-       "    --cacert <file> CA certifciate to verify peer against (SSL)\n"
-       "    --ciphers <list> What SSL ciphers to use (SSL)\n"
-       "    --connect-timeout <seconds> Maximum time allowed for connection\n"
-       " -f/--fail          Fail silently (no output at all) on errors (H)\n"
-       " -F/--form <name=content> Specify HTTP POST data (H)\n"
-       " -g/--globoff       Disable URL sequences and ranges using {} and []\n"
-       " -G/--get           Send the -d data with a HTTP GET (H)");
+puts(
+"  To better allow script programmers to get to know about the progress of\n"
+"  curl, the -w/--write-out option was introduced. Using this, you can specify\n"
+"  what information from the previous transfer you want to extract.\n"
+"\n"
+"  To display the amount of bytes downloaded together with some text and an\n"
+"  ending newline:\n"
+"\n"
+"        curl -w 'We downloaded %{size_download} bytes\\n' www.download.com\n"
+"\n"
+"KERBEROS4 FTP TRANSFER\n"
+"\n"
+"  Curl supports kerberos4 for FTP transfers. You need the kerberos package\n"
+);

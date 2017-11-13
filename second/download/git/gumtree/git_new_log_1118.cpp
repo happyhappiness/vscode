@@ -1,1 +1,1 @@
-die("BUG: attempt to trim too many characters");
+warning("ignoring broken ref %s.", fullref.buf);

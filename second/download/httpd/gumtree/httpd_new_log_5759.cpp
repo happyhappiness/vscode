@@ -1,3 +1,6 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00036)
-                              "access to %s failed (filesystem path '%s')", 
-                              r->uri, r->filename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(00165)
+                "Accept mutex: %s (default: %s)",
+                (all_buckets[0].mutex)
+                    ? apr_proc_mutex_name(all_buckets[0].mutex)
+                    : "none",
+                apr_proc_mutex_defname());

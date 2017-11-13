@@ -1,17 +1,41 @@
-static int merge_abort(struct notes_merge_options *o)
+static int load_preimage(struct apply_state *state,
+			 struct image *image,
+			 struct patch *patch, struct stat *st,
+			 const struct cache_entry *ce)
 {
-	int ret = 0;
+	struct strbuf buf = STRBUF_INIT;
+	size_t len;
+	char *img;
+	struct patch *previous;
+	int status;
 
-	/*
-	 * Remove .git/NOTES_MERGE_PARTIAL and .git/NOTES_MERGE_REF, and call
-	 * notes_merge_abort() to remove .git/NOTES_MERGE_WORKTREE.
-	 */
+	previous = previous_patch(state, patch, &status);
+	if (status)
+		return error(_("path %s has been renamed/deleted"),
+			     patch->old_name);
+	if (previous) {
+		/* We have a patched copy in memory; use that. */
+		strbuf_add(&buf, previous->result, previous->resultsize);
+	} else {
+		status = load_patch_target(state, &buf, ce, st,
+					   patch->old_name, patch->old_mode);
+		if (status < 0)
+			return status;
+		else if (status == SUBMODULE_PATCH_WITHOUT_INDEX) {
+			/*
+			 * There is no way to apply subproject
+			 * patch without looking at the index.
+			 * NEEDSWORK: shouldn't this be flagged
+			 * as an error???
+			 */
+			free_fragment_list(patch->fragments);
+			patch->fragments = NULL;
+		} else if (status) {
+			return error(_("failed to read %s"), patch->old_name);
+		}
+	}
 
-	if (delete_ref("NOTES_MERGE_PARTIAL", NULL, 0))
-		ret += error("Failed to delete ref NOTES_MERGE_PARTIAL");
-	if (delete_ref("NOTES_MERGE_REF", NULL, REF_NODEREF))
-		ret += error("Failed to delete ref NOTES_MERGE_REF");
-	if (notes_merge_abort(o))
-		ret += error("Failed to remove 'git notes merge' worktree");
-	return ret;
+	img = strbuf_detach(&buf, &len);
+	prepare_image(image, img, len, !patch->is_binary);
+	return 0;
 }

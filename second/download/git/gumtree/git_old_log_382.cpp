@@ -1,3 +1,2 @@
-fprintf(stderr,
-			"already have %s (%s)\n", sha1_to_hex(remote),
-			ref->name);
+die(_("reference repository '%s' is not a local repository."),
+		    item->string);

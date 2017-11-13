@@ -1,55 +1,57 @@
-static int for_each_file_in_obj_subdir(int subdir_nr,
-				       struct strbuf *path,
-				       each_loose_object_fn obj_cb,
-				       each_loose_cruft_fn cruft_cb,
-				       each_loose_subdir_fn subdir_cb,
-				       void *data)
+static int handle_fork_point(int argc, const char **argv)
 {
-	size_t baselen = path->len;
-	DIR *dir = opendir(path->buf);
-	struct dirent *de;
-	int r = 0;
+	unsigned char sha1[20];
+	char *refname;
+	const char *commitname;
+	struct rev_collect revs;
+	struct commit *derived;
+	struct commit_list *bases;
+	int i, ret = 0;
 
-	if (!dir) {
-		if (errno == ENOENT)
-			return 0;
-		return error("unable to open %s: %s", path->buf, strerror(errno));
+	switch (dwim_ref(argv[0], strlen(argv[0]), sha1, &refname)) {
+	case 0:
+		die("No such ref: '%s'", argv[0]);
+	case 1:
+		break; /* good */
+	default:
+		die("Ambiguous refname: '%s'", argv[0]);
 	}
 
-	while ((de = readdir(dir))) {
-		if (is_dot_or_dotdot(de->d_name))
-			continue;
+	commitname = (argc == 2) ? argv[1] : "HEAD";
+	if (get_sha1(commitname, sha1))
+		die("Not a valid object name: '%s'", commitname);
 
-		strbuf_setlen(path, baselen);
-		strbuf_addf(path, "/%s", de->d_name);
+	derived = lookup_commit_reference(sha1);
+	memset(&revs, 0, sizeof(revs));
+	revs.initial = 1;
+	for_each_reflog_ent(refname, collect_one_reflog_ent, &revs);
 
-		if (strlen(de->d_name) == 38)  {
-			char hex[41];
-			unsigned char sha1[20];
+	for (i = 0; i < revs.nr; i++)
+		revs.commit[i]->object.flags &= ~TMP_MARK;
 
-			snprintf(hex, sizeof(hex), "%02x%s",
-				 subdir_nr, de->d_name);
-			if (!get_sha1_hex(hex, sha1)) {
-				if (obj_cb) {
-					r = obj_cb(sha1, path->buf, data);
-					if (r)
-						break;
-				}
-				continue;
-			}
-		}
+	bases = get_merge_bases_many_dirty(derived, revs.nr, revs.commit);
 
-		if (cruft_cb) {
-			r = cruft_cb(de->d_name, path->buf, data);
-			if (r)
-				break;
-		}
+	/*
+	 * There should be one and only one merge base, when we found
+	 * a common ancestor among reflog entries.
+	 */
+	if (!bases || bases->next) {
+		ret = 1;
+		goto cleanup_return;
 	}
-	closedir(dir);
 
-	strbuf_setlen(path, baselen);
-	if (!r && subdir_cb)
-		r = subdir_cb(subdir_nr, path->buf, data);
+	/* And the found one must be one of the reflog entries */
+	for (i = 0; i < revs.nr; i++)
+		if (&bases->item->object == &revs.commit[i]->object)
+			break; /* found */
+	if (revs.nr <= i) {
+		ret = 1; /* not found */
+		goto cleanup_return;
+	}
 
-	return r;
+	printf("%s\n", sha1_to_hex(bases->item->object.sha1));
+
+cleanup_return:
+	free_commit_list(bases);
+	return ret;
 }

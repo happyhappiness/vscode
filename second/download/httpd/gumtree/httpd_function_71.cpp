@@ -1,133 +1,149 @@
-static int dav_method_merge(request_rec *r)
+static int dav_method_update(request_rec *r)
 {
     dav_resource *resource;
-    dav_resource *source_resource;
+    dav_resource *version = NULL;
     const dav_hooks_vsn *vsn_hooks = DAV_GET_HOOKS_VSN(r);
-    dav_error *err;
-    int result;
     apr_xml_doc *doc;
-    apr_xml_elem *source_elem;
-    apr_xml_elem *href_elem;
-    apr_xml_elem *prop_elem;
-    const char *source;
-    int no_auto_merge;
-    int no_checkout;
+    apr_xml_elem *child;
+    int is_label = 0;
+    int depth;
+    int result;
+    apr_size_t tsize;
+    const char *target;
+    dav_response *multi_response;
+    dav_error *err;
     dav_lookup_result lookup;
 
-    /* If no versioning provider, decline the request */
-    if (vsn_hooks == NULL)
+    /* If no versioning provider, or UPDATE not supported,
+     * decline the request */
+    if (vsn_hooks == NULL || vsn_hooks->update == NULL)
         return DECLINED;
 
-    if ((result = ap_xml_parse_input(r, &doc)) != OK)
+    if ((depth = dav_get_depth(r, 0)) < 0) {
+        /* dav_get_depth() supplies additional information for the
+         * default message. */
+        return HTTP_BAD_REQUEST;
+    }
+
+    /* parse the request body */
+    if ((result = ap_xml_parse_input(r, &doc)) != OK) {
         return result;
+    }
 
-    if (doc == NULL || !dav_validate_root(doc, "merge")) {
-        /* This supplies additional information for the default msg. */
+    if (doc == NULL || !dav_validate_root(doc, "update")) {
+        /* This supplies additional information for the default message. */
         ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "The request body must be present and must be a "
-                      "DAV:merge element.");
+                      "The request body does not contain "
+                      "an \"update\" element.");
         return HTTP_BAD_REQUEST;
     }
 
-    if ((source_elem = dav_find_child(doc->root, "source")) == NULL) {
-        /* This supplies additional information for the default msg. */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "The DAV:merge element must contain a DAV:source "
-                      "element.");
-        return HTTP_BAD_REQUEST;
-    }
-    if ((href_elem = dav_find_child(source_elem, "href")) == NULL) {
-        /* This supplies additional information for the default msg. */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "The DAV:source element must contain a DAV:href "
-                      "element.");
-        return HTTP_BAD_REQUEST;
-    }
-    source = dav_xml_get_cdata(href_elem, r->pool, 1 /* strip_white */);
-
-    /* get a subrequest for the source, so that we can get a dav_resource
-       for that source. */
-    lookup = dav_lookup_uri(source, r, 0 /* must_be_absolute */);
-    if (lookup.rnew == NULL) {
-        if (lookup.err.status == HTTP_BAD_REQUEST) {
-            /* This supplies additional information for the default message. */
+    /* check for label-name or version element, but not both */
+    if ((child = dav_find_child(doc->root, "label-name")) != NULL)
+        is_label = 1;
+    else if ((child = dav_find_child(doc->root, "version")) != NULL) {
+        /* get the href element */
+        if ((child = dav_find_child(child, "href")) == NULL) {
             ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          lookup.err.desc);
+                          "The version element does not contain "
+                          "an \"href\" element.");
             return HTTP_BAD_REQUEST;
         }
-
-        /* ### this assumes that dav_lookup_uri() only generates a status
-         * ### that Apache can provide a status line for!! */
-
-        return dav_error_response(r, lookup.err.status, lookup.err.desc);
     }
-    if (lookup.rnew->status != HTTP_OK) {
-        /* ### how best to report this... */
-        return dav_error_response(r, lookup.rnew->status,
-                                  "Merge source URI had an error.");
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "The \"update\" element does not contain "
+                      "a \"label-name\" or \"version\" element.");
+        return HTTP_BAD_REQUEST;
     }
-    err = dav_get_resource(lookup.rnew, 0 /* label_allowed */,
-                           0 /* use_checked_in */, &source_resource);
-    if (err != NULL)
-        return dav_handle_err(r, err, NULL);
 
-    no_auto_merge = dav_find_child(doc->root, "no-auto-merge") != NULL;
-    no_checkout = dav_find_child(doc->root, "no-checkout") != NULL;
+    /* a depth greater than zero is only allowed for a label */
+    if (!is_label && depth != 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Depth must be zero for UPDATE with a version");
+        return HTTP_BAD_REQUEST;
+    }
 
-    prop_elem = dav_find_child(doc->root, "prop");
-
-    /* ### check RFC. I believe the DAV:merge element may contain any
-       ### element also allowed within DAV:checkout. need to extract them
-       ### here, and pass them along.
-       ### if so, then refactor the CHECKOUT method handling so we can reuse
-       ### the code. maybe create a structure to hold CHECKOUT parameters
-       ### which can be passed to the checkout() and merge() hooks. */
+    /* get the target value (a label or a version URI) */
+    apr_xml_to_text(r->pool, child, APR_XML_X2T_INNER, NULL, NULL,
+                    &target, &tsize);
+    if (tsize == 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "A \"label-name\" or \"href\" element does not contain "
+                      "any content.");
+        return HTTP_BAD_REQUEST;
+    }
 
     /* Ask repository module to resolve the resource */
     err = dav_get_resource(r, 0 /* label_allowed */, 0 /* use_checked_in */,
                            &resource);
     if (err != NULL)
         return dav_handle_err(r, err, NULL);
+
     if (!resource->exists) {
         /* Apache will supply a default error for this. */
         return HTTP_NOT_FOUND;
     }
 
-    /* ### check the source and target resources flags/types */
-
-    /* ### do lock checks, once behavior is defined */
-
-    /* set the Cache-Control header, per the spec */
-    /* ### correct? */
-    apr_table_setn(r->headers_out, "Cache-Control", "no-cache");
-
-    /* Initialize these values for a standard MERGE response. If the MERGE
-       is going to do something different (i.e. an error), then it must
-       return a dav_error, and we'll reset these values properly. */
-    r->status = HTTP_OK;
-    ap_set_content_type(r, "text/xml");
-
-    /* ### should we do any preliminary response generation? probably not,
-       ### because we may have an error, thus demanding something else in
-       ### the response body. */
-
-    /* Do the merge, including any response generation. */
-    if ((err = (*vsn_hooks->merge)(resource, source_resource,
-                                   no_auto_merge, no_checkout,
-                                   prop_elem,
-                                   r->output_filters)) != NULL) {
-        /* ### is err->status the right error here? */
-        err = dav_push_error(r->pool, err->status, 0,
-                             apr_psprintf(r->pool,
-                                          "Could not MERGE resource \"%s\" "
-                                          "into \"%s\".",
-                                          ap_escape_html(r->pool, source),
-                                          ap_escape_html(r->pool, r->uri)),
-                             err);
-        return dav_handle_err(r, err, NULL);
+    /* ### need a general mechanism for reporting precondition violations
+     * ### (should be returning XML document for 403/409 responses)
+     */
+    if (resource->type != DAV_RESOURCE_TYPE_REGULAR
+        || !resource->versioned || resource->working) {
+        return dav_error_response(r, HTTP_CONFLICT,
+                                  "<DAV:must-be-checked-in-version-controlled-resource>");
     }
 
-    /* the response was fully generated by the merge() hook. */
-    /* ### urk. does this prevent logging? need to check... */
+    /* if target is a version, resolve the version resource */
+    /* ### dav_lookup_uri only allows absolute URIs; is that OK? */
+    if (!is_label) {
+        lookup = dav_lookup_uri(target, r, 0 /* must_be_absolute */);
+        if (lookup.rnew == NULL) {
+            if (lookup.err.status == HTTP_BAD_REQUEST) {
+                /* This supplies additional information for the default message. */
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              lookup.err.desc);
+                return HTTP_BAD_REQUEST;
+            }
+
+            /* ### this assumes that dav_lookup_uri() only generates a status
+             * ### that Apache can provide a status line for!! */
+
+            return dav_error_response(r, lookup.err.status, lookup.err.desc);
+        }
+        if (lookup.rnew->status != HTTP_OK) {
+            /* ### how best to report this... */
+            return dav_error_response(r, lookup.rnew->status,
+                                      "Version URI had an error.");
+        }
+
+        /* resolve version resource */
+        err = dav_get_resource(lookup.rnew, 0 /* label_allowed */,
+                               0 /* use_checked_in */, &version);
+        if (err != NULL)
+            return dav_handle_err(r, err, NULL);
+
+        /* NULL out target, since we're using a version resource */
+        target = NULL;
+    }
+
+    /* do the UPDATE operation */
+    err = (*vsn_hooks->update)(resource, version, target, depth, &multi_response);
+
+    if (err != NULL) {
+        err = dav_push_error(r->pool, err->status, 0,
+                             apr_psprintf(r->pool,
+                                          "Could not UPDATE %s.",
+                                          ap_escape_html(r->pool, r->uri)),
+                             err);
+        return dav_handle_err(r, err, multi_response);
+    }
+
+    /* set the Cache-Control header, per the spec */
+    apr_table_setn(r->headers_out, "Cache-Control", "no-cache");
+
+    /* no body */
+    ap_set_content_length(r, 0);
+
     return DONE;
 }

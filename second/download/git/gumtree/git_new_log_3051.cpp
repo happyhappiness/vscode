@@ -1,1 +1,2 @@
-error(_("Reverting is not possible because you have unmerged files."));
+error(_("It is not possible to %s because you have unmerged files."),
+			me);

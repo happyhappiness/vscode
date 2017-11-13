@@ -1,1 +1,1 @@
-warning_errno("cannot open /etc/mailname");
+warning_errno("cannot read /etc/mailname");

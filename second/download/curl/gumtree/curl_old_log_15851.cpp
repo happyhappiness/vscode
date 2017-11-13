@@ -1,9 +1,12 @@
 fputs(
-"              See also --no-alpn. --http2 requires that the underlying libcurl\n"
-"              was built to support HTTP/2. This option overrides --http1.1 and\n"
-"              -0, --http1.0 and --http2-prior-knowledge. Added in 7.33.0.\n"
+"              be encoded according to the URI standard.\n"
 "\n"
-"       --ignore-content-length\n"
-"              (FTP HTTP) For HTTP, Ignore the Content-Length header.  This  is\n"
-"              particularly  useful  for servers running Apache 1.x, which will\n"
+"       -I, --head\n"
+"              (HTTP FTP FILE) Fetch the headers only! HTTP-servers feature the\n"
+"              command HEAD which this uses to get nothing but the header of  a\n"
+"              document.  When  used  on an FTP or FILE file, curl displays the\n"
+"              file size and last modification time only.\n"
+"\n"
+"       -H, --header <header/@file>\n"
+"              (HTTP) Extra header to include in the request when sending  HTTP\n"
 , stdout);

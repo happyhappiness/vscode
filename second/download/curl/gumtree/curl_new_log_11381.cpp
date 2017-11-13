@@ -1,10 +1,10 @@
 fputs(
-"       --netrc-file\n"
-"              This  option  is similar to --netrc, except that you provide the\n"
-"              path (absolute or relative) to the netrc file that  Curl  should\n"
-"              use.   You  can  only  specify one netrc file per invocation. If\n"
-"              several --netrc-file options are provided,  only  the  last  one\n"
-"              will be used.  (Added in 7.21.5)\n"
+"       -I, --head\n"
+"              (HTTP/FTP/FILE) Fetch the HTTP-header only! HTTP-servers feature\n"
+"              the  command  HEAD which this uses to get nothing but the header\n"
+"              of a document. When used on an FTP or FILE file,  curl  displays\n"
+"              the file size and last modification time only.\n"
 "\n"
-"              This  option  overrides  any use of --netrc as they are mutually\n"
+"       --interface <name>\n"
+"              Perform  an operation using a specified interface. You can enter\n"
 , stdout);

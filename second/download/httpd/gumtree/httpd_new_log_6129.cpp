@@ -1,3 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c, 
-                          H2_SSSN_LOG(APLOGNO(03045), session, 
-                          "process, closing conn"));
+ap_add_output_filter("H1_TO_H2", NULL, NULL, c);

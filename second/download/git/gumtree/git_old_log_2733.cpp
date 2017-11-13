@@ -1,1 +1,1 @@
-error("refname too long: %s", refs_heads_master);
+error("Unable to open %s for writing", lockpath);

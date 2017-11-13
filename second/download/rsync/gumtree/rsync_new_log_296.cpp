@@ -1,1 +1,1 @@
-fprintf(FINFO,"%s ",args[i]);
+fprintf(FERROR,"out of memory in delete_already_done");

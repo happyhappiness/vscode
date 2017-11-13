@@ -1,170 +1,235 @@
-static apr_status_t ap_cgi_build_command(const char **cmd, const char ***argv,
-                                         request_rec *r, apr_pool_t *p,
-                                         cgi_exec_info_t *e_info)
+static int worker_check_config(apr_pool_t *p, apr_pool_t *plog,
+                               apr_pool_t *ptemp, server_rec *s)
 {
-    const apr_array_header_t *elts_arr = apr_table_elts(r->subprocess_env);
-    const apr_table_entry_t *elts = (apr_table_entry_t *) elts_arr->elts;
-    const char *ext = NULL;
-    const char *interpreter = NULL;
-    win32_dir_conf *d;
-    apr_file_t *fh;
-    const char *args = "";
-    int i;
+    static int restart_num = 0;
+    int startup = 0;
 
-    d = (win32_dir_conf *)ap_get_module_config(r->per_dir_config,
-                                               &win32_module);
-
-    if (e_info->cmd_type) {
-        /* We have to consider that the client gets any QUERY_ARGS
-         * without any charset interpretation, use prep_string to
-         * create a string of the literal QUERY_ARGS bytes.
-         */
-        *cmd = r->filename;
-        if (r->args && r->args[0] && !ap_strchr_c(r->args, '=')) {
-            args = r->args;
-        }
+    /* the reverse of pre_config, we want this only the first time around */
+    if (restart_num++ == 0) {
+        startup = 1;
     }
-    /* Handle the complete file name, we DON'T want to follow suexec, since
-     * an unrooted command is as predictable as shooting craps in Win32.
-     * Notice that unlike most mime extension parsing, we have to use the
-     * win32 parsing here, therefore the final extension is the only one
-     * we will consider.
+
+    if (server_limit > MAX_SERVER_LIMIT) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ServerLimit of %d exceeds compile-time "
+                         "limit of", server_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d servers, decreasing to %d.",
+                         MAX_SERVER_LIMIT, MAX_SERVER_LIMIT);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ServerLimit of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         server_limit, MAX_SERVER_LIMIT);
+        }
+        server_limit = MAX_SERVER_LIMIT;
+    }
+    else if (server_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ServerLimit of %d not allowed, "
+                         "increasing to 1.", server_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ServerLimit of %d not allowed, increasing to 1",
+                         server_limit);
+        }
+        server_limit = 1;
+    }
+
+    /* you cannot change ServerLimit across a restart; ignore
+     * any such attempts
      */
-    ext = strrchr(apr_filepath_name_get(*cmd), '.');
+    if (!retained->first_server_limit) {
+        retained->first_server_limit = server_limit;
+    }
+    else if (server_limit != retained->first_server_limit) {
+        /* don't need a startup console version here */
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     "changing ServerLimit to %d from original value of %d "
+                     "not allowed during restart",
+                     server_limit, retained->first_server_limit);
+        server_limit = retained->first_server_limit;
+    }
 
-    /* If the file has an extension and it is not .com and not .exe and
-     * we've been instructed to search the registry, then do so.
-     * Let apr_proc_create do all of the .bat/.cmd dirty work.
+    if (thread_limit > MAX_THREAD_LIMIT) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ThreadLimit of %d exceeds compile-time "
+                         "limit of", thread_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d threads, decreasing to %d.",
+                         MAX_THREAD_LIMIT, MAX_THREAD_LIMIT);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ThreadLimit of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         thread_limit, MAX_THREAD_LIMIT);
+        }
+        thread_limit = MAX_THREAD_LIMIT;
+    }
+    else if (thread_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ThreadLimit of %d not allowed, "
+                         "increasing to 1.", thread_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ThreadLimit of %d not allowed, increasing to 1",
+                         thread_limit);
+        }
+        thread_limit = 1;
+    }
+
+    /* you cannot change ThreadLimit across a restart; ignore
+     * any such attempts
      */
-    if (ext && (!strcasecmp(ext,".exe") || !strcasecmp(ext,".com")
-                || !strcasecmp(ext,".bat") || !strcasecmp(ext,".cmd"))) {
-        interpreter = "";
+    if (!retained->first_thread_limit) {
+        retained->first_thread_limit = thread_limit;
     }
-    if (!interpreter && ext
-          && (d->script_interpreter_source
-                     == INTERPRETER_SOURCE_REGISTRY
-           || d->script_interpreter_source
-                     == INTERPRETER_SOURCE_REGISTRY_STRICT)) {
-         /* Check the registry */
-        int strict = (d->script_interpreter_source
-                      == INTERPRETER_SOURCE_REGISTRY_STRICT);
-        interpreter = get_interpreter_from_win32_registry(r->pool, ext,
-                                                          strict);
-        if (interpreter && e_info->cmd_type != APR_SHELLCMD) {
-            e_info->cmd_type = APR_PROGRAM_PATH;
-        }
-        else {
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                 strict ? "No ExecCGI verb found for files of type '%s'."
-                        : "No ExecCGI or Open verb found for files of type '%s'.",
-                 ext);
-        }
-    }
-    if (!interpreter) {
-        apr_status_t rv;
-        char buffer[1024];
-        apr_size_t bytes = sizeof(buffer);
-        apr_size_t i;
-
-        /* Need to peek into the file figure out what it really is...
-         * ### aught to go back and build a cache for this one of these days.
-         */
-        if ((rv = apr_file_open(&fh, *cmd, APR_READ | APR_BUFFERED,
-                                 APR_OS_DEFAULT, r->pool)) != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(02100)
-                          "Failed to open cgi file %s for testing", *cmd);
-            return rv;
-        }
-        if ((rv = apr_file_read(fh, buffer, &bytes)) != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(02101)
-                          "Failed to read cgi file %s for testing", *cmd);
-            return rv;
-        }
-        apr_file_close(fh);
-
-        /* Some twisted character [no pun intended] at MS decided that a
-         * zero width joiner as the lead wide character would be ideal for
-         * describing Unicode text files.  This was further convoluted to
-         * another MSism that the same character mapped into utf-8, EF BB BF
-         * would signify utf-8 text files.
-         *
-         * Since MS configuration files are all protecting utf-8 encoded
-         * Unicode path, file and resource names, we already have the correct
-         * WinNT encoding.  But at least eat the stupid three bytes up front.
-         *
-         * ### A more thorough check would also allow UNICODE text in buf, and
-         * convert it to UTF-8 for invoking unicode scripts.  Those are few
-         * and far between, so leave that code an enterprising soul with a need.
-         */
-        if ((bytes >= 3) && memcmp(buffer, "\xEF\xBB\xBF", 3) == 0) {
-            memmove(buffer, buffer + 3, bytes -= 3);
-        }
-
-        /* Script or executable, that is the question...
-         * we check here also for '! so that .vbs scripts can work as CGI.
-         */
-        if ((bytes >= 2) && ((buffer[0] == '#') || (buffer[0] == '\''))
-                         && (buffer[1] == '!')) {
-            /* Assuming file is a script since it starts with a shebang */
-            for (i = 2; i < bytes; i++) {
-                if ((buffer[i] == '\r') || (buffer[i] == '\n')) {
-                    buffer[i] = '\0';
-                    break;
-                }
-            }
-            if (i < bytes) {
-                interpreter = buffer + 2;
-                while (apr_isspace(*interpreter)) {
-                    ++interpreter;
-                }
-                if (e_info->cmd_type != APR_SHELLCMD) {
-                    e_info->cmd_type = APR_PROGRAM_PATH;
-                }
-            }
-        }
-        else if (bytes >= sizeof(IMAGE_DOS_HEADER)) {
-            /* Not a script, is it an executable? */
-            IMAGE_DOS_HEADER *hdr = (IMAGE_DOS_HEADER*)buffer;
-            if (hdr->e_magic == IMAGE_DOS_SIGNATURE) {
-                if (hdr->e_lfarlc < 0x40) {
-                    /* Ought to invoke this 16 bit exe by a stub, (cmd /c?) */
-                    interpreter = "";
-                }
-                else {
-                    interpreter = "";
-                }
-            }
-        }
-    }
-    if (!interpreter) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02102)
-                      "%s is not executable; ensure interpreted scripts have "
-                      "\"#!\" or \"'!\" first line", *cmd);
-        return APR_EBADF;
+    else if (thread_limit != retained->first_thread_limit) {
+        /* don't need a startup console version here */
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     "changing ThreadLimit to %d from original value of %d "
+                     "not allowed during restart",
+                     thread_limit, retained->first_thread_limit);
+        thread_limit = retained->first_thread_limit;
     }
 
-    *argv = (const char **)(split_argv(p, interpreter, *cmd,
-                                       args)->elts);
-    *cmd = (*argv)[0];
+    if (threads_per_child > thread_limit) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
+                         "of", threads_per_child);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d threads, decreasing to %d.",
+                         thread_limit, thread_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " To increase, please see the ThreadLimit "
+                         "directive.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ThreadsPerChild of %d exceeds ThreadLimit "
+                         "of %d, decreasing to match",
+                         threads_per_child, thread_limit);
+        }
+        threads_per_child = thread_limit;
+    }
+    else if (threads_per_child < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ThreadsPerChild of %d not allowed, "
+                         "increasing to 1.", threads_per_child);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ThreadsPerChild of %d not allowed, increasing to 1",
+                         threads_per_child);
+        }
+        threads_per_child = 1;
+    }
 
-    e_info->detached = 1;
+    if (max_clients < threads_per_child) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxClients of %d is less than "
+                         "ThreadsPerChild of", max_clients);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d, increasing to %d.  MaxClients must be at "
+                         "least as large",
+                         threads_per_child, threads_per_child);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " as the number of threads in a single server.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxClients of %d is less than ThreadsPerChild "
+                         "of %d, increasing to match",
+                         max_clients, threads_per_child);
+        }
+        max_clients = threads_per_child;
+    }
 
-    /* XXX: Must fix r->subprocess_env to follow utf-8 conventions from
-     * the client's octets so that win32 apr_proc_create is happy.
-     * The -best- way is to determine if the .exe is unicode aware
-     * (using 0x0080-0x00ff) or is linked as a command or windows
-     * application (following the OEM or Ansi code page in effect.)
+    ap_daemons_limit = max_clients / threads_per_child;
+
+    if (max_clients % threads_per_child) {
+        int tmp_max_clients = ap_daemons_limit * threads_per_child;
+
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxClients of %d is not an integer "
+                         "multiple of", max_clients);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " ThreadsPerChild of %d, decreasing to nearest "
+                         "multiple %d,", threads_per_child,
+                         tmp_max_clients);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " for a maximum of %d servers.",
+                         ap_daemons_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxClients of %d is not an integer multiple of "
+                         "ThreadsPerChild of %d, decreasing to nearest "
+                         "multiple %d", max_clients, threads_per_child,
+                         tmp_max_clients);
+        }
+        max_clients = tmp_max_clients;
+    }
+
+    if (ap_daemons_limit > server_limit) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxClients of %d would require %d "
+                         "servers and ", max_clients, ap_daemons_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " would exceed ServerLimit of %d, decreasing to %d.",
+                         server_limit, server_limit * threads_per_child);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " To increase, please see the ServerLimit "
+                         "directive.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxClients of %d would require %d servers and "
+                         "exceed ServerLimit of %d, decreasing to %d",
+                         max_clients, ap_daemons_limit, server_limit,
+                         server_limit * threads_per_child);
+        }
+        ap_daemons_limit = server_limit;
+    }
+
+    /* ap_daemons_to_start > ap_daemons_limit checked in worker_run() */
+    if (ap_daemons_to_start < 0) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: StartServers of %d not allowed, "
+                         "increasing to 1.", ap_daemons_to_start);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "StartServers of %d not allowed, increasing to 1",
+                         ap_daemons_to_start);
+        }
+        ap_daemons_to_start = 1;
+    }
+
+    if (min_spare_threads < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MinSpareThreads of %d not allowed, "
+                         "increasing to 1", min_spare_threads);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " to avoid almost certain server failure.");
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " Please read the documentation.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MinSpareThreads of %d not allowed, increasing to 1",
+                         min_spare_threads);
+        }
+        min_spare_threads = 1;
+    }
+
+    /* max_spare_threads < min_spare_threads + threads_per_child
+     * checked in worker_run()
      */
-    for (i = 0; i < elts_arr->nelts; ++i) {
-        if (elts[i].key && *elts[i].key && *elts[i].val
-                && !(strncmp(elts[i].key, "REMOTE_", 7) == 0
-                || strcmp(elts[i].key, "GATEWAY_INTERFACE") == 0
-                || strcmp(elts[i].key, "REQUEST_METHOD") == 0
-                || strcmp(elts[i].key, "SERVER_ADDR") == 0
-                || strcmp(elts[i].key, "SERVER_PORT") == 0
-                || strcmp(elts[i].key, "SERVER_PROTOCOL") == 0)) {
-            prep_string((const char**) &elts[i].val, r->pool);
-        }
-    }
-    return APR_SUCCESS;
+
+    return OK;
 }

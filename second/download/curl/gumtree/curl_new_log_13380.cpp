@@ -1,10 +1,11 @@
 fputs(
-"              ing. Use this in preference to --form if there's any possibility\n"
-"              that the string value may accidentally trigger the  '@'  or  '<'\n"
-"              features of --form.\n"
+"              If this option is used several times,  only  the  first  one  is\n"
+"              used.  Undoing  an  enforced passive really isn't doable but you\n"
+"              must then instead enforce the correct -P, --ftp-port again.\n"
 "\n"
-"       -g, --globoff\n"
-"              This option switches off the \"URL globbing parser\". When you set\n"
-"              this option, you can specify URLs that contain the letters  {}[]\n"
-"              without  having them being interpreted by curl itself. Note that\n"
+"              Passive mode means that curl will try the EPSV command first and\n"
+"              then PASV, unless --disable-epsv is used.\n"
+"\n"
+"       --ftp-skip-pasv-ip\n"
+"              (FTP) Tell curl to not use the IP address the server suggests in\n"
 , stdout);

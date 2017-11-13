@@ -1,1 +1,1 @@
-strbuf_release(&filename);
+fprintf(stderr, "sending %d message%s\n", total, (total != 1) ? "s" : "");

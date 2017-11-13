@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(01678)
-                     "failed to initialise mutex in child_init");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                            "Invalid expression \"%s\" in file %s: Token '-A' must be followed by a URI string.",
+                            expr, r->filename);

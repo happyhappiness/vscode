@@ -1,9 +1,12 @@
 fputs(
-"              This  command  line  option will activate the cookie engine that\n"
-"              makes curl record and use cookies. Another way to activate it is\n"
-"              to use the -b, --cookie option.\n"
+"              # --- End of example file ---\n"
 "\n"
-"              If the cookie jar can't be created or written to, the whole curl\n"
-"              operation won't fail or even report an error clearly. Using  -v,\n"
-"              --verbose  will  get  a  warning displayed, but that is the only\n"
+"              This option can be used multiple times to load  multiple  config\n"
+"              files.\n"
+"\n"
+"       --connect-timeout <seconds>\n"
+"              Maximum  time  in  seconds  that  you allow curl's connection to\n"
+"              take.  This only limits the connection phase, so  if  curl  con-\n"
+"              nects  within the given period it will continue - if not it will\n"
+"              exit.  Since version 7.32.0, this option accepts decimal values.\n"
 , stdout);

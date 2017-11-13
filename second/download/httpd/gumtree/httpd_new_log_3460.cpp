@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, cmd->server, APLOGNO(01310)
-                 "LDAP: Connection timeout option not supported by the "
-                 "LDAP SDK in use." );
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00805)
+                 "data size too large for DBM socache: %d >= %d",
+                 (idlen + nData), PAIRMAX);

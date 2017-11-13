@@ -1,44 +1,45 @@
-void h2_ngn_shed_done_ngn(h2_ngn_shed *shed, struct h2_req_engine *ngn)
+apr_status_t h2_conn_io_write(h2_conn_io *io, 
+                              const char *buf, size_t length)
 {
-    if (ngn->done) {
-        return;
-    }
+    apr_status_t status = APR_SUCCESS;
     
-    if (!shed->aborted && !H2_REQ_ENTRIES_EMPTY(&ngn->entries)) {
-        h2_ngn_entry *entry;
-        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, shed->c,
-                      "h2_ngn_shed(%ld): exit engine %s (%s), "
-                      "has still requests queued, shutdown=%d,"
-                      "assigned=%ld, live=%ld, finished=%ld", 
-                      shed->c->id, ngn->id, ngn->type,
-                      ngn->shutdown, 
-                      (long)ngn->no_assigned, (long)ngn->no_live,
-                      (long)ngn->no_finished);
-        for (entry = H2_REQ_ENTRIES_FIRST(&ngn->entries);
-             entry != H2_REQ_ENTRIES_SENTINEL(&ngn->entries);
-             entry = H2_NGN_ENTRY_NEXT(entry)) {
-            h2_task *task = entry->task;
-            ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, shed->c,
-                          "h2_ngn_shed(%ld): engine %s has queued task %s, "
-                          "frozen=%d, aborting",
-                          shed->c->id, ngn->id, task->id, task->frozen);
-            ngn_done_task(shed, ngn, task, 0, 1);
+    io->unflushed = 1;
+    if (io->bufsize > 0) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, io->connection,
+                      "h2_conn_io: buffering %ld bytes", (long)length);
+                      
+        if (!APR_BRIGADE_EMPTY(io->output)) {
+            status = h2_conn_io_pass(io);
+            io->unflushed = 1;
         }
-    }
-    if (!shed->aborted && (ngn->no_assigned > 1 || ngn->no_live > 1)) {
-        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, shed->c,
-                      "h2_ngn_shed(%ld): exit engine %s (%s), "
-                      "assigned=%ld, live=%ld, finished=%ld", 
-                      shed->c->id, ngn->id, ngn->type,
-                      (long)ngn->no_assigned, (long)ngn->no_live,
-                      (long)ngn->no_finished);
+        
+        while (length > 0 && (status == APR_SUCCESS)) {
+            apr_size_t avail = io->bufsize - io->buflen;
+            if (avail <= 0) {
+                bucketeer_buffer(io);
+                status = pass_out(io->output, io);
+                io->buflen = 0;
+            }
+            else if (length > avail) {
+                memcpy(io->buffer + io->buflen, buf, avail);
+                io->buflen += avail;
+                length -= avail;
+                buf += avail;
+            }
+            else {
+                memcpy(io->buffer + io->buflen, buf, length);
+                io->buflen += length;
+                length = 0;
+                break;
+            }
+        }
+        
     }
     else {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, shed->c,
-                      "h2_ngn_shed(%ld): exit engine %s", 
-                      shed->c->id, ngn->id);
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, io->connection,
+                      "h2_conn_io: writing %ld bytes to brigade", (long)length);
+        status = apr_brigade_write(io->output, pass_out, io, buf, length);
     }
     
-    apr_hash_set(shed->ngns, ngn->type, APR_HASH_KEY_STRING, NULL);
-    ngn->done = 1;
+    return status;
 }

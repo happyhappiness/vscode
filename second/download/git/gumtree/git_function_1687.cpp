@@ -1,25 +1,24 @@
-static void write_remote_refs(const struct ref *local_refs)
+void strbuf_add_absolute_path(struct strbuf *sb, const char *path)
 {
-	const struct ref *r;
-
-	struct ref_transaction *t;
-	struct strbuf err = STRBUF_INIT;
-
-	t = ref_transaction_begin(&err);
-	if (!t)
-		die("%s", err.buf);
-
-	for (r = local_refs; r; r = r->next) {
-		if (!r->peer_ref)
-			continue;
-		if (ref_transaction_create(t, r->peer_ref->name, r->old_sha1,
-					   0, NULL, &err))
-			die("%s", err.buf);
+	if (!*path)
+		die("The empty string is not a valid path");
+	if (!is_absolute_path(path)) {
+		struct stat cwd_stat, pwd_stat;
+		size_t orig_len = sb->len;
+		char *cwd = xgetcwd();
+		char *pwd = getenv("PWD");
+		if (pwd && strcmp(pwd, cwd) &&
+		    !stat(cwd, &cwd_stat) &&
+		    (cwd_stat.st_dev || cwd_stat.st_ino) &&
+		    !stat(pwd, &pwd_stat) &&
+		    pwd_stat.st_dev == cwd_stat.st_dev &&
+		    pwd_stat.st_ino == cwd_stat.st_ino)
+			strbuf_addstr(sb, pwd);
+		else
+			strbuf_addstr(sb, cwd);
+		if (sb->len > orig_len && !is_dir_sep(sb->buf[sb->len - 1]))
+			strbuf_addch(sb, '/');
+		free(cwd);
 	}
-
-	if (initial_ref_transaction_commit(t, &err))
-		die("%s", err.buf);
-
-	strbuf_release(&err);
-	ref_transaction_free(t);
+	strbuf_addstr(sb, path);
 }

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01269)
-                              "Timeout during reading request entity data");
+ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL, APLOGNO(02164)
+                         "Cannot chroot when not started as root");

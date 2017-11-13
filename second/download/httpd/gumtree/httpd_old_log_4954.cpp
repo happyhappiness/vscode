@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
-                      "a content filter was added without a request: %s", frec->name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Invalid method in request %s", r->the_request);

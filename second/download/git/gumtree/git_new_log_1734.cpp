@@ -1,1 +1,1 @@
-die_errno(_("Could not open '%s' for writing"), filename);
+warning("--use-curl not supported in this build");

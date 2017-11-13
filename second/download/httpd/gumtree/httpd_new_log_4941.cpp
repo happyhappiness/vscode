@@ -1,3 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_STARTUP | APLOG_WARNING, 0, a, APLOGNO(00556)
-                     "%s: apr_gethostname() failed to determine ServerName",
-                     ap_server_argv0);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00123)
+                          "subrequested from r->uri = %s",
+                          top->uri ? top->uri : "(unexpectedly NULL)");

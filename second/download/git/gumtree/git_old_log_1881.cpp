@@ -1,3 +1,2 @@
-die ("Tag %s tags unexported object; use "
-			     "--tag-of-filtered-object=<mode> to handle it.",
-			     sha1_to_hex(tag->object.sha1));
+die_errno(_("could not open '%s' for reading"),
+				  filename);

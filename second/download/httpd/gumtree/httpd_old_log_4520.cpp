@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rc, ap_server_conf,
-                             "apr_pollset_poll failed.  Attempting to "
-                             "shutdown process gracefully");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "apr_socket_opt_set(SO_RCVBUF): Failed to set "
+                          "ProxyReceiveBufferSize, using default");

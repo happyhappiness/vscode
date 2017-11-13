@@ -1,11 +1,10 @@
 fputs(
-"              time_appconnect\n"
-"                             The  time,  in  seconds,  it  took from the start\n"
-"                             until the SSL/SSH/etc  connect/handshake  to  the\n"
-"                             remote host was completed. (Added in 7.19.0)\n"
+"              num_connects   Number  of new connects made in the recent trans-\n"
+"                             fer. (Added in 7.12.3)\n"
 "\n"
-"              time_connect   The  time,  in  seconds,  it  took from the start\n"
-"                             until the TCP connect  to  the  remote  host  (or\n"
-"                             proxy) was completed.\n"
+"              num_redirects  Number of redirects that  were  followed  in  the\n"
+"                             request. (Added in 7.12.3)\n"
 "\n"
+"              redirect_url   When  an HTTP request was made without -L to fol-\n"
+"                             low redirects, this variable will show the actual\n"
 , stdout);

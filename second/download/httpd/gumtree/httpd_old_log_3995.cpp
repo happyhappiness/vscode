@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     "         Set to %s/%ld", inet_ntoa(This->addr), bits);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "incomplete redirection target of '%s' for "
+                              "URI '%s' modified to '%s'",
+                              orig_target, r->uri, ret);

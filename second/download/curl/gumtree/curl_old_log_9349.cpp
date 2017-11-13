@@ -1,10 +1,9 @@
 fputs(
-"              (HTTP) This posts data, similar to the other --data options with\n"
-"              the exception that this performs URL-encoding. (Added in 7.18.0)\n"
-"              To be CGI-compliant, the <data> part should begin  with  a  name\n"
-"              followed  by a separator and a content specification. The <data>\n"
-"              part can be passed to curl using one of the following syntaxes:\n"
+"              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
+"              'name=daniel&skill=lousy'.\n"
 "\n"
-"              content\n"
-"                     This will make curl URL-encode the content and pass  that\n"
+"              If you start the data with the letter @, the rest  should  be  a\n"
+"              file  name  to read the data from, or - if you want curl to read\n"
+"              the data from stdin. Multiple files can also be specified. Post-\n"
+"              ing  data  from  a  file  named 'foobar' would thus be done with\n"
 , stdout);

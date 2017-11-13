@@ -1,2 +1,1 @@
-die(_("Unimplemented pathspec magic '%c' in '%s'"),
-			    ch, elem);
+error(_("could not read '%s'."), todo_file);

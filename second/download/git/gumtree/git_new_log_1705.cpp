@@ -1,1 +1,1 @@
-die(_("invalid reference: %s"), refname);
+die(_("cannot repack to clean up"));

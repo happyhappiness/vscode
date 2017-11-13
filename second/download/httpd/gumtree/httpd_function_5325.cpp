@@ -1,50 +1,65 @@
-apr_status_t h2_stream_schedule(h2_stream *stream, int eos,
-                                h2_stream_pri_cmp *cmp, void *ctx)
+apr_status_t mpm_service_start(apr_pool_t *ptemp, int argc,
+                               const char * const * argv)
 {
-    apr_status_t status;
-    AP_DEBUG_ASSERT(stream);
-    AP_DEBUG_ASSERT(stream->session);
-    AP_DEBUG_ASSERT(stream->session->mplx);
-    
-    if (!output_open(stream)) {
-        return APR_ECONNRESET;
+    apr_status_t rv;
+    char **start_argv;
+    SC_HANDLE   schService;
+    SC_HANDLE   schSCManager;
+
+    fprintf(stderr,"Starting the %s service\n", mpm_display_name);
+
+    schSCManager = OpenSCManager(NULL, NULL, /* local, default database */
+                                 SC_MANAGER_CONNECT);
+    if (!schSCManager) {
+        rv = apr_get_os_error();
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                     "Failed to open the WinNT service manager");
+        return (rv);
     }
-    if (stream->scheduled) {
-        return APR_EINVAL;
+
+    /* ###: utf-ize */
+    schService = OpenService(schSCManager, mpm_service_name,
+                             SERVICE_START | SERVICE_QUERY_STATUS);
+    if (!schService) {
+        rv = apr_get_os_error();
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                     "%s: Failed to open the service.", mpm_display_name);
+        CloseServiceHandle(schSCManager);
+        return (rv);
     }
-    if (eos) {
-        close_input(stream);
+
+    if (QueryServiceStatus(schService, &globdat.ssStatus)
+        && (globdat.ssStatus.dwCurrentState == SERVICE_RUNNING)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, 0, NULL,
+                     "Service %s is already started!", mpm_display_name);
+        CloseServiceHandle(schService);
+        CloseServiceHandle(schSCManager);
+        return 0;
     }
-    
-    /* Seeing the end-of-headers, we have everything we need to 
-     * start processing it.
-     */
-    status = h2_request_end_headers(stream->request, stream->pool, eos);
-    if (status == APR_SUCCESS) {
-        if (!eos) {
-            stream->bbin = apr_brigade_create(stream->pool, 
-                                              stream->session->c->bucket_alloc);
-        }
-        stream->input_remaining = stream->request->content_length;
-        
-        status = h2_mplx_process(stream->session->mplx, stream->id, 
-                                 stream->request, eos, cmp, ctx);
-        stream->scheduled = 1;
-        
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, stream->session->c,
-                      "h2_stream(%ld-%d): scheduled %s %s://%s%s",
-                      stream->session->id, stream->id,
-                      stream->request->method, stream->request->scheme,
-                      stream->request->authority, stream->request->path);
-    }
-    else {
-        h2_stream_rst(stream, H2_ERR_INTERNAL_ERROR);
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, stream->session->c,
-                      "h2_stream(%ld-%d): RST=2 (internal err) %s %s://%s%s",
-                      stream->session->id, stream->id,
-                      stream->request->method, stream->request->scheme,
-                      stream->request->authority, stream->request->path);
-    }
-    
-    return status;
+
+    start_argv = malloc((argc + 1) * sizeof(const char **));
+    memcpy(start_argv, argv, argc * sizeof(const char **));
+    start_argv[argc] = NULL;
+
+    rv = APR_EINIT;
+    /* ###: utf-ize */
+    if (StartService(schService, argc, start_argv)
+        && signal_service_transition(schService, 0, /* test only */
+                                     SERVICE_START_PENDING,
+                                     SERVICE_RUNNING))
+        rv = APR_SUCCESS;
+    if (rv != APR_SUCCESS)
+        rv = apr_get_os_error();
+
+    CloseServiceHandle(schService);
+    CloseServiceHandle(schSCManager);
+
+    if (rv == APR_SUCCESS)
+        fprintf(stderr,"The %s service is running.\n", mpm_display_name);
+    else
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
+                     "%s: Failed to start the service process.",
+                     mpm_display_name);
+
+    return rv;
 }

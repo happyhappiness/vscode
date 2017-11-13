@@ -1,4 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "disk_cache: URL %s failed the size check "
-                     "(%" APR_OFF_T_FMT " < %" APR_OFF_T_FMT ")",
-                     key, len, conf->minfs);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r,
+                                      "Read content length of "
+                                      "%" APR_OFF_T_FMT " is larger than the "
+                                      "configured limit of %" APR_OFF_T_FMT,
+                                      ctx->limit_used, ctx->limit);

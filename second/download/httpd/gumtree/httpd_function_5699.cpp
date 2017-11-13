@@ -1,82 +1,92 @@
-static int netware_check_config(apr_pool_t *p, apr_pool_t *plog,
-                                apr_pool_t *ptemp, server_rec *s)
+static int proxy_wstunnel_handler(request_rec *r, proxy_worker *worker,
+                             proxy_server_conf *conf,
+                             char *url, const char *proxyname,
+                             apr_port_t proxyport)
 {
-    static int restart_num = 0;
-    int startup = 0;
+    int status;
+    char server_portstr[32];
+    proxy_conn_rec *backend = NULL;
+    const char *upgrade;
+    char *scheme;
+    int retry;
+    conn_rec *c = r->connection;
+    apr_pool_t *p = r->pool;
+    apr_uri_t *uri;
+    int is_ssl = 0;
 
-    /* we want this only the first time around */
-    if (restart_num++ == 0) {
-        startup = 1;
+    if (strncasecmp(url, "wss:", 4) == 0) {
+        scheme = "WSS";
+        is_ssl = 1;
+    }
+    else if (strncasecmp(url, "ws:", 3) == 0) {
+        scheme = "WS";
+    }
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02450) "declining URL %s", url);
+        return DECLINED;
     }
 
-    if (ap_threads_limit > HARD_THREAD_LIMIT) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00228)
-                         "WARNING: MaxThreads of %d exceeds compile-time "
-                         "limit of", ap_threads_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d threads, decreasing to %d.",
-                         HARD_THREAD_LIMIT, HARD_THREAD_LIMIT);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " To increase, please see the HARD_THREAD_LIMIT"
-                         "define in");
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " server/mpm/netware%s.", MPM_HARD_LIMITS_FILE);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00229)
-                         "MaxThreads of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         ap_threads_limit, HARD_THREAD_LIMIT);
+    upgrade = apr_table_get(r->headers_in, "Upgrade");
+    if (!upgrade || strcasecmp(upgrade, "WebSocket") != 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02900)
+                      "declining URL %s  (not WebSocket)", url);
+        return DECLINED;
+    }
+
+    uri = apr_palloc(p, sizeof(*uri));
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02451) "serving URL %s", url);
+
+    /* create space for state information */
+    status = ap_proxy_acquire_connection(scheme, &backend, worker,
+                                         r->server);
+    if (status != OK) {
+        if (backend) {
+            backend->close = 1;
+            ap_proxy_release_connection(scheme, backend, r->server);
         }
-        ap_threads_limit = HARD_THREAD_LIMIT;
+        return status;
     }
-    else if (ap_threads_limit < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         APLOGNO(00230) "WARNING: MaxThreads of %d not allowed, "
-                         "increasing to 1.", ap_threads_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(02661)
-                         "MaxThreads of %d not allowed, increasing to 1",
-                         ap_threads_limit);
+
+    backend->is_ssl = is_ssl;
+    backend->close = 0;
+
+    retry = 0;
+    while (retry < 2) {
+        char *locurl = url;
+        /* Step One: Determine Who To Connect To */
+        status = ap_proxy_determine_connection(p, r, conf, worker, backend,
+                                               uri, &locurl, proxyname, proxyport,
+                                               server_portstr,
+                                               sizeof(server_portstr));
+
+        if (status != OK)
+            break;
+
+        /* Step Two: Make the Connection */
+        if (ap_proxy_connect_backend(scheme, backend, worker, r->server)) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02452)
+                          "failed to make connection to backend: %s",
+                          backend->hostname);
+            status = HTTP_SERVICE_UNAVAILABLE;
+            break;
         }
-        ap_threads_limit = 1;
-    }
-
-    /* ap_threads_to_start > ap_threads_limit effectively checked in
-     * call to startup_workers(ap_threads_to_start) in ap_mpm_run()
-     */
-    if (ap_threads_to_start < 0) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00231)
-                         "WARNING: StartThreads of %d not allowed, "
-                         "increasing to 1.", ap_threads_to_start);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00232)
-                         "StartThreads of %d not allowed, increasing to 1",
-                         ap_threads_to_start);
+        /* Step Three: Create conn_rec */
+        if (!backend->connection) {
+            if ((status = ap_proxy_connection_create(scheme, backend,
+                                                     c, r->server)) != OK)
+                break;
         }
-        ap_threads_to_start = 1;
+
+        backend->close = 1; /* must be after ap_proxy_determine_connection */
+
+
+        /* Step Three: Process the Request */
+        status = proxy_wstunnel_request(p, r, backend, worker, conf, uri, locurl,
+                                      server_portstr);
+        break;
     }
 
-    if (ap_threads_min_free < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00233)
-                         "WARNING: MinSpareThreads of %d not allowed, "
-                         "increasing to 1", ap_threads_min_free);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " to avoid almost certain server failure.");
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " Please read the documentation.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00234)
-                         "MinSpareThreads of %d not allowed, increasing to 1",
-                         ap_threads_min_free);
-        }
-        ap_threads_min_free = 1;
-    }
-
-    /* ap_threads_max_free < ap_threads_min_free + 1 checked in ap_mpm_run() */
-
-    return OK;
+    /* Do not close the socket */
+    ap_proxy_release_connection(scheme, backend, r->server);
+    return status;
 }

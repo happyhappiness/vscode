@@ -1,1 +1,0 @@
-die("expected SP but got: %s", next);

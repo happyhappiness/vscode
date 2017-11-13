@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, r->server,
-                 "proxy: FTP: serving URL %s", url);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "LDAP: Could not set LDAP_OPT_TIMEOUT");

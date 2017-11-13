@@ -1,1 +1,1 @@
-warning_errno("vsnprintf failed");
+warning_errno("malloc failed");

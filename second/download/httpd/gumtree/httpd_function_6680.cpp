@@ -1,50 +1,28 @@
-static int lua_websocket_ping(lua_State *L) 
+void h2_task_register_hooks(void)
 {
-    apr_socket_t *sock;
-    apr_size_t plen;
-    char prelude[2];
-    apr_status_t rv;
-    request_rec *r = ap_lua_check_request_rec(L, 1);
-    sock = ap_get_conn_socket(r->connection);
-    
-    /* Send a header that says: PING. */
-    prelude[0] = 0x89; /* ping  opcode */
-    prelude[1] = 0;
-    plen = 2;
-    apr_socket_send(sock, prelude, &plen);
-    
-    
-    /* Get opcode and FIN bit from pong */
-    plen = 2;
-    rv = apr_socket_recv(sock, prelude, &plen);
-    if (rv == APR_SUCCESS) {
-        unsigned char opcode = prelude[0];
-        unsigned char len = prelude[1];
-        unsigned char mask = len >> 7;
-        if (mask) len -= 128;
-        plen = len;
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
-                        "Websocket: Got PONG opcode: %x", opcode);
-        if (opcode == 0x8A) {
-            lua_pushboolean(L, 1);
-        }
-        else {
-            lua_pushboolean(L, 0);
-        }
-        if (plen > 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
-                        "Websocket: Reading %lu bytes of PONG", plen);
-            return 1;
-        }
-        if (mask) {
-            plen = 2;
-            apr_socket_recv(sock, prelude, &plen);
-            plen = 2;
-            apr_socket_recv(sock, prelude, &plen);
-        }
-    }
-    else {
-        lua_pushboolean(L, 0);
-    }
-    return 1;
+    /* This hook runs on new connections before mod_ssl has a say.
+     * Its purpose is to prevent mod_ssl from touching our pseudo-connections
+     * for streams.
+     */
+    ap_hook_pre_connection(h2_task_pre_conn,
+                           NULL, mod_ssl, APR_HOOK_FIRST);
+    /* When the connection processing actually starts, we might 
+     * take over, if the connection is for a task.
+     */
+    ap_hook_process_connection(h2_task_process_conn, 
+                               NULL, NULL, APR_HOOK_FIRST);
+
+    ap_register_input_filter("H2_SLAVE_IN", h2_filter_slave_in,
+                             NULL, AP_FTYPE_NETWORK);
+    ap_register_output_filter("H2_SLAVE_OUT", h2_filter_slave_output,
+                              NULL, AP_FTYPE_NETWORK);
+    ap_register_output_filter("H2_PARSE_H1", h2_filter_parse_h1,
+                              NULL, AP_FTYPE_NETWORK);
+
+    ap_register_input_filter("H2_REQUEST", h2_filter_request_in,
+                             NULL, AP_FTYPE_PROTOCOL);
+    ap_register_output_filter("H2_RESPONSE", h2_filter_headers_out,
+                              NULL, AP_FTYPE_PROTOCOL);
+    ap_register_output_filter("H2_TRAILERS_OUT", h2_filter_trailers_out,
+                              NULL, AP_FTYPE_PROTOCOL);
 }

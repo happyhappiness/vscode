@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, APLOGNO(00431)
-                             "Parent: Forcing termination of child process %pp",
-                             event_handles[CHILD_HANDLE]);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02035)
+                    "Encountered FakeBasicAuth spoof: %s", username);

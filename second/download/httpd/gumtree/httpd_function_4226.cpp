@@ -1,138 +1,166 @@
-int ssl_hook_ReadReq(request_rec *r)
+static int proxy_balancer_pre_request(proxy_worker **worker,
+                                      proxy_balancer **balancer,
+                                      request_rec *r,
+                                      proxy_server_conf *conf, char **url)
 {
-    SSLSrvConfigRec *sc = mySrvConfig(r->server);
-    SSLConnRec *sslconn;
-    const char *upgrade;
-#ifndef OPENSSL_NO_TLSEXT
-    const char *servername;
-#endif
-    SSL *ssl;
+    int access_status;
+    proxy_worker *runtime;
+    char *route = NULL;
+    const char *sticky = NULL;
+    apr_status_t rv;
+
+    *worker = NULL;
+    /* Step 1: check if the url is for us
+     * The url we can handle starts with 'balancer://'
+     * If balancer is already provided skip the search
+     * for balancer, because this is failover attempt.
+     */
+    if (!*balancer &&
+        !(*balancer = ap_proxy_get_balancer(r->pool, conf, *url)))
+        return DECLINED;
+
+    /* Step 2: Lock the LoadBalancer
+     * XXX: perhaps we need the process lock here
+     */
+    if ((rv = PROXY_THREAD_LOCK(*balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                     "proxy: BALANCER: (%s). Lock failed for pre_request",
+                     (*balancer)->name);
+        return DECLINED;
+    }
+
+    /* Step 3: force recovery */
+    force_recovery(*balancer, r->server);
     
-    /* Perform TLS upgrade here if "SSLEngine optional" is configured,
-     * SSL is not already set up for this connection, and the client
-     * has sent a suitable Upgrade header. */
-    if (sc->enabled == SSL_ENABLED_OPTIONAL && !myConnConfig(r->connection)
-        && (upgrade = apr_table_get(r->headers_in, "Upgrade")) != NULL
-        && ap_find_token(r->pool, upgrade, "TLS/1.0")) {
-        if (upgrade_connection(r)) {
-            return HTTP_INTERNAL_SERVER_ERROR;
+    /* Step 3.5: Update member list for the balancer */
+    /* TODO: Implement as provider! */
+    /* proxy_update_members(balancer, r, conf); */
+
+    /* Step 4: find the session route */
+    runtime = find_session_route(*balancer, r, &route, &sticky, url);
+    if (runtime) {
+        if ((*balancer)->lbmethod && (*balancer)->lbmethod->updatelbstatus) {
+            /* Call the LB implementation */
+            (*balancer)->lbmethod->updatelbstatus(*balancer, runtime, r->server);
         }
-    }
-
-    sslconn = myConnConfig(r->connection);
-    if (!sslconn) {
-        return DECLINED;
-    }
-
-    if (sslconn->non_ssl_request) {
-        const char *errmsg;
-        char *thisurl;
-        char *thisport = "";
-        int port = ap_get_server_port(r);
-
-        if (!ap_is_default_port(port, r)) {
-            thisport = apr_psprintf(r->pool, ":%u", port);
+        else { /* Use the default one */
+            int i, total_factor = 0;
+            proxy_worker **workers;
+            /* We have a sticky load balancer
+             * Update the workers status
+             * so that even session routes get
+             * into account.
+             */
+            workers = (proxy_worker **)(*balancer)->workers->elts;
+            for (i = 0; i < (*balancer)->workers->nelts; i++) {
+                /* Take into calculation only the workers that are
+                 * not in error state or not disabled.
+                 */
+                if (PROXY_WORKER_IS_USABLE(*workers)) {
+                    (*workers)->s->lbstatus += (*workers)->s->lbfactor;
+                    total_factor += (*workers)->s->lbfactor;
+                }
+                workers++;
+            }
+            runtime->s->lbstatus -= total_factor;
         }
+        runtime->s->elected++;
 
-        thisurl = ap_escape_html(r->pool,
-                                 apr_psprintf(r->pool, "https://%s%s/",
-                                              ap_get_server_name_for_url(r),
-                                              thisport));
-
-        errmsg = apr_psprintf(r->pool,
-                              "Reason: You're speaking plain HTTP "
-                              "to an SSL-enabled server port.<br />\n"
-                              "Instead use the HTTPS scheme to access "
-                              "this URL, please.<br />\n"
-                              "<blockquote>Hint: "
-                              "<a href=\"%s\"><b>%s</b></a></blockquote>",
-                              thisurl, thisurl);
-
-        apr_table_setn(r->notes, "error-notes", errmsg);
-
-        /* Now that we have caught this error, forget it. we are done
-         * with using SSL on this request.
-         */
-        sslconn->non_ssl_request = 0;
-
-
-        return HTTP_BAD_REQUEST;
+        *worker = runtime;
     }
-
-    /*
-     * Get the SSL connection structure and perform the
-     * delayed interlinking from SSL back to request_rec
-     */
-    ssl = sslconn->ssl;
-    if (!ssl) {
-        return DECLINED;
-    }
-#ifndef OPENSSL_NO_TLSEXT
-    if ((servername = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name))) {
-        char *host, *scope_id;
-        apr_port_t port;
-        apr_status_t rv;
-
+    else if (route && (*balancer)->sticky_force) {
+        int i, member_of = 0;
+        proxy_worker **workers;
         /*
-         * The SNI extension supplied a hostname. So don't accept requests
-         * with either no hostname or a different hostname.
+         * We have a route provided that doesn't match the
+         * balancer name. See if the provider route is the
+         * member of the same balancer in which case return 503
          */
-        if (!r->hostname) {
+        workers = (proxy_worker **)(*balancer)->workers->elts;
+        for (i = 0; i < (*balancer)->workers->nelts; i++) {
+            if (*((*workers)->s->route) && strcmp((*workers)->s->route, route) == 0) {
+                member_of = 1;
+                break;
+            }
+            workers++;
+        }
+        if (member_of) {
             ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                        "Hostname %s provided via SNI, but no hostname"
-                        " provided in HTTP request", servername);
-            return HTTP_BAD_REQUEST;
-        }
-        rv = apr_parse_addr_port(&host, &scope_id, &port, r->hostname, r->pool);
-        if (rv != APR_SUCCESS || scope_id) {
-            return HTTP_BAD_REQUEST;
-        }
-        if (strcmp(host, servername)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                        "Hostname %s provided via SNI and hostname %s provided"
-                        " via HTTP are different", servername, host);
-            return HTTP_BAD_REQUEST;
+                         "proxy: BALANCER: (%s). All workers are in error state for route (%s)",
+                         (*balancer)->name, route);
+            if ((rv = PROXY_THREAD_UNLOCK(*balancer)) != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                             "proxy: BALANCER: (%s). Unlock failed for pre_request",
+                             (*balancer)->name);
+            }
+            return HTTP_SERVICE_UNAVAILABLE;
         }
     }
-    else if (((sc->strict_sni_vhost_check == SSL_ENABLED_TRUE)
-             || (mySrvConfig(sslconn->server))->strict_sni_vhost_check
-                == SSL_ENABLED_TRUE)
-             && r->connection->vhost_lookup_data) {
-        /*
-         * We are using a name based configuration here, but no hostname was
-         * provided via SNI. Don't allow that if are requested to do strict
-         * checking. Check wether this strict checking was setup either in the
-         * server config we used for handshaking or in our current server.
-         * This should avoid insecure configuration by accident.
-         */
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "No hostname was provided via SNI for a name based"
-                     " virtual host");
-        return HTTP_FORBIDDEN;
-    }
-#endif
-    SSL_set_app_data2(ssl, r);
 
-    /*
-     * Log information about incoming HTTPS requests
+    if ((rv = PROXY_THREAD_UNLOCK(*balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                     "proxy: BALANCER: (%s). Unlock failed for pre_request",
+                     (*balancer)->name);
+    }
+    if (!*worker) {
+        runtime = find_best_worker(*balancer, r);
+        if (!runtime) {
+            if ((*balancer)->workers->nelts) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                            "proxy: BALANCER: (%s). All workers are in error state",
+                            (*balancer)->name);
+            } else {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                            "proxy: BALANCER: (%s). No workers in balancer",
+                            (*balancer)->name);
+            }
+
+            return HTTP_SERVICE_UNAVAILABLE;
+        }
+        if ((*balancer)->sticky && runtime) {
+            /*
+             * This balancer has sticky sessions and the client either has not
+             * supplied any routing information or all workers for this route
+             * including possible redirect and hotstandby workers are in error
+             * state, but we have found another working worker for this
+             * balancer where we can send the request. Thus notice that we have
+             * changed the route to the backend.
+             */
+            apr_table_setn(r->subprocess_env, "BALANCER_ROUTE_CHANGED", "1");
+        }
+        *worker = runtime;
+    }
+
+    (*worker)->s->busy++;
+
+    /* Add balancer/worker info to env. */
+    apr_table_setn(r->subprocess_env,
+                   "BALANCER_NAME", (*balancer)->name);
+    apr_table_setn(r->subprocess_env,
+                   "BALANCER_WORKER_NAME", (*worker)->name);
+    apr_table_setn(r->subprocess_env,
+                   "BALANCER_WORKER_ROUTE", (*worker)->s->route);
+
+    /* Rewrite the url from 'balancer://url'
+     * to the 'worker_scheme://worker_hostname[:worker_port]/url'
+     * This replaces the balancers fictional name with the
+     * real hostname of the elected worker.
      */
-    if (APLOGrinfo(r) && ap_is_initial_req(r)) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                     "%s HTTPS request received for child %ld (server %s)",
-                     (r->connection->keepalives <= 0 ?
-                     "Initial (No.1)" :
-                     apr_psprintf(r->pool, "Subsequent (No.%d)",
-                                  r->connection->keepalives+1)),
-                     r->connection->id,
-                     ssl_util_vhostid(r->pool, r->server));
-    }
+    access_status = rewrite_url(r, *worker, url);
+    /* Add the session route to request notes if present */
+    if (route) {
+        apr_table_setn(r->notes, "session-sticky", sticky);
+        apr_table_setn(r->notes, "session-route", route);
 
-    /* SetEnvIf ssl-*-shutdown flags can only be per-server,
-     * so they won't change across keepalive requests
-     */
-    if (sslconn->shutdown_type == SSL_SHUTDOWN_TYPE_UNSET) {
-        ssl_configure_env(r, sslconn);
+        /* Add session info to env. */
+        apr_table_setn(r->subprocess_env,
+                       "BALANCER_SESSION_STICKY", sticky);
+        apr_table_setn(r->subprocess_env,
+                       "BALANCER_SESSION_ROUTE", route);
     }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: BALANCER (%s) worker (%s) rewritten to %s",
+                 (*balancer)->name, (*worker)->name, *url);
 
-    return DECLINED;
+    return access_status;
 }

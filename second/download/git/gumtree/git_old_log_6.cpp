@@ -1,0 +1,1 @@
+die(_("object of unexpected type"));

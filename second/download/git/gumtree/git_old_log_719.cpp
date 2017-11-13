@@ -1,1 +1,1 @@
-fputs(prefix, fh);
+wt_status_print_other(s, &s->ignored, _("Ignored files"), "add -f");

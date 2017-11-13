@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, master, 
-                      APLOGNO(02913) "h2_task: creating conn");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, APLOGNO(02989)
+                         "%s on line %d of %s: %s",
+                         what, cfg->line_number, cfg->name, ptr);

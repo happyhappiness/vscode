@@ -1,1 +1,1 @@
-die("unrecognized argument: %s", argv[1]);
+printf("author-time %lu\n", ci.author_time);

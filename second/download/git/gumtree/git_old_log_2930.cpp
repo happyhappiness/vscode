@@ -1,1 +1,2 @@
-warning("dup failed: %s", strerror(errno));
+error("error while reading from stdin %s",
+				     strerror(errno));

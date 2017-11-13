@@ -1,2 +1,2 @@
-printf ("\nlibidn: %s (compiled with %s)", stringprep_check_version (NULL), 
-	  STRINGPREP_VERSION);
+printf ("\nlibiconv: %d.%d", _LIBICONV_VERSION >> 8,
+	  _LIBICONV_VERSION & 0xff);

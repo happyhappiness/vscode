@@ -1,1 +1,2 @@
-error(_("could not remove CHERRY_PICK_HEAD"));
+print_ref_status('=', "[up to date]", ref,
+				 ref->peer_ref, NULL, porcelain, summary_width);

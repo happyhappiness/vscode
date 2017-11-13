@@ -1,1 +1,1 @@
-apr_file_printf(output, "Cache hits      : %d" NL, cachehits);
+APLOG_USE_MODULE(core);

@@ -1,12 +1,22 @@
-void show_decorations(struct rev_info *opt, struct commit *commit)
+int parse_tag(struct tag *item)
 {
-	struct strbuf sb = STRBUF_INIT;
+	enum object_type type;
+	void *data;
+	unsigned long size;
+	int ret;
 
-	if (opt->show_source && commit->util)
-		printf("\t%s", (char *) commit->util);
-	if (!opt->show_decorations)
-		return;
-	format_decorations(&sb, commit, opt->diffopt.use_color);
-	fputs(sb.buf, stdout);
-	strbuf_release(&sb);
+	if (item->object.parsed)
+		return 0;
+	data = read_sha1_file(item->object.sha1, &type, &size);
+	if (!data)
+		return error("Could not read %s",
+			     sha1_to_hex(item->object.sha1));
+	if (type != OBJ_TAG) {
+		free(data);
+		return error("Object %s not a tag",
+			     sha1_to_hex(item->object.sha1));
+	}
+	ret = parse_tag_buffer(item, data, size);
+	free(data);
+	return ret;
 }

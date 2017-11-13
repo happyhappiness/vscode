@@ -1,3 +1,4 @@
-printf("<tr %s><th colspan=2 %s>Time taken for tests:</th>"
-       "<td colspan=2 %s>%.3f seconds</td></tr>\n",
-       trstring, tdstring, tdstring, timetaken);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " ThreadsPerChild of %d, decreasing to nearest "
+                         "multiple %d,", threads_per_child,
+                         tmp_max_clients);

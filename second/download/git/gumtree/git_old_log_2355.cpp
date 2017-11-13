@@ -1,3 +1,1 @@
-warning("failed utime() on %s: %s",
-			rerere_path(id, "postimage"),
-			strerror(errno));
+fprintf(stderr, "bad sha1 file: %s/%s\n", path, de->d_name);

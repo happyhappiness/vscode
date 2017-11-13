@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, 
-                     APLOGNO(10012) "Failed to open the '%s' service",
-                     mpm_display_name);
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP,
+                     apr_get_os_error(), NULL,
+                     APLOGNO(10013)  "Failed to open the Windows service "
+                     "manager, perhaps you forgot to log in as Adminstrator?");

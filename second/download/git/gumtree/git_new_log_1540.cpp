@@ -1,1 +1,1 @@
-die_errno("Could not make temporary directory");
+ref_transaction_free(transaction);

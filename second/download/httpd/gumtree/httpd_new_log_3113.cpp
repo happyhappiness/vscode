@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, APLOGNO(00578)
-                         "\"DAV Off\" cannot be used to turn off a subtree "
-                         "of a DAV-enabled location.");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01764)
+                      "get_client(): client %lu found", key);

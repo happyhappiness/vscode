@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, apr_get_os_error(), r,
-                          "ISAPI: HSE_STATUS_ERROR result from "
-                          "HttpExtensionProc(): %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "about to scroll %u sessions from %u",
+                         loop, shmcb_get_safe_uint(queue->pos_count));

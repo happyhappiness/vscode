@@ -1,2 +1,2 @@
-ap_rputs("<dt><strong>Server Built With:</strong>\n"
-             "<tt style=\"white-space: pre;\">\n", r);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "ef_unified_filter() failed");

@@ -1,3 +1,5 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, task->c,
-                  "h2_task(%s): added chunk %ld, total %ld", 
-                  task->id, (long)chunk_len, (long)task->input.chunked_total);
+ap_log_rerror(APLOG_MARK,
+                      (ctx->flags & SSI_FLAG_PRINTING)
+                          ? APLOG_ERR : APLOG_WARNING,
+                      0, r, APLOGNO(03195)
+                      "missing argument for exec element in %s", r->filename);

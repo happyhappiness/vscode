@@ -1,56 +1,43 @@
-static int socache_status_hook(request_rec *r, int flags)
+static int mpmt_os2_check_config(apr_pool_t *p, apr_pool_t *plog,
+                                 apr_pool_t *ptemp, server_rec *s)
 {
-    apr_status_t status = APR_SUCCESS;
-    cache_socache_conf *conf = ap_get_module_config(r->server->module_config,
-                                                    &cache_socache_module);
-    if (!conf->provider || !conf->provider->socache_provider ||
-        !conf->provider->socache_instance) {
-        return DECLINED;
+    static int restart_num = 0;
+    int startup = 0;
+
+    /* we want this only the first time around */
+    if (restart_num++ == 0) {
+        startup = 1;
     }
 
-    if (!(flags & AP_STATUS_SHORT)) {
-        ap_rputs("<hr>\n"
-                 "<table cellspacing=0 cellpadding=0>\n"
-                 "<tr><td bgcolor=\"#000000\">\n"
-                 "<b><font color=\"#ffffff\" face=\"Arial,Helvetica\">"
-                 "mod_cache_socache Status:</font></b>\n"
-                 "</td></tr>\n"
-                 "<tr><td bgcolor=\"#ffffff\">\n", r);
-    }
-    else {
-        ap_rputs("ModCacheSocacheStatus\n", r);
-    }
-
-    if (socache_mutex) {
-        status = apr_global_mutex_lock(socache_mutex);
-        if (status != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02816)
-                    "could not acquire lock for cache status");
+    if (ap_daemons_to_start < 0) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: StartServers of %d not allowed, "
+                         "increasing to 1.", ap_daemons_to_start);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "StartServers of %d not allowed, increasing to 1",
+                         ap_daemons_to_start);
         }
+        ap_daemons_to_start = 1;
     }
 
-    if (status != APR_SUCCESS) {
-        if (!(flags & AP_STATUS_SHORT)) {
-            ap_rputs("No cache status data available\n", r);
+    if (ap_min_spare_threads < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MinSpareThreads of %d not allowed, "
+                         "increasing to 1", ap_min_spare_threads);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " to avoid almost certain server failure.");
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " Please read the documentation.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MinSpareThreads of %d not allowed, increasing to 1",
+                         ap_min_spare_threads);
         }
-        else {
-            ap_rputs("NotAvailable\n", r);
-        }
-    } else {
-        conf->provider->socache_provider->status(conf->provider->socache_instance,
-                                                 r, flags);
+        ap_min_spare_threads = 1;
     }
 
-    if (socache_mutex && status == APR_SUCCESS) {
-        status = apr_global_mutex_unlock(socache_mutex);
-        if (status != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02817)
-                    "could not release lock for cache status");
-        }
-    }
-
-    if (!(flags & AP_STATUS_SHORT)) {
-        ap_rputs("</td></tr>\n</table>\n", r);
-    }
     return OK;
 }

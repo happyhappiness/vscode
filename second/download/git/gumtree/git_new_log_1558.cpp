@@ -1,1 +1,1 @@
-die_errno(_("failed to get kernel name and information"));
+error(_("invalid color value: %.*s"), value_len, value);

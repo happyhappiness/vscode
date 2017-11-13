@@ -1,1 +1,1 @@
-fprintf(stderr, "Checking %s\n", describe_object(obj));
+die(_("Could not make %s writable by group"), dir);

@@ -1,1 +1,1 @@
-fprintf(f,"-T  --temp-dir DIR       create temporary files in directory DIR\n");
+fprintf(FERROR,"ERROR: %s is a directory\n",fname);

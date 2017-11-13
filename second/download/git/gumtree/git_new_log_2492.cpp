@@ -1,2 +1,1 @@
-printf("broken link from %7s %s\n",
-				 typename(parent->type), describe_object(parent));
+die("Object not in bitmap: %s\n", oid_to_hex(&object->oid));

@@ -1,10 +1,10 @@
 fputs(
-"              the conversion by default to maintain  consistency.  However,  a\n"
-"              server  may  require  a POST to remain a POST after such a redi-\n"
-"              rection. This option is meaningful only when using  -L,  --loca-\n"
-"              tion (Added in 7.19.1)\n"
+"              necting with FTP. This switch makes curl  use  active  mode.  In\n"
+"              practice,  curl  then  tells  the  server to connect back to the\n"
+"              client's specified address and port, while passive mode asks the\n"
+"              server  to  setup  an  IP address and port for it to connect to.\n"
+"              <address> should be one of:\n"
 "\n"
-"       --post303\n"
-"              (HTTP) Tells curl to respect RFC 7230/6.4.4 and not convert POST\n"
-"              requests into GET requests when following a 303 redirection. The\n"
+"              interface\n"
+"                     i.e \"eth0\" to specify which interface's  IP  address  you\n"
 , stdout);

@@ -1,11 +1,11 @@
 fputs(
-"              already exists in the current working directory it will  not  be\n"
-"              overwritten and an error will occur. If the server doesn't spec-\n"
-"              ify a file name then this option has no effect.\n"
+"              requests - even after redirects are  followed,  like  when  told\n"
+"              with  -L,  --location. This can lead to the header being sent to\n"
+"              other hosts than the original host, so sensitive headers  should\n"
+"              be used with caution combined with following redirects.\n"
 "\n"
-"              There's no attempt to decode %-sequences (yet) in  the  provided\n"
-"              file name, so this option may provide you with rather unexpected\n"
-"              file names.\n"
+"              This  option  can  be  used multiple times to add/replace/remove\n"
+"              multiple headers.\n"
 "\n"
-"              WARNING: Exercise judicious use of this  option,  especially  on\n"
+"       --hostpubmd5 <md5>\n"
 , stdout);

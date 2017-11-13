@@ -1,1 +1,1 @@
-printf("\n%s\n", opt->break_bar);
+die("could not set GIT_WORK_TREE to '%s'", work_tree);

@@ -1,2 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, io->connection,
-                  "h2_conn_io: try read, block=%d", block);
+ap_log_error(APLOG_MARK, APLOG_NOTICE,
+                             0, ap_server_conf,
+                             "child pid %ld exit signal %s (%d)",
+                             (long)pid->pid, sigdesc, signum);

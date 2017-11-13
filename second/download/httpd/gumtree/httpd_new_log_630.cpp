@@ -1,1 +1,0 @@
-ap_rputs(" -D APR_CHARSET_EBCDIC\n", r);

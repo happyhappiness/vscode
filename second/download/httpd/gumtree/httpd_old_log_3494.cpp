@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "request_rec->dispatching %s -> boolean", name);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                         "Could not use default path '%s' for shmcb socache",
+                         ctx->data_file);

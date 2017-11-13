@@ -1,1 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, "%s", res);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
+                      "%s: Write: %s",
+                      SSL_LIBRARY_NAME, SSL_state_string_long(ssl));

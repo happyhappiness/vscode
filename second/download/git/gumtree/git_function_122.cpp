@@ -1,33 +1,32 @@
-int read_index_from(struct index_state *istate, const char *path)
+static const char *parse_cmd_verify(struct strbuf *input, const char *next)
 {
-	struct split_index *split_index;
-	int ret;
+	char *refname;
+	unsigned char new_sha1[20];
+	unsigned char old_sha1[20];
+	int have_old;
 
-	/* istate->initialized covers both .git/index and .git/sharedindex.xxx */
-	if (istate->initialized)
-		return istate->cache_nr;
+	refname = parse_refname(input, &next);
+	if (!refname)
+		die("verify: missing <ref>");
 
-	ret = do_read_index(istate, path, 0);
-	split_index = istate->split_index;
-	if (!split_index)
-		return ret;
+	if (parse_next_sha1(input, &next, old_sha1, "verify", refname,
+			    PARSE_SHA1_OLD)) {
+		hashclr(new_sha1);
+		have_old = 0;
+	} else {
+		hashcpy(new_sha1, old_sha1);
+		have_old = 1;
+	}
 
-	if (is_null_sha1(split_index->base_sha1))
-		return ret;
+	if (*next != line_termination)
+		die("verify %s: extra input: %s", refname, next);
 
-	if (split_index->base)
-		discard_index(split_index->base);
-	else
-		split_index->base = xcalloc(1, sizeof(*split_index->base));
-	ret = do_read_index(split_index->base,
-			    git_path("sharedindex.%s",
-				     sha1_to_hex(split_index->base_sha1)), 1);
-	if (hashcmp(split_index->base_sha1, split_index->base->sha1))
-		die("broken index, expect %s in %s, got %s",
-		    sha1_to_hex(split_index->base_sha1),
-		    git_path("sharedindex.%s",
-				     sha1_to_hex(split_index->base_sha1)),
-		    sha1_to_hex(split_index->base->sha1));
-	merge_base_index(istate);
-	return ret;
+	if (ref_transaction_update(transaction, refname, new_sha1, old_sha1,
+				   update_flags, have_old, &err))
+		die("%s", err.buf);
+
+	update_flags = 0;
+	free(refname);
+
+	return next;
 }

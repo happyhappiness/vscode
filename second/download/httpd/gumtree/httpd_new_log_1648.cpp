@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                             "ldap_simple_bind() timed out on reused "
-                             "connection, dropped by firewall?");
+ap_log_error(APLOG_MARK, APLOG_ERR, sts, s, 
+                     "Failed to create shared memory segment on file %s", 
+                     client_shm_filename);

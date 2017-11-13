@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Unable to send the start mutex to the child");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "request body exceeds maximum size (%" APR_SIZE_T_FMT 
+                          ") for SSL buffer", maxlen);

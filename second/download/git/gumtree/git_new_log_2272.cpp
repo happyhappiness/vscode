@@ -1,1 +1,1 @@
-error_errno("cannot opendir %s", name);
+die("combining --first-parent and --reverse is not supported");

@@ -1,13 +1,6 @@
-puts(
-"          vent  curl  from  outputting  that  and  fail  silently\n"
-"          instead.\n"
-"\n"
-"          If  this  option  is  used twice, the second will again\n"
-"          disable silent failure.\n"
-"\n"
-"     -F/--form <name=content>\n"
-"          (HTTP) This lets curl emulate a filled in form in which\n"
-"          a  user has pressed the submit button. This causes curl\n"
-"          to POST data using the content-type multipart/form-data\n"
-"          according  to RFC1867. This enables uploading of binary\n"
-);
+puts(" -o/--output <file> Write output to <file> instead of stdout\n"
+       " -O/--remote-name   Write output to a file named as the remote file\n"
+       " -p/--proxytunnel   Perform non-HTTP services through a HTTP proxy\n"
+       " -P/--ftpport <address> Use PORT with address instead of PASV when ftping (F)\n"
+       " -q                 When used as the first parameter disables .curlrc\n"
+       " -Q/--quote <cmd>   Send QUOTE command to FTP before file transfer (F)");

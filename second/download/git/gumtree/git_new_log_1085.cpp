@@ -1,2 +1,1 @@
-die("Could not read %s for notes-index",
-		     oid_to_hex(&subtree->val_oid));
+die(_("unrecognized %%(if) argument: %s"), arg);

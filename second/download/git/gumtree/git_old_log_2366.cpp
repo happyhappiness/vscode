@@ -1,1 +1,1 @@
-error("waitpid for %s failed: %s", argv0, strerror(errno));
+die(_("insanely long template path %s"), template_dir);

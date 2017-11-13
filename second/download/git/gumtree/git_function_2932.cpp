@@ -1,38 +1,83 @@
-int launch_editor(const char *path, struct strbuf *buffer, const char *const *env)
+static int write_entry(struct cache_entry *ce,
+		       char *path, const struct checkout *state, int to_tempfile)
 {
-	const char *editor = git_editor();
+	unsigned int ce_mode_s_ifmt = ce->ce_mode & S_IFMT;
+	int fd, ret, fstat_done = 0;
+	char *new;
+	struct strbuf buf = STRBUF_INIT;
+	unsigned long size;
+	size_t wrote, newsize = 0;
+	struct stat st;
 
-	if (!editor)
-		return error("Terminal is dumb, but EDITOR unset");
-
-	if (strcmp(editor, ":")) {
-		const char *args[] = { editor, real_path(path), NULL };
-		struct child_process p = CHILD_PROCESS_INIT;
-		int ret, sig;
-
-		p.argv = args;
-		p.env = env;
-		p.use_shell = 1;
-		if (start_command(&p) < 0)
-			return error("unable to start editor '%s'", editor);
-
-		sigchain_push(SIGINT, SIG_IGN);
-		sigchain_push(SIGQUIT, SIG_IGN);
-		ret = finish_command(&p);
-		sig = ret - 128;
-		sigchain_pop(SIGINT);
-		sigchain_pop(SIGQUIT);
-		if (sig == SIGINT || sig == SIGQUIT)
-			raise(sig);
-		if (ret)
-			return error("There was a problem with the editor '%s'.",
-					editor);
+	if (ce_mode_s_ifmt == S_IFREG) {
+		struct stream_filter *filter = get_stream_filter(ce->name, ce->sha1);
+		if (filter &&
+		    !streaming_write_entry(ce, path, filter,
+					   state, to_tempfile,
+					   &fstat_done, &st))
+			goto finish;
 	}
 
-	if (!buffer)
-		return 0;
-	if (strbuf_read_file(buffer, path, 0) < 0)
-		return error("could not read file '%s': %s",
+	switch (ce_mode_s_ifmt) {
+	case S_IFREG:
+	case S_IFLNK:
+		new = read_blob_entry(ce, &size);
+		if (!new)
+			return error("unable to read sha1 file of %s (%s)",
+				path, sha1_to_hex(ce->sha1));
+
+		if (ce_mode_s_ifmt == S_IFLNK && has_symlinks && !to_tempfile) {
+			ret = symlink(new, path);
+			free(new);
+			if (ret)
+				return error("unable to create symlink %s (%s)",
+					     path, strerror(errno));
+			break;
+		}
+
+		/*
+		 * Convert from git internal format to working tree format
+		 */
+		if (ce_mode_s_ifmt == S_IFREG &&
+		    convert_to_working_tree(ce->name, new, size, &buf)) {
+			free(new);
+			new = strbuf_detach(&buf, &newsize);
+			size = newsize;
+		}
+
+		fd = open_output_fd(path, ce, to_tempfile);
+		if (fd < 0) {
+			free(new);
+			return error("unable to create file %s (%s)",
 				path, strerror(errno));
+		}
+
+		wrote = write_in_full(fd, new, size);
+		if (!to_tempfile)
+			fstat_done = fstat_output(fd, state, &st);
+		close(fd);
+		free(new);
+		if (wrote != size)
+			return error("unable to write file %s", path);
+		break;
+	case S_IFGITLINK:
+		if (to_tempfile)
+			return error("cannot create temporary submodule %s", path);
+		if (mkdir(path, 0777) < 0)
+			return error("cannot create submodule directory %s", path);
+		break;
+	default:
+		return error("unknown file mode for %s in index", path);
+	}
+
+finish:
+	if (state->refresh_cache) {
+		assert(state->istate);
+		if (!fstat_done)
+			lstat(ce->name, &st);
+		fill_stat_cache_info(ce, &st);
+		ce->ce_flags |= CE_UPDATE_IN_BASE;
+		state->istate->cache_changed |= CE_ENTRY_CHANGED;
+	}
 	return 0;
 }

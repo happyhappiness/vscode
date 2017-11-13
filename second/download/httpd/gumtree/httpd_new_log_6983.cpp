@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE4, 0, s, APLOGNO(10019)
-                         "Missing unique per-server context: %s (%pp:%pp) (no hchecks)",
-                         s->server_hostname, s, ctx->s);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02900)
+                          "declining URL %s  (not %s, Upgrade: header is %s)", 
+                          url, upgrade_method, upgrade ? upgrade : "missing");

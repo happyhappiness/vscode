@@ -1,1 +1,1 @@
-printf("%s ", caller_name ? caller_name : sha1_to_hex(sha1));
+die("unable to generate diffstat for %s", one->path);

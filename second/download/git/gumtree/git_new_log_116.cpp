@@ -1,1 +1,1 @@
-xstrdup(srvc->host);
+die("create %s: zero <newvalue>", refname);

@@ -1,2 +1,1 @@
-warning("adding alternate object store: %s",
-					target.buf);
+fputs(_(env_hint), stderr);

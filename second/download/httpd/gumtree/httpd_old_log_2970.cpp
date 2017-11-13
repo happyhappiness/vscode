@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, f->r->server,
-                 "cache: CACHE filter was added twice, or was added in quick "
-    		     "handler mode and will be ignored.");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "[%" APR_PID_T_FMT "] auth_ldap authenticate: accepting %s", getpid(), user);

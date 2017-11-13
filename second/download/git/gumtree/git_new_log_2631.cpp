@@ -1,1 +1,1 @@
-error("%s", o->obuf.buf);
+error(_("Unable to write upstream branch configuration"));

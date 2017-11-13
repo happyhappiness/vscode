@@ -1,8 +1,14 @@
-puts(" -c/--cookie-jar <file> Write all cookies to this file after operation (H)\n"
-       " -C/--continue-at <offset> Specify absolute resume offset\n"
-       " -d/--data <data>   HTTP POST data (H)\n"
-       "    --data-ascii <data>   HTTP POST ASCII data (H)\n"
-       "    --data-binary <data>  HTTP POST binary data (H)\n"
-       " -D/--dump-header <file> Write the headers to this file\n"
-       "    --egd-file <file> EGD socket path for random data (SSL)\n"
-       " -e/--referer       Referer page (H)");
+puts(
+"     You should also be aware that many HTTP/1.1 servers  do  not\n"
+"     have this feature enabled, so that when you attempt to get a\n"
+"     range, you'll instead get the whole document.\n"
+"\n"
+"     FTP range downloads only support the simple  syntax  'start-\n"
+"     stop'  (optionally  with  one  of  the  numbers omitted). It\n"
+"     depends on the non-RFC command SIZE.\n"
+"\n"
+"     If this option is used several times, the last one  will  be\n"
+"     used.\n"
+"\n"
+"     -R/--remote-time\n"
+);

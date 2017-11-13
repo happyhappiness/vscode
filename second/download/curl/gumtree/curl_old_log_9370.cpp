@@ -1,11 +1,9 @@
 fputs(
-"              GET after a 30x response by  using  the  dedicated  options  for\n"
-"              that: --post301, --post302 and -post303.\n"
+"              (POP3) When retrieving a specific email from POP3,  this  switch\n"
+"              forces  a  LIST command to be performed instead of RETR. This is\n"
+"              particularly useful if the user wants to see if a specific  mes-\n"
+"              sage id exists on the server and what size it is.\n"
 "\n"
-"       --libcurl <file>\n"
-"              Append  this  option  to any ordinary curl command line, and you\n"
-"              will get a libcurl-using C source code written to the file  that\n"
-"              does the equivalent of what your command-line operation does!\n"
-"\n"
-"              If  this  option is used several times, the last given file name\n"
+"              Note:  When  combined  with -X, --request <command>, this option\n"
+"              can be used to send an UIDL command instead, so the user may use\n"
 , stdout);

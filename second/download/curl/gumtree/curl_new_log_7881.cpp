@@ -1,8 +1,10 @@
 fputs(
-"              has pressed the submit button. This causes  curl  to  POST  data\n"
-"              using  the  Content-Type  multipart/form-data  according  to RFC\n"
-"              2388. This enables uploading of binary files etc. To  force  the\n"
-"              'content'  part  to  be  a  file, prefix the file name with an @\n"
-"              sign. To just get the content part from a file, prefix the  file\n"
-"              name  with  the symbol <. The difference between @ and < is then\n"
+"              quotes. Within double quotes, the following escape sequences are\n"
+"              available:  \\\\, \\\", \\t, \\n, \\r and \\v. A backslash preceding any\n"
+"              other letter is ignored. If the first column of a config line is\n"
+"              a  '#' character, the rest of the line will be treated as a com-\n"
+"              ment. Only write one option per  physical  line  in  the  config\n"
+"              file.\n"
+"\n"
+"              Specify  the  filename  to -K, --config as '-' to make curl read\n"
 , stdout);

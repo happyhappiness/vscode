@@ -1,1 +1,1 @@
-fprintf(FINFO,"renaming %s to %s\n",fnametmp,fname);
+fprintf(FINFO,"%s/\n",fname);

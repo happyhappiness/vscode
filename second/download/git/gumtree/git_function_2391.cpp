@@ -1,23 +1,10 @@
-static int run_gpg_verify(const char *buf, unsigned long size, unsigned flags)
+static void show_result_list(struct merge_list *entry)
 {
-	struct signature_check sigc;
-	size_t payload_size;
-	int ret;
-
-	memset(&sigc, 0, sizeof(sigc));
-
-	payload_size = parse_signature(buf, size);
-
-	if (size == payload_size) {
-		if (flags & GPG_VERIFY_VERBOSE)
-			write_in_full(1, buf, payload_size);
-		return error("no signature found");
-	}
-
-	ret = check_signature(buf, payload_size, buf + payload_size,
-				size - payload_size, &sigc);
-	print_signature_buffer(&sigc, flags);
-
-	signature_check_clear(&sigc);
-	return ret;
+	printf("%s\n", explanation(entry));
+	do {
+		struct merge_list *link = entry->link;
+		static const char *desc[4] = { "result", "base", "our", "their" };
+		printf("  %-6s %o %s %s\n", desc[entry->stage], entry->mode, sha1_to_hex(entry->blob->object.sha1), entry->path);
+		entry = link;
+	} while (entry);
 }

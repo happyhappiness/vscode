@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, status, s, APLOGNO(01597)
-                     "could not open mime types config file %s.",
-                     types_confname);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00783)
+                "Cache already locked for stale cached URL, "
+                "pretend it is fresh: %s",
+                r->unparsed_uri);

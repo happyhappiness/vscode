@@ -1,1 +1,1 @@
-warnf(config->global, "Data size exceeds single call write limit!\n");
+warnf(global, "Remote filename has no length!\n");

@@ -1,70 +1,74 @@
-static apr_socket_t *send_request(BIO *request, const apr_uri_t *uri,
-                                  apr_interval_time_t timeout,
-                                  conn_rec *c, apr_pool_t *p)
+void mpm_signal_service(apr_pool_t *ptemp, int signal)
 {
-    apr_status_t rv;
-    apr_sockaddr_t *sa;
-    apr_socket_t *sd;
-    char buf[HUGE_STRING_LEN];
-    int len;
+    int success = FALSE;
+    SC_HANDLE   schService;
+    SC_HANDLE   schSCManager;
 
-    rv = apr_sockaddr_info_get(&sa, uri->hostname, APR_UNSPEC, uri->port, 0, p);
-    if (rv) {
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c, APLOGNO(01972)
-                      "could not resolve address of OCSP responder %s",
-                      uri->hostinfo);
-        return NULL;
+    schSCManager = OpenSCManager(NULL, NULL, /* default machine & database */
+                                 SC_MANAGER_CONNECT);
+
+    if (!schSCManager) {
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), NULL, APLOGNO(00379)
+                     "Failed to open the NT Service Manager");
+        return;
     }
 
-    /* establish a connection to the OCSP responder */
-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(01973)
-                  "connecting to OCSP responder '%s'", uri->hostinfo);
+    /* ###: utf-ize */
+    schService = OpenService(schSCManager, mpm_service_name,
+                             SERVICE_INTERROGATE | SERVICE_QUERY_STATUS |
+                             SERVICE_USER_DEFINED_CONTROL |
+                             SERVICE_START | SERVICE_STOP);
 
-    /* Cycle through address until a connect() succeeds. */
-    for (; sa; sa = sa->next) {
-        rv = apr_socket_create(&sd, sa->family, SOCK_STREAM, APR_PROTO_TCP, p);
-        if (rv == APR_SUCCESS) {
-            apr_socket_timeout_set(sd, timeout);
-
-            rv = apr_socket_connect(sd, sa);
-            if (rv == APR_SUCCESS) {
-                break;
-            }
-            apr_socket_close(sd);
-        }
+    if (schService == NULL) {
+        /* Could not open the service */
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), NULL, APLOGNO(00380)
+                     "Failed to open the %s Service", mpm_display_name);
+        CloseServiceHandle(schSCManager);
+        return;
     }
 
-    if (sa == NULL) {
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c, APLOGNO(01974)
-                      "could not connect to OCSP responder '%s'",
-                      uri->hostinfo);
-        return NULL;
+    if (!QueryServiceStatus(schService, &globdat.ssStatus)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), NULL, APLOGNO(00381)
+                     "Query of Service %s failed", mpm_display_name);
+        CloseServiceHandle(schService);
+        CloseServiceHandle(schSCManager);
+        return;
     }
 
-    /* send the request and get a response */
-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(01975)
-                 "sending request to OCSP responder");
-
-    while ((len = BIO_read(request, buf, sizeof buf)) > 0) {
-        char *wbuf = buf;
-        apr_size_t remain = len;
-
-        do {
-            apr_size_t wlen = remain;
-
-            rv = apr_socket_send(sd, wbuf, &wlen);
-            wbuf += remain;
-            remain -= wlen;
-        } while (rv == APR_SUCCESS && remain > 0);
-
-        if (rv) {
-            apr_socket_close(sd);
-            ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c, APLOGNO(01976)
-                          "failed to send request to OCSP responder '%s'",
-                          uri->hostinfo);
-            return NULL;
-        }
+    if (!signal && (globdat.ssStatus.dwCurrentState == SERVICE_STOPPED)) {
+        fprintf(stderr,"The %s service is not started.\n", mpm_display_name);
+        CloseServiceHandle(schService);
+        CloseServiceHandle(schSCManager);
+        return;
     }
 
-    return sd;
+    fprintf(stderr,"The %s service is %s.\n", mpm_display_name,
+            signal ? "restarting" : "stopping");
+
+    if (!signal)
+        success = signal_service_transition(schService,
+                                            SERVICE_CONTROL_STOP,
+                                            SERVICE_STOP_PENDING,
+                                            SERVICE_STOPPED);
+    else if (globdat.ssStatus.dwCurrentState == SERVICE_STOPPED) {
+        mpm_service_start(ptemp, 0, NULL);
+        CloseServiceHandle(schService);
+        CloseServiceHandle(schSCManager);
+        return;
+    }
+    else
+        success = signal_service_transition(schService,
+                                            SERVICE_APACHE_RESTART,
+                                            SERVICE_START_PENDING,
+                                            SERVICE_RUNNING);
+
+    CloseServiceHandle(schService);
+    CloseServiceHandle(schSCManager);
+
+    if (success)
+        fprintf(stderr,"The %s service has %s.\n", mpm_display_name,
+               signal ? "restarted" : "stopped");
+    else
+        fprintf(stderr,"Failed to %s the %s service.\n",
+               signal ? "restart" : "stop", mpm_display_name);
 }

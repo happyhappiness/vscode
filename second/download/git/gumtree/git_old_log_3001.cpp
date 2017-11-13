@@ -1,2 +1,2 @@
-error("poll failed, resuming: %s",
-				      strerror(errno));
+fputs("fatal: recursion detected in die_errno handler\n",
+			stderr);

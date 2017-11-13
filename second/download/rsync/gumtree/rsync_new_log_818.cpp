@@ -1,1 +1,1 @@
-out_of_memory("print_rsync_version");
+out_of_memory("bitbag_set_bit");

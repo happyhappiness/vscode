@@ -1,1 +1,2 @@
-out_of_memory("open_socket_out_wrapped");
+fprintf(stderr, "failed to read xattr %s for %s: %s\n",
+			XSTAT_ATTR, fname, strerror(errno));

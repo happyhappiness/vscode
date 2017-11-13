@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01562)
-            "meta file permissions deny server access: %s", metafilename);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02080)
+                     "Unable to move file: %s -> %s", path,
+                     ctx->storage_path);

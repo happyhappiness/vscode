@@ -1,1 +1,1 @@
-die("cannot handle pushes this big");
+die(_("could not lookup name for submodule '%s'"), path);

@@ -1,1 +1,1 @@
-warning("%s has multiple values", key);
+printf("  uid: %d\tgid: %d\n", sd->sd_uid, sd->sd_gid);

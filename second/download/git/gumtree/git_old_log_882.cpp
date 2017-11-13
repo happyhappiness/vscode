@@ -1,1 +1,1 @@
-warning("Duplicated ref: %s", ref1->name);
+die("Not a git repository: %s", dir);

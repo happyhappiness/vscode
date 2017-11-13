@@ -1,55 +1,64 @@
-static void socache_mc_status(ap_socache_instance_t *ctx, request_rec *r, int flags)
+static authz_status
+forward_dns_check_authorization(request_rec *r,
+                                const char *require_line,
+                                const void *parsed_require_line)
 {
-    apr_memcache_t *rc = ctx->mc;
-    int i;
+    const char *err = NULL;
+    const ap_expr_info_t *expr = parsed_require_line;
+    const char *require, *t;
+    char *w;
 
-    for (i = 0; i < rc->ntotal; i++) {
-        apr_memcache_server_t *ms;
-        apr_memcache_stats_t *stats;
+    /* the require line is an expression, which is evaluated now. */
+    require = ap_expr_str_exec(r, expr, &err);
+    if (err) {
+      ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(03354)
+                    "Can't evaluate require expression: %s", err);
+      return AUTHZ_DENIED;
+    }
+
+    /* tokenize expected list of names */
+    t = require;
+    while ((w = ap_getword_conf(r->pool, &t)) && w[0]) {
+
+        apr_sockaddr_t *sa;
         apr_status_t rv;
-        char *br = (!(flags & AP_STATUS_SHORT) ? "<br />" : "");
+        char *hash_ptr;
 
-        ms = rc->live_servers[i];
+        /* stop on apache configuration file comments */
+        if ((hash_ptr = ap_strchr(w, '#'))) {
+            if (hash_ptr == w) {
+                break;
+            }
+            *hash_ptr = '\0';
+        }
 
-        ap_rprintf(r, "Memcached server: %s:%d [%s]%s\n", ms->host, (int)ms->port,
-                (ms->status == APR_MC_SERVER_LIVE) ? "Up" : "Down",
-                br);
-        rv = apr_memcache_stats(ms, r->pool, &stats);
-        if (rv != APR_SUCCESS)
-            continue;
-        if (!(flags & AP_STATUS_SHORT)) {
-            ap_rprintf(r, "<b>Version:</b> <i>%s</i> [%u bits], PID: <i>%u</i>, Uptime: <i>%u hrs</i> <br />\n",
-                    stats->version , stats->pointer_size, stats->pid, stats->uptime/3600);
-            ap_rprintf(r, "<b>Clients::</b> Structures: <i>%u</i>, Total: <i>%u</i>, Current: <i>%u</i> <br />\n",
-                    stats->connection_structures, stats->total_connections, stats->curr_connections);
-            ap_rprintf(r, "<b>Storage::</b> Total Items: <i>%u</i>, Current Items: <i>%u</i>, Bytes: <i>%" APR_UINT64_T_FMT "</i> <br />\n",
-                    stats->total_items, stats->curr_items, stats->bytes);
-            ap_rprintf(r, "<b>CPU::</b> System: <i>%u</i>, User: <i>%u</i> <br />\n",
-                    (unsigned)stats->rusage_system, (unsigned)stats->rusage_user );
-            ap_rprintf(r, "<b>Cache::</b> Gets: <i>%u</i>, Sets: <i>%u</i>, Hits: <i>%u</i>, Misses: <i>%u</i> <br />\n",
-                    stats->cmd_get, stats->cmd_set, stats->get_hits, stats->get_misses);
-            ap_rprintf(r, "<b>Net::</b> Input bytes: <i>%" APR_UINT64_T_FMT "</i>, Output bytes: <i>%" APR_UINT64_T_FMT "</i> <br />\n",
-                    stats->bytes_read, stats->bytes_written);
-            ap_rprintf(r, "<b>Misc::</b> Evictions: <i>%" APR_UINT64_T_FMT "</i>, MaxMem: <i>%u</i>, Threads: <i>%u</i> <br />\n",
-                    stats->evictions, stats->limit_maxbytes, stats->threads);
-            ap_rputs("<hr><br />\n", r);
+        /* does the client ip match one of the names? */
+        rv = apr_sockaddr_info_get(&sa, w, APR_UNSPEC, 0, 0, r->pool);
+        if (rv == APR_SUCCESS) {
+
+            while (sa) {
+                int match = apr_sockaddr_equal(sa, r->useragent_addr);
+
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03355)
+                              "access check for %s as '%s': %s",
+                              r->useragent_ip, w, match? "yes": "no");
+                if (match) {
+                    return AUTHZ_GRANTED;
+                }
+
+                sa = sa->next;
+            }
         }
         else {
-            ap_rprintf(r, "Version: %s [%u bits], PID: %u, Uptime: %u hrs %s\n",
-                    stats->version , stats->pointer_size, stats->pid, stats->uptime/3600, br);
-            ap_rprintf(r, "Clients:: Structures: %d, Total: %d, Current: %u %s\n",
-                    stats->connection_structures, stats->total_connections, stats->curr_connections, br);
-            ap_rprintf(r, "Storage:: Total Items: %u, Current Items: %u, Bytes: %" APR_UINT64_T_FMT " %s\n",
-                    stats->total_items, stats->curr_items, stats->bytes, br);
-            ap_rprintf(r, "CPU:: System: %u, User: %u %s\n",
-                    (unsigned)stats->rusage_system, (unsigned)stats->rusage_user , br);
-            ap_rprintf(r, "Cache:: Gets: %u, Sets: %u, Hits: %u, Misses: %u %s\n",
-                    stats->cmd_get, stats->cmd_set, stats->get_hits, stats->get_misses, br);
-            ap_rprintf(r, "Net:: Input bytes: %" APR_UINT64_T_FMT ", Output bytes: %" APR_UINT64_T_FMT " %s\n",
-                    stats->bytes_read, stats->bytes_written, br);
-            ap_rprintf(r, "Misc:: Evictions: %" APR_UINT64_T_FMT ", MaxMem: %u, Threads: %u %s\n",
-                    stats->evictions, stats->limit_maxbytes, stats->threads, br);
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(03356)
+                          "No sockaddr info for \"%s\"", w);
+        }
+
+        /* stop processing, we are in a comment */
+        if (hash_ptr) {
+            break;
         }
     }
 
+    return AUTHZ_DENIED;
 }

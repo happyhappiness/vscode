@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01688)
-                      "Authn cache: found credentials for %s", user);
+ap_rvputs(r, "<td>", ap_escape_html(r->pool, worker->s->route),
+                          NULL);

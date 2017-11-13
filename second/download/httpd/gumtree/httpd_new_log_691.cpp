@@ -1,1 +1,1 @@
-ap_rputs("</td><td>", r);
+ap_rputs(":&nbsp;", r);

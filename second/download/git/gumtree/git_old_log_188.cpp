@@ -1,1 +1,1 @@
-fprintf(output, fmt, sb.buf);
+die("git diff-tree: internal error");

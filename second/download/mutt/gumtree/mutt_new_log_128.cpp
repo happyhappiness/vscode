@@ -1,1 +1,1 @@
-mutt_window_mvprintw (MuttIndexWindow, line, 0, TITLE_FMT, Prompts[line]);
+fprintf (fout, "X-Mutt-Resume-Draft: 1\n");

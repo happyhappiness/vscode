@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, result, s, APLOGNO(01515)
-                     MODNAME ": can't read magic file %s", fname);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL, APLOGNO(01576)
+                 "loaded file %s", filename);

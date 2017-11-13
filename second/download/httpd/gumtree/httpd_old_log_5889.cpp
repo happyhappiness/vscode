@@ -1,4 +1,2 @@
-ap_rvputs(r, "<a href=\"", ap_escape_uri(r->pool, r->uri), "?b=",
-                      balancer->s->name + sizeof(BALANCER_PREFIX) - 1,
-                      "&nonce=", balancer->s->nonce,
-                      "\">", NULL);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c, 
+                          "h2_h2, processing request directly");

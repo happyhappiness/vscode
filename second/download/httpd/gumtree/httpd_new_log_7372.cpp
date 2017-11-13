@@ -1,2 +1,2 @@
-ap_rvputs(r, "<dt>Server Built: ",
-                  ap_get_server_built(), "</dt>\n", NULL);
+ap_rvputs(r, "<dt>Balancer changes will ", conf->bal_persist ? "" : "NOT ",
+                  "be persisted on restart.</dt>", NULL);

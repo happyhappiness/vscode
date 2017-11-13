@@ -1,24 +1,24 @@
-char *git_prompt(const char *prompt, int flags)
+int ref_transaction_abort(struct ref_transaction *transaction,
+			  struct strbuf *err)
 {
-	char *r = NULL;
+	struct ref_store *refs = transaction->ref_store;
+	int ret = 0;
 
-	if (flags & PROMPT_ASKPASS) {
-		const char *askpass;
-
-		askpass = getenv("GIT_ASKPASS");
-		if (!askpass)
-			askpass = askpass_program;
-		if (!askpass)
-			askpass = getenv("SSH_ASKPASS");
-		if (askpass && *askpass)
-			r = do_askpass(askpass, prompt);
+	switch (transaction->state) {
+	case REF_TRANSACTION_OPEN:
+		/* No need to abort explicitly. */
+		break;
+	case REF_TRANSACTION_PREPARED:
+		ret = refs->be->transaction_abort(refs, transaction, err);
+		break;
+	case REF_TRANSACTION_CLOSED:
+		die("BUG: abort called on a closed reference transaction");
+		break;
+	default:
+		die("BUG: unexpected reference transaction state");
+		break;
 	}
 
-	if (!r)
-		r = git_terminal_prompt(prompt, flags & PROMPT_ECHO);
-	if (!r) {
-		/* prompts already contain ": " at the end */
-		die("could not read %s%s", prompt, strerror(errno));
-	}
-	return r;
+	ref_transaction_free(transaction);
+	return ret;
 }

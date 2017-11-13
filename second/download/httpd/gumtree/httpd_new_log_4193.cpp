@@ -1,2 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, outctx->c,
-                      "output bio: unhandled control %d", cmd);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(00876)
+                              "send failed to %pI (%s)",
+                              conn->worker->cp->addr,
+                              conn->worker->s->hostname);

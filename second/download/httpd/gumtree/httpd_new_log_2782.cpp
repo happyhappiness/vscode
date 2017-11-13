@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_SUCCESS, r, APLOGNO(01627)
-                          "AuthType configured with no corresponding "
-                          "authorization directives");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                          "proxy: SSL cleanup brigade contained %"
+                          APR_OFF_T_FMT " bytes of data.", len);

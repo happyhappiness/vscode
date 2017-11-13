@@ -1,9 +1,10 @@
 fputs(
-"              fig  file  is a text file in which command line arguments can be\n"
-"              written which then will be used as if they were written  on  the\n"
-"              actual command line.\n"
+"              (SCP/SFTP)  Pass  a string containing 32 hexadecimal digits. The\n"
+"              string should be the 128 bit MD5 checksum of the  remote  host's\n"
+"              public key, curl will refuse the connection with the host unless\n"
+"              the md5sums match. (Added in 7.17.1)\n"
 "\n"
-"              Options  and their parameters must be specified on the same con-\n"
-"              fig file line, separated by whitespace,  colon,  or  the  equals\n"
-"              sign.  Long  option  names can optionally be given in the config\n"
+"       --ignore-content-length\n"
+"              (HTTP) Ignore the Content-Length header.  This  is  particularly\n"
+"              useful  for servers running Apache 1.x, which will report incor-\n"
 , stdout);

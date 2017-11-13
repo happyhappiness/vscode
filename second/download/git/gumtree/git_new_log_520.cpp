@@ -1,1 +1,1 @@
-die(_("too-short tree file"));
+die_want_option("--stat-graph-width");

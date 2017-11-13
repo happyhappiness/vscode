@@ -1,1 +1,1 @@
-fprintf(stderr,"done hash search\n");
+fprintf(stderr,"chdir %s : %s\n",name,strerror(errno));

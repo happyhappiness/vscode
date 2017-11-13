@@ -1,53 +1,28 @@
-static int authenticate_basic_fake(request_rec *r)
+static int task_print(void *ctx, void *val)
 {
-    const char *auth_line, *user, *pass, *err;
-    auth_basic_config_rec *conf = ap_get_module_config(r->per_dir_config,
-                                                       &auth_basic_module);
+    h2_mplx *m = ctx;
+    h2_task *task = val;
 
-    if (!conf->fakeuser) {
-        return DECLINED;
+    if (task && task->request) {
+        h2_stream *stream = h2_ihash_get(m->streams, task->stream_id);
+
+        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, /* NO APLOGNO */
+                      "->03198: h2_stream(%s): %s %s %s -> %s %d"
+                      "[orph=%d/started=%d/done=%d]", 
+                      task->id, task->request->method, 
+                      task->request->authority, task->request->path,
+                      task->response? "http" : (task->rst_error? "reset" : "?"),
+                      task->response? task->response->http_status : task->rst_error,
+                      (stream? 0 : 1), task->worker_started, 
+                      task->worker_done);
     }
-
-    user = ap_expr_str_exec(r, conf->fakeuser, &err);
-    if (err) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02455)
-                      "AuthBasicFake: could not evaluate user expression for URI '%s': %s", r->uri, err);
-        return HTTP_INTERNAL_SERVER_ERROR;
+    else if (task) {
+        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, /* NO APLOGNO */
+                      "->03198: h2_stream(%ld-%d): NULL", m->id, task->stream_id);
     }
-    if (!user || !*user) {
-        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02458)
-                      "AuthBasicFake: empty username expression for URI '%s', ignoring", r->uri);
-
-        apr_table_unset(r->headers_in, "Authorization");
-
-        return DECLINED;
+    else {
+        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, /* NO APLOGNO */
+                      "->03198: h2_stream(%ld-NULL): NULL", m->id);
     }
-
-    pass = ap_expr_str_exec(r, conf->fakepass, &err);
-    if (err) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02456)
-                      "AuthBasicFake: could not evaluate password expression for URI '%s': %s", r->uri, err);
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-    if (!pass || !*pass) {
-        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02459)
-                      "AuthBasicFake: empty password expression for URI '%s', ignoring", r->uri);
-
-        apr_table_unset(r->headers_in, "Authorization");
-
-        return DECLINED;
-    }
-
-    auth_line = apr_pstrcat(r->pool, "Basic ",
-                            ap_pbase64encode(r->pool,
-                                             apr_pstrcat(r->pool, user,
-                                                         ":", pass, NULL)),
-                            NULL);
-    apr_table_setn(r->headers_in, "Authorization", auth_line);
-
-    ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02457)
-                  "AuthBasicFake: \"Authorization: %s\"",
-                  auth_line);
-
-    return OK;
+    return 1;
 }

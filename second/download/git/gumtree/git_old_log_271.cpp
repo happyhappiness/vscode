@@ -1,1 +1,2 @@
-die(_("Failed to resolve '%s' as a valid ref."), object_ref);
+error(_("binary patch to '%s' creates incorrect result (expecting %s, got %s)"),
+				name, patch->new_sha1_prefix, sha1_to_hex(sha1));

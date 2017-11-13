@@ -1,1 +1,1 @@
-fputs(buf.buf, stderr);
+error(_("invalid key: %s"), key);

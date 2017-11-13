@@ -1,9 +1,11 @@
 fputs(
-"              ation will be aborted. You must send syntactically  correct  FTP\n"
-"              commands  as  RFC 959 defines to FTP servers, or one of the com-\n"
-"              mands listed below to SFTP servers.  This  option  can  be  used\n"
-"              multiple  times. When speaking to an FTP server, prefix the com-\n"
-"              mand with an asterisk (*) to make curl continue even if the com-\n"
-"              mand fails as by default curl will stop at first failure.\n"
+"              Use  the  specified  HTTP  1.0  proxy. If the port number is not\n"
+"              specified, it is assumed at port 1080.\n"
 "\n"
+"              The only difference between this and the HTTP proxy option  (-x,\n"
+"              --proxy), is that attempts to use CONNECT through the proxy will\n"
+"              specify an HTTP 1.0 protocol instead of the default HTTP 1.1.\n"
+"\n"
+"       --pubkey <key>\n"
+"              (SSH) Public key file name. Allows you to  provide  your  public\n"
 , stdout);

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
-                 "ldap cache: Setting cache TTL to %ld microseconds.",
-                 st->search_cache_ttl);
+ap_log_error(APLOG_MARK, APLOG_WARNING, APR_EBADPATH, cmd->server,
+                     "mod_file_cache: invalid file path "
+                     "%s, skipping", filename);

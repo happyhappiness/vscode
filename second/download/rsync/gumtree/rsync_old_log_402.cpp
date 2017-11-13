@@ -1,1 +1,1 @@
-fprintf(FINFO,"done\n");
+fprintf(FERROR,"out of memory in %s\n",str);

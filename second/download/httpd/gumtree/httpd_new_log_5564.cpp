@@ -1,2 +1,7 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                      "h2_task(%s): create request_rec failed, r=NULL", task->id);
+ap_rputs("<hr>\n"
+             "<table cellspacing=0 cellpadding=0>\n"
+             "<tr><td bgcolor=\"#000000\">\n"
+             "<b><font color=\"#ffffff\" face=\"Arial,Helvetica\">"
+             "mod_cache_socache Status:</font></b>\n"
+             "</td></tr>\n"
+             "<tr><td bgcolor=\"#ffffff\">\n", r);

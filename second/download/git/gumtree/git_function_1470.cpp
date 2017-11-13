@@ -1,74 +1,116 @@
-int main(int argc, char **argv)
+static const char *real_path_internal(const char *path, int die_on_error)
 {
-	struct strbuf all_msgs = STRBUF_INIT;
-	int total;
-	int nongit_ok;
+	static char bufs[2][PATH_MAX + 1], *buf = bufs[0], *next_buf = bufs[1];
+	char *retval = NULL;
 
-	git_extract_argv0_path(argv[0]);
+	/*
+	 * If we have to temporarily chdir(), store the original CWD
+	 * here so that we can chdir() back to it at the end of the
+	 * function:
+	 */
+	char cwd[1024] = "";
 
-	git_setup_gettext();
+	int buf_index = 1;
 
-	setup_git_directory_gently(&nongit_ok);
-	git_imap_config();
+	int depth = MAXDEPTH;
+	char *last_elem = NULL;
+	struct stat st;
 
-	argc = parse_options(argc, (const char **)argv, "", imap_send_options, imap_send_usage, 0);
+	/* We've already done it */
+	if (path == buf || path == next_buf)
+		return path;
 
-	if (argc)
-		usage_with_options(imap_send_usage, imap_send_options);
-
-#ifndef USE_CURL_FOR_IMAP_SEND
-	if (use_curl) {
-		warning("--curl not supported in this build");
-		use_curl = 0;
+	if (!*path) {
+		if (die_on_error)
+			die("The empty string is not a valid path");
+		else
+			goto error_out;
 	}
-#elif defined(NO_OPENSSL)
-	if (!use_curl) {
-		warning("--no-curl not supported in this build");
-		use_curl = 1;
-	}
-#endif
 
-	if (!server.port)
-		server.port = server.use_ssl ? 993 : 143;
-
-	if (!server.folder) {
-		fprintf(stderr, "no imap store specified\n");
-		return 1;
+	if (strlcpy(buf, path, PATH_MAX) >= PATH_MAX) {
+		if (die_on_error)
+			die("Too long path: %.*s", 60, path);
+		else
+			goto error_out;
 	}
-	if (!server.host) {
-		if (!server.tunnel) {
-			fprintf(stderr, "no imap host specified\n");
-			return 1;
+
+	while (depth--) {
+		if (!is_directory(buf)) {
+			char *last_slash = find_last_dir_sep(buf);
+			if (last_slash) {
+				last_elem = xstrdup(last_slash + 1);
+				last_slash[1] = '\0';
+			} else {
+				last_elem = xstrdup(buf);
+				*buf = '\0';
+			}
 		}
-		server.host = "tunnel";
+
+		if (*buf) {
+			if (!*cwd && !getcwd(cwd, sizeof(cwd))) {
+				if (die_on_error)
+					die_errno("Could not get current working directory");
+				else
+					goto error_out;
+			}
+
+			if (chdir(buf)) {
+				if (die_on_error)
+					die_errno("Could not switch to '%s'", buf);
+				else
+					goto error_out;
+			}
+		}
+		if (!getcwd(buf, PATH_MAX)) {
+			if (die_on_error)
+				die_errno("Could not get current working directory");
+			else
+				goto error_out;
+		}
+
+		if (last_elem) {
+			size_t len = strlen(buf);
+			if (len + strlen(last_elem) + 2 > PATH_MAX) {
+				if (die_on_error)
+					die("Too long path name: '%s/%s'",
+					    buf, last_elem);
+				else
+					goto error_out;
+			}
+			if (len && !is_dir_sep(buf[len - 1]))
+				buf[len++] = '/';
+			strcpy(buf + len, last_elem);
+			free(last_elem);
+			last_elem = NULL;
+		}
+
+		if (!lstat(buf, &st) && S_ISLNK(st.st_mode)) {
+			ssize_t len = readlink(buf, next_buf, PATH_MAX);
+			if (len < 0) {
+				if (die_on_error)
+					die_errno("Invalid symlink '%s'", buf);
+				else
+					goto error_out;
+			}
+			if (PATH_MAX <= len) {
+				if (die_on_error)
+					die("symbolic link too long: %s", buf);
+				else
+					goto error_out;
+			}
+			next_buf[len] = '\0';
+			buf = next_buf;
+			buf_index = 1 - buf_index;
+			next_buf = bufs[buf_index];
+		} else
+			break;
 	}
 
-	/* read the messages */
-	if (read_message(stdin, &all_msgs)) {
-		fprintf(stderr, "error reading input\n");
-		return 1;
-	}
+	retval = buf;
+error_out:
+	free(last_elem);
+	if (*cwd && chdir(cwd))
+		die_errno("Could not change back to '%s'", cwd);
 
-	if (all_msgs.len == 0) {
-		fprintf(stderr, "nothing to send\n");
-		return 1;
-	}
-
-	total = count_messages(&all_msgs);
-	if (!total) {
-		fprintf(stderr, "no messages to send\n");
-		return 1;
-	}
-
-	/* write it to the imap server */
-
-	if (server.tunnel)
-		return append_msgs_to_imap(&server, &all_msgs, total);
-
-#ifdef USE_CURL_FOR_IMAP_SEND
-	if (use_curl)
-		return curl_append_msgs_to_imap(&server, &all_msgs, total);
-#endif
-
-	return append_msgs_to_imap(&server, &all_msgs, total);
+	return retval;
 }

@@ -1,110 +1,103 @@
-static void check_args(apr_pool_t *pool, int argc, const char *const argv[], 
-                       int *alg, int *mask, char **user, char **pwfilename, 
-                       char **password)
+static void set_signals(void)
 {
-    const char *arg;
-    int args_left = 2;
-    int i;
+#ifndef NO_USE_SIGACTION
+    struct sigaction sa;
 
-    /*
-     * Preliminary check to make sure they provided at least
-     * three arguments, we'll do better argument checking as 
-     * we parse the command line.
-     */
-    if (argc < 3) {
-        usage();
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+
+    if (!one_process) {
+	sa.sa_handler = sig_coredump;
+#if defined(SA_ONESHOT)
+	sa.sa_flags = SA_ONESHOT;
+#elif defined(SA_RESETHAND)
+	sa.sa_flags = SA_RESETHAND;
+#endif
+	if (sigaction(SIGSEGV, &sa, NULL) < 0)
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGSEGV)");
+#ifdef SIGBUS
+	if (sigaction(SIGBUS, &sa, NULL) < 0)
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGBUS)");
+#endif
+#ifdef SIGABORT
+	if (sigaction(SIGABORT, &sa, NULL) < 0)
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGABORT)");
+#endif
+#ifdef SIGABRT
+	if (sigaction(SIGABRT, &sa, NULL) < 0)
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGABRT)");
+#endif
+#ifdef SIGILL
+	if (sigaction(SIGILL, &sa, NULL) < 0)
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGILL)");
+#endif
+	sa.sa_flags = 0;
+    }
+    sa.sa_handler = sig_term;
+    if (sigaction(SIGTERM, &sa, NULL) < 0)
+	ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGTERM)");
+#ifdef SIGINT
+    if (sigaction(SIGINT, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGINT)");
+#endif
+#ifdef SIGXCPU
+    sa.sa_handler = SIG_DFL;
+    if (sigaction(SIGXCPU, &sa, NULL) < 0)
+	ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGXCPU)");
+#endif
+#ifdef SIGXFSZ
+    sa.sa_handler = SIG_DFL;
+    if (sigaction(SIGXFSZ, &sa, NULL) < 0)
+	ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGXFSZ)");
+#endif
+#ifdef SIGPIPE
+    sa.sa_handler = SIG_IGN;
+    if (sigaction(SIGPIPE, &sa, NULL) < 0)
+	ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGPIPE)");
+#endif
+
+    /* we want to ignore HUPs and AP_SIG_GRACEFUL while we're busy 
+     * processing one */
+    sigaddset(&sa.sa_mask, SIGHUP);
+    sigaddset(&sa.sa_mask, AP_SIG_GRACEFUL);
+    sa.sa_handler = restart;
+    if (sigaction(SIGHUP, &sa, NULL) < 0)
+	ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGHUP)");
+    if (sigaction(AP_SIG_GRACEFUL, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(" AP_SIG_GRACEFUL_STRING ")");
+#else
+    if (!one_process) {
+	apr_signal(SIGSEGV, sig_coredump);
+#ifdef SIGBUS
+	apr_signal(SIGBUS, sig_coredump);
+#endif /* SIGBUS */
+#ifdef SIGABORT
+	apr_signal(SIGABORT, sig_coredump);
+#endif /* SIGABORT */
+#ifdef SIGABRT
+	apr_signal(SIGABRT, sig_coredump);
+#endif /* SIGABRT */
+#ifdef SIGILL
+	apr_signal(SIGILL, sig_coredump);
+#endif /* SIGILL */
+#ifdef SIGXCPU
+	apr_signal(SIGXCPU, SIG_DFL);
+#endif /* SIGXCPU */
+#ifdef SIGXFSZ
+	apr_signal(SIGXFSZ, SIG_DFL);
+#endif /* SIGXFSZ */
     }
 
-    /*
-     * Go through the argument list and pick out any options.  They
-     * have to precede any other arguments.
-     */
-    for (i = 1; i < argc; i++) {
-        arg = argv[i];
-        if (*arg != '-') {
-            break;
-        }
-        while (*++arg != '\0') {
-            if (*arg == 'c') {
-                *mask |= APHTP_NEWFILE;
-            }
-            else if (*arg == 'n') {
-                *mask |= APHTP_NOFILE;
-                args_left--;
-            }
-            else if (*arg == 'm') {
-                *alg = ALG_APMD5;
-            }
-            else if (*arg == 's') {
-                *alg = ALG_APSHA;
-            }
-            else if (*arg == 'p') {
-                *alg = ALG_PLAIN;
-            }
-            else if (*arg == 'd') {
-                *alg = ALG_CRYPT;
-            }
-            else if (*arg == 'b') {
-                *mask |= APHTP_NONINTERACTIVE;
-                args_left++;
-            }
-            else if (*arg == 'D') {
-                *mask |= APHTP_DELUSER;
-            }
-            else {
-                usage();
-            }
-        }
-    }
+    apr_signal(SIGTERM, sig_term);
+#ifdef SIGHUP
+    apr_signal(SIGHUP, restart);
+#endif /* SIGHUP */
+#ifdef AP_SIG_GRACEFUL
+    apr_signal(AP_SIG_GRACEFUL, restart);
+#endif /* AP_SIG_GRACEFUL */
+#ifdef SIGPIPE
+    apr_signal(SIGPIPE, SIG_IGN);
+#endif /* SIGPIPE */
 
-    if ((*mask & APHTP_NEWFILE) && (*mask & APHTP_NOFILE)) {
-        apr_file_printf(errfile, "%s: -c and -n options conflict\n", argv[0]);
-        exit(ERR_SYNTAX);
-    }
-    if ((*mask & APHTP_NEWFILE) && (*mask & APHTP_DELUSER)) {
-        apr_file_printf(errfile, "%s: -c and -D options conflict\n", argv[0]);
-        exit(ERR_SYNTAX);
-    }
-    if ((*mask & APHTP_NOFILE) && (*mask & APHTP_DELUSER)) {
-        apr_file_printf(errfile, "%s: -n and -D options conflict\n", argv[0]);
-        exit(ERR_SYNTAX);
-    }
-    /*
-     * Make sure we still have exactly the right number of arguments left
-     * (the filename, the username, and possibly the password if -b was
-     * specified).
-     */
-    if ((argc - i) != args_left) {
-        usage();
-    }
-
-    if (*mask & APHTP_NOFILE) {
-        i--;
-    }
-    else {
-        if (strlen(argv[i]) > (APR_PATH_MAX - 1)) {
-            apr_file_printf(errfile, "%s: filename too long\n", argv[0]);
-            exit(ERR_OVERFLOW);
-        }
-        *pwfilename = apr_pstrdup(pool, argv[i]);
-        if (strlen(argv[i + 1]) > (MAX_STRING_LEN - 1)) {
-            apr_file_printf(errfile, "%s: username too long (> %d)\n",
-                argv[0], MAX_STRING_LEN - 1);
-            exit(ERR_OVERFLOW);
-        }
-    }
-    *user = apr_pstrdup(pool, argv[i + 1]);
-    if ((arg = strchr(*user, ':')) != NULL) {
-        apr_file_printf(errfile, "%s: username contains illegal "
-                        "character '%c'\n", argv[0], *arg);
-        exit(ERR_BADUSER);
-    }
-    if (*mask & APHTP_NONINTERACTIVE) {
-        if (strlen(argv[i + 2]) > (MAX_STRING_LEN - 1)) {
-            apr_file_printf(errfile, "%s: password too long (> %d)\n",
-                argv[0], MAX_STRING_LEN);
-            exit(ERR_OVERFLOW);
-        }
-        *password = apr_pstrdup(pool, argv[i + 2]);
-    }
+#endif
 }

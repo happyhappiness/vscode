@@ -1,2 +1,1 @@
-rprintf(FINFO,"generator starting pid=%d count=%d\n",
-	    (int)getpid(),flist->count);
+rprintf(FINFO,"got file_sum\n");

@@ -1,69 +1,51 @@
-static authz_status dbmgroup_check_authorization(request_rec *r,
-                                             const char *require_args)
+static void usage(const char *progname)
 {
-    authz_dbm_config_rec *conf = ap_get_module_config(r->per_dir_config,
-                                                      &authz_dbm_module);
-    char *user = r->user;
-    const char *t;
-    char *w;
-    const char *orig_groups = NULL;
-    const char *realm = ap_auth_name(r);
-    const char *groups;
-    char *v;
-
-    if (!user) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-            "access to %s failed, reason: no authenticated user", r->uri);
-        return AUTHZ_DENIED;
-    }
-
-    if (!conf->grpfile) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                        "No group file was specified in the configuration");
-        return AUTHZ_DENIED;
-    }
-
-    /* fetch group data from dbm file only once. */
-    if (!orig_groups) {
-        apr_status_t status;
-
-        status = get_dbm_grp(r, apr_pstrcat(r->pool, user, ":", realm, NULL),
-                             user, conf->grpfile, conf->dbmtype, &groups);
-
-        if (status != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                          "could not open dbm (type %s) group access "
-                          "file: %s", conf->dbmtype, conf->grpfile);
-            return AUTHZ_GENERAL_ERROR;
-        }
-
-        if (groups == NULL) {
-            /* no groups available, so exit immediately */
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Authorization of user %s to access %s failed, reason: "
-                          "user doesn't appear in DBM group file (%s).", 
-                          r->user, r->uri, conf->grpfile);
-            return AUTHZ_DENIED;
-        }
-
-        orig_groups = groups;
-    }
-
-    t = require_args;
-    while ((w = ap_getword_white(r->pool, &t)) && w[0]) {
-        groups = orig_groups;
-        while (groups[0]) {
-            v = ap_getword(r->pool, &groups, ',');
-            if (!strcmp(v, w)) {
-                return AUTHZ_GRANTED;
-            }
-        }
-    }
-
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                  "Authorization of user %s to access %s failed, reason: "
-                  "user is not part of the 'require'ed group(s).",
-                  r->user, r->uri);
-
-    return AUTHZ_DENIED;
+    fprintf(stderr, "Usage: %s [options] [http"
+#ifdef USE_SSL
+        "[s]"
+#endif
+        "://]hostname[:port]/path\n", progname);
+/* 80 column ruler:  ********************************************************************************
+ */
+    fprintf(stderr, "Options are:\n");
+    fprintf(stderr, "    -n requests     Number of requests to perform\n");
+    fprintf(stderr, "    -c concurrency  Number of multiple requests to make\n");
+    fprintf(stderr, "    -t timelimit    Seconds to max. wait for responses\n");
+    fprintf(stderr, "    -b windowsize   Size of TCP send/receive buffer, in bytes\n");
+    fprintf(stderr, "    -p postfile     File containing data to POST. Remember also to set -T\n");
+    fprintf(stderr, "    -u putfile      File containing data to PUT. Remember also to set -T\n");
+    fprintf(stderr, "    -T content-type Content-type header for POSTing, eg.\n");
+    fprintf(stderr, "                    'application/x-www-form-urlencoded'\n");
+    fprintf(stderr, "                    Default is 'text/plain'\n");
+    fprintf(stderr, "    -v verbosity    How much troubleshooting info to print\n");
+    fprintf(stderr, "    -w              Print out results in HTML tables\n");
+    fprintf(stderr, "    -i              Use HEAD instead of GET\n");
+    fprintf(stderr, "    -x attributes   String to insert as table attributes\n");
+    fprintf(stderr, "    -y attributes   String to insert as tr attributes\n");
+    fprintf(stderr, "    -z attributes   String to insert as td or th attributes\n");
+    fprintf(stderr, "    -C attribute    Add cookie, eg. 'Apache=1234. (repeatable)\n");
+    fprintf(stderr, "    -H attribute    Add Arbitrary header line, eg. 'Accept-Encoding: gzip'\n");
+    fprintf(stderr, "                    Inserted after all normal header lines. (repeatable)\n");
+    fprintf(stderr, "    -A attribute    Add Basic WWW Authentication, the attributes\n");
+    fprintf(stderr, "                    are a colon separated username and password.\n");
+    fprintf(stderr, "    -P attribute    Add Basic Proxy Authentication, the attributes\n");
+    fprintf(stderr, "                    are a colon separated username and password.\n");
+    fprintf(stderr, "    -X proxy:port   Proxyserver and port number to use\n");
+    fprintf(stderr, "    -V              Print version number and exit\n");
+    fprintf(stderr, "    -k              Use HTTP KeepAlive feature\n");
+    fprintf(stderr, "    -d              Do not show percentiles served table.\n");
+    fprintf(stderr, "    -S              Do not show confidence estimators and warnings.\n");
+    fprintf(stderr, "    -g filename     Output collected data to gnuplot format file.\n");
+    fprintf(stderr, "    -e filename     Output CSV file with percentages served\n");
+    fprintf(stderr, "    -r              Don't exit on socket receive errors.\n");
+    fprintf(stderr, "    -h              Display usage information (this message)\n");
+#ifdef USE_SSL
+    fprintf(stderr, "    -Z ciphersuite  Specify SSL/TLS cipher suite (See openssl ciphers)\n");
+#ifndef OPENSSL_NO_SSL2
+    fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol (SSL2, SSL3, TLS1, or ALL)\n");
+#else
+    fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol (SSL3, TLS1, or ALL)\n");
+#endif
+#endif
+    exit(EINVAL);
 }

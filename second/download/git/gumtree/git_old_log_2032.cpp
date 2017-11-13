@@ -1,1 +1,1 @@
-printf("%s %s\n", sha1_to_hex(posn->old_sha1), posn->name);
+die("bad default revision '%s'", revs->def);

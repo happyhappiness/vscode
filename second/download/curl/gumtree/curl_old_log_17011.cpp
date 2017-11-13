@@ -1,9 +1,7 @@
-puts(
-"          as one of the internal ones curl would use, your exter�\n"
-"          nally  set  header will be used instead of the internal\n"
-"          one. This allows you to make even trickier  stuff  than\n"
-"          curl  would  normally do. You should not replace inter�\n"
-"          nally set headers without knowing perfectly  well  what\n"
-"          you're  doing.  Replacing  an  internal header with one\n"
-"          without content on the right side  of  the  colon  will\n"
-);
+puts(" -r/--range <range> Retrieve a byte range from a HTTP/1.1 or FTP server\n"
+       " -s/--silent        Silent mode. Don't output anything\n"
+       " -S/--show-error    Show error. With -s, make curl show errors when they occur\n"
+       "    --stderr <file> Where to redirect stderr. - means stdout.\n"
+       " -t/--telnet-option <OPT=val> Set telnet option\n"
+       " -T/--upload-file <file> Transfer/upload <file> to remote site\n"
+       "    --url <URL>     Another way to specify URL to work with");

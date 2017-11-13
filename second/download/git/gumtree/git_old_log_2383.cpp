@@ -1,1 +1,1 @@
-error("unable to create temporary file: %s", strerror(errno));
+fprintf(fout, "%s: %s\n", header[i], hdr->buf);

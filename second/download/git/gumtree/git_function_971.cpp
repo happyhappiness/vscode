@@ -1,22 +1,26 @@
-static void check_embedded_repo(const char *path)
+static void output_attr(int cnt, struct git_attr_check *check,
+	const char *file)
 {
-	struct strbuf name = STRBUF_INIT;
+	int j;
+	for (j = 0; j < cnt; j++) {
+		const char *value = check[j].value;
 
-	if (!warn_on_embedded_repo)
-		return;
-	if (!ends_with(path, "/"))
-		return;
+		if (ATTR_TRUE(value))
+			value = "set";
+		else if (ATTR_FALSE(value))
+			value = "unset";
+		else if (ATTR_UNSET(value))
+			value = "unspecified";
 
-	/* Drop trailing slash for aesthetics */
-	strbuf_addstr(&name, path);
-	strbuf_strip_suffix(&name, "/");
+		if (nul_term_line) {
+			printf("%s%c" /* path */
+			       "%s%c" /* attrname */
+			       "%s%c" /* attrvalue */,
+			       file, 0, git_attr_name(check[j].attr), 0, value, 0);
+		} else {
+			quote_c_style(file, NULL, stdout, 0);
+			printf(": %s: %s\n", git_attr_name(check[j].attr), value);
+		}
 
-	warning(_("adding embedded git repository: %s"), name.buf);
-	if (advice_add_embedded_repo) {
-		advise(embedded_advice, name.buf, name.buf);
-		/* there may be multiple entries; advise only once */
-		advice_add_embedded_repo = 0;
 	}
-
-	strbuf_release(&name);
 }

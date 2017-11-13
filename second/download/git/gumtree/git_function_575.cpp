@@ -1,133 +1,68 @@
-static void process_alternates_response(void *callback_data)
+const char *fmt_ident(const char *name, const char *email,
+		      const char *date_str, int flag)
 {
-	struct alternates_request *alt_req =
-		(struct alternates_request *)callback_data;
-	struct walker *walker = alt_req->walker;
-	struct walker_data *cdata = walker->data;
-	struct active_request_slot *slot = alt_req->slot;
-	struct alt_base *tail = cdata->alt;
-	const char *base = alt_req->base;
-	const char null_byte = '\0';
-	char *data;
-	int i = 0;
+	static struct strbuf ident = STRBUF_INIT;
+	int strict = (flag & IDENT_STRICT);
+	int want_date = !(flag & IDENT_NO_DATE);
+	int want_name = !(flag & IDENT_NO_NAME);
 
-	if (alt_req->http_specific) {
-		if (slot->curl_result != CURLE_OK ||
-		    !alt_req->buffer->len) {
-
-			/* Try reusing the slot to get non-http alternates */
-			alt_req->http_specific = 0;
-			strbuf_reset(alt_req->url);
-			strbuf_addf(alt_req->url, "%s/objects/info/alternates",
-				    base);
-			curl_easy_setopt(slot->curl, CURLOPT_URL,
-					 alt_req->url->buf);
-			active_requests++;
-			slot->in_use = 1;
-			if (slot->finished != NULL)
-				(*slot->finished) = 0;
-			if (!start_active_slot(slot)) {
-				cdata->got_alternates = -1;
-				slot->in_use = 0;
-				if (slot->finished != NULL)
-					(*slot->finished) = 1;
+	if (want_name) {
+		int using_default = 0;
+		if (!name) {
+			if (strict && ident_use_config_only
+			    && !(ident_config_given & IDENT_NAME_GIVEN)) {
+				fputs(env_hint, stderr);
+				die("no name was given and auto-detection is disabled");
 			}
-			return;
+			name = ident_default_name();
+			using_default = 1;
+			if (strict && default_name_is_bogus) {
+				fputs(env_hint, stderr);
+				die("unable to auto-detect name (got '%s')", name);
+			}
 		}
-	} else if (slot->curl_result != CURLE_OK) {
-		if (!missing_target(slot)) {
-			cdata->got_alternates = -1;
-			return;
+		if (!*name) {
+			struct passwd *pw;
+			if (strict) {
+				if (using_default)
+					fputs(env_hint, stderr);
+				die("empty ident name (for <%s>) not allowed", email);
+			}
+			pw = xgetpwuid_self(NULL);
+			name = pw->pw_name;
 		}
 	}
 
-	fwrite_buffer((char *)&null_byte, 1, 1, alt_req->buffer);
-	alt_req->buffer->len--;
-	data = alt_req->buffer->buf;
-
-	while (i < alt_req->buffer->len) {
-		int posn = i;
-		while (posn < alt_req->buffer->len && data[posn] != '\n')
-			posn++;
-		if (data[posn] == '\n') {
-			int okay = 0;
-			int serverlen = 0;
-			struct alt_base *newalt;
-			if (data[i] == '/') {
-				/*
-				 * This counts
-				 * http://git.host/pub/scm/linux.git/
-				 * -----------here^
-				 * so memcpy(dst, base, serverlen) will
-				 * copy up to "...git.host".
-				 */
-				const char *colon_ss = strstr(base,"://");
-				if (colon_ss) {
-					serverlen = (strchr(colon_ss + 3, '/')
-						     - base);
-					okay = 1;
-				}
-			} else if (!memcmp(data + i, "../", 3)) {
-				/*
-				 * Relative URL; chop the corresponding
-				 * number of subpath from base (and ../
-				 * from data), and concatenate the result.
-				 *
-				 * The code first drops ../ from data, and
-				 * then drops one ../ from data and one path
-				 * from base.  IOW, one extra ../ is dropped
-				 * from data than path is dropped from base.
-				 *
-				 * This is not wrong.  The alternate in
-				 *     http://git.host/pub/scm/linux.git/
-				 * to borrow from
-				 *     http://git.host/pub/scm/linus.git/
-				 * is ../../linus.git/objects/.  You need
-				 * two ../../ to borrow from your direct
-				 * neighbour.
-				 */
-				i += 3;
-				serverlen = strlen(base);
-				while (i + 2 < posn &&
-				       !memcmp(data + i, "../", 3)) {
-					do {
-						serverlen--;
-					} while (serverlen &&
-						 base[serverlen - 1] != '/');
-					i += 3;
-				}
-				/* If the server got removed, give up. */
-				okay = strchr(base, ':') - base + 3 <
-				       serverlen;
-			} else if (alt_req->http_specific) {
-				char *colon = strchr(data + i, ':');
-				char *slash = strchr(data + i, '/');
-				if (colon && slash && colon < data + posn &&
-				    slash < data + posn && colon < slash) {
-					okay = 1;
-				}
-			}
-			/* skip "objects\n" at end */
-			if (okay) {
-				struct strbuf target = STRBUF_INIT;
-				strbuf_add(&target, base, serverlen);
-				strbuf_add(&target, data + i, posn - i - 7);
-				if (walker->get_verbosely)
-					fprintf(stderr, "Also look at %s\n",
-						target.buf);
-				newalt = xmalloc(sizeof(*newalt));
-				newalt->next = NULL;
-				newalt->base = strbuf_detach(&target, NULL);
-				newalt->got_indices = 0;
-				newalt->packs = NULL;
-
-				while (tail->next != NULL)
-					tail = tail->next;
-				tail->next = newalt;
-			}
+	if (!email) {
+		if (strict && ident_use_config_only
+		    && !(ident_config_given & IDENT_MAIL_GIVEN)) {
+			fputs(env_hint, stderr);
+			die("no email was given and auto-detection is disabled");
 		}
-		i = posn + 1;
+		email = ident_default_email();
+		if (strict && default_email_is_bogus) {
+			fputs(env_hint, stderr);
+			die("unable to auto-detect email address (got '%s')", email);
+		}
 	}
 
-	cdata->got_alternates = 1;
+	strbuf_reset(&ident);
+	if (want_name) {
+		strbuf_addstr_without_crud(&ident, name);
+		strbuf_addstr(&ident, " <");
+	}
+	strbuf_addstr_without_crud(&ident, email);
+	if (want_name)
+			strbuf_addch(&ident, '>');
+	if (want_date) {
+		strbuf_addch(&ident, ' ');
+		if (date_str && date_str[0]) {
+			if (parse_date(date_str, &ident) < 0)
+				die("invalid date format: %s", date_str);
+		}
+		else
+			strbuf_addstr(&ident, ident_default_date());
+	}
+
+	return ident.buf;
 }

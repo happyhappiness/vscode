@@ -1,1 +1,1 @@
-die(_("unrecognized %%(contents) argument: %s"), arg);
+die(_("unrecognized %%(objectname) argument: %s"), arg);

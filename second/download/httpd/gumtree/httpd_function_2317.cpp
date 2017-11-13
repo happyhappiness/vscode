@@ -1,87 +1,53 @@
-static authn_status authn_dbd_password(request_rec *r, const char *user,
-                                       const char *password)
+static void __stdcall service_nt_main_fn(DWORD argc, LPSTR *argv)
 {
-    apr_status_t rv;
-    const char *dbd_password = NULL;
-    apr_dbd_prepared_t *statement;
-    apr_dbd_results_t *res = NULL;
-    apr_dbd_row_t *row = NULL;
+    const char *ignored;
 
-    authn_dbd_conf *conf = ap_get_module_config(r->per_dir_config,
-                                                &authn_dbd_module);
-    ap_dbd_t *dbd = authn_dbd_acquire_fn(r);
-    if (dbd == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Error looking up %s in database", user);
-        return AUTH_GENERAL_ERROR;
+    /* args and service names live in the same pool */
+    mpm_service_set_name(mpm_new_argv->pool, &ignored, argv[0]);
+
+    memset(&globdat.ssStatus, 0, sizeof(globdat.ssStatus));
+    globdat.ssStatus.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
+    globdat.ssStatus.dwCurrentState = SERVICE_START_PENDING;
+    globdat.ssStatus.dwCheckPoint = 1;
+
+    if (!(globdat.hServiceStatus = RegisterServiceCtrlHandlerA(argv[0], service_nt_ctrl)))
+    {
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(),
+                     NULL, "Failure registering service handler");
+        return;
     }
 
-    if (conf->user == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "No AuthDBDUserPWQuery has been specified.");
-        return AUTH_GENERAL_ERROR;
+    /* Report status, no errors, and buy 3 more seconds */
+    ReportStatusToSCMgr(SERVICE_START_PENDING, NO_ERROR, 30000);
+
+    /* We need to append all the command arguments passed via StartService()
+     * to our running service... which just got here via the SCM...
+     * but we have no interest in argv[0] for the mpm_new_argv list.
+     */
+    if (argc > 1)
+    {
+        char **cmb_data;
+
+        mpm_new_argv->nalloc = mpm_new_argv->nelts + argc - 1;
+        cmb_data = malloc(mpm_new_argv->nalloc * sizeof(const char *));
+
+        /* mpm_new_argv remains first (of lower significance) */
+        memcpy (cmb_data, mpm_new_argv->elts,
+                mpm_new_argv->elt_size * mpm_new_argv->nelts);
+
+        /* Service args follow from StartService() invocation */
+        memcpy (cmb_data + mpm_new_argv->nelts, argv + 1,
+                mpm_new_argv->elt_size * (argc - 1));
+
+        /* The replacement arg list is complete */
+        mpm_new_argv->elts = (char *)cmb_data;
+        mpm_new_argv->nelts = mpm_new_argv->nalloc;
     }
 
-    statement = apr_hash_get(dbd->prepared, conf->user, APR_HASH_KEY_STRING);
-    if (statement == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "A prepared statement could not be found for AuthDBDUserPWQuery, key '%s'.", conf->user);
-        return AUTH_GENERAL_ERROR;
-    }
-    if (apr_dbd_pvselect(dbd->driver, r->pool, dbd->handle, &res, statement,
-                              0, user, NULL) != 0) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Error looking up %s in database", user);
-        return AUTH_GENERAL_ERROR;
-    }
-    for (rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1);
-         rv != -1;
-         rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1)) {
-        if (rv != 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "Error looking up %s in database", user);
-            return AUTH_GENERAL_ERROR;
-        }
-        if (dbd_password == NULL) {
-            dbd_password = apr_dbd_get_entry(dbd->driver, row, 0);
+    /* Let the main thread continue now... but hang on to the
+     * signal_monitor event so we can take further action
+     */
+    SetEvent(globdat.service_init);
 
-#if APU_MAJOR_VERSION > 1 || (APU_MAJOR_VERSION == 1 && APU_MINOR_VERSION >= 3)
-            /* add the rest of the columns to the environment */
-            int i = 1;
-            const char *name;
-            for (name = apr_dbd_get_name(dbd->driver, res, i);
-                 name != NULL;
-                 name = apr_dbd_get_name(dbd->driver, res, i)) {
-
-                char *str = apr_pstrcat(r->pool, AUTHN_PREFIX,
-                                        name,
-                                        NULL);
-                int j = sizeof(AUTHN_PREFIX)-1; /* string length of "AUTHENTICATE_", excluding the trailing NIL */
-                while (str[j]) {
-                    if (!apr_isalnum(str[j])) {
-                        str[j] = '_';
-                    }
-                    else {
-                        str[j] = apr_toupper(str[j]);
-                    }
-                    j++;
-                }
-                apr_table_set(r->subprocess_env, str,
-                              apr_dbd_get_entry(dbd->driver, row, i));
-                i++;
-            }
-#endif
-        }
-        /* we can't break out here or row won't get cleaned up */
-    }
-
-    if (!dbd_password) {
-        return AUTH_USER_NOT_FOUND;
-    }
-
-    rv = apr_password_validate(password, dbd_password);
-
-    if (rv != APR_SUCCESS) {
-        return AUTH_DENIED;
-    }
-
-    return AUTH_GRANTED;
+    WaitForSingleObject(globdat.service_term, INFINITE);
 }

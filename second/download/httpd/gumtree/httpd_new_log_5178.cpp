@@ -1,2 +1,2 @@
-printf ("\rShutdown pending. Waiting for %lu thread(s) to terminate...",
-                    worker_thread_count);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00170)
+           "caught " AP_SIG_GRACEFUL_STOP_STRING ", shutting down gracefully");

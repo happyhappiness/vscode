@@ -1,1 +1,1 @@
-die("bad --word-diff argument: %s", arg);
+die("update %s: missing <newvalue>", refname);

@@ -1,1 +1,1 @@
-die("unable to generate diffstat for %s", one->path);
+die(_("commit '%s' has malformed author line"), author_message);

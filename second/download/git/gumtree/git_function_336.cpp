@@ -1,53 +1,70 @@
-static int apply_filter(const char *path, const char *src, size_t len, int fd,
-                        struct strbuf *dst, const char *cmd)
+static int write_out_one_reject(struct apply_state *state, struct patch *patch)
 {
-	/*
-	 * Create a pipeline to have the command filter the buffer's
-	 * contents.
-	 *
-	 * (child --> cmd) --> us
-	 */
-	int ret = 1;
-	struct strbuf nbuf = STRBUF_INIT;
-	struct async async;
-	struct filter_params params;
+	FILE *rej;
+	char namebuf[PATH_MAX];
+	struct fragment *frag;
+	int cnt = 0;
+	struct strbuf sb = STRBUF_INIT;
 
-	if (!cmd || !*cmd)
+	for (cnt = 0, frag = patch->fragments; frag; frag = frag->next) {
+		if (!frag->rejected)
+			continue;
+		cnt++;
+	}
+
+	if (!cnt) {
+		if (state->apply_verbosely)
+			say_patch_name(stderr,
+				       _("Applied patch %s cleanly."), patch);
 		return 0;
-
-	if (!dst)
-		return 1;
-
-	memset(&async, 0, sizeof(async));
-	async.proc = filter_buffer_or_fd;
-	async.data = &params;
-	async.out = -1;
-	params.src = src;
-	params.size = len;
-	params.fd = fd;
-	params.cmd = cmd;
-	params.path = path;
-
-	fflush(NULL);
-	if (start_async(&async))
-		return 0;	/* error was already reported */
-
-	if (strbuf_read(&nbuf, async.out, len) < 0) {
-		error("read from external filter %s failed", cmd);
-		ret = 0;
-	}
-	if (close(async.out)) {
-		error("read from external filter %s failed", cmd);
-		ret = 0;
-	}
-	if (finish_async(&async)) {
-		error("external filter %s failed", cmd);
-		ret = 0;
 	}
 
-	if (ret) {
-		strbuf_swap(dst, &nbuf);
+	/* This should not happen, because a removal patch that leaves
+	 * contents are marked "rejected" at the patch level.
+	 */
+	if (!patch->new_name)
+		die(_("internal error"));
+
+	/* Say this even without --verbose */
+	strbuf_addf(&sb, Q_("Applying patch %%s with %d reject...",
+			    "Applying patch %%s with %d rejects...",
+			    cnt),
+		    cnt);
+	say_patch_name(stderr, sb.buf, patch);
+	strbuf_release(&sb);
+
+	cnt = strlen(patch->new_name);
+	if (ARRAY_SIZE(namebuf) <= cnt + 5) {
+		cnt = ARRAY_SIZE(namebuf) - 5;
+		warning(_("truncating .rej filename to %.*s.rej"),
+			cnt - 1, patch->new_name);
 	}
-	strbuf_release(&nbuf);
-	return ret;
+	memcpy(namebuf, patch->new_name, cnt);
+	memcpy(namebuf + cnt, ".rej", 5);
+
+	rej = fopen(namebuf, "w");
+	if (!rej)
+		return error(_("cannot open %s: %s"), namebuf, strerror(errno));
+
+	/* Normal git tools never deal with .rej, so do not pretend
+	 * this is a git patch by saying --git or giving extended
+	 * headers.  While at it, maybe please "kompare" that wants
+	 * the trailing TAB and some garbage at the end of line ;-).
+	 */
+	fprintf(rej, "diff a/%s b/%s\t(rejected hunks)\n",
+		patch->new_name, patch->new_name);
+	for (cnt = 1, frag = patch->fragments;
+	     frag;
+	     cnt++, frag = frag->next) {
+		if (!frag->rejected) {
+			fprintf_ln(stderr, _("Hunk #%d applied cleanly."), cnt);
+			continue;
+		}
+		fprintf_ln(stderr, _("Rejected hunk #%d."), cnt);
+		fprintf(rej, "%.*s", frag->size, frag->patch);
+		if (frag->patch[frag->size-1] != '\n')
+			fputc('\n', rej);
+	}
+	fclose(rej);
+	return -1;
 }

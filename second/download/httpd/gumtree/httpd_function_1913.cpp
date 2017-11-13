@@ -1,82 +1,49 @@
-static int netware_check_config(apr_pool_t *p, apr_pool_t *plog,
-                                apr_pool_t *ptemp, server_rec *s)
+static char *lookup_map_dbd(request_rec *r, char *key, const char *label)
 {
-    static int restart_num = 0;
-    int startup = 0;
+    apr_status_t rv;
+    apr_dbd_prepared_t *stmt;
+    const char *errmsg;
+    apr_dbd_results_t *res = NULL;
+    apr_dbd_row_t *row = NULL;
+    const char *ret = NULL;
+    int n = 0;
+    ap_dbd_t *db = dbd_acquire(r);
 
-    /* we want this only the first time around */
-    if (restart_num++ == 0) {
-        startup = 1;
+    stmt = apr_hash_get(db->prepared, label, APR_HASH_KEY_STRING);
+
+    rv = apr_dbd_pvselect(db->driver, r->pool, db->handle, &res,
+                          stmt, 0, key, NULL);
+    if (rv != 0) {
+        errmsg = apr_dbd_error(db->driver, db->handle, rv);
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "rewritemap: error %s querying for %s", errmsg, key);
+        return NULL;
     }
-
-    if (ap_threads_limit > HARD_THREAD_LIMIT) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MaxThreads of %d exceeds compile-time "
-                         "limit of", ap_threads_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d threads, decreasing to %d.",
-                         HARD_THREAD_LIMIT, HARD_THREAD_LIMIT);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " To increase, please see the HARD_THREAD_LIMIT"
-                         "define in");
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " server/mpm/netware%s.", MPM_HARD_LIMITS_FILE);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MaxThreads of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         ap_threads_limit, HARD_THREAD_LIMIT);
+    while (rv = apr_dbd_get_row(db->driver, r->pool, res, &row, -1), rv == 0) {
+        ++n;
+        if (ret == NULL) {
+            ret = apr_dbd_get_entry(db->driver, row, 0);
         }
-        ap_threads_limit = HARD_THREAD_LIMIT;
-    }
-    else if (ap_threads_limit < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MaxThreads of %d not allowed, "
-                         "increasing to 1.", ap_threads_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MaxThreads of %d not allowed, increasing to 1",
-                         ap_threads_limit);
+        else {
+            /* randomise crudely amongst multiple results */
+            if ((double)rand() < (double)RAND_MAX/(double)n) {
+                ret = apr_dbd_get_entry(db->driver, row, 0);
+            }
         }
-        ap_threads_limit = 1;
     }
-
-    /* ap_threads_to_start > ap_threads_limit effectively checked in
-     * call to startup_workers(ap_threads_to_start) in ap_mpm_run()
-     */
-    if (ap_threads_to_start < 0) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: StartThreads of %d not allowed, "
-                         "increasing to 1.", ap_threads_to_start);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "StartThreads of %d not allowed, increasing to 1",
-                         ap_threads_to_start);
-        }
-        ap_threads_to_start = 1;
+    if (rv != -1) {
+        errmsg = apr_dbd_error(db->driver, db->handle, rv);
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "rewritemap: error %s looking up %s", errmsg, key);
     }
-
-    if (ap_threads_min_free < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MinSpareThreads of %d not allowed, "
-                         "increasing to 1", ap_threads_min_free);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " to avoid almost certain server failure.");
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " Please read the documentation.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MinSpareThreads of %d not allowed, increasing to 1",
-                         ap_threads_min_free);
-        }
-        ap_threads_min_free = 1;
+    switch (n) {
+    case 0:
+        return NULL;
+    case 1:
+        return apr_pstrdup(r->pool, ret);
+    default:
+        /* what's a fair rewritelog level for this? */
+        rewritelog((r, 3, NULL, "Multiple values found for %s", key));
+        return apr_pstrdup(r->pool, ret);
     }
-
-    /* ap_threads_max_free < ap_threads_min_free + 1 checked in ap_mpm_run() */
-
-    return OK;
 }

@@ -1,6 +1,6 @@
-static int fsck_cruft(const char *basename, const char *path, void *data)
+static void xrmdir(const char *path)
 {
-	if (!starts_with(basename, "tmp_obj_"))
-		fprintf(stderr, "bad sha1 file: %s\n", path);
-	return 0;
+	path = get_mtime_path(path);
+	if (rmdir(path))
+		die_errno(_("failed to delete directory %s"), path);
 }

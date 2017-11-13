@@ -1,10 +1,10 @@
 fputs(
-"              num_connects   Number  of new connects made in the recent trans-\n"
-"                             fer. (Added in 7.12.3)\n"
+"                             tion time for multiple  redirections.  (Added  in\n"
+"                             7.12.3)\n"
 "\n"
-"              num_redirects  Number of redirects that  were  followed  in  the\n"
-"                             request. (Added in 7.12.3)\n"
-"\n"
-"              redirect_url   When  an HTTP request was made without -L to fol-\n"
-"                             low redirects, this variable will show the actual\n"
+"              time_starttransfer\n"
+"                             The  time,  in  seconds,  it  took from the start\n"
+"                             until the first byte was just about to be  trans-\n"
+"                             ferred.  This  includes time_pretransfer and also\n"
+"                             the time  the  server  needed  to  calculate  the\n"
 , stdout);

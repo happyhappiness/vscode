@@ -1,18 +1,18 @@
-static void die_with_unpushed_submodules(struct string_list *needs_pushing)
+struct pack_revindex *revindex_for_pack(struct packed_git *p)
 {
-	int i;
+	int num;
+	struct pack_revindex *rix;
 
-	fprintf(stderr, "The following submodule paths contain changes that can\n"
-			"not be found on any remote:\n");
-	for (i = 0; i < needs_pushing->nr; i++)
-		printf("  %s\n", needs_pushing->items[i].string);
-	fprintf(stderr, "\nPlease try\n\n"
-			"	git push --recurse-submodules=on-demand\n\n"
-			"or cd to the path and use\n\n"
-			"	git push\n\n"
-			"to push them to a remote.\n\n");
+	if (!pack_revindex_hashsz)
+		init_pack_revindex();
 
-	string_list_clear(needs_pushing, 0);
+	num = pack_revindex_ix(p);
+	if (num < 0)
+		die("internal error: pack revindex fubar");
 
-	die("Aborting.");
+	rix = &pack_revindex[num];
+	if (!rix->revindex)
+		create_pack_revindex(rix);
+
+	return rix;
 }

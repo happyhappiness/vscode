@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, errno, ap_server_conf, APLOGNO(01240)
-                             "Couldn't unlink unix domain socket %s",
-                             sockname);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server, APLOGNO(02133)
+                     "Upgradeable socket handle not found");

@@ -1,95 +1,87 @@
-static int delete_remote_branch(const char *pattern, int force)
+int rename_ref(const char *oldrefname, const char *newrefname, const char *logmsg)
 {
-	struct ref *refs = remote_refs;
-	struct ref *remote_ref = NULL;
-	unsigned char head_sha1[20];
-	char *symref = NULL;
-	int match;
-	int patlen = strlen(pattern);
-	int i;
-	struct active_request_slot *slot;
-	struct slot_results results;
-	char *url;
+	unsigned char sha1[20], orig_sha1[20];
+	int flag = 0, logmoved = 0;
+	struct ref_lock *lock;
+	struct stat loginfo;
+	int log = !lstat(git_path("logs/%s", oldrefname), &loginfo);
+	const char *symref = NULL;
 
-	/* Find the remote branch(es) matching the specified branch name */
-	for (match = 0; refs; refs = refs->next) {
-		char *name = refs->name;
-		int namelen = strlen(name);
-		if (namelen < patlen ||
-		    memcmp(name + namelen - patlen, pattern, patlen))
-			continue;
-		if (namelen != patlen && name[namelen - patlen - 1] != '/')
-			continue;
-		match++;
-		remote_ref = refs;
-	}
-	if (match == 0)
-		return error("No remote branch matches %s", pattern);
-	if (match != 1)
-		return error("More than one remote branch matches %s",
-			     pattern);
+	if (log && S_ISLNK(loginfo.st_mode))
+		return error("reflog for %s is a symlink", oldrefname);
 
-	/*
-	 * Remote HEAD must be a symref (not exactly foolproof; a remote
-	 * symlink to a symref will look like a symref)
-	 */
-	fetch_symref("HEAD", &symref, head_sha1);
+	symref = resolve_ref_unsafe(oldrefname, RESOLVE_REF_READING,
+				    orig_sha1, &flag);
+	if (flag & REF_ISSYMREF)
+		return error("refname %s is a symbolic ref, renaming it is not supported",
+			oldrefname);
 	if (!symref)
-		return error("Remote HEAD is not a symref");
+		return error("refname %s not found", oldrefname);
 
-	/* Remote branch must not be the remote HEAD */
-	for (i = 0; symref && i < MAXDEPTH; i++) {
-		if (!strcmp(remote_ref->name, symref))
-			return error("Remote branch %s is the current HEAD",
-				     remote_ref->name);
-		fetch_symref(symref, &symref, head_sha1);
+	if (!rename_ref_available(oldrefname, newrefname))
+		return 1;
+
+	if (log && rename(git_path("logs/%s", oldrefname), git_path(TMP_RENAMED_LOG)))
+		return error("unable to move logfile logs/%s to "TMP_RENAMED_LOG": %s",
+			oldrefname, strerror(errno));
+
+	if (delete_ref(oldrefname, orig_sha1, REF_NODEREF)) {
+		error("unable to delete old %s", oldrefname);
+		goto rollback;
 	}
 
-	/* Run extra sanity checks if delete is not forced */
-	if (!force) {
-		/* Remote HEAD must resolve to a known object */
-		if (symref)
-			return error("Remote HEAD symrefs too deep");
-		if (is_null_sha1(head_sha1))
-			return error("Unable to resolve remote HEAD");
-		if (!has_sha1_file(head_sha1))
-			return error("Remote HEAD resolves to object %s\nwhich does not exist locally, perhaps you need to fetch?", sha1_to_hex(head_sha1));
-
-		/* Remote branch must resolve to a known object */
-		if (is_null_sha1(remote_ref->old_sha1))
-			return error("Unable to resolve remote branch %s",
-				     remote_ref->name);
-		if (!has_sha1_file(remote_ref->old_sha1))
-			return error("Remote branch %s resolves to object %s\nwhich does not exist locally, perhaps you need to fetch?", remote_ref->name, sha1_to_hex(remote_ref->old_sha1));
-
-		/* Remote branch must be an ancestor of remote HEAD */
-		if (!verify_merge_base(head_sha1, remote_ref)) {
-			return error("The branch '%s' is not an ancestor "
-				     "of your current HEAD.\n"
-				     "If you are sure you want to delete it,"
-				     " run:\n\t'git http-push -D %s %s'",
-				     remote_ref->name, repo->url, pattern);
+	if (!read_ref_full(newrefname, RESOLVE_REF_READING, sha1, NULL) &&
+	    delete_ref(newrefname, sha1, REF_NODEREF)) {
+		if (errno==EISDIR) {
+			if (remove_empty_directories(git_path("%s", newrefname))) {
+				error("Directory not empty: %s", newrefname);
+				goto rollback;
+			}
+		} else {
+			error("unable to delete existing %s", newrefname);
+			goto rollback;
 		}
 	}
 
-	/* Send delete request */
-	fprintf(stderr, "Removing remote branch '%s'\n", remote_ref->name);
-	if (dry_run)
-		return 0;
-	url = xstrfmt("%s%s", repo->url, remote_ref->name);
-	slot = get_active_slot();
-	slot->results = &results;
-	curl_setup_http_get(slot->curl, url, DAV_DELETE);
-	if (start_active_slot(slot)) {
-		run_active_slot(slot);
-		free(url);
-		if (results.curl_result != CURLE_OK)
-			return error("DELETE request failed (%d/%ld)",
-				     results.curl_result, results.http_code);
-	} else {
-		free(url);
-		return error("Unable to start DELETE request");
+	if (log && rename_tmp_log(newrefname))
+		goto rollback;
+
+	logmoved = log;
+
+	lock = lock_ref_sha1_basic(newrefname, NULL, NULL, 0, NULL);
+	if (!lock) {
+		error("unable to lock %s for update", newrefname);
+		goto rollback;
+	}
+	hashcpy(lock->old_sha1, orig_sha1);
+	if (write_ref_sha1(lock, orig_sha1, logmsg)) {
+		error("unable to write current sha1 into %s", newrefname);
+		goto rollback;
 	}
 
 	return 0;
+
+ rollback:
+	lock = lock_ref_sha1_basic(oldrefname, NULL, NULL, 0, NULL);
+	if (!lock) {
+		error("unable to lock %s for rollback", oldrefname);
+		goto rollbacklog;
+	}
+
+	flag = log_all_ref_updates;
+	log_all_ref_updates = 0;
+	if (write_ref_sha1(lock, orig_sha1, NULL))
+		error("unable to write current sha1 into %s", oldrefname);
+	log_all_ref_updates = flag;
+
+ rollbacklog:
+	if (logmoved && rename(git_path("logs/%s", newrefname), git_path("logs/%s", oldrefname)))
+		error("unable to restore logfile %s from %s: %s",
+			oldrefname, newrefname, strerror(errno));
+	if (!logmoved && log &&
+	    rename(git_path(TMP_RENAMED_LOG), git_path("logs/%s", oldrefname)))
+		error("unable to restore logfile %s from "TMP_RENAMED_LOG": %s",
+			oldrefname, strerror(errno));
+
+	return 1;
 }

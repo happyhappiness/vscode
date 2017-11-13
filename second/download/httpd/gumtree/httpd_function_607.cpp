@@ -1,198 +1,169 @@
-static int show_server_settings(request_rec * r)
+static char *ap_ssi_parse_string(request_rec *r, include_ctx_t *ctx, 
+                                 const char *in, char *out,
+                                 apr_size_t length, int leave_name)
 {
-    server_rec *serv = r->server;
-    int max_daemons, forked, threaded;
+    char ch;
+    char *next;
+    char *end_out;
+    apr_size_t out_size;
 
-    ap_rputs("<h2><a name=\"server\">Server Settings</a></h2>", r);
-    ap_rprintf(r,
-               "<dl><dt><strong>Server Version:</strong> "
-               "<font size=\"+1\"><tt>%s</tt></font></dt>\n",
-               ap_get_server_version());
-    ap_rprintf(r,
-               "<dt><strong>Server Built:</strong> "
-               "<font size=\"+1\"><tt>%s</tt></font></dt>\n",
-               ap_get_server_built());
-    ap_rprintf(r,
-               "<dt><strong>Module Magic Number:</strong> "
-               "<tt>%d:%d</tt></dt>\n", MODULE_MAGIC_NUMBER_MAJOR,
-               MODULE_MAGIC_NUMBER_MINOR);
-    ap_rprintf(r,
-               "<dt><strong>Hostname/port:</strong> "
-               "<tt>%s:%u</tt></dt>\n", ap_get_server_name(r),
-               ap_get_server_port(r));
-    ap_rprintf(r,
-               "<dt><strong>Timeouts:</strong> "
-               "<tt>connection: %d &nbsp;&nbsp; "
-               "keep-alive: %d</tt></dt>",
-               (int) (apr_time_sec(serv->timeout)),
-               (int) (apr_time_sec(serv->timeout)));
-    ap_mpm_query(AP_MPMQ_MAX_DAEMON_USED, &max_daemons);
-    ap_mpm_query(AP_MPMQ_IS_THREADED, &threaded);
-    ap_mpm_query(AP_MPMQ_IS_FORKED, &forked);
-    ap_rprintf(r, "<dt><strong>MPM Name:</strong> <tt>%s</tt></dt>\n",
-               ap_show_mpm());
-    ap_rprintf(r,
-               "<dt><strong>MPM Information:</strong> "
-               "<tt>Max Daemons: %d Threaded: %s Forked: %s</tt></dt>\n",
-               max_daemons, threaded ? "yes" : "no", forked ? "yes" : "no");
-    ap_rprintf(r,
-               "<dt><strong>Server Architecture:</strong> "
-               "<tt>%ld-bit</tt></dt>\n", 8 * (long) sizeof(void *));
-    ap_rprintf(r,
-               "<dt><strong>Server Root:</strong> "
-               "<tt>%s</tt></dt>\n", ap_server_root);
-    ap_rprintf(r,
-               "<dt><strong>Config File:</strong> "
-               "<tt>%s</tt></dt>\n", ap_conftree->filename);
+    /* allocate an output buffer if needed */
+    if (!out) {
+        out_size = PARSE_STRING_INITIAL_SIZE;
+        if (out_size > length) {
+            out_size = length;
+        }
+        out = apr_palloc(r->pool, out_size);
+    }
+    else {
+        out_size = length;
+    }
 
-    ap_rputs("<dt><strong>Server Built With:</strong>\n"
-             "<tt style=\"white-space: pre;\">\n", r);
+    /* leave room for nul terminator */
+    end_out = out + out_size - 1;
 
-    /* TODO: Not all of these defines are getting set like they do in main.c.
-     *       Missing some headers?
-     */
+    next = out;
+    while ((ch = *in++) != '\0') {
+        switch (ch) {
+        case '\\':
+            if (next == end_out) {
+                if (out_size < length) {
+                    /* double the buffer size */
+                    apr_size_t new_out_size = out_size * 2;
+                    apr_size_t current_length = next - out;
+                    char *new_out;
+                    if (new_out_size > length) {
+                        new_out_size = length;
+                    }
+                    new_out = apr_palloc(r->pool, new_out_size);
+                    memcpy(new_out, out, current_length);
+                    out = new_out;
+                    out_size = new_out_size;
+                    end_out = out + out_size - 1;
+                    next = out + current_length;
+                }
+                else {
+                    /* truncated */
+                    *next = '\0';
+                    return out;
+                }
+            }
+            if (*in == '$') {
+                *next++ = *in++;
+            }
+            else {
+                *next++ = ch;
+            }
+            break;
+        case '$':
+            {
+                const char *start_of_var_name;
+                char *end_of_var_name;        /* end of var name + 1 */
+                const char *expansion, *temp_end, *val;
+                char        tmp_store;
+                apr_size_t l;
 
-#ifdef BIG_SECURITY_HOLE
-    ap_rputs(" -D BIG_SECURITY_HOLE\n", r);
-#endif
+                /* guess that the expansion won't happen */
+                expansion = in - 1;
+                if (*in == '{') {
+                    ++in;
+                    start_of_var_name = in;
+                    in = ap_strchr_c(in, '}');
+                    if (in == NULL) {
+                        ap_log_rerror(APLOG_MARK, APLOG_ERR,
+                                      0, r, "Missing '}' on variable \"%s\"",
+                                      expansion);
+                        *next = '\0';
+                        return out;
+                    }
+                    temp_end = in;
+                    end_of_var_name = (char *)temp_end;
+                    ++in;
+                }
+                else {
+                    start_of_var_name = in;
+                    while (apr_isalnum(*in) || *in == '_') {
+                        ++in;
+                    }
+                    temp_end = in;
+                    end_of_var_name = (char *)temp_end;
+                }
+                /* what a pain, too bad there's no table_getn where you can
+                 * pass a non-nul terminated string */
+                l = end_of_var_name - start_of_var_name;
+                if (l != 0) {
+                    tmp_store        = *end_of_var_name;
+                    *end_of_var_name = '\0';
+                    val = get_include_var(r, ctx, start_of_var_name);
+                    *end_of_var_name = tmp_store;
 
-#ifdef SECURITY_HOLE_PASS_AUTHORIZATION
-    ap_rputs(" -D SECURITY_HOLE_PASS_AUTHORIZATION\n", r);
-#endif
-
-#ifdef OS
-    ap_rputs(" -D OS=\"" OS "\"\n", r);
-#endif
-
-#ifdef APACHE_MPM_DIR
-    ap_rputs(" -D APACHE_MPM_DIR=\"" APACHE_MPM_DIR "\"\n", r);
-#endif
-
-#ifdef HAVE_SHMGET
-    ap_rputs(" -D HAVE_SHMGET\n", r);
-#endif
-
-#if APR_FILE_BASED_SHM
-    ap_rputs(" -D APR_FILE_BASED_SHM\n", r);
-#endif
-
-#if APR_HAS_SENDFILE
-    ap_rputs(" -D APR_HAS_SENDFILE\n", r);
-#endif
-
-#if APR_HAS_MMAP
-    ap_rputs(" -D APR_HAS_MMAP\n", r);
-#endif
-
-#ifdef NO_WRITEV
-    ap_rputs(" -D NO_WRITEV\n", r);
-#endif
-
-#ifdef NO_LINGCLOSE
-    ap_rputs(" -D NO_LINGCLOSE\n", r);
-#endif
-
-#if APR_HAVE_IPV6
-    ap_rputs(" -D APR_HAVE_IPV6 (IPv4-mapped addresses ", r);
-#ifdef AP_ENABLE_V4_MAPPED
-    ap_rputs("enabled)\n", r);
-#else
-    ap_rputs("disabled)\n", r);
-#endif
-#endif
-
-#if APR_USE_FLOCK_SERIALIZE
-    ap_rputs(" -D APR_USE_FLOCK_SERIALIZE\n", r);
-#endif
-
-#if APR_USE_SYSVSEM_SERIALIZE
-    ap_rputs(" -D APR_USE_SYSVSEM_SERIALIZE\n", r);
-#endif
-
-#if APR_USE_POSIXSEM_SERIALIZE
-    ap_rputs(" -D APR_USE_POSIXSEM_SERIALIZE\n", r);
-#endif
-
-#if APR_USE_FCNTL_SERIALIZE
-    ap_rputs(" -D APR_USE_FCNTL_SERIALIZE\n", r);
-#endif
-
-#if APR_USE_PROC_PTHREAD_SERIALIZE
-    ap_rputs(" -D APR_USE_PROC_PTHREAD_SERIALIZE\n", r);
-#endif
-#if APR_PROCESS_LOCK_IS_GLOBAL
-    ap_rputs(" -D APR_PROCESS_LOCK_IS_GLOBAL\n", r);
-#endif
-
-#ifdef SINGLE_LISTEN_UNSERIALIZED_ACCEPT
-    ap_rputs(" -D SINGLE_LISTEN_UNSERIALIZED_ACCEPT\n", r);
-#endif
-
-#if APR_HAS_OTHER_CHILD
-    ap_rputs(" -D APR_HAS_OTHER_CHILD\n", r);
-#endif
-
-#ifdef AP_HAVE_RELIABLE_PIPED_LOGS
-    ap_rputs(" -D AP_HAVE_RELIABLE_PIPED_LOGS\n", r);
-#endif
-
-#ifdef BUFFERED_LOGS
-    ap_rputs(" -D BUFFERED_LOGS\n", r);
-#ifdef PIPE_BUF
-    ap_rputs(" -D PIPE_BUF=%ld\n", (long) PIPE_BUF, r);
-#endif
-#endif
-
-#if APR_CHARSET_EBCDIC
-    ap_rputs(" -D APR_CHARSET_EBCDIC\n", r);
-#endif
-
-#ifdef NEED_HASHBANG_EMUL
-    ap_rputs(" -D NEED_HASHBANG_EMUL\n", r);
-#endif
-
-#ifdef SHARED_CORE
-    ap_rputs(" -D SHARED_CORE\n", r);
-#endif
-
-/* This list displays the compiled in default paths: */
-#ifdef HTTPD_ROOT
-    ap_rputs(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n", r);
-#endif
-
-#ifdef SUEXEC_BIN
-    ap_rputs(" -D SUEXEC_BIN=\"" SUEXEC_BIN "\"\n", r);
-#endif
-
-#if defined(SHARED_CORE) && defined(SHARED_CORE_DIR)
-    ap_rputs(" -D SHARED_CORE_DIR=\"" SHARED_CORE_DIR "\"\n", r);
-#endif
-
-#ifdef DEFAULT_PIDLOG
-    ap_rputs(" -D DEFAULT_PIDLOG=\"" DEFAULT_PIDLOG "\"\n", r);
-#endif
-
-#ifdef DEFAULT_SCOREBOARD
-    ap_rputs(" -D DEFAULT_SCOREBOARD=\"" DEFAULT_SCOREBOARD "\"\n", r);
-#endif
-
-#ifdef DEFAULT_LOCKFILE
-    ap_rputs(" -D DEFAULT_LOCKFILE=\"" DEFAULT_LOCKFILE "\"\n", r);
-#endif
-
-#ifdef DEFAULT_ERRORLOG
-    ap_rputs(" -D DEFAULT_ERRORLOG=\"" DEFAULT_ERRORLOG "\"\n", r);
-#endif
-
-
-#ifdef AP_TYPES_CONFIG_FILE
-    ap_rputs(" -D AP_TYPES_CONFIG_FILE=\"" AP_TYPES_CONFIG_FILE "\"\n", r);
-#endif
-
-#ifdef SERVER_CONFIG_FILE
-    ap_rputs(" -D SERVER_CONFIG_FILE=\"" SERVER_CONFIG_FILE "\"\n", r);
-#endif
-    ap_rputs("</tt></dt>\n", r);
-    ap_rputs("</dl><hr />", r);
-    return 0;
+                    if (val) {
+                        expansion = val;
+                        l = strlen(expansion);
+                    }
+                    else if (leave_name) {
+                        l = in - expansion;
+                    }
+                    else {
+                        /* no expansion to be done */
+                        break;
+                    }
+                }
+                else {
+                    /* zero-length variable name causes just the $ to be 
+                     * copied */
+                    l = 1;
+                }
+                if ((next + l > end_out) && (out_size < length)) {
+                    /* increase the buffer size to accommodate l more chars */
+                    apr_size_t new_out_size = out_size;
+                    apr_size_t current_length = next - out;
+                    char *new_out;
+                    do {
+                        new_out_size *= 2;
+                    } while (new_out_size < current_length + l + 1); /* +1 for NUL */
+                    if (new_out_size > length) {
+                        new_out_size = length;
+                    }
+                    new_out = apr_palloc(r->pool, new_out_size);
+                    memcpy(new_out, out, current_length);
+                    out = new_out;
+                    out_size = new_out_size;
+                    end_out = out + out_size - 1;
+                    next = out + current_length;
+                }
+                l = ((int)l > end_out - next) ? (end_out - next) : l;
+                memcpy(next, expansion, l);
+                next += l;
+                break;
+            }
+        default:
+            if (next == end_out) {
+                if (out_size < length) {
+                    /* double the buffer size */
+                    apr_size_t new_out_size = out_size * 2;
+                    apr_size_t current_length = next - out;
+                    char *new_out;
+                    if (new_out_size > length) {
+                        new_out_size = length;
+                    }
+                    new_out = apr_palloc(r->pool, new_out_size);
+                    memcpy(new_out, out, current_length);
+                    out = new_out;
+                    out_size = new_out_size;
+                    end_out = out + out_size - 1;
+                    next = out + current_length;
+                }
+                else {
+                    /* truncated */
+                    *next = '\0';
+                    return out;
+                }
+            }
+            *next++ = ch;
+            break;
+        }
+    }
+    *next = '\0';
+    return out;
 }

@@ -1,1 +1,1 @@
-warning(_("negative value for http.postbuffer; defaulting to %d"), LARGE_PACKET_MAX);
+fprintf(f, "%d\n", todo_list->total_nr);

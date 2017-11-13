@@ -1,1 +1,2 @@
-fprintf(FERROR,"ERROR: out of memory in %s\n",str);
+fprintf(FERROR,"rename %s -> %s : %s\n",
+			      fnametmp,fname,strerror(errno));

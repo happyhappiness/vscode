@@ -1,95 +1,88 @@
-int
-mutt_copy_header (FILE *in, HEADER *h, FILE *out, int flags, const char *prefix)
+int imap_fast_trash (CONTEXT* ctx, char* dest)
 {
-  char buffer[SHORT_STRING];
+  IMAP_DATA* idata;
+  char mbox[LONG_STRING];
+  char mmbox[LONG_STRING];
+  char prompt[LONG_STRING];
+  int rc;
+  IMAP_MBOX mx;
+  int triedcreate = 0;
 
-  if (h->env)
-    flags |= (h->env->irt_changed ? CH_UPDATE_IRT : 0)
-      | (h->env->refs_changed ? CH_UPDATE_REFS : 0);
-  
-  if (mutt_copy_hdr (in, out, h->offset, h->content->offset, flags, prefix) == -1)
+  idata = (IMAP_DATA*) ctx->data;
+
+  if (imap_parse_path (dest, &mx))
+  {
+    dprint (1, (debugfile, "imap_fast_trash: bad destination %s\n", dest));
     return -1;
-
-  if (flags & CH_TXTPLAIN)
-  {
-    char chsbuf[SHORT_STRING];
-    fputs ("MIME-Version: 1.0\n", out);
-    fputs ("Content-Transfer-Encoding: 8bit\n", out);
-    fputs ("Content-Type: text/plain; charset=", out);
-    mutt_canonical_charset (chsbuf, sizeof (chsbuf), Charset ? Charset : "us-ascii");
-    rfc822_cat(buffer, sizeof(buffer), chsbuf, MimeSpecials);
-    fputs(buffer, out);
-    fputc('\n', out);
   }
 
-  if ((flags & CH_UPDATE_IRT) && h->env->in_reply_to)
+  /* check that the save-to folder is in the same account */
+  if (!mutt_account_match (&(CTX_DATA->conn->account), &(mx.account)))
   {
-    LIST *listp = h->env->in_reply_to;
-    fputs ("In-Reply-To:", out);
-    for (; listp; listp = listp->next)
+    dprint (3, (debugfile, "imap_fast_trash: %s not same server as %s\n",
+      dest, ctx->path));
+    return 1;
+  }
+
+  imap_fix_path (idata, mx.mbox, mbox, sizeof (mbox));
+  if (!*mbox)
+    strfcpy (mbox, "INBOX", sizeof (mbox));
+  imap_munge_mbox_name (idata, mmbox, sizeof (mmbox), mbox);
+
+  /* loop in case of TRYCREATE */
+  do
+  {
+    rc = imap_exec_msgset (idata, "UID COPY", mmbox, MUTT_TRASH, 0, 0);
+    if (!rc)
     {
-      fputc (' ', out);
-      fputs (listp->data, out);
+      dprint (1, (debugfile, "imap_fast_trash: No messages to trash\n"));
+      rc = -1;
+      goto out;
     }
-    fputc ('\n', out);
-  }
-
-  if ((flags & CH_UPDATE_REFS) && h->env->references)
-  {
-    fputs ("References:", out);
-    mutt_write_references (h->env->references, out, 0);
-    fputc ('\n', out);
-  }
-
-  if ((flags & CH_UPDATE) && (flags & CH_NOSTATUS) == 0)
-  {
-    if (h->old || h->read)
+    else if (rc < 0)
     {
-      fputs ("Status: ", out);
-      if (h->read)
-	fputs ("RO", out);
-      else if (h->old)
-	fputc ('O', out);
-      fputc ('\n', out);
+      dprint (1, (debugfile, "could not queue copy\n"));
+      goto out;
     }
+    else
+      mutt_message (_("Copying %d messages to %s..."), rc, mbox);
 
-    if (h->flagged || h->replied)
+    /* let's get it on */
+    rc = imap_exec (idata, NULL, IMAP_CMD_FAIL_OK);
+    if (rc == -2)
     {
-      fputs ("X-Status: ", out);
-      if (h->replied)
-	fputc ('A', out);
-      if (h->flagged)
-	fputc ('F', out);
-      fputc ('\n', out);
+      if (triedcreate)
+      {
+        dprint (1, (debugfile, "Already tried to create mailbox %s\n", mbox));
+        break;
+      }
+      /* bail out if command failed for reasons other than nonexistent target */
+      if (ascii_strncasecmp (imap_get_qualifier (idata->buf), "[TRYCREATE]", 11))
+        break;
+      dprint (3, (debugfile, "imap_fast_trash: server suggests TRYCREATE\n"));
+      snprintf (prompt, sizeof (prompt), _("Create %s?"), mbox);
+      if (option (OPTCONFIRMCREATE) && mutt_yesorno (prompt, 1) < 1)
+      {
+        mutt_clear_error ();
+        goto out;
+      }
+      if (imap_create_mailbox (idata, mbox) < 0)
+        break;
+      triedcreate = 1;
     }
   }
+  while (rc == -2);
 
-  if (flags & CH_UPDATE_LEN &&
-      (flags & CH_NOLEN) == 0)
+  if (rc != 0)
   {
-    fprintf (out, "Content-Length: " OFF_T_FMT "\n", h->content->length);
-    if (h->lines != 0 || h->content->length == 0)
-      fprintf (out, "Lines: %d\n", h->lines);
+    imap_error ("imap_fast_trash", idata->buf);
+    goto out;
   }
 
-  if (flags & CH_UPDATE_LABEL)
-  {
-    h->xlabel_changed = 0;
-    if (h->env->x_label != NULL)
-      if (fprintf(out, "X-Label: %s\n", h->env->x_label) !=
-		  10 + strlen(h->env->x_label))
-        return -1;
-  }
+  rc = 0;
 
-  if ((flags & CH_NONEWLINE) == 0)
-  {
-    if (flags & CH_PREFIX)
-      fputs(prefix, out);
-    fputc ('\n', out); /* add header terminator */
-  }
+ out:
+  FREE (&mx.mbox);
 
-  if (ferror (out) || feof (out))
-    return -1;
-  
-  return 0;
+  return rc < 0 ? -1 : rc;
 }

@@ -1,216 +1,158 @@
-static apr_size_t find_argument(ssi_ctx_t *ctx, const char *data,
-                                apr_size_t len, char ***store,
-                                apr_size_t **store_len)
+static int ap_set_byterange(request_rec *r, apr_off_t clength,
+                            apr_array_header_t **indexes)
 {
-    const char *p = data;
-    const char *ep = data + len;
+    const char *range;
+    const char *if_range;
+    const char *match;
+    const char *ct;
+    char *cur;
+    int num_ranges = 0, unsatisfiable = 0;
+    apr_off_t sum_lengths = 0;
+    indexes_t *idx;
+    int ranges = 1;
+    const char *it;
 
-    switch (ctx->state) {
-    case PARSE_ARG:
-        /*
-         * create argument structure and append it to the current list
-         */
-        ctx->current_arg = apr_palloc(ctx->dpool,
-                                      sizeof(*ctx->current_arg));
-        ctx->current_arg->next = NULL;
-
-        ++(ctx->argc);
-        if (!ctx->argv) {
-            ctx->argv = ctx->current_arg;
-        }
-        else {
-            ssi_arg_item_t *newarg = ctx->argv;
-
-            while (newarg->next) {
-                newarg = newarg->next;
-            }
-            newarg->next = ctx->current_arg;
-        }
-
-        /* check whether it's a valid one. If it begins with a quote, we
-         * can safely assume, someone forgot the name of the argument
-         */
-        switch (*p) {
-        case '"': case '\'': case '`':
-            *store = NULL;
-
-            ctx->state = PARSE_ARG_VAL;
-            ctx->quote = *p++;
-            ctx->current_arg->name = NULL;
-            ctx->current_arg->name_len = 0;
-            ctx->error = 1;
-
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, "missing argument "
-                          "name for value to tag %s in %s",
-                          apr_pstrmemdup(ctx->r->pool, ctx->directive,
-                                         ctx->ctx->directive_length),
-                                         ctx->r->filename);
-
-            return (p - data);
-
-        default:
-            ctx->state = PARSE_ARG_NAME;
-        }
-        /* continue immediately with next state */
-
-    case PARSE_ARG_NAME:
-        while (p < ep && !apr_isspace(*p) && *p != '=') {
-            ++p;
-        }
-
-        if (p < ep) {
-            ctx->state = PARSE_ARG_POSTNAME;
-            *store = &ctx->current_arg->name;
-            *store_len = &ctx->current_arg->name_len;
-            return (p - data);
-        }
-        break;
-
-    case PARSE_ARG_POSTNAME:
-        ctx->current_arg->name = apr_pstrmemdup(ctx->dpool,
-                                                ctx->current_arg->name,
-                                                ctx->current_arg->name_len);
-        if (!ctx->current_arg->name_len) {
-            ctx->error = 1;
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, "missing argument "
-                          "name for value to tag %s in %s",
-                          apr_pstrmemdup(ctx->r->pool, ctx->directive,
-                                         ctx->ctx->directive_length),
-                                         ctx->r->filename);
-        }
-        else {
-            char *sp = ctx->current_arg->name;
-
-            /* normalize the name */
-            while (*sp) {
-                *sp = apr_tolower(*sp);
-                ++sp;
-            }
-        }
-
-        ctx->state = PARSE_ARG_EQ;
-        /* continue with next state immediately */
-
-    case PARSE_ARG_EQ:
-        *store = NULL;
-
-        while (p < ep && apr_isspace(*p)) {
-            ++p;
-        }
-
-        if (p < ep) {
-            if (*p == '=') {
-                ctx->state = PARSE_ARG_PREVAL;
-                ++p;
-            }
-            else { /* no value */
-                ctx->current_arg->value = NULL;
-                ctx->state = PARSE_PRE_ARG;
-            }
-
-            return (p - data);
-        }
-        break;
-
-    case PARSE_ARG_PREVAL:
-        *store = NULL;
-
-        while (p < ep && apr_isspace(*p)) {
-            ++p;
-        }
-
-        /* buffer doesn't consist of whitespaces only */
-        if (p < ep) {
-            ctx->state = PARSE_ARG_VAL;
-            switch (*p) {
-            case '"': case '\'': case '`':
-                ctx->quote = *p++;
-                break;
-            default:
-                ctx->quote = '\0';
-                break;
-            }
-
-            return (p - data);
-        }
-        break;
-
-    case PARSE_ARG_VAL_ESC:
-        if (*p == ctx->quote) {
-            ++p;
-        }
-        ctx->state = PARSE_ARG_VAL;
-        /* continue with next state immediately */
-
-    case PARSE_ARG_VAL:
-        for (; p < ep; ++p) {
-            if (ctx->quote && *p == '\\') {
-                ++p;
-                if (p == ep) {
-                    ctx->state = PARSE_ARG_VAL_ESC;
-                    break;
-                }
-
-                if (*p != ctx->quote) {
-                    --p;
-                }
-            }
-            else if (ctx->quote && *p == ctx->quote) {
-                ++p;
-                *store = &ctx->current_arg->value;
-                *store_len = &ctx->current_arg->value_len;
-                ctx->state = PARSE_ARG_POSTVAL;
-                break;
-            }
-            else if (!ctx->quote && apr_isspace(*p)) {
-                ++p;
-                *store = &ctx->current_arg->value;
-                *store_len = &ctx->current_arg->value_len;
-                ctx->state = PARSE_ARG_POSTVAL;
-                break;
-            }
-        }
-
-        return (p - data);
-
-    case PARSE_ARG_POSTVAL:
-        /*
-         * The value is still the raw input string. Finally clean it up.
-         */
-        --(ctx->current_arg->value_len);
-
-        /* strip quote escaping \ from the string */
-        if (ctx->quote) {
-            apr_size_t shift = 0;
-            char *sp;
-
-            sp = ctx->current_arg->value;
-            ep = ctx->current_arg->value + ctx->current_arg->value_len;
-            while (sp < ep && *sp != '\\') {
-                ++sp;
-            }
-            for (; sp < ep; ++sp) {
-                if (*sp == '\\' && sp[1] == ctx->quote) {
-                    ++sp;
-                    ++shift;
-                }
-                if (shift) {
-                    *(sp-shift) = *sp;
-                }
-            }
-
-            ctx->current_arg->value_len -= shift;
-        }
-
-        ctx->current_arg->value[ctx->current_arg->value_len] = '\0';
-        ctx->state = PARSE_PRE_ARG;
-
+    if (r->assbackwards) {
         return 0;
-
-    default:
-        /* get a rid of a gcc warning about unhandled enumerations */
-        break;
     }
 
-    return len; /* partial match of something */
+    /*
+     * Check for Range request-header (HTTP/1.1) or Request-Range for
+     * backwards-compatibility with second-draft Luotonen/Franks
+     * byte-ranges (e.g. Netscape Navigator 2-3).
+     *
+     * We support this form, with Request-Range, and (farther down) we
+     * send multipart/x-byteranges instead of multipart/byteranges for
+     * Request-Range based requests to work around a bug in Netscape
+     * Navigator 2-3 and MSIE 3.
+     */
+
+    if (!(range = apr_table_get(r->headers_in, "Range"))) {
+        range = apr_table_get(r->headers_in, "Request-Range");
+    }
+
+    if (!range || strncasecmp(range, "bytes=", 6) || r->status != HTTP_OK) {
+        return 0;
+    }
+
+    /* is content already a single range? */
+    if (apr_table_get(r->headers_out, "Content-Range")) {
+       return 0;
+    }
+
+    /* is content already a multiple range? */
+    if ((ct = apr_table_get(r->headers_out, "Content-Type"))
+        && (!strncasecmp(ct, "multipart/byteranges", 20)
+            || !strncasecmp(ct, "multipart/x-byteranges", 22))) {
+       return 0;
+    }
+
+    /*
+     * Check the If-Range header for Etag or Date.
+     * Note that this check will return false (as required) if either
+     * of the two etags are weak.
+     */
+    if ((if_range = apr_table_get(r->headers_in, "If-Range"))) {
+        if (if_range[0] == '"') {
+            if (!(match = apr_table_get(r->headers_out, "Etag"))
+                || (strcmp(if_range, match) != 0)) {
+                return 0;
+            }
+        }
+        else if (!(match = apr_table_get(r->headers_out, "Last-Modified"))
+                 || (strcmp(if_range, match) != 0)) {
+            return 0;
+        }
+    }
+
+    range += 6;
+    it = range;
+    while (*it) {
+        if (*it++ == ',') {
+            ranges++;
+        }
+    }
+    it = range;
+    *indexes = apr_array_make(r->pool, ranges, sizeof(indexes_t));
+    while ((cur = ap_getword(r->pool, &range, ','))) {
+        char *dash;
+        char *errp;
+        apr_off_t number, start, end;
+
+        if (!*cur)
+            break;
+
+        /*
+         * Per RFC 2616 14.35.1: If there is at least one syntactically invalid
+         * byte-range-spec, we must ignore the whole header.
+         */
+
+        if (!(dash = strchr(cur, '-'))) {
+            return 0;
+        }
+
+        if (dash == cur) {
+            /* In the form "-5" */
+            if (strtoff(&number, dash+1, &errp, 10) || *errp) {
+                return 0;
+            }
+            if (number < 1) {
+                return 0;
+            }
+            start = clength - number;
+            end = clength - 1;
+        }
+        else {
+            *dash++ = '\0';
+            if (strtoff(&number, cur, &errp, 10) || *errp) {
+                return 0;
+            }
+            start = number;
+            if (*dash) {
+                if (strtoff(&number, dash, &errp, 10) || *errp) {
+                    return 0;
+                }
+                end = number;
+                if (start > end) {
+                    return 0;
+                }
+            }
+            else {                  /* "5-" */
+                end = clength - 1;
+            }
+        }
+
+        if (start < 0) {
+            start = 0;
+        }
+        if (start >= clength) {
+            unsatisfiable = 1;
+            continue;
+        }
+        if (end >= clength) {
+            end = clength - 1;
+        }
+
+        idx = (indexes_t *)apr_array_push(*indexes);
+        idx->start = start;
+        idx->end = end;
+        sum_lengths += end - start + 1;
+        /* new set again */
+        num_ranges++;
+    }
+
+    if (num_ranges == 0 && unsatisfiable) {
+        /* If all ranges are unsatisfiable, we should return 416 */
+        return -1;
+    }
+    if (sum_lengths >= clength) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "Sum of ranges not smaller than file, ignoring.");
+        return 0;
+    }
+
+    r->status = HTTP_PARTIAL_CONTENT;
+    r->range = it;
+
+    return num_ranges;
 }

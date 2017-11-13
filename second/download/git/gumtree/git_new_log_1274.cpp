@@ -1,2 +1,1 @@
-error("copy-fd: read returned %s",
-				     strerror(errno));
+printf("%.*s%s", p_len - GIT_SHA1_HEXSZ, p_start, name);

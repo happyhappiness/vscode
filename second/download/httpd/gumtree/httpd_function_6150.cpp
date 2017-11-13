@@ -1,17 +1,24 @@
-static void h2_mplx_destroy(h2_mplx *m)
+apr_status_t h2_task_output_write(h2_task_output *output,
+                                  ap_filter_t* f, apr_bucket_brigade* bb)
 {
-    conn_rec **pslave;
-    ap_assert(m);
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
-                  "h2_mplx(%ld): destroy, tasks=%d", 
-                  m->id, (int)h2_ihash_count(m->tasks));
-    check_tx_free(m);
+    apr_status_t status;
     
-    while (m->spare_slaves->nelts > 0) {
-        pslave = (conn_rec **)apr_array_pop(m->spare_slaves);
-        h2_slave_destroy(*pslave);
+    if (APR_BRIGADE_EMPTY(bb)) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                      "h2_task_output(%s): empty write", output->task->id);
+        return APR_SUCCESS;
     }
-    if (m->pool) {
-        apr_pool_destroy(m->pool);
+    
+    status = open_if_needed(output, f, bb);
+    if (status != APR_EOF) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
+                      "h2_task_output(%s): opened and passed brigade", 
+                      output->task->id);
+        return status;
     }
+    
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                  "h2_task_output(%s): write brigade", output->task->id);
+    return h2_mplx_out_write(output->task->mplx, output->task->stream_id, 
+                             f, bb, get_trailers(output), output->task->io);
 }

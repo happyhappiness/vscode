@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE3, rv, r,
-                          "proxy: SSL cleanup brigade contained %"
-                          APR_OFF_T_FMT " bytes of data.", len);
+ap_log_error(APLOG_MARK, APLOG_WARNING, rv, r->server,
+           "disk_cache: could not write info to header file %s",
+           dobj->hdrsfile);

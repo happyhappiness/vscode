@@ -1,11 +1,11 @@
 fputs(
-"              The Bearer Token and user name are formatted  according  to  RFC\n"
-"              6750.\n"
+"              underlying libcurl was built to support TLS. Added in 7.36.0.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"       --no-sessionid\n"
+"              (TLS) Disable curl's use of SSL session-ID caching.  By  default\n"
+"              all  transfers are done using the cache. Note that while nothing\n"
+"              should ever get hurt by attempting  to  reuse  SSL  session-IDs,\n"
+"              there seem to be broken SSL implementations in the wild that may\n"
+"              require you to disable this in order for you to succeed.\n"
 "\n"
-"       -o, --output <file>\n"
-"              Write output to <file> instead of stdout. If you are using {} or\n"
-"              [] to fetch multiple documents, you can use '#'  followed  by  a\n"
-"              number  in  the <file> specifier. That variable will be replaced\n"
 , stdout);

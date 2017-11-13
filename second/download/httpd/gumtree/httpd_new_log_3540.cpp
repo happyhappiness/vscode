@@ -1,5 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(00664)
-                         "RewriteOptions: MaxRedirects option has been "
-                         "removed in favor of the global "
-                         "LimitInternalRecursion directive and will be "
-                         "ignored.");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02072)
+                     "Failed to join multicast group");

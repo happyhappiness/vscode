@@ -1,1 +1,0 @@
-printf("%s\n", oid_to_hex(&commit_oid));

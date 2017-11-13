@@ -1,1 +1,1 @@
-out_of_memory("add_delete_entry");
+fprintf(FINFO,"deleting %s\n",f_name(f));

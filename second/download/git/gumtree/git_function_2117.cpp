@@ -1,8 +1,24 @@
-static void warn_unspecified_push_default_configuration(void)
+static int send_pack_config(const char *k, const char *v, void *cb)
 {
-	static int warn_once;
+	git_gpg_config(k, v, NULL);
 
-	if (warn_once++)
-		return;
-	warning("%s\n", _(warn_unspecified_push_default_msg));
+	if (!strcmp(k, "push.gpgsign")) {
+		const char *value;
+		if (!git_config_get_value("push.gpgsign", &value)) {
+			switch (git_config_maybe_bool("push.gpgsign", value)) {
+			case 0:
+				args.push_cert = SEND_PACK_PUSH_CERT_NEVER;
+				break;
+			case 1:
+				args.push_cert = SEND_PACK_PUSH_CERT_ALWAYS;
+				break;
+			default:
+				if (value && !strcasecmp(value, "if-asked"))
+					args.push_cert = SEND_PACK_PUSH_CERT_IF_ASKED;
+				else
+					return error("Invalid value for '%s'", k);
+			}
+		}
+	}
+	return 0;
 }

@@ -1,36 +1,39 @@
-void match_sums(int f,struct sum_struct *s,char *buf,off_t len)
+static char *get_local_name(struct file_list *flist,char *name)
 {
-  last_match = 0;
-  false_alarms = 0;
-  tag_hits = 0;
-  matches=0;
-  data_transfer=0;
+  struct stat st;
 
-  if (len > 0 && s->count>0) {
-    build_hash_table(s);
+  if (stat(name,&st) == 0) {
+    if (S_ISDIR(st.st_mode)) {
+      if (chdir(name) != 0) {
+	fprintf(stderr,"chdir %s : %s\n",name,strerror(errno));
+	exit_cleanup(1);
+      }
+      return NULL;
+    }
+    if (flist->count > 1) {
+      fprintf(stderr,"ERROR: destination must be a directory when copying more than 1 file\n");
+      exit_cleanup(1);
+    }
+    return name;
+  }
 
-    if (verbose > 2) 
-      fprintf(stderr,"built hash table\n");
+  if (flist->count == 1)
+    return name;
 
-    hash_search(f,s,buf,len);
+  if (!name) 
+    return NULL;
 
-    if (verbose > 2) 
-      fprintf(stderr,"done hash search\n");
+  if (mkdir(name,0777) != 0) {
+    fprintf(stderr,"mkdir %s : %s\n",name,strerror(errno));
+    exit_cleanup(1);
   } else {
-    matched(f,s,buf,len,len,-1);
+    fprintf(am_server?stderr:stdout,"created directory %s\n",name);
   }
 
-  if (targets) {
-    free(targets);
-    targets=NULL;
+  if (chdir(name) != 0) {
+    fprintf(stderr,"chdir %s : %s\n",name,strerror(errno));
+    exit_cleanup(1);
   }
 
-  if (verbose > 2)
-    fprintf(stderr, "false_alarms=%d tag_hits=%d matches=%d\n",
-	    false_alarms, tag_hits, matches);
-
-  total_tag_hits += tag_hits;
-  total_false_alarms += false_alarms;
-  total_matches += matches;
-  total_data_transfer += data_transfer;
+  return NULL;
 }

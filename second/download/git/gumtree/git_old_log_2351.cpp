@@ -1,1 +1,1 @@
-die("%s is not a tree", sha1_to_hex(hash));
+printf("root %s\n", sha1_to_hex(commit->object.sha1));

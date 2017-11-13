@@ -1,1 +1,2 @@
-warnf(global, "unsupported rate unit. Use G, M, K or B!\n");
+warnf(config->global, "curl_formadd failed, possibly the file %s is "
+                "bad!\n", contp + 1);

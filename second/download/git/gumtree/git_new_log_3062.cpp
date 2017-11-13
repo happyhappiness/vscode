@@ -1,1 +1,1 @@
-printf("%s\n", oid_to_hex(&tried->item->object.oid));
+die(_("Not a valid commit name %s"), sha1_to_hex(sha1));

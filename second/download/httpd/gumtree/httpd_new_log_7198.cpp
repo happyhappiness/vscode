@@ -1,1 +1,1 @@
-fprintf(stderr, "    -t timelimit    Seconds to max. to spend on benchmarking\n");
+fprintf(stderr, "                    Default is 30 seconds\n");

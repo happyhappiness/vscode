@@ -1,10 +1,11 @@
 fputs(
-"              port SSL/TLS.  (Added in 7.16.0) that can still be used but will\n"
-"              be removed in a future version.\n"
+"                     operates  on  the  file  \"normally\" (like in the multicwd\n"
+"                     case). This is somewhat  more  standards  compliant  than\n"
+"                     'nocwd' but without the full penalty of 'multicwd'.\n"
 "\n"
-"       --form-string <name=string>\n"
-"              (HTTP)  Similar  to  --form except that the value string for the\n"
-"              named parameter is used literally. Leading '@' and  '<'  charac-\n"
-"              ters, and the ';type=' string in the value have no special mean-\n"
-"              ing. Use this in preference to --form if there's any possibility\n"
+"              (Added in 7.15.1)\n"
+"\n"
+"       --ftp-pasv\n"
+"              (FTP)  Use  passive mode for the data connection. Passive is the\n"
+"              internal default behavior, but using this option can be used  to\n"
 , stdout);

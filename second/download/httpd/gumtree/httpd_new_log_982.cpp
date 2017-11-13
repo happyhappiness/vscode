@@ -1,2 +1,3 @@
-printf("(%d) %*s: %.*s\n", n, name_entry_size - 3, tabptr + 2,
-      ovector[2*n+1] - ovector[2*n], subject + ovector[2*n]);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -C \"directive\"     : process directive before reading "
+                 "config files");

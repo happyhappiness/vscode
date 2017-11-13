@@ -1,1 +1,1 @@
-fprintf(FERROR,"-o only allowed for root\n");
+fprintf(FERROR,"recv_file_list starting\n");

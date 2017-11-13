@@ -1,11 +1,11 @@
 fputs(
-"              socks5 proxy with -x, --proxy using a socks5:// protocol prefix.\n"
-"              If this option is used several times, the last one will be used.\n"
-"              (This option was  previously  wrongly  documented  and  used  as\n"
-"              --socks without the number appended.)\n"
+"              WARNING: this option loosens the SSL security, and by using this\n"
+"              flag you ask for exactly that.  (Added in 7.25.0)\n"
 "\n"
-"              This  option (as well as --socks4) does not work with IPV6, FTPS\n"
-"              or LDAP.\n"
+"       --ssl-no-revoke\n"
+"              (WinSSL)  This  option tells curl to disable certificate revoca-\n"
+"              tion checks.  WARNING: this option loosens the SSL security, and\n"
+"              by using this flag you ask for exactly that.  (Added in 7.44.0)\n"
 "\n"
-"       --socks5-gssapi-service <servicename>\n"
+"       --socks4 <host[:port]>\n"
 , stdout);

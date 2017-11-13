@@ -1,6 +1,2 @@
-fprintf(o, "%s%06o %s %d\t%s\n",
-			label,
-			ce->ce_mode,
-			oid_to_hex(&ce->oid),
-			ce_stage(ce),
-			ce->name);
+fprintf(opt->file, ":%06o %06o %s ", p->one->mode, p->two->mode,
+			diff_aligned_abbrev(&p->one->oid, opt->abbrev));

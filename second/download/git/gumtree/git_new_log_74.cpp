@@ -1,1 +1,1 @@
-die("unexpected character after quoted argument: %s", orig);
+die("BUG: invalid cmdmode %d", (int)cmdmode);

@@ -1,4 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                  "Request header field is missing ':' "
-                                  "separator: %.*s", (int)LOG_NAME_MAX_LEN,
-                                  last_field);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, base_server,
+#ifdef OPENSSL_NO_TLSEXT
+                     "Init: You should not use name-based "
+                     "virtual hosts in conjunction with SSL!!");

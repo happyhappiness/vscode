@@ -1,11 +1,11 @@
 fputs(
-"              Sets a range of environment variables, using the names  the  -w,\n"
-"              --write-out  option supports, to allow easier extraction of use-\n"
-"              ful information after having run curl.\n"
+"       --disable-epsv\n"
+"              (FTP) (FTP) Tell curl to disable the use  of  the  EPSV  command\n"
+"              when  doing  passive  FTP  transfers.  Curl will normally always\n"
+"              first attempt to use EPSV before PASV, but with this option,  it\n"
+"              will not try using EPSV.\n"
 "\n"
-"              --environment requires that the underlying libcurl was built  to\n"
-"              support RISC OS.\n"
+"              --epsv can be used to explicitly enable EPSV again and --no-epsv\n"
+"              is an alias for --disable-epsv.\n"
 "\n"
-"       --expect100-timeout <seconds>\n"
-"              (HTTP) Maximum time in seconds that you allow curl to wait for a\n"
 , stdout);

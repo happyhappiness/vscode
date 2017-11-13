@@ -1,325 +1,167 @@
-static int read_request_line(request_rec *r, apr_bucket_brigade *bb)
+static apr_status_t ap_cgi_build_command(const char **cmd, const char ***argv,
+                                         request_rec *r, apr_pool_t *p,
+                                         cgi_exec_info_t *e_info)
 {
-    enum {
-        rrl_none, rrl_badmethod, rrl_badwhitespace, rrl_excesswhitespace,
-        rrl_missinguri, rrl_baduri, rrl_badprotocol, rrl_trailingtext,
-        rrl_badmethod09, rrl_reject09
-    } deferred_error = rrl_none;
-    char *ll;
-    char *uri;
-    apr_size_t len;
-    int num_blank_lines = DEFAULT_LIMIT_BLANK_LINES;
-    core_server_config *conf =
-        (core_server_config *)ap_get_module_config(r->server->module_config,
-                                                   &core_module);
-    int strict = (conf->http_conformance != AP_HTTP_CONFORMANCE_UNSAFE);
+    const apr_array_header_t *elts_arr = apr_table_elts(r->subprocess_env);
+    const apr_table_entry_t *elts = (apr_table_entry_t *) elts_arr->elts;
+    const char *ext = NULL;
+    const char *interpreter = NULL;
+    win32_dir_conf *d;
+    apr_file_t *fh;
+    const char *args = "";
+    int i;
 
-    /* Read past empty lines until we get a real request line,
-     * a read error, the connection closes (EOF), or we timeout.
-     *
-     * We skip empty lines because browsers have to tack a CRLF on to the end
-     * of POSTs to support old CERN webservers.  But note that we may not
-     * have flushed any previous response completely to the client yet.
-     * We delay the flush as long as possible so that we can improve
-     * performance for clients that are pipelining requests.  If a request
-     * is pipelined then we won't block during the (implicit) read() below.
-     * If the requests aren't pipelined, then the client is still waiting
-     * for the final buffer flush from us, and we will block in the implicit
-     * read().  B_SAFEREAD ensures that the BUFF layer flushes if it will
-     * have to block during a read.
+    d = (win32_dir_conf *)ap_get_module_config(r->per_dir_config,
+                                               &win32_module);
+
+    if (e_info->cmd_type) {
+        /* We have to consider that the client gets any QUERY_ARGS
+         * without any charset interpretation, use prep_string to
+         * create a string of the literal QUERY_ARGS bytes.
+         */
+        *cmd = r->filename;
+        if (r->args && r->args[0] && !ap_strchr_c(r->args, '=')) {
+            args = r->args;
+        }
+    }
+    /* Handle the complete file name, we DON'T want to follow suexec, since
+     * an unrooted command is as predictable as shooting craps in Win32.
+     * Notice that unlike most mime extension parsing, we have to use the
+     * win32 parsing here, therefore the final extension is the only one
+     * we will consider.
      */
+    ext = strrchr(apr_filepath_name_get(*cmd), '.');
 
-    do {
+    /* If the file has an extension and it is not .com and not .exe and
+     * we've been instructed to search the registry, then do so.
+     * Let apr_proc_create do all of the .bat/.cmd dirty work.
+     */
+    if (ext && (!strcasecmp(ext,".exe") || !strcasecmp(ext,".com")
+                || !strcasecmp(ext,".bat") || !strcasecmp(ext,".cmd"))) {
+        interpreter = "";
+    }
+    if (!interpreter && ext
+          && (d->script_interpreter_source
+                     == INTERPRETER_SOURCE_REGISTRY
+           || d->script_interpreter_source
+                     == INTERPRETER_SOURCE_REGISTRY_STRICT)) {
+         /* Check the registry */
+        int strict = (d->script_interpreter_source
+                      == INTERPRETER_SOURCE_REGISTRY_STRICT);
+        interpreter = get_interpreter_from_win32_registry(r->pool, ext,
+                                                          strict);
+        if (interpreter && e_info->cmd_type != APR_SHELLCMD) {
+            e_info->cmd_type = APR_PROGRAM_PATH;
+        }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                 strict ? "No ExecCGI verb found for files of type '%s'."
+                        : "No ExecCGI or Open verb found for files of type '%s'.",
+                 ext);
+        }
+    }
+    if (!interpreter) {
         apr_status_t rv;
+        char buffer[1024];
+        apr_size_t bytes = sizeof(buffer);
+        apr_size_t i;
 
-        /* ensure ap_rgetline allocates memory each time thru the loop
-         * if there are empty lines
+        /* Need to peek into the file figure out what it really is...
+         * ### aught to go back and build a cache for this one of these days.
          */
-        r->the_request = NULL;
-        rv = ap_rgetline(&(r->the_request), (apr_size_t)(r->server->limit_req_line + 2),
-                         &len, r, strict ? AP_GETLINE_CRLF : 0, bb);
-
-        if (rv != APR_SUCCESS) {
-            r->request_time = apr_time_now();
-
-            /* ap_rgetline returns APR_ENOSPC if it fills up the
-             * buffer before finding the end-of-line.  This is only going to
-             * happen if it exceeds the configured limit for a request-line.
-             */
-            if (APR_STATUS_IS_ENOSPC(rv)) {
-                r->status = HTTP_REQUEST_URI_TOO_LARGE;
-            }
-            else if (APR_STATUS_IS_TIMEUP(rv)) {
-                r->status = HTTP_REQUEST_TIME_OUT;
-            }
-            else if (APR_STATUS_IS_EINVAL(rv)) {
-                r->status = HTTP_BAD_REQUEST;
-            }
-            r->proto_num = HTTP_VERSION(1,0);
-            r->protocol  = apr_pstrdup(r->pool, "HTTP/1.0");
-            return 0;
+        if ((rv = apr_file_open(&fh, *cmd, APR_READ | APR_BUFFERED,
+                                 APR_OS_DEFAULT, r->pool)) != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "Failed to open cgi file %s for testing", *cmd);
+            return rv;
         }
-    } while ((len <= 0) && (--num_blank_lines >= 0));
-
-    r->request_time = apr_time_now();
-
-    r->method = r->the_request;
-
-    /* If there is whitespace before a method, skip it and mark in error */
-    if (apr_isspace(*r->method)) {
-        deferred_error = rrl_badwhitespace; 
-        for ( ; apr_isspace(*r->method); ++r->method)
-            ; 
-    }
-
-    /* Scan the method up to the next whitespace, ensure it contains only
-     * valid http-token characters, otherwise mark in error
-     */
-    if (strict) {
-        ll = (char*) ap_scan_http_token(r->method);
-    }
-    else {
-        ll = (char*) ap_scan_vchar_obstext(r->method);
-    }
-
-    if (((ll == r->method) || (*ll && !apr_isspace(*ll)))
-            && deferred_error == rrl_none) {
-        deferred_error = rrl_badmethod;
-        ll = strpbrk(ll, "\t\n\v\f\r ");
-    }
-
-    /* Verify method terminated with a single SP, or mark as specific error */
-    if (!ll) {
-        if (deferred_error == rrl_none)
-            deferred_error = rrl_missinguri;
-        r->protocol = uri = "";
-        len = 0;
-        goto rrl_done;
-    }
-    else if (strict && ll[0] && apr_isspace(ll[1])
-             && deferred_error == rrl_none) {
-        deferred_error = rrl_excesswhitespace; 
-    }
-
-    /* Advance uri pointer over leading whitespace, NUL terminate the method
-     * If non-SP whitespace is encountered, mark as specific error
-     */
-    for (uri = ll; apr_isspace(*uri); ++uri) 
-        if (*uri != ' ' && deferred_error == rrl_none)
-            deferred_error = rrl_badwhitespace; 
-    *ll = '\0';
-
-    if (!*uri && deferred_error == rrl_none)
-        deferred_error = rrl_missinguri;
-
-    /* Scan the URI up to the next whitespace, ensure it contains no raw
-     * control characters, otherwise mark in error
-     */
-    ll = (char*) ap_scan_vchar_obstext(uri);
-    if (ll == uri || (*ll && !apr_isspace(*ll))) {
-        deferred_error = rrl_baduri;
-        ll = strpbrk(ll, "\t\n\v\f\r ");
-    }
-
-    /* Verify URI terminated with a single SP, or mark as specific error */
-    if (!ll) {
-        r->protocol = "";
-        len = 0;
-        goto rrl_done;
-    }
-    else if (strict && ll[0] && apr_isspace(ll[1])
-             && deferred_error == rrl_none) {
-        deferred_error = rrl_excesswhitespace; 
-    }
-
-    /* Advance protocol pointer over leading whitespace, NUL terminate the uri
-     * If non-SP whitespace is encountered, mark as specific error
-     */
-    for (r->protocol = ll; apr_isspace(*r->protocol); ++r->protocol) 
-        if (*r->protocol != ' ' && deferred_error == rrl_none)
-            deferred_error = rrl_badwhitespace; 
-    *ll = '\0';
-
-    /* Scan the protocol up to the next whitespace, validation comes later */
-    if (!(ll = (char*) ap_scan_vchar_obstext(r->protocol))) {
-        len = strlen(r->protocol);
-        goto rrl_done;
-    }
-    len = ll - r->protocol;
-
-    /* Advance over trailing whitespace, if found mark in error,
-     * determine if trailing text is found, unconditionally mark in error,
-     * finally NUL terminate the protocol string
-     */
-    if (*ll && !apr_isspace(*ll)) {
-        deferred_error = rrl_badprotocol;
-    }
-    else if (strict && *ll) {
-        deferred_error = rrl_excesswhitespace;
-    }
-    else {
-        for ( ; apr_isspace(*ll); ++ll)
-            if (*ll != ' ' && deferred_error == rrl_none)
-                deferred_error = rrl_badwhitespace; 
-        if (*ll && deferred_error == rrl_none)
-            deferred_error = rrl_trailingtext;
-    }
-    *((char *)r->protocol + len) = '\0';
-
-rrl_done:
-    /* For internal integrety and palloc efficiency, reconstruct the_request
-     * in one palloc, using only single SP characters, per spec.
-     */
-    r->the_request = apr_pstrcat(r->pool, r->method, *uri ? " " : NULL, uri,
-                                 *r->protocol ? " " : NULL, r->protocol, NULL);
-
-    if (len == 8
-            && r->protocol[0] == 'H' && r->protocol[1] == 'T'
-            && r->protocol[2] == 'T' && r->protocol[3] == 'P'
-            && r->protocol[4] == '/' && apr_isdigit(r->protocol[5])
-            && r->protocol[6] == '.' && apr_isdigit(r->protocol[7])
-            && r->protocol[5] != '0') {
-        r->assbackwards = 0;
-        r->proto_num = HTTP_VERSION(r->protocol[5] - '0', r->protocol[7] - '0');
-    }
-    else if (len == 8
-                 && (r->protocol[0] == 'H' || r->protocol[0] == 'h')
-                 && (r->protocol[1] == 'T' || r->protocol[1] == 't')
-                 && (r->protocol[2] == 'T' || r->protocol[2] == 't')
-                 && (r->protocol[3] == 'P' || r->protocol[3] == 'p')
-                 && r->protocol[4] == '/' && apr_isdigit(r->protocol[5])
-                 && r->protocol[6] == '.' && apr_isdigit(r->protocol[7])
-                 && r->protocol[5] != '0') {
-        r->assbackwards = 0;
-        r->proto_num = HTTP_VERSION(r->protocol[5] - '0', r->protocol[7] - '0');
-        if (strict && deferred_error == rrl_none)
-            deferred_error = rrl_badprotocol;
-        else
-            memcpy((char*)r->protocol, "HTTP", 4);
-    }
-    else if (r->protocol[0]) {
-        r->proto_num = HTTP_VERSION(0, 9);
-        /* Defer setting the r->protocol string till error msg is composed */
-        if (deferred_error == rrl_none)
-            deferred_error = rrl_badprotocol;
-    }
-    else {
-        r->assbackwards = 1;
-        r->protocol  = apr_pstrdup(r->pool, "HTTP/0.9");
-        r->proto_num = HTTP_VERSION(0, 9);
-    }
-
-    /* Determine the method_number and parse the uri prior to invoking error
-     * handling, such that these fields are available for subsitution
-     */
-    r->method_number = ap_method_number_of(r->method);
-    if (r->method_number == M_GET && r->method[0] == 'H')
-        r->header_only = 1;
-
-    ap_parse_uri(r, uri);
-
-    /* With the request understood, we can consider HTTP/0.9 specific errors */
-    if (r->proto_num == HTTP_VERSION(0, 9) && deferred_error == rrl_none) {
-        if (conf->http09_enable == AP_HTTP09_DISABLE)
-            deferred_error = rrl_reject09;
-        else if (strict && (r->method_number != M_GET || r->header_only))
-            deferred_error = rrl_badmethod09;
-    }
-
-    /* Now that the method, uri and protocol are all processed,
-     * we can safely resume any deferred error reporting
-     */
-    if (deferred_error != rrl_none) {
-        if (deferred_error == rrl_badmethod)
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "HTTP Request Line; Invalid method token: '%.*s'",
-                          field_name_len(r->method), r->method);
-        else if (deferred_error == rrl_badmethod09)
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "HTTP Request Line; Invalid method token: '%.*s'"
-                          " (only GET is allowed for HTTP/0.9 requests)",
-                          field_name_len(r->method), r->method);
-        else if (deferred_error == rrl_missinguri)
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "HTTP Request Line; Missing URI");
-        else if (deferred_error == rrl_baduri)
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "HTTP Request Line; URI incorrectly encoded: '%.*s'",
-                          field_name_len(r->uri), r->uri);
-        else if (deferred_error == rrl_badwhitespace)
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "HTTP Request Line; Invalid whitespace");
-        else if (deferred_error == rrl_excesswhitespace)
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "HTTP Request Line; Excess whitespace "
-                          "(disallowed by HttpProtocolOptions Strict");
-        else if (deferred_error == rrl_trailingtext)
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "HTTP Request Line; Extraneous text found '%.*s' "
-                          "(perhaps whitespace was injected?)",
-                          field_name_len(ll), ll);
-        else if (deferred_error == rrl_reject09)
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "HTTP Request Line; Rejected HTTP/0.9 request");
-        else if (deferred_error == rrl_badprotocol)
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "HTTP Request Line; Unrecognized protocol '%.*s' "
-                          "(perhaps whitespace was injected?)",
-                          field_name_len(r->protocol), r->protocol);
-        r->status = HTTP_BAD_REQUEST;
-        goto rrl_failed;
-    }
-
-    if (conf->http_methods == AP_HTTP_METHODS_REGISTERED
-            && r->method_number == M_INVALID) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "HTTP Request Line; Unrecognized HTTP method: '%.*s' "
-                      "(disallowed by RegisteredMethods)",
-                      field_name_len(r->method), r->method);
-        r->status = HTTP_NOT_IMPLEMENTED;
-        /* This can't happen in an HTTP/0.9 request, we verified GET above */
-        return 0;
-    }
-
-    if (r->status != HTTP_OK) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "HTTP Request Line; Unable to parse URI: '%.*s'",
-                      field_name_len(r->uri), r->uri);
-        goto rrl_failed;
-    }
-
-    if (strict) {
-        if (r->parsed_uri.fragment) {
-            /* RFC3986 3.5: no fragment */
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "HTTP Request Line; URI must not contain a fragment");
-            r->status = HTTP_BAD_REQUEST;
-            goto rrl_failed;
+        if ((rv = apr_file_read(fh, buffer, &bytes)) != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "Failed to read cgi file %s for testing", *cmd);
+            return rv;
         }
-        if (r->parsed_uri.user || r->parsed_uri.password) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "HTTP Request Line; URI must not contain a "
-                          "username/password");
-            r->status = HTTP_BAD_REQUEST;
-            goto rrl_failed;
-        }
-    }
+        apr_file_close(fh);
 
-    return 1;
-
-rrl_failed:
-    if (r->proto_num == HTTP_VERSION(0, 9)) {
-        /* Send all parsing and protocol error response with 1.x behavior,
-         * and reserve 505 errors for actual HTTP protocols presented.
-         * As called out in RFC7230 3.5, any errors parsing the protocol
-         * from the request line are nearly always misencoded HTTP/1.x
-         * requests. Only a valid 0.9 request with no parsing errors
-         * at all may be treated as a simple request, if allowed.
+        /* Some twisted character [no pun intended] at MS decided that a
+         * zero width joiner as the lead wide character would be ideal for
+         * describing Unicode text files.  This was further convoluted to
+         * another MSism that the same character mapped into utf-8, EF BB BF
+         * would signify utf-8 text files.
+         *
+         * Since MS configuration files are all protecting utf-8 encoded
+         * Unicode path, file and resource names, we already have the correct
+         * WinNT encoding.  But at least eat the stupid three bytes up front.
+         *
+         * ### A more thorough check would also allow UNICODE text in buf, and
+         * convert it to UTF-8 for invoking unicode scripts.  Those are few
+         * and far between, so leave that code an enterprising soul with a need.
          */
-        r->assbackwards = 0;
-        r->connection->keepalive = AP_CONN_CLOSE;
-        r->proto_num = HTTP_VERSION(1, 0);
-        r->protocol  = apr_pstrdup(r->pool, "HTTP/1.0");
+        if ((bytes >= 3) && memcmp(buffer, "\xEF\xBB\xBF", 3) == 0) {
+            memmove(buffer, buffer + 3, bytes -= 3);
+        }
+
+        /* Script or executable, that is the question... */
+        if ((bytes >= 2) && (buffer[0] == '#') && (buffer[1] == '!')) {
+            /* Assuming file is a script since it starts with a shebang */
+            for (i = 2; i < bytes; i++) {
+                if ((buffer[i] == '\r') || (buffer[i] == '\n')) {
+                    buffer[i] = '\0';
+                    break;
+                }
+            }
+            if (i < bytes) {
+                interpreter = buffer + 2;
+                while (apr_isspace(*interpreter)) {
+                    ++interpreter;
+                }
+                if (e_info->cmd_type != APR_SHELLCMD) {
+                    e_info->cmd_type = APR_PROGRAM_PATH;
+                }
+            }
+        }
+        else if (bytes >= sizeof(IMAGE_DOS_HEADER)) {
+            /* Not a script, is it an executable? */
+            IMAGE_DOS_HEADER *hdr = (IMAGE_DOS_HEADER*)buffer;
+            if (hdr->e_magic == IMAGE_DOS_SIGNATURE) {
+                if (hdr->e_lfarlc < 0x40) {
+                    /* Ought to invoke this 16 bit exe by a stub, (cmd /c?) */
+                    interpreter = "";
+                }
+                else {
+                    interpreter = "";
+                }
+            }
+        }
     }
-    return 0;
+    if (!interpreter) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "%s is not executable; ensure interpreted scripts have "
+                      "\"#!\" first line", *cmd);
+        return APR_EBADF;
+    }
+
+    *argv = (const char **)(split_argv(p, interpreter, *cmd,
+                                       args)->elts);
+    *cmd = (*argv)[0];
+
+    e_info->detached = 1;
+
+    /* XXX: Must fix r->subprocess_env to follow utf-8 conventions from
+     * the client's octets so that win32 apr_proc_create is happy.
+     * The -best- way is to determine if the .exe is unicode aware
+     * (using 0x0080-0x00ff) or is linked as a command or windows
+     * application (following the OEM or Ansi code page in effect.)
+     */
+    for (i = 0; i < elts_arr->nelts; ++i) {
+        if (win_nt && elts[i].key && *elts[i].key
+                && (strncmp(elts[i].key, "HTTP_", 5) == 0
+                 || strncmp(elts[i].key, "SERVER_", 7) == 0
+                 || strncmp(elts[i].key, "REQUEST_", 8) == 0
+                 || strcmp(elts[i].key, "QUERY_STRING") == 0
+                 || strcmp(elts[i].key, "PATH_INFO") == 0
+                 || strcmp(elts[i].key, "PATH_TRANSLATED") == 0)) {
+            prep_string((const char**) &elts[i].val, r->pool);
+        }
+    }
+    return APR_SUCCESS;
 }

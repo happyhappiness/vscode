@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "auth_ldap authenticate: no password specified");
+ap_rputs("<h3>Edit balancer settings for ", r);

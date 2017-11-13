@@ -1,1 +1,1 @@
-error("bad parents in commit %s", oid_to_hex(&item->object.oid));
+die("Out of memory, getdelim failed");

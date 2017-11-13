@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "auth_ldap authenticate: no user specified");
+ap_rvputs(r, bsel->name, "</h3>\n", NULL);

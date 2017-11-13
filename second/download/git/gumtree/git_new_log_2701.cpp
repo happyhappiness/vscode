@@ -1,2 +1,1 @@
-die(_("Could not read ref %s"),
-					    (*tail)->name);
+die(_("unrecognized format: %%(%s)"), atom->name);

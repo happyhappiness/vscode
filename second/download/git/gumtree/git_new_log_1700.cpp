@@ -1,1 +1,1 @@
-warning("Skipping unknown msg id '%s'", var);
+die_errno("write error");

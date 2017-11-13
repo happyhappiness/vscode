@@ -1,2 +1,1 @@
-(mutt_yesorno (_("S/MIME already selected. Clear & continue ? "),
-                              MUTT_YES);
+(mutt_yesorno (_("Can't match nametemplate, continue?"), MUTT_YES);

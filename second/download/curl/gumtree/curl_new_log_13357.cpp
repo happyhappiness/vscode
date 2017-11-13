@@ -1,9 +1,8 @@
 fputs(
-"              contains a single public key in PEM or DER format, or any number\n"
-"              of base64 encoded sha256 hashes preceded by 'sha256//' and sepa-\n"
-"              rated by ';'\n"
-"\n"
-"              When negotiating a TLS or SSL connection,  the  server  sends  a\n"
-"              certificate  indicating  its identity. A public key is extracted\n"
-"              from this certificate and if it does not exactly match the  pub-\n"
+"  certificate needs to be in PEM-format. PEM is a standard and open format to\n"
+"  store certificates with, but it is not used by the most commonly used\n"
+"  browsers (Netscape and MSIE both use the so called PKCS#12 format). If you\n"
+"  want curl to use the certificates you use with your (favourite) browser, you\n"
+"  may need to download/compile a converter that can convert your browser's\n"
+"  formatted certificates to PEM formatted ones. This kind of converter is\n"
 , stdout);

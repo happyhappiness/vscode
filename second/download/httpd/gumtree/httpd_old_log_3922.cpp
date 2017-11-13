@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-                                 "proxy: FTP: EPSV attempt to connect to %pI failed - Firewall/NAT?", epsv_addr);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "util_ldap: Couldn't retrieve group entry "
+                              "for %s from cache",
+                              dn);

@@ -1,11 +1,9 @@
 fputs(
-"              requires  that  the  underlying  libcurl was built to support c-\n"
-"              ares. Added in 7.33.0.\n"
+"              (HTTP)  Sends  the  specified data in a POST request to the HTTP\n"
+"              server, in the same way that a browser  does  when  a  user  has\n"
+"              filled  in an HTML form and presses the submit button. This will\n"
+"              cause curl to pass the data to the server using the content-type\n"
+"              application/x-www-form-urlencoded.  Compare to -F, --form.\n"
 "\n"
-"       --dns-ipv4-addr <address>\n"
-"              (DNS) Tell curl to bind to <ip-address>  when  making  IPv4  DNS\n"
-"              requests,  so that the DNS requests originate from this address.\n"
-"              The argument should be a single IPv4 address.\n"
-"\n"
-"              See also --dns-interface  and  --dns-ipv6-addr.  --dns-ipv4-addr\n"
+"              --data-raw is almost the same but does not have a special inter-\n"
 , stdout);

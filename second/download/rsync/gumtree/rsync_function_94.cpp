@@ -1,91 +1,62 @@
-struct file_list *send_file_list(int f,int recurse,int argc,char *argv[])
+static void receive_file_entry(struct file_struct *file,
+			       unsigned char flags,int f)
 {
-  int i,l;
-  struct stat st;
-  char *p,*dir;
-  char dbuf[MAXPATHLEN];
-  struct file_list *flist;
+  static mode_t last_mode=0;
+  static dev_t last_dev=0;
+  static uid_t last_uid=0;
+  static gid_t last_gid=0;
+  static char lastdir[MAXPATHLEN]="";
+  char *p=NULL;
+  int l1,l2;
 
-  if (verbose && recurse) {
-    fprintf(am_server?stderr:stdout,"building file list ... ");
-    fflush(am_server?stderr:stdout);
+  if (flags & SAME_DIR) {
+    l1 = read_byte(f);
+    l2 = strlen(lastdir);
+  } else {
+    l1 = read_int(f);
+    l2 = 0;
   }
 
-  flist = (struct file_list *)malloc(sizeof(flist[0]));
-  if (!flist) out_of_memory("send_file_list");
+  file->name = (char *)malloc(l1+l2+1);
+  if (!file->name) out_of_memory("receive_file_entry");
 
-  flist->count=0;
-  flist->malloced = 100;
-  flist->files = (struct file_struct *)malloc(sizeof(flist->files[0])*
-					      flist->malloced);
-  if (!flist->files) out_of_memory("send_file_list");
+  strncpy(file->name,lastdir,l2);
+  read_buf(f,file->name+l2,l1);
+  file->name[l1+l2] = 0;
 
-  for (i=0;i<argc;i++) {
-    char fname2[MAXPATHLEN];
-    char *fname = fname2;
+  file->modtime = (time_t)read_int(f);
+  file->length = (off_t)read_int(f);
+  file->mode = (flags & SAME_MODE) ? last_mode : (mode_t)read_int(f);
+  if (preserve_uid)
+    file->uid = (flags & SAME_UID) ? last_uid : (uid_t)read_int(f);
+  if (preserve_gid)
+    file->gid = (flags & SAME_GID) ? last_gid : (gid_t)read_int(f);
+  if (preserve_devices && IS_DEVICE(file->mode))
+    file->dev = (flags & SAME_DEV) ? last_dev : (dev_t)read_int(f);
 
-    strcpy(fname,argv[i]);
-
-    l = strlen(fname);
-    if (l != 1 && fname[l-1] == '/') {
-      strcat(fname,".");
-    }
-
-    if (lstat(fname,&st) != 0) {
-      fprintf(stderr,"%s : %s\n",fname,strerror(errno));
-      continue;
-    }
-
-    if (S_ISDIR(st.st_mode) && !recurse) {
-      fprintf(stderr,"skipping directory %s\n",fname);
-      continue;
-    }
-
-    dir = NULL;
-    p = strrchr(fname,'/');
-    if (p) {
-      *p = 0;
-      dir = fname;
-      fname = p+1;      
-    }
-    if (!*fname)
-      fname = ".";
-
-    if (dir && *dir) {
-      if (getcwd(dbuf,MAXPATHLEN-1) == NULL) {
-	fprintf(stderr,"getwd : %s\n",strerror(errno));
-	exit_cleanup(1);
-      }
-      if (chdir(dir) != 0) {
-	fprintf(stderr,"chdir %s : %s\n",dir,strerror(errno));
-	continue;
-      }
-      flist_dir = dir;
-      if (one_file_system)
-	set_filesystem(fname);
-      send_file_name(f,flist,recurse,fname);
-      flist_dir = NULL;
-      if (chdir(dbuf) != 0) {
-	fprintf(stderr,"chdir %s : %s\n",dbuf,strerror(errno));
-	exit_cleanup(1);
-      }
-      continue;
-    }
-
-    if (one_file_system)
-      set_filesystem(fname);
-    send_file_name(f,flist,recurse,fname);
+#if SUPPORT_LINKS
+  if (preserve_links && S_ISLNK(file->mode)) {
+    int l = read_int(f);
+    file->link = (char *)malloc(l+1);
+    if (!file->link) out_of_memory("receive_file_entry");
+    read_buf(f,file->link,l);
+    file->link[l] = 0;
   }
-
-  if (f != -1) {
-    send_file_entry(NULL,f);
-    write_flush(f);
+#endif
+  
+  if (always_checksum)
+    read_buf(f,file->sum,SUM_LENGTH);
+  
+  last_mode = file->mode;
+  last_dev = file->dev;
+  last_uid = file->uid;
+  last_gid = file->gid;
+  p = strrchr(file->name,'/');
+  if (p) {
+    int l = (int)(p - file->name) + 1;
+    strncpy(lastdir,file->name,l);
+    lastdir[l] = 0;
+  } else {
+    strcpy(lastdir,"");
   }
-
-  clean_flist(flist);
-
-  if (verbose && recurse)
-    fprintf(am_server?stderr:stdout,"done\n");
-
-  return flist;
 }

@@ -4,10 +4,11 @@ int bisect_next_all(const char *prefix, int no_checkout)
 	struct commit_list *tried;
 	int reaches = 0, all = 0, nr, steps;
 	const unsigned char *bisect_rev;
+	char steps_msg[32];
 
 	read_bisect_terms(&term_bad, &term_good);
 	if (read_bisect_refs())
-		die("reading bisect refs failed");
+		die(_("reading bisect refs failed"));
 
 	check_good_are_ancestors_of_bad(prefix, no_checkout);
 
@@ -27,7 +28,7 @@ int bisect_next_all(const char *prefix, int no_checkout)
 		 */
 		exit_if_skipped_commits(tried, NULL);
 
-		printf("%s was both %s and %s\n",
+		printf(_("%s was both %s and %s\n"),
 		       oid_to_hex(current_bad_oid),
 		       term_good,
 		       term_bad);
@@ -35,8 +36,8 @@ int bisect_next_all(const char *prefix, int no_checkout)
 	}
 
 	if (!all) {
-		fprintf(stderr, "No testable commit found.\n"
-			"Maybe you started with bad path parameters?\n");
+		fprintf(stderr, _("No testable commit found.\n"
+			"Maybe you started with bad path parameters?\n"));
 		exit(4);
 	}
 
@@ -53,9 +54,14 @@ int bisect_next_all(const char *prefix, int no_checkout)
 
 	nr = all - reaches - 1;
 	steps = estimate_bisect_steps(all);
-	printf("Bisecting: %d revision%s left to test after this "
-	       "(roughly %d step%s)\n", nr, (nr == 1 ? "" : "s"),
-	       steps, (steps == 1 ? "" : "s"));
+	xsnprintf(steps_msg, sizeof(steps_msg),
+		  Q_("(roughly %d step)", "(roughly %d steps)", steps),
+		  steps);
+	/* TRANSLATORS: the last %s will be replaced with
+	   "(roughly %d steps)" translation */
+	printf(Q_("Bisecting: %d revision left to test after this %s\n",
+		  "Bisecting: %d revisions left to test after this %s\n",
+		  nr), nr, steps_msg);
 
 	return bisect_checkout(bisect_rev, no_checkout);
 }

@@ -1,107 +1,98 @@
-static char *getstr(server_rec *serv, register char *s, register char *p,
-                    int plen, int *slen)
+static apr_status_t dbd_construct(void **data_ptr,
+                                  void *params, apr_pool_t *pool)
 {
-    char *origs = s, *origp = p;
-    char *pmax = p + plen - 1;
-    register int c;
-    register int val;
+    dbd_group_t *group = params;
+    dbd_cfg_t *cfg = group->cfg;
+    apr_pool_t *rec_pool, *prepared_pool;
+    ap_dbd_t *rec;
+    apr_status_t rv;
+    const char *err = "";
 
-    while ((c = *s++) != '\0') {
-        if (apr_isspace(c))
-            break;
-        if (p >= pmax) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, serv,
-                        MODNAME ": string too long: %s", origs);
-            break;
-        }
-        if (c == '\\') {
-            switch (c = *s++) {
-
-            case '\0':
-                goto out;
-
-            default:
-                *p++ = (char) c;
-                break;
-
-            case 'n':
-                *p++ = '\n';
-                break;
-
-            case 'r':
-                *p++ = '\r';
-                break;
-
-            case 'b':
-                *p++ = '\b';
-                break;
-
-            case 't':
-                *p++ = '\t';
-                break;
-
-            case 'f':
-                *p++ = '\f';
-                break;
-
-            case 'v':
-                *p++ = '\v';
-                break;
-
-                /* \ and up to 3 octal digits */
-            case '0':
-            case '1':
-            case '2':
-            case '3':
-            case '4':
-            case '5':
-            case '6':
-            case '7':
-                val = c - '0';
-                c = *s++;  /* try for 2 */
-                if (c >= '0' && c <= '7') {
-                    val = (val << 3) | (c - '0');
-                    c = *s++;  /* try for 3 */
-                    if (c >= '0' && c <= '7')
-                        val = (val << 3) | (c - '0');
-                    else
-                        --s;
-                }
-                else
-                    --s;
-                *p++ = (char) val;
-                break;
-
-                /* \x and up to 3 hex digits */
-            case 'x':
-                val = 'x';            /* Default if no digits */
-                c = hextoint(*s++);   /* Get next char */
-                if (c >= 0) {
-                    val = c;
-                    c = hextoint(*s++);
-                    if (c >= 0) {
-                        val = (val << 4) + c;
-                        c = hextoint(*s++);
-                        if (c >= 0) {
-                            val = (val << 4) + c;
-                        }
-                        else
-                            --s;
-                    }
-                    else
-                        --s;
-                }
-                else
-                    --s;
-                *p++ = (char) val;
-                break;
-            }
-        }
-        else
-            *p++ = (char) c;
+    rv = apr_pool_create(&rec_pool, pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, cfg->server,
+                     "DBD: Failed to create memory pool");
+        return rv;
     }
-  out:
-    *p = '\0';
-    *slen = p - origp;
-    return s;
+
+    rec = apr_pcalloc(rec_pool, sizeof(ap_dbd_t));
+
+    rec->pool = rec_pool;
+
+    /* The driver is loaded at config time now, so this just checks a hash.
+     * If that changes, the driver DSO could be registered to unload against
+     * our pool, which is probably not what we want.  Error checking isn't
+     * necessary now, but in case that changes in the future ...
+     */
+    rv = apr_dbd_get_driver(rec->pool, cfg->name, &rec->driver);
+    if (rv != APR_SUCCESS) {
+        if (APR_STATUS_IS_ENOTIMPL(rv)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: driver for %s not available", cfg->name);
+        }
+        else if (APR_STATUS_IS_EDSOOPEN(rv)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: can't find driver for %s", cfg->name);
+        }
+        else if (APR_STATUS_IS_ESYMNOTFOUND(rv)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: driver for %s is invalid or corrupted",
+                         cfg->name);
+        }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: mod_dbd not compatible with APR in get_driver");
+        }
+        apr_pool_destroy(rec->pool);
+        return rv;
+    }
+
+    rv = apr_dbd_open_ex(rec->driver, rec->pool, cfg->params, &rec->handle, &err);
+    if (rv != APR_SUCCESS) {
+        switch (rv) {
+        case APR_EGENERAL:
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: Can't connect to %s: %s", cfg->name, err);
+            break;
+        default:
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: mod_dbd not compatible with APR in open");
+            break;
+        }
+
+        apr_pool_destroy(rec->pool);
+        return rv;
+    }
+
+    apr_pool_cleanup_register(rec->pool, rec, dbd_close,
+                              apr_pool_cleanup_null);
+
+    /* we use a sub-pool for the prepared statements for each connection so
+     * that they will be cleaned up first, before the connection is closed
+     */
+    rv = apr_pool_create(&prepared_pool, rec->pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, cfg->server,
+                     "DBD: Failed to create memory pool");
+
+        apr_pool_destroy(rec->pool);
+        return rv;
+    }
+
+    rv = dbd_prepared_init(prepared_pool, cfg, rec);
+    if (rv != APR_SUCCESS) {
+        const char *errmsg = apr_dbd_error(rec->driver, rec->handle, rv);
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                     "DBD: failed to prepare SQL statements: %s",
+                     (errmsg ? errmsg : "[???]"));
+
+        apr_pool_destroy(rec->pool);
+        return rv;
+    }
+
+    dbd_run_post_connect(prepared_pool, cfg, rec);
+
+    *data_ptr = rec;
+
+    return APR_SUCCESS;
 }

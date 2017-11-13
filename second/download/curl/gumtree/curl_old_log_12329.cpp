@@ -1,9 +1,10 @@
 fputs(
-"              Transport,  or  PEM  format  if  using any other engine.  If the\n"
-"              optional password isn't specified, it will be queried for on the\n"
-"              terminal.  Note  that  this  option assumes a \"certificate\" file\n"
-"              that is the private key and the client certificate concatenated!\n"
-"              See --cert and --key to specify them independently.\n"
+"       --dns-interface <interface>\n"
+"              Tell  curl  to  send  outgoing DNS requests through <interface>.\n"
+"              This option is a counterpart  to  --interface  (which  does  not\n"
+"              affect  DNS). The supplied string must be an interface name (not\n"
+"              an address).\n"
 "\n"
-"              If  curl  is  built against the NSS SSL library then this option\n"
+"              This option requires that libcurl  was  built  with  a  resolver\n"
+"              backend  that supports this operation. The c-ares backend is the\n"
 , stdout);

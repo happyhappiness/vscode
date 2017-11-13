@@ -1,32 +1,27 @@
-static int write_ref_to_lockfile(struct ref_lock *lock,
-				 const unsigned char *sha1)
+static void show_diff(struct merge_list *entry)
 {
-	static char term = '\n';
-	struct object *o;
+	unsigned long size;
+	mmfile_t src, dst;
+	xpparam_t xpp;
+	xdemitconf_t xecfg;
+	xdemitcb_t ecb;
 
-	o = parse_object(sha1);
-	if (!o) {
-		error("Trying to write ref %s with nonexistent object %s",
-			lock->ref_name, sha1_to_hex(sha1));
-		unlock_ref(lock);
-		errno = EINVAL;
-		return -1;
-	}
-	if (o->type != OBJ_COMMIT && is_branch(lock->ref_name)) {
-		error("Trying to write non-commit object %s to branch %s",
-			sha1_to_hex(sha1), lock->ref_name);
-		unlock_ref(lock);
-		errno = EINVAL;
-		return -1;
-	}
-	if (write_in_full(lock->lk->fd, sha1_to_hex(sha1), 40) != 40 ||
-	    write_in_full(lock->lk->fd, &term, 1) != 1 ||
-	    close_ref(lock) < 0) {
-		int save_errno = errno;
-		error("Couldn't write %s", lock->lk->filename.buf);
-		unlock_ref(lock);
-		errno = save_errno;
-		return -1;
-	}
-	return 0;
+	xpp.flags = 0;
+	memset(&xecfg, 0, sizeof(xecfg));
+	xecfg.ctxlen = 3;
+	ecb.outf = show_outf;
+	ecb.priv = NULL;
+
+	src.ptr = origin(entry, &size);
+	if (!src.ptr)
+		size = 0;
+	src.size = size;
+	dst.ptr = result(entry, &size);
+	if (!dst.ptr)
+		size = 0;
+	dst.size = size;
+	if (xdi_diff(&src, &dst, &xpp, &xecfg, &ecb))
+		die("unable to generate diff");
+	free(src.ptr);
+	free(dst.ptr);
 }

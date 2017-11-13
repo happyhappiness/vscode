@@ -1,2 +1,1 @@
-error("unable to commit reflog '%s' (%s)",
-					log_file, strerror(errno));
+die(_("unable to parse format string"));

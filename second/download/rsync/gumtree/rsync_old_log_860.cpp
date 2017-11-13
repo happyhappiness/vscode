@@ -1,1 +1,1 @@
-fprintf(header, "const uch _length_code[MAX_MATCH-MIN_MATCH+1]= {\n");
+fprintf(f, "\\#%03o", *(uchar*)in_buf++);

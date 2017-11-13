@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "dropping filter '%s' in internal redirect from %s to %s",
-                              f->frec->name, r->unparsed_uri, new_uri);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                     "Incoming request is asking for a uncached version of "
+                     "%s, but we know better and are ignoring it",
+                     r->unparsed_uri);

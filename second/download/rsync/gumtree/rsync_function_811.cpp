@@ -1,14 +1,21 @@
-static void tls_usage(int ret)
+static void filtered_fwrite(FILE *f, const char *buf, int len, int use_isprint)
 {
-  FILE *F = ret ? stderr : stdout;
-  fprintf(F,"usage: " PROGRAM " [OPTIONS] FILE ...\n");
-  fprintf(F,"Trivial file listing program for portably checking rsync\n");
-  fprintf(F,"\nOptions:\n");
-  fprintf(F," -l, --link-times            display the time on a symlink\n");
-  fprintf(F," -L, --link-owner            display the owner+group on a symlink\n");
-#ifdef SUPPORT_XATTRS
-  fprintf(F," -f, --fake-super            display attributes including fake-super xattrs\n");
-#endif
-  fprintf(F," -h, --help                  show this help\n");
-  exit(ret);
+	const char *s, *end = buf + len;
+	for (s = buf; s < end; s++) {
+		if ((s < end - 4
+		  && *s == '\\' && s[1] == '#'
+		  && isdigit(*(uchar*)(s+2))
+		  && isdigit(*(uchar*)(s+3))
+		  && isdigit(*(uchar*)(s+4)))
+		 || (*s != '\t'
+		  && ((use_isprint && !isprint(*(uchar*)s))
+		   || *(uchar*)s < ' '))) {
+			if (s != buf && fwrite(buf, s - buf, 1, f) != 1)
+				exit_cleanup(RERR_MESSAGEIO);
+			fprintf(f, "\\#%03o", *(uchar*)s);
+			buf = s + 1;
+		}
+	}
+	if (buf != end && fwrite(buf, end - buf, 1, f) != 1)
+		exit_cleanup(RERR_MESSAGEIO);
 }

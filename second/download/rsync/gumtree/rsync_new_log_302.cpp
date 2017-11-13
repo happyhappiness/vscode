@@ -1,1 +1,2 @@
-fprintf(f,"    --timeout TIME       set IO timeout in seconds\n");
+fprintf(FERROR,"write %s: %s\n",
+				dest,strerror(errno));

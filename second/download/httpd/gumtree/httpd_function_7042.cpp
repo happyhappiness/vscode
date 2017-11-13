@@ -1,8 +1,8 @@
-static authn_status authn_dbd_password(request_rec *r, const char *user,
-                                       const char *password)
+static authn_status authn_dbd_realm(request_rec *r, const char *user,
+                                    const char *realm, char **rethash)
 {
     apr_status_t rv;
-    const char *dbd_password = NULL;
+    const char *dbd_hash = NULL;
     apr_dbd_prepared_t *statement;
     apr_dbd_results_t *res = NULL;
     apr_dbd_row_t *row = NULL;
@@ -11,42 +11,40 @@ static authn_status authn_dbd_password(request_rec *r, const char *user,
                                                 &authn_dbd_module);
     ap_dbd_t *dbd = authn_dbd_acquire_fn(r);
     if (dbd == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01653)
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01658)
                       "Failed to acquire database connection to look up "
-                      "user '%s'", user);
+                      "user '%s:%s'", user, realm);
         return AUTH_GENERAL_ERROR;
     }
-
-    if (conf->user == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01654)
-                      "No AuthDBDUserPWQuery has been specified");
+    if (conf->realm == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01659)
+                      "No AuthDBDUserRealmQuery has been specified");
         return AUTH_GENERAL_ERROR;
     }
-
-    statement = apr_hash_get(dbd->prepared, conf->user, APR_HASH_KEY_STRING);
+    statement = apr_hash_get(dbd->prepared, conf->realm, APR_HASH_KEY_STRING);
     if (statement == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01655)
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01660)
                       "A prepared statement could not be found for "
-                      "AuthDBDUserPWQuery with the key '%s'", conf->user);
+                      "AuthDBDUserRealmQuery with the key '%s'", conf->realm);
         return AUTH_GENERAL_ERROR;
     }
     if (apr_dbd_pvselect(dbd->driver, r->pool, dbd->handle, &res, statement,
-                              0, user, NULL) != 0) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01656)
-                      "Query execution error looking up '%s' "
-                      "in database", user);
+                              0, user, realm, NULL) != 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01661)
+                      "Query execution error looking up '%s:%s' "
+                      "in database", user, realm);
         return AUTH_GENERAL_ERROR;
     }
     for (rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1);
          rv != -1;
          rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1)) {
         if (rv != 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01657)
-                          "Error retrieving results while looking up '%s' "
-                          "in database", user);
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01662)
+                          "Error retrieving results while looking up '%s:%s' "
+                          "in database", user, realm);
             return AUTH_GENERAL_ERROR;
         }
-        if (dbd_password == NULL) {
+        if (dbd_hash == NULL) {
 #if APU_MAJOR_VERSION > 1 || (APU_MAJOR_VERSION == 1 && APU_MINOR_VERSION >= 3)
             /* add the rest of the columns to the environment */
             int i = 1;
@@ -73,21 +71,15 @@ static authn_status authn_dbd_password(request_rec *r, const char *user,
                 i++;
             }
 #endif
-            dbd_password = apr_dbd_get_entry(dbd->driver, row, 0);
+            dbd_hash = apr_dbd_get_entry(dbd->driver, row, 0);
         }
         /* we can't break out here or row won't get cleaned up */
     }
 
-    if (!dbd_password) {
+    if (!dbd_hash) {
         return AUTH_USER_NOT_FOUND;
     }
-    AUTHN_CACHE_STORE(r, user, NULL, dbd_password);
-
-    rv = apr_password_validate(password, dbd_password);
-
-    if (rv != APR_SUCCESS) {
-        return AUTH_DENIED;
-    }
-
-    return AUTH_GRANTED;
+    AUTHN_CACHE_STORE(r, user, realm, dbd_hash);
+    *rethash = apr_pstrdup(r->pool, dbd_hash);
+    return AUTH_USER_FOUND;
 }

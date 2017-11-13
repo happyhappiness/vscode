@@ -1,11 +1,11 @@
 fputs(
-"              (HTTP) Maximum time in seconds that you allow curl to wait for a\n"
-"              100-continue response when curl emits an  Expects:  100-continue\n"
-"              header  in  its  request.  By default curl will wait one second.\n"
-"              This option accepts decimal values! When curl stops waiting,  it\n"
-"              will continue as if the response has been received.\n"
+"       --disable-epsv\n"
+"              (FTP)  (FTP)  Tell  curl  to disable the use of the EPSV command\n"
+"              when doing passive FTP  transfers.  Curl  will  normally  always\n"
+"              first  attempt to use EPSV before PASV, but with this option, it\n"
+"              will not try using EPSV.\n"
 "\n"
-"              See also --connect-timeout. Added in 7.47.0.\n"
+"              --epsv can be used to explicitly enable EPSV again and --no-epsv\n"
+"              is an alias for --disable-epsv.\n"
 "\n"
-"       --fail-early\n"
 , stdout);

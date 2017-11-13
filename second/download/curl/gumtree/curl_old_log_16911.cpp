@@ -1,11 +1,10 @@
 puts(
-"   Dload         - the average transfer speed of the download\n"
-"   Average Speed\n"
-"   Upload        - the average transfer speed of the upload\n"
-"   Time Total    - expected time to complete the operation\n"
-"   Time Current  - time passed since the invoke\n"
-"   Time Left     - expected time left to completetion\n"
-"   Curr.Speed    - the average transfer speed the last 5 seconds (the first\n"
-"                   5 seconds of a transfer is based on less time of course.)\n"
+"  file if several files are specified in a list) or finally using the default\n"
+"  type 'text/plain'.\n"
 "\n"
+"  Emulate a fill-in form with -F. Let's say you fill in three fields in a\n"
+"  form. One field is a file name which to post, one field is your name and one\n"
+"  field is a file description. We want to post the file we have written named\n"
+"  \"cooltext.txt\". To let curl do the posting of this data instead of your\n"
+"  favourite browser, you have to check out the HTML of the form page to get to\n"
 );

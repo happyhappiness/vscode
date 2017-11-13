@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02909)
-                                  "Upgrade selects '%s'", protocol);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, rv, ap_server_conf, APLOGNO(00338)
+                                     "winnt_mpm: falling back to "
+                                     "'AcceptFilter none'.");

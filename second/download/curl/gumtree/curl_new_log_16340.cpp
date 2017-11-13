@@ -1,12 +1,9 @@
 fputs(
-"              vided  private  key  is. DER, PEM, and ENG are supported. If not\n"
-"              specified, PEM is assumed.\n"
+"              curl  will  make  sure  that each header you add/replace is sent\n"
+"              with the proper end-of-line marker, you should thus not add that\n"
+"              as a part of the header content: do not add newlines or carriage\n"
+"              returns, they will only mess things up for you.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --key <key>\n"
-"              (TLS SSH) Private key file name. Allows you to provide your pri-\n"
-"              vate  key in this separate file. For SSH, if not specified, curl\n"
-"              tries the following candidates in order:\n"
-"\n"
+"              Starting in 7.55.0, this option can take an argument  in  @file-\n"
+"              name  style, which then adds a header for each line in the input\n"
 , stdout);

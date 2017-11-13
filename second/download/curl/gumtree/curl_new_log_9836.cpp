@@ -1,11 +1,8 @@
 fputs(
-"              (SSL)  Specify  the  path  name  to the Entropy Gathering Daemon\n"
-"              socket. The socket is used to seed the  random  engine  for  SSL\n"
-"              connections. See also the --random-file option.\n"
-"\n"
-"       --cert-type <type>\n"
-"              (SSL)  Tells curl what certificate type the provided certificate\n"
-"              is in. PEM, DER and ENG are recognized types.  If not specified,\n"
-"              PEM is assumed.\n"
-"\n"
+"              can tell curl the nickname of the certificate to use within  the\n"
+"              NSS  database defined by the environment variable SSL_DIR (or by\n"
+"              default /etc/pki/nssdb). If the NSS  PEM  PKCS#11  module  (lib-\n"
+"              nsspem.so)  is  available  then  PEM files may be loaded. If you\n"
+"              want to use a file from the current directory, please precede it\n"
+"              with  \"./\"  prefix, in order to avoid confusion with a nickname.\n"
 , stdout);

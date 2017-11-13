@@ -1,55 +1,70 @@
-int APR_THREAD_FUNC WriteClient(isapi_cid    *cid,
-                                void         *buf_ptr,
-                                apr_uint32_t *size_arg,
-                                apr_uint32_t  flags)
+static void worker_main(long thread_num)
 {
-    request_rec *r = cid->r;
-    conn_rec *c = r->connection;
-    apr_uint32_t buf_size = *size_arg;
-    char *buf_data = (char*)buf_ptr;
-    apr_bucket_brigade *bb;
-    apr_bucket *b;
-    apr_status_t rv = APR_SUCCESS;
+    static int requests_this_child = 0;
+    PCOMP_CONTEXT context = NULL;
+    ap_sb_handle_t *sbh;
 
-    if (!cid->headers_set) {
-        /* It appears that the foxisapi module and other clients
-         * presume that WriteClient("headers\n\nbody") will work.
-         * Parse them out, or die trying.
-         */
-        apr_ssize_t ate;
-        ate = send_response_header(cid, NULL, buf_data, 0, buf_size);
-        if (ate < 0) {
-            apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
-            return 0;
-        }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf,
+                 "Child %d: Worker thread %d starting.", my_pid, thread_num);
+    while (1) {
+        conn_rec *c;
+        apr_int32_t disconnected;
 
-        buf_data += ate;
-        buf_size -= ate;
-    }
+        ap_update_child_status_from_indexes(0, thread_num, SERVER_READY, NULL);
 
-    if (buf_size) {
-        bb = apr_brigade_create(r->pool, c->bucket_alloc);
-        b = apr_bucket_transient_create(buf_data, buf_size, c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(bb, b);
-        b = apr_bucket_flush_create(c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(bb, b);
-        rv = ap_pass_brigade(r->output_filters, bb);
-        cid->response_sent = 1;
-        if (rv != APR_SUCCESS)
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
-                          "ISAPI: WriteClient ap_pass_brigade "
-                          "failed: %s", r->filename);
-    }
-
-    if ((flags & HSE_IO_ASYNC) && cid->completion) {
-        if (rv == APR_SUCCESS) {
-            cid->completion(cid->ecb, cid->completion_arg,
-                            *size_arg, ERROR_SUCCESS);
+        /* Grab a connection off the network */
+        if (use_acceptex) {
+            context = winnt_get_connection(context);
         }
         else {
-            cid->completion(cid->ecb, cid->completion_arg,
-                            *size_arg, ERROR_WRITE_FAULT);
+            context = win9x_get_connection(context);
+        }
+        if (!context) {
+            /* Time for the thread to exit */
+            break;
+        }
+
+        /* Have we hit MaxRequestPerChild connections? */
+        if (ap_max_requests_per_child) {
+            requests_this_child++;
+            if (requests_this_child > ap_max_requests_per_child) {
+                SetEvent(max_requests_per_child_event);
+            }
+        }
+
+        ap_create_sb_handle(&sbh, context->ptrans, 0, thread_num);
+        c = ap_run_create_connection(context->ptrans, ap_server_conf,
+                                     context->sock, thread_num, sbh,
+                                     context->ba);
+
+        if (c) {
+            ap_process_connection(c, context->sock);
+            apr_socket_opt_get(context->sock, APR_SO_DISCONNECTED, 
+                               &disconnected);
+            if (!disconnected) {
+                context->accept_socket = INVALID_SOCKET;
+                ap_lingering_close(c);
+            }
+            else if (!use_acceptex) {
+                /* If the socket is disconnected but we are not using acceptex, 
+                 * we cannot reuse the socket. Disconnected sockets are removed
+                 * from the apr_socket_t struct by apr_sendfile() to prevent the
+                 * socket descriptor from being inadvertently closed by a call 
+                 * to apr_socket_close(), so close it directly.
+                 */
+                closesocket(context->accept_socket);
+                context->accept_socket = INVALID_SOCKET;
+            }
+        }
+        else {
+            /* ap_run_create_connection closes the socket on failure */
+            context->accept_socket = INVALID_SOCKET;
         }
     }
-    return (rv == APR_SUCCESS);
+
+    ap_update_child_status_from_indexes(0, thread_num, SERVER_DEAD, 
+                                        (request_rec *) NULL);
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf,
+                 "Child %d: Worker thread %d exiting.", my_pid, thread_num);
 }

@@ -1,1 +1,2 @@
-apr_file_printf(errfile, "%s: -c and -n options conflict" NL, argv[0]);
+ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
+                     "sigaction(" AP_SIG_GRACEFUL_STOP_STRING ")");

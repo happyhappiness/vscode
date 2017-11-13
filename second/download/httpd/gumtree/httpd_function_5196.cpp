@@ -1,64 +1,121 @@
-static void log_tracing_state(const SSL *ssl, conn_rec *c,
-                              server_rec *s, int where, int rc)
+static int prefork_check_config(apr_pool_t *p, apr_pool_t *plog,
+                                apr_pool_t *ptemp, server_rec *s)
 {
-    /*
-     * create the various trace messages
-     */
-    if (where & SSL_CB_HANDSHAKE_START) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
-                      "%s: Handshake: start", SSL_LIBRARY_NAME);
-    }
-    else if (where & SSL_CB_HANDSHAKE_DONE) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
-                      "%s: Handshake: done", SSL_LIBRARY_NAME);
-    }
-    else if (where & SSL_CB_LOOP) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
-                      "%s: Loop: %s",
-                      SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
-    }
-    else if (where & SSL_CB_READ) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
-                      "%s: Read: %s",
-                      SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
-    }
-    else if (where & SSL_CB_WRITE) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
-                      "%s: Write: %s",
-                      SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
-    }
-    else if (where & SSL_CB_ALERT) {
-        char *str = (where & SSL_CB_READ) ? "read" : "write";
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
-                      "%s: Alert: %s:%s:%s",
-                      SSL_LIBRARY_NAME, str,
-                      SSL_alert_type_string_long(rc),
-                      SSL_alert_desc_string_long(rc));
-    }
-    else if (where & SSL_CB_EXIT) {
-        if (rc == 0) {
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
-                          "%s: Exit: failed in %s",
-                          SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
-        }
-        else if (rc < 0) {
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
-                          "%s: Exit: error in %s",
-                          SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
-        }
+    int startup = 0;
+
+    /* the reverse of pre_config, we want this only the first time around */
+    if (retained->module_loads == 1) {
+        startup = 1;
     }
 
-    /*
-     * Because SSL renegotiations can happen at any time (not only after
-     * SSL_accept()), the best way to log the current connection details is
-     * right after a finished handshake.
-     */
-    if (where & SSL_CB_HANDSHAKE_DONE) {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(02041)
-                      "Protocol: %s, Cipher: %s (%s/%s bits)",
-                      ssl_var_lookup(NULL, s, c, NULL, "SSL_PROTOCOL"),
-                      ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER"),
-                      ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER_USEKEYSIZE"),
-                      ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER_ALGKEYSIZE"));
+    if (server_limit > MAX_SERVER_LIMIT) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ServerLimit of %d exceeds compile-time "
+                         "limit of", server_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d servers, decreasing to %d.",
+                         MAX_SERVER_LIMIT, MAX_SERVER_LIMIT);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ServerLimit of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         server_limit, MAX_SERVER_LIMIT);
+        }
+        server_limit = MAX_SERVER_LIMIT;
     }
+    else if (server_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ServerLimit of %d not allowed, "
+                         "increasing to 1.", server_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ServerLimit of %d not allowed, increasing to 1",
+                         server_limit);
+        }
+        server_limit = 1;
+    }
+
+    /* you cannot change ServerLimit across a restart; ignore
+     * any such attempts
+     */
+    if (!retained->first_server_limit) {
+        retained->first_server_limit = server_limit;
+    }
+    else if (server_limit != retained->first_server_limit) {
+        /* don't need a startup console version here */
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     "changing ServerLimit to %d from original value of %d "
+                     "not allowed during restart",
+                     server_limit, retained->first_server_limit);
+        server_limit = retained->first_server_limit;
+    }
+
+    if (ap_daemons_limit > server_limit) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxClients of %d exceeds ServerLimit "
+                         "value of", ap_daemons_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d servers, decreasing MaxClients to %d.",
+                         server_limit, server_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " To increase, please see the ServerLimit "
+                         "directive.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxClients of %d exceeds ServerLimit value "
+                         "of %d, decreasing to match",
+                         ap_daemons_limit, server_limit);
+        }
+        ap_daemons_limit = server_limit;
+    }
+    else if (ap_daemons_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxClients of %d not allowed, "
+                         "increasing to 1.", ap_daemons_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxClients of %d not allowed, increasing to 1",
+                         ap_daemons_limit);
+        }
+        ap_daemons_limit = 1;
+    }
+
+    /* ap_daemons_to_start > ap_daemons_limit checked in prefork_run() */
+    if (ap_daemons_to_start < 0) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: StartServers of %d not allowed, "
+                         "increasing to 1.", ap_daemons_to_start);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "StartServers of %d not allowed, increasing to 1",
+                         ap_daemons_to_start);
+        }
+        ap_daemons_to_start = 1;
+    }
+
+    if (ap_daemons_min_free < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MinSpareServers of %d not allowed, "
+                         "increasing to 1", ap_daemons_min_free);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " to avoid almost certain server failure.");
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " Please read the documentation.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MinSpareServers of %d not allowed, increasing to 1",
+                         ap_daemons_min_free);
+        }
+        ap_daemons_min_free = 1;
+    }
+
+    /* ap_daemons_max_free < ap_daemons_min_free + 1 checked in prefork_run() */
+
+    return OK;
 }

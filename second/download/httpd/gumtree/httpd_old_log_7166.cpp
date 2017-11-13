@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01040)
-                                  "error creating EPSV socket");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01043)
+                                  "EPSV attempt to connect to %pI failed - "
+                                  "Firewall/NAT?", epsv_addr);

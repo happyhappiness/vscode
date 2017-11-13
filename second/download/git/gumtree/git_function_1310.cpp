@@ -1,19 +1,18 @@
-int commit_lock_file(struct lock_file *lk)
+static int list_refs(struct ref_list *r, int argc, const char **argv)
 {
-	static struct strbuf result_file = STRBUF_INIT;
-	int err;
+	int i;
 
-	if (!lk->active)
-		die("BUG: attempt to commit unlocked object");
-
-	if (lk->filename.len <= LOCK_SUFFIX_LEN ||
-	    strcmp(lk->filename.buf + lk->filename.len - LOCK_SUFFIX_LEN, LOCK_SUFFIX))
-		die("BUG: lockfile filename corrupt");
-
-	/* remove ".lock": */
-	strbuf_add(&result_file, lk->filename.buf,
-		   lk->filename.len - LOCK_SUFFIX_LEN);
-	err = commit_lock_file_to(lk, result_file.buf);
-	strbuf_reset(&result_file);
-	return err;
+	for (i = 0; i < r->nr; i++) {
+		if (argc > 1) {
+			int j;
+			for (j = 1; j < argc; j++)
+				if (!strcmp(r->list[i].name, argv[j]))
+					break;
+			if (j == argc)
+				continue;
+		}
+		printf("%s %s\n", sha1_to_hex(r->list[i].sha1),
+				r->list[i].name);
+	}
+	return 0;
 }

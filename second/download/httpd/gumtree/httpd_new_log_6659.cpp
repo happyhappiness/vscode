@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02473) 
-                "cache: %s responded with an uncacheable 304, " 
-                "retrying the request. Reason: %s", 
-                r->unparsed_uri, reason);
+ap_log_cerror(APLOG_MARK, lvl, 0, c, "bb_dump(%s): %s", 
+                      task->id, len? buffer : line);

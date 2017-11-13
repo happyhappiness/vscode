@@ -1,1 +1,1 @@
-warning("object %s: %s", sha1_to_hex(obj->sha1), message);
+fprintf(stderr, "sending %d message%s\n", total, (total != 1) ? "s" : "");

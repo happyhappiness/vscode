@@ -1,2 +1,2 @@
-fprintf(stderr, _("Can not do reflog for '%s': %s\n"),
-						opts->new_orphan_branch, err.buf);
+error("unable to get sha1 of object %u in %s",
+				     i, p->pack_name);

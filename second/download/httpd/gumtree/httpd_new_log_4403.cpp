@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, APLOGNO(00525)
-                         "Cannot remove module %s: not found in module list",
-                         m->name);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01034)
+                              "proxy_ftp: could not parse line %s",
+                              ctx->buffer);

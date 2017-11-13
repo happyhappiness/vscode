@@ -1,38 +1,54 @@
-static void glob_expand_one(char *s, char **argv, int *argc, int maxargs)
-{
-#if !(defined(HAVE_GLOB) && defined(HAVE_GLOB_H))
-	if (!*s) s = ".";
-	s = argv[*argc] = strdup(s);
-	exclude_server_path(s);
-	(*argc)++;
-#else
-	extern int sanitize_paths;
-	glob_t globbuf;
-	int i;
+static void singleOptionHelp(FILE * f, int maxLeftCol, 
+			     const struct poptOption * opt,
+			     const char *translation_domain) {
+    int indentLength = maxLeftCol + 5;
+    int lineLength = 79 - indentLength;
+    const char * help = D_(translation_domain, opt->descrip);
+    int helpLength;
+    const char * ch;
+    char format[10];
+    char * left;
+    const char * argDescrip = getArgDescrip(opt, translation_domain);
 
-	if (!*s) s = ".";
+    left = malloc(maxLeftCol + 1);
+    *left = '\0';
 
-	s = argv[*argc] = strdup(s);
-	if (sanitize_paths) {
-		sanitize_path(s, NULL);
-	}
+    if (opt->longName && opt->shortName)
+	sprintf(left, "-%c, --%s", opt->shortName, opt->longName);
+    else if (opt->shortName) 
+	sprintf(left, "-%c", opt->shortName);
+    else if (opt->longName)
+	sprintf(left, "--%s", opt->longName);
+    if (!*left) return ;
+    if (argDescrip) {
+	strcat(left, "=");
+	strcat(left, argDescrip);
+    }
 
-	memset(&globbuf, 0, sizeof globbuf);
-	if (!exclude_server_path(s))
-		glob(s, 0, NULL, &globbuf);
-	if (globbuf.gl_pathc == 0) {
-		(*argc)++;
-		globfree(&globbuf);
-		return;
-	}
-	for (i = 0; i < maxargs - *argc && i < (int)globbuf.gl_pathc; i++) {
-		if (i == 0)
-			free(s);
-		argv[*argc + i] = strdup(globbuf.gl_pathv[i]);
-		if (!argv[*argc + i])
-			out_of_memory("glob_expand");
-	}
-	globfree(&globbuf);
-	*argc += i;
-#endif
+    if (help)
+	fprintf(f,"  %-*s   ", maxLeftCol, left);
+    else {
+	fprintf(f,"  %s\n", left); 
+	goto out;
+    }
+
+    helpLength = strlen(help);
+    while (helpLength > lineLength) {
+	ch = help + lineLength - 1;
+	while (ch > help && !isspace(*ch)) ch--;
+	if (ch == help) break;		/* give up */
+	while (ch > (help + 1) && isspace(*ch)) ch--;
+	ch++;
+
+	sprintf(format, "%%.%ds\n%%%ds", (int) (ch - help), indentLength);
+	fprintf(f, format, help, " ");
+	help = ch;
+	while (isspace(*help) && *help) help++;
+	helpLength = strlen(help);
+    }
+
+    if (helpLength) fprintf(f, "%s\n", help);
+
+out:
+    free(left);
 }

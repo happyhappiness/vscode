@@ -1,8 +1,9 @@
 fputs(
-"              then the cookie is sent for any domain (even after redirects are\n"
-"              followed) and cannot be modified by a server-set cookie. If  the\n"
-"              cookie  engine is enabled and a server sets a cookie of the same\n"
-"              name then both will be sent on a future transfer to that server,\n"
-"              likely  not  what  you  intended.  To address these issues set a\n"
-"              domain in Set-Cookie (doing that will  include  sub-domains)  or\n"
+"              should  be used in this session if they match. Using this method\n"
+"              also activates the cookie engine which  will  make  curl  record\n"
+"              incoming cookies too, which may be handy if you're using this in\n"
+"              combination with the -L, --location option. The file  format  of\n"
+"              the  file  to  read cookies from should be plain HTTP headers or\n"
+"              the Netscape/Mozilla cookie file format.\n"
+"\n"
 , stdout);

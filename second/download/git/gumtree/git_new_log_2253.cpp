@@ -1,1 +1,1 @@
-error_errno(_("could not write branch description template"));
+status_printf_ln(s, color, "   %s", have_done.items[i].string);

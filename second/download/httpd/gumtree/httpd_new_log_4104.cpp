@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(01847)
-                    "The crypto library '%s' could not be loaded",
-                    conf->library);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00971)
+                   "ajp_marshal_into_msgb: "
+                   "Error appending the header value");

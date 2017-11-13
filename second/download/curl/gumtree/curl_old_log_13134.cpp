@@ -1,10 +1,11 @@
 fputs(
-"              for the server to do it, and will not reply to the shutdown from\n"
-"              the server. The active mode initiates the shutdown and waits for\n"
-"              a reply from the server.  (Added in 7.16.2)\n"
+"                     commands.  This  is  how RFC 1738 says it should be done.\n"
+"                     This is the default but the slowest behavior.\n"
 "\n"
-"       --ftp-ssl-control\n"
-"              (FTP)  Require  SSL/TLS  for  the FTP login, clear for transfer.\n"
-"              Allows secure authentication, but non-encrypted  data  transfers\n"
-"              for  efficiency.   Fails the transfer if the server doesn't sup-\n"
+"              nocwd  curl does no CWD at all. curl will do  SIZE,  RETR,  STOR\n"
+"                     etc and give a full path to the server for all these com-\n"
+"                     mands. This is the fastest behavior.\n"
+"\n"
+"              singlecwd\n"
+"                     curl does one CWD with the full target directory and then\n"
 , stdout);

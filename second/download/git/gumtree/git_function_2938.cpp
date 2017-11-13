@@ -1,30 +1,53 @@
-static void dump_marks(void)
+int verify_signed_buffer(const char *payload, size_t payload_size,
+			 const char *signature, size_t signature_size,
+			 struct strbuf *gpg_output, struct strbuf *gpg_status)
 {
-	static struct lock_file mark_lock;
-	FILE *f;
+	struct child_process gpg = CHILD_PROCESS_INIT;
+	const char *args_gpg[] = {NULL, "--status-fd=1", "--verify", "FILE", "-", NULL};
+	char path[PATH_MAX];
+	int fd, ret;
+	struct strbuf buf = STRBUF_INIT;
+	struct strbuf *pbuf = &buf;
 
-	if (!export_marks_file)
-		return;
+	args_gpg[0] = gpg_program;
+	fd = git_mkstemp(path, PATH_MAX, ".git_vtag_tmpXXXXXX");
+	if (fd < 0)
+		return error(_("could not create temporary file '%s': %s"),
+			     path, strerror(errno));
+	if (write_in_full(fd, signature, signature_size) < 0)
+		return error(_("failed writing detached signature to '%s': %s"),
+			     path, strerror(errno));
+	close(fd);
 
-	if (hold_lock_file_for_update(&mark_lock, export_marks_file, 0) < 0) {
-		failure |= error("Unable to write marks file %s: %s",
-			export_marks_file, strerror(errno));
-		return;
+	gpg.argv = args_gpg;
+	gpg.in = -1;
+	gpg.out = -1;
+	if (gpg_output)
+		gpg.err = -1;
+	args_gpg[3] = path;
+	if (start_command(&gpg)) {
+		unlink(path);
+		return error(_("could not run gpg."));
 	}
 
-	f = fdopen_lock_file(&mark_lock, "w");
-	if (!f) {
-		int saved_errno = errno;
-		rollback_lock_file(&mark_lock);
-		failure |= error("Unable to write marks file %s: %s",
-			export_marks_file, strerror(saved_errno));
-		return;
-	}
+	write_in_full(gpg.in, payload, payload_size);
+	close(gpg.in);
 
-	dump_marks_helper(f, 0, marks);
-	if (commit_lock_file(&mark_lock)) {
-		failure |= error("Unable to write file %s: %s",
-			export_marks_file, strerror(errno));
-		return;
+	if (gpg_output) {
+		strbuf_read(gpg_output, gpg.err, 0);
+		close(gpg.err);
 	}
+	if (gpg_status)
+		pbuf = gpg_status;
+	strbuf_read(pbuf, gpg.out, 0);
+	close(gpg.out);
+
+	ret = finish_command(&gpg);
+
+	unlink_or_warn(path);
+
+	ret |= !strstr(pbuf->buf, "\n[GNUPG:] GOODSIG ");
+	strbuf_release(&buf); /* no matter it was used or not */
+
+	return ret;
 }

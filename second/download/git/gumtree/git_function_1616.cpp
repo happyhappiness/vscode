@@ -1,11 +1,10 @@
-static void copy_request(const char *prog_name, int out)
+FILE *fdopen_lock_file(struct lock_file *lk, const char *mode)
 {
-	unsigned char *buf;
-	ssize_t n = read_request(0, &buf);
-	if (n < 0)
-		die_errno("error reading request body");
-	if (write_in_full(out, buf, n) != n)
-		die("%s aborted reading request", prog_name);
-	close(out);
-	free(buf);
+	if (!lk->active)
+		die("BUG: fdopen_lock_file() called for unlocked object");
+	if (lk->fp)
+		die("BUG: fdopen_lock_file() called twice for file '%s'", lk->filename.buf);
+
+	lk->fp = fdopen(lk->fd, mode);
+	return lk->fp;
 }

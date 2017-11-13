@@ -1,31 +1,18 @@
-static void one_remote_ref(const char *refname)
+static int rename_ref_available(const char *oldname, const char *newname)
 {
-	struct ref *ref;
-	struct object *obj;
+	struct string_list skip = STRING_LIST_INIT_NODUP;
+	struct strbuf err = STRBUF_INIT;
+	int ret;
 
-	ref = alloc_ref(refname);
+	string_list_insert(&skip, oldname);
+	ret = !verify_refname_available(newname, NULL, &skip,
+					get_packed_refs(&ref_cache), &err)
+		&& !verify_refname_available(newname, NULL, &skip,
+					     get_loose_refs(&ref_cache), &err);
+	if (!ret)
+		error("%s", err.buf);
 
-	if (http_fetch_ref(repo->url, ref) != 0) {
-		fprintf(stderr,
-			"Unable to fetch ref %s from %s\n",
-			refname, repo->url);
-		free(ref);
-		return;
-	}
-
-	/*
-	 * Fetch a copy of the object if it doesn't exist locally - it
-	 * may be required for updating server info later.
-	 */
-	if (repo->can_update_info_refs && !has_sha1_file(ref->old_sha1)) {
-		obj = lookup_unknown_object(ref->old_sha1);
-		if (obj) {
-			fprintf(stderr,	"  fetch %s for %s\n",
-				sha1_to_hex(ref->old_sha1), refname);
-			add_fetch_request(obj);
-		}
-	}
-
-	ref->next = remote_refs;
-	remote_refs = ref;
+	string_list_clear(&skip, 0);
+	strbuf_release(&err);
+	return ret;
 }

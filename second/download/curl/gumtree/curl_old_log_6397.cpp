@@ -1,11 +1,11 @@
 fputs(
-"       address, to tell curl what TCP port range to use. That means you  spec-\n"
-"       ify  a  port  range,  from  a lower to a higher number. A single number\n"
-"       works as well, but do note that it increases the risk of failure  since\n"
-"       the port may not be available.\n"
+"              -      make  curl  pick the same IP address that is already used\n"
+"                     for the control connection\n"
 "\n"
-"       -q     If  used  as the first parameter on the command line, the curlrc\n"
-"              config file will not be read and used. See the  -K/--config  for\n"
-"              details on the default config file search path.\n"
+"       If this option is used several times, the last one will be  used.  Dis-\n"
+"       able  the  use  of PORT with --ftp-pasv. Disable the attempt to use the\n"
+"       EPRT command instead of PORT by using --disable-eprt.  EPRT  is  really\n"
+"       PORT++.\n"
 "\n"
+"       Starting in 7.19.5, you can append \":[start]-[end]\" to the right of the\n"
 , stdout);

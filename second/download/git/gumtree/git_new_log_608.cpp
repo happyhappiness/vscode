@@ -1,1 +1,2 @@
-die("BUG: read_loose_object streamed a non-blob");
+error(_("%s: Unable to write new index file"),
+			_(action_name(opts)));

@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00814)
-                     "Cannot open socache DBM file `%s' for status "
-                     "retrival",
-                     ctx->data_file);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "auth_ldap authorize: require dn: user's DN has not "
+                      "been defined; failing authorization");

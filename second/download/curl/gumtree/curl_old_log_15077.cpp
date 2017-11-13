@@ -1,11 +1,11 @@
 fputs(
-"              Using this option, curl will instead  return  an  error  on  the\n"
-"              first  transfer  that  fails,  independent of the amount of URLs\n"
-"              that are given on the command line. This way, no transfer  fail-\n"
-"              ures go undetected by scripts and similar.\n"
+"              requires that the underlying libcurl was  built  to  support  c-\n"
+"              ares. Added in 7.33.0.\n"
 "\n"
-"              This option is global and does not need to be specified for each\n"
-"              use of -:, --next.\n"
+"       --dns-ipv4-addr <address>\n"
+"              (DNS)  Tell  curl  to  bind to <ip-address> when making IPv4 DNS\n"
+"              requests, so that the DNS requests originate from this  address.\n"
+"              The argument should be a single IPv4 address.\n"
 "\n"
-"              This option does not imply -f, --fail, which causes transfers to\n"
+"              See  also  --dns-interface  and --dns-ipv6-addr. --dns-ipv4-addr\n"
 , stdout);

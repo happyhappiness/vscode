@@ -1,1 +1,1 @@
-printf(_("Applied autostash.\n"));
+report_unmatched_refs(sought, nr_sought);

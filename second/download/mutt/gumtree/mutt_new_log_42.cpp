@@ -1,1 +1,1 @@
-puts (cc_version);
+puts ("\n\nCompiler:");

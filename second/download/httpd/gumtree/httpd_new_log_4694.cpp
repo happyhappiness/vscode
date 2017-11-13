@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, apr_get_netos_error(), ap_server_conf, APLOGNO(00347)
-                             "getpeername failed");
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01914)
+                     "Configuring server %s for SSL protocol", sc->vhost_id);

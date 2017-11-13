@@ -1,1 +1,2 @@
-rprintf(FERROR,"Failed to close : %s\n",strerror(errno));
+rprintf(FERROR,"copy %s -> %s : %s\n",
+				      fnametmp,fname,strerror(errno));

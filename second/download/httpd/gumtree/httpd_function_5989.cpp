@@ -1,44 +1,26 @@
-void h2_ngn_shed_done_ngn(h2_ngn_shed *shed, struct h2_req_engine *ngn)
+static apr_status_t h2_conn_io_flush_int(h2_conn_io *io, int force)
 {
-    if (ngn->done) {
-        return;
-    }
-    
-    if (!shed->aborted && !H2_REQ_ENTRIES_EMPTY(&ngn->entries)) {
-        h2_ngn_entry *entry;
-        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, shed->c,
-                      "h2_ngn_shed(%ld): exit engine %s (%s), "
-                      "has still requests queued, shutdown=%d,"
-                      "assigned=%ld, live=%ld, finished=%ld", 
-                      shed->c->id, ngn->id, ngn->type,
-                      ngn->shutdown, 
-                      (long)ngn->no_assigned, (long)ngn->no_live,
-                      (long)ngn->no_finished);
-        for (entry = H2_REQ_ENTRIES_FIRST(&ngn->entries);
-             entry != H2_REQ_ENTRIES_SENTINEL(&ngn->entries);
-             entry = H2_NGN_ENTRY_NEXT(entry)) {
-            h2_task *task = entry->task;
-            ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, shed->c,
-                          "h2_ngn_shed(%ld): engine %s has queued task %s, "
-                          "frozen=%d, aborting",
-                          shed->c->id, ngn->id, task->id, task->frozen);
-            ngn_done_task(shed, ngn, task, 0, 1);
+    if (io->unflushed || force) {
+        if (io->buflen > 0) {
+            /* something in the buffer, put it in the output brigade */
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, io->connection,
+                          "h2_conn_io: flush, flushing %ld bytes", (long)io->buflen);
+            bucketeer_buffer(io);
+            io->buflen = 0;
         }
+        
+        if (force) {
+            APR_BRIGADE_INSERT_TAIL(io->output,
+                                    apr_bucket_flush_create(io->output->bucket_alloc));
+        }
+        
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, io->connection,
+                      "h2_conn_io: flush");
+        /* Send it out */
+        io->unflushed = 0;
+        return pass_out(io->output, io);
+        /* no more access after this, as we might have flushed an EOC bucket
+         * that de-allocated us all. */
     }
-    if (!shed->aborted && (ngn->no_assigned > 1 || ngn->no_live > 1)) {
-        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, shed->c,
-                      "h2_ngn_shed(%ld): exit engine %s (%s), "
-                      "assigned=%ld, live=%ld, finished=%ld", 
-                      shed->c->id, ngn->id, ngn->type,
-                      (long)ngn->no_assigned, (long)ngn->no_live,
-                      (long)ngn->no_finished);
-    }
-    else {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, shed->c,
-                      "h2_ngn_shed(%ld): exit engine %s", 
-                      shed->c->id, ngn->id);
-    }
-    
-    apr_hash_set(shed->ngns, ngn->type, APR_HASH_KEY_STRING, NULL);
-    ngn->done = 1;
+    return APR_SUCCESS;
 }

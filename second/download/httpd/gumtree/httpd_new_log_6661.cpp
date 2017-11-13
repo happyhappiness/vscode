@@ -1,1 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, task->c, 
+                      "h2_task(%s): send_out done", task->id);

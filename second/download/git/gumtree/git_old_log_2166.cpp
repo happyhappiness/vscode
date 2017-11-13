@@ -1,1 +1,1 @@
-error("Unable to create %s", git_HEAD);
+die("BUG: attempt to commit unlocked object to \"%s\"", path);

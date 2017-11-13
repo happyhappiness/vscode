@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                      "Could not open group file: %s",
-                      conf->groupfile);
+printf("Processing: " CONF_FMT_STRING,
+               mind, (int) (meand + 0.5), sdd, mediand, maxd);

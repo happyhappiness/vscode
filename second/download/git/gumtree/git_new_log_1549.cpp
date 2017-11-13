@@ -1,1 +1,1 @@
-fprintf_ln(stderr, _(" OK"));
+die("%s", err.buf);

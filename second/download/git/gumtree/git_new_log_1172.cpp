@@ -1,1 +1,1 @@
-error("Could not write flush packet");
+die("BUG: command is empty");

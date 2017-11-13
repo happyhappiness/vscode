@@ -1,1 +1,1 @@
-die("Fetch attempted without a local repo");
+die("cannot start proxy %s", argv[0]);

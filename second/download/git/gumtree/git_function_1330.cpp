@@ -1,28 +1,29 @@
-int commit_packed_refs(void)
+static int diff_cache(struct rev_info *revs,
+		      const unsigned char *tree_sha1,
+		      const char *tree_name,
+		      int cached)
 {
-	struct packed_ref_cache *packed_ref_cache =
-		get_packed_ref_cache(&ref_cache);
-	int error = 0;
-	int save_errno = 0;
-	FILE *out;
+	struct tree *tree;
+	struct tree_desc t;
+	struct unpack_trees_options opts;
 
-	if (!packed_ref_cache->lock)
-		die("internal error: packed-refs not locked");
+	tree = parse_tree_indirect(tree_sha1);
+	if (!tree)
+		return error("bad tree object %s",
+			     tree_name ? tree_name : sha1_to_hex(tree_sha1));
+	memset(&opts, 0, sizeof(opts));
+	opts.head_idx = 1;
+	opts.index_only = cached;
+	opts.diff_index_cached = (cached &&
+				  !DIFF_OPT_TST(&revs->diffopt, FIND_COPIES_HARDER));
+	opts.merge = 1;
+	opts.fn = oneway_diff;
+	opts.unpack_data = revs;
+	opts.src_index = &the_index;
+	opts.dst_index = NULL;
+	opts.pathspec = &revs->diffopt.pathspec;
+	opts.pathspec->recursive = 1;
 
-	out = fdopen_lock_file(packed_ref_cache->lock, "w");
-	if (!out)
-		die_errno("unable to fdopen packed-refs descriptor");
-
-	fprintf_or_die(out, "%s", PACKED_REFS_HEADER);
-	do_for_each_entry_in_dir(get_packed_ref_dir(packed_ref_cache),
-				 0, write_packed_entry_fn, out);
-
-	if (commit_lock_file(packed_ref_cache->lock)) {
-		save_errno = errno;
-		error = -1;
-	}
-	packed_ref_cache->lock = NULL;
-	release_packed_ref_cache(packed_ref_cache);
-	errno = save_errno;
-	return error;
+	init_tree_desc(&t, tree->buffer, tree->size);
+	return unpack_trees(1, &t, &opts);
 }

@@ -1,1 +1,1 @@
-printf("Req char = \\x%02x%s\n", ch, caseless);
+printf("yes (variable process count)\n");

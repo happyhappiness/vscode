@@ -1,9 +1,10 @@
 fputs(
-"              of ciphers must specify valid ciphers. Read  up  on  SSL  cipher\n"
-"              list           details           on           this          URL:\n"
-"              https://www.openssl.org/docs/apps/ciphers.html\n"
+"              (FTP/LDAP) Enable ASCII transfer. For  FTP,  this  can  also  be\n"
+"              enforced  by  using an URL that ends with \";type=A\". This option\n"
+"              causes data sent to stdout to be in text mode for win32 systems.\n"
 "\n"
-"              NSS ciphers are done differently than OpenSSL  and  GnuTLS.  The\n"
-"              full  list of NSS ciphers is in the NSSCipherSuite entry at this\n"
-"              URL:                                         https://git.fedora-\n"
+"       --basic\n"
+"              (HTTP) Tells curl to use  HTTP  Basic  authentication  with  the\n"
+"              remote  host.  This  is  the  default and this option is usually\n"
+"              pointless, unless you use it to override a previously set option\n"
 , stdout);

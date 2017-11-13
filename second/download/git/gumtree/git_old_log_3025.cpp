@@ -1,1 +1,1 @@
-die("found existing file at '%s'", path);
+die_errno("failed to open '%s'", path);

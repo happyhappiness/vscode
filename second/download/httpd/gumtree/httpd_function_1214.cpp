@@ -1,132 +1,223 @@
-static request_rec *internal_internal_redirect(const char *new_uri,
-                                               request_rec *r) {
-    int access_status;
-    request_rec *new;
+int main(int argc, const char * const argv[])
+{
+    apr_file_t *fpw = NULL;
+    char record[MAX_STRING_LEN];
+    char line[MAX_STRING_LEN];
+    char *password = NULL;
+    char *pwfilename = NULL;
+    char *user = NULL;
+    char tn[] = "htpasswd.tmp.XXXXXX";
+    char *dirname;
+    char *scratch, cp[MAX_STRING_LEN];
+    int found = 0;
+    int i;
+    int alg = ALG_CRYPT;
+    int mask = 0;
+    apr_pool_t *pool;
+    int existing_file = 0;
+#if APR_CHARSET_EBCDIC
+    apr_status_t rv;
+    apr_xlate_t *to_ascii;
+#endif
 
-    if (ap_is_recursion_limit_exceeded(r)) {
-        ap_die(HTTP_INTERNAL_SERVER_ERROR, r);
-        return NULL;
+    apr_app_initialize(&argc, &argv, NULL);
+    atexit(terminate);
+    apr_pool_create(&pool, NULL);
+    apr_file_open_stderr(&errfile, pool);
+
+#if APR_CHARSET_EBCDIC
+    rv = apr_xlate_open(&to_ascii, "ISO8859-1", APR_DEFAULT_CHARSET, pool);
+    if (rv) {
+        apr_file_printf(errfile, "apr_xlate_open(to ASCII)->%d\n", rv);
+        exit(1);
     }
+    rv = apr_SHA1InitEBCDIC(to_ascii);
+    if (rv) {
+        apr_file_printf(errfile, "apr_SHA1InitEBCDIC()->%d\n", rv);
+        exit(1);
+    }
+    rv = apr_MD5InitEBCDIC(to_ascii);
+    if (rv) {
+        apr_file_printf(errfile, "apr_MD5InitEBCDIC()->%d\n", rv);
+        exit(1);
+    }
+#endif /*APR_CHARSET_EBCDIC*/
 
-    new = (request_rec *) apr_pcalloc(r->pool, sizeof(request_rec));
+    check_args(pool, argc, argv, &alg, &mask, &user, &pwfilename, &password);
 
-    new->connection = r->connection;
-    new->server     = r->server;
-    new->pool       = r->pool;
+
+#if defined(WIN32) || defined(NETWARE)
+    if (alg == ALG_CRYPT) {
+        alg = ALG_APMD5;
+        apr_file_printf(errfile, "Automatically using MD5 format.\n");
+    }
+#endif
+
+#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
+    if (alg == ALG_PLAIN) {
+        apr_file_printf(errfile,"Warning: storing passwords as plain text "
+                        "might just not work on this platform.\n");
+    }
+#endif
 
     /*
-     * A whole lot of this really ought to be shared with http_protocol.c...
-     * another missing cleanup.  It's particularly inappropriate to be
-     * setting header_only, etc., here.
+     * Only do the file checks if we're supposed to frob it.
      */
+    if (!(mask & APHTP_NOFILE)) {
+        existing_file = exists(pwfilename, pool);
+        if (existing_file) {
+            /*
+             * Check that this existing file is readable and writable.
+             */
+            if (!accessible(pool, pwfilename, APR_READ | APR_APPEND)) {
+                apr_file_printf(errfile, "%s: cannot open file %s for "
+                                "read/write access\n", argv[0], pwfilename);
+                exit(ERR_FILEPERM);
+            }
+        }
+        else {
+            /*
+             * Error out if -c was omitted for this non-existant file.
+             */
+            if (!(mask & APHTP_NEWFILE)) {
+                apr_file_printf(errfile,
+                        "%s: cannot modify file %s; use '-c' to create it\n",
+                        argv[0], pwfilename);
+                exit(ERR_FILEPERM);
+            }
+            /*
+             * As it doesn't exist yet, verify that we can create it.
+             */
+            if (!accessible(pool, pwfilename, APR_CREATE | APR_WRITE)) {
+                apr_file_printf(errfile, "%s: cannot create file %s\n",
+                                argv[0], pwfilename);
+                exit(ERR_FILEPERM);
+            }
+        }
+    }
 
-    new->method          = r->method;
-    new->method_number   = r->method_number;
-    new->allowed_methods = ap_make_method_list(new->pool, 2);
-    ap_parse_uri(new, new_uri);
-    new->parsed_uri.port_str = r->parsed_uri.port_str;
-    new->parsed_uri.port = r->parsed_uri.port;
-
-    new->request_config = ap_create_request_config(r->pool);
-
-    new->per_dir_config = r->server->lookup_defaults;
-
-    new->prev = r;
-    r->next   = new;
-
-    /* Must have prev and next pointers set before calling create_request
-     * hook.
+    /*
+     * All the file access checks (if any) have been made.  Time to go to work;
+     * try to create the record for the username in question.  If that
+     * fails, there's no need to waste any time on file manipulations.
+     * Any error message text is returned in the record buffer, since
+     * the mkrecord() routine doesn't have access to argv[].
      */
-    ap_run_create_request(new);
+    if (!(mask & APHTP_DELUSER)) {
+        i = mkrecord(user, record, sizeof(record) - 1,
+                     password, alg);
+        if (i != 0) {
+            apr_file_printf(errfile, "%s: %s\n", argv[0], record);
+            exit(i);
+        }
+        if (mask & APHTP_NOFILE) {
+            printf("%s\n", record);
+            exit(0);
+        }
+    }
 
-    /* Inherit the rest of the protocol info... */
+    /*
+     * We can access the files the right way, and we have a record
+     * to add or update.  Let's do it..
+     */
+    if (apr_temp_dir_get((const char**)&dirname, pool) != APR_SUCCESS) {
+        apr_file_printf(errfile, "%s: could not determine temp dir\n",
+                        argv[0]);
+        exit(ERR_FILEPERM);
+    }
+    dirname = apr_psprintf(pool, "%s/%s", dirname, tn);
 
-    new->the_request = r->the_request;
+    if (apr_file_mktemp(&ftemp, dirname, 0, pool) != APR_SUCCESS) {
+        apr_file_printf(errfile, "%s: unable to create temporary file %s\n", 
+                        argv[0], dirname);
+        exit(ERR_FILEPERM);
+    }
 
-    new->allowed         = r->allowed;
+    /*
+     * If we're not creating a new file, copy records from the existing
+     * one to the temporary file until we find the specified user.
+     */
+    if (existing_file && !(mask & APHTP_NEWFILE)) {
+        if (apr_file_open(&fpw, pwfilename, APR_READ | APR_BUFFERED,
+                          APR_OS_DEFAULT, pool) != APR_SUCCESS) {
+            apr_file_printf(errfile, "%s: unable to read file %s\n", 
+                            argv[0], pwfilename);
+            exit(ERR_FILEPERM);
+        }
+        while (apr_file_gets(line, sizeof(line), fpw) == APR_SUCCESS) {
+            char *colon;
 
-    new->status          = r->status;
-    new->assbackwards    = r->assbackwards;
-    new->header_only     = r->header_only;
-    new->protocol        = r->protocol;
-    new->proto_num       = r->proto_num;
-    new->hostname        = r->hostname;
-    new->request_time    = r->request_time;
-    new->main            = r->main;
-
-    new->headers_in      = r->headers_in;
-    new->headers_out     = apr_table_make(r->pool, 12);
-    new->err_headers_out = r->err_headers_out;
-    new->subprocess_env  = rename_original_env(r->pool, r->subprocess_env);
-    new->notes           = apr_table_make(r->pool, 5);
-
-    new->htaccess        = r->htaccess;
-    new->no_cache        = r->no_cache;
-    new->expecting_100   = r->expecting_100;
-    new->no_local_copy   = r->no_local_copy;
-    new->read_length     = r->read_length;     /* We can only read it once */
-    new->vlist_validator = r->vlist_validator;
-
-    new->proto_output_filters  = r->proto_output_filters;
-    new->proto_input_filters   = r->proto_input_filters;
-
-    new->input_filters   = new->proto_input_filters;
-
-    if (new->main) {
-        ap_filter_t *f, *nextf;
-
-        /* If this is a subrequest, the filter chain may contain a
-         * mixture of filters specific to the old request (r), and
-         * some inherited from r->main.  Here, inherit that filter
-         * chain, and remove all those which are specific to the old
-         * request; ensuring the subreq filter is left in place. */
-        new->output_filters = r->output_filters;
-
-        f = new->output_filters;
-        do {
-            nextf = f->next;
-
-            if (f->r == r && f->frec != ap_subreq_core_filter_handle) {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "dropping filter '%s' in internal redirect from %s to %s",
-                              f->frec->name, r->unparsed_uri, new_uri);
-
-                /* To remove the filter, first set f->r to the *new*
-                 * request_rec, so that ->output_filters on 'new' is
-                 * changed (if necessary) when removing the filter. */
-                f->r = new;
-                ap_remove_output_filter(f);
+            strcpy(cp, line);
+            scratch = cp;
+            while (apr_isspace(*scratch)) {
+                ++scratch;
             }
 
-            f = nextf;
-
-            /* Stop at the protocol filters.  If a protocol filter has
-             * been newly installed for this resource, better leave it
-             * in place, though it's probably a misconfiguration or
-             * filter bug to get into this state. */
-        } while (f && f != new->proto_output_filters);
+            if (!*scratch || (*scratch == '#')) {
+                putline(ftemp, line);
+                continue;
+            }
+            /*
+             * See if this is our user.
+             */
+            colon = strchr(scratch, ':');
+            if (colon != NULL) {
+                *colon = '\0';
+            }
+            else {
+                /*
+                 * If we've not got a colon on the line, this could well 
+                 * not be a valid htpasswd file.
+                 * We should bail at this point.
+                 */
+                apr_file_printf(errfile, "\n%s: The file %s does not appear "
+                                         "to be a valid htpasswd file.\n",
+                                argv[0], pwfilename);
+                apr_file_close(fpw);
+                exit(ERR_INVALID);
+            }
+            if (strcmp(user, scratch) != 0) {
+                putline(ftemp, line);
+                continue;
+            }
+            else {
+                if (!(mask & APHTP_DELUSER)) {
+                    /* We found the user we were looking for.
+                     * Add him to the file.
+                    */
+                    apr_file_printf(errfile, "Updating ");
+                    putline(ftemp, record);
+                    found++;
+                }
+                else {
+                    /* We found the user we were looking for.
+                     * Delete them from the file.
+                     */
+                    apr_file_printf(errfile, "Deleting ");
+                    found++;
+                }
+            }
+        }
+        apr_file_close(fpw);
     }
-    else {
-        /* If this is not a subrequest, clear out all
-         * resource-specific filters. */
-        new->output_filters  = new->proto_output_filters;
+    if (!found && !(mask & APHTP_DELUSER)) {
+        apr_file_printf(errfile, "Adding ");
+        putline(ftemp, record);
     }
+    else if (!found && (mask & APHTP_DELUSER)) {
+        apr_file_printf(errfile, "User %s not found\n", user);
+        exit(0);
+    }
+    apr_file_printf(errfile, "password for user %s\n", user);
 
-    update_r_in_filters(new->input_filters, r, new);
-    update_r_in_filters(new->output_filters, r, new);
-
-    apr_table_setn(new->subprocess_env, "REDIRECT_STATUS",
-                   apr_itoa(r->pool, r->status));
-
-    /*
-     * XXX: hmm.  This is because mod_setenvif and mod_unique_id really need
-     * to do their thing on internal redirects as well.  Perhaps this is a
-     * misnamed function.
+    /* The temporary file has all the data, just copy it to the new location.
      */
-    if ((access_status = ap_run_post_read_request(new))) {
-        ap_die(access_status, new);
-        return NULL;
+    if (apr_file_copy(dirname, pwfilename, APR_FILE_SOURCE_PERMS, pool) !=
+        APR_SUCCESS) {
+        apr_file_printf(errfile, "%s: unable to update file %s\n", 
+                        argv[0], pwfilename);
+        exit(ERR_FILEPERM);
     }
-
-    return new;
+    apr_file_close(ftemp);
+    return 0;
 }

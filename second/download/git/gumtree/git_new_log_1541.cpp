@@ -1,1 +1,1 @@
-fprintf(stderr, _("Testing "));
+die("%s", err.buf);

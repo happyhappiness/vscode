@@ -1,1 +1,1 @@
-die("strange port '%s' blocked", port);
+die(_("ls-tree returned unexpected return code %d"), code);

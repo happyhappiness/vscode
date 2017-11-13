@@ -1,1 +1,1 @@
-error("read(%s) failed: %s", t->src_name, strerror(errno));
+die("cannot describe '%s'", sha1_to_hex(sha1));

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, workers->s,
-                         "h2_workers: got %d worker, adding 1", 
-                         workers->worker_count);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, workers->s,
+                     APLOGNO(02962) "h2_workers: max_worker_idle_sec value of %d"
+                     " is not valid, ignored.", idle_secs);

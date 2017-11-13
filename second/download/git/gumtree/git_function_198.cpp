@@ -1,50 +1,111 @@
-static int run_remote_archiver(int argc, const char **argv,
-			       const char *remote, const char *exec,
-			       const char *name_hint)
+void wt_status_print(struct wt_status *s)
 {
-	char *buf;
-	int fd[2], i, rv;
-	struct transport *transport;
-	struct remote *_remote;
+	const char *branch_color = color(WT_STATUS_ONBRANCH, s);
+	const char *branch_status_color = color(WT_STATUS_HEADER, s);
+	struct wt_status_state state;
 
-	_remote = remote_get(remote);
-	if (!_remote->url[0])
-		die(_("git archive: Remote with no URL"));
-	transport = transport_get(_remote, _remote->url[0]);
-	transport_connect(transport, "git-upload-archive", exec, fd);
+	memset(&state, 0, sizeof(state));
+	wt_status_get_state(&state,
+			    s->branch && !strcmp(s->branch, "HEAD"));
 
-	/*
-	 * Inject a fake --format field at the beginning of the
-	 * arguments, with the format inferred from our output
-	 * filename. This way explicit --format options can override
-	 * it.
-	 */
-	if (name_hint) {
-		const char *format = archive_format_from_filename(name_hint);
-		if (format)
-			packet_write(fd[1], "argument --format=%s\n", format);
+	if (s->branch) {
+		const char *on_what = _("On branch ");
+		const char *branch_name = s->branch;
+		if (starts_with(branch_name, "refs/heads/"))
+			branch_name += 11;
+		else if (!strcmp(branch_name, "HEAD")) {
+			branch_status_color = color(WT_STATUS_NOBRANCH, s);
+			if (state.rebase_in_progress || state.rebase_interactive_in_progress) {
+				on_what = _("rebase in progress; onto ");
+				branch_name = state.onto;
+			} else if (state.detached_from) {
+				unsigned char sha1[20];
+				branch_name = state.detached_from;
+				if (!get_sha1("HEAD", sha1) &&
+				    !hashcmp(sha1, state.detached_sha1))
+					on_what = _("HEAD detached at ");
+				else
+					on_what = _("HEAD detached from ");
+			} else {
+				branch_name = "";
+				on_what = _("Not currently on any branch.");
+			}
+		}
+		status_printf(s, color(WT_STATUS_HEADER, s), "");
+		status_printf_more(s, branch_status_color, "%s", on_what);
+		status_printf_more(s, branch_color, "%s\n", branch_name);
+		if (!s->is_initial)
+			wt_status_print_tracking(s);
 	}
-	for (i = 1; i < argc; i++)
-		packet_write(fd[1], "argument %s\n", argv[i]);
-	packet_flush(fd[1]);
 
-	buf = packet_read_line(fd[0], NULL);
-	if (!buf)
-		die(_("git archive: expected ACK/NAK, got EOF"));
-	if (strcmp(buf, "ACK")) {
-		if (starts_with(buf, "NACK "))
-			die(_("git archive: NACK %s"), buf + 5);
-		if (starts_with(buf, "ERR "))
-			die(_("remote error: %s"), buf + 4);
-		die(_("git archive: protocol error"));
+	wt_status_print_state(s, &state);
+	free(state.branch);
+	free(state.onto);
+	free(state.detached_from);
+
+	if (s->is_initial) {
+		status_printf_ln(s, color(WT_STATUS_HEADER, s), "");
+		status_printf_ln(s, color(WT_STATUS_HEADER, s), _("Initial commit"));
+		status_printf_ln(s, color(WT_STATUS_HEADER, s), "");
 	}
 
-	if (packet_read_line(fd[0], NULL))
-		die(_("git archive: expected a flush"));
+	wt_status_print_updated(s);
+	wt_status_print_unmerged(s);
+	wt_status_print_changed(s);
+	if (s->submodule_summary &&
+	    (!s->ignore_submodule_arg ||
+	     strcmp(s->ignore_submodule_arg, "all"))) {
+		wt_status_print_submodule_summary(s, 0);  /* staged */
+		wt_status_print_submodule_summary(s, 1);  /* unstaged */
+	}
+	if (s->show_untracked_files) {
+		wt_status_print_other(s, &s->untracked, _("Untracked files"), "add");
+		if (s->show_ignored_files)
+			wt_status_print_other(s, &s->ignored, _("Ignored files"), "add -f");
+		if (advice_status_u_option && 2000 < s->untracked_in_ms) {
+			status_printf_ln(s, GIT_COLOR_NORMAL, "");
+			status_printf_ln(s, GIT_COLOR_NORMAL,
+					 _("It took %.2f seconds to enumerate untracked files. 'status -uno'\n"
+					   "may speed it up, but you have to be careful not to forget to add\n"
+					   "new files yourself (see 'git help status')."),
+					 s->untracked_in_ms / 1000.0);
+		}
+	} else if (s->commitable)
+		status_printf_ln(s, GIT_COLOR_NORMAL, _("Untracked files not listed%s"),
+			s->hints
+			? _(" (use -u option to show untracked files)") : "");
 
-	/* Now, start reading from fd[0] and spit it out to stdout */
-	rv = recv_sideband("archive", fd[0], 1);
-	rv |= transport_disconnect(transport);
-
-	return !!rv;
+	if (s->verbose)
+		wt_status_print_verbose(s);
+	if (!s->commitable) {
+		if (s->amend)
+			status_printf_ln(s, GIT_COLOR_NORMAL, _("No changes"));
+		else if (s->nowarn)
+			; /* nothing */
+		else if (s->workdir_dirty) {
+			if (s->hints)
+				printf(_("no changes added to commit "
+					 "(use \"git add\" and/or \"git commit -a\")\n"));
+			else
+				printf(_("no changes added to commit\n"));
+		} else if (s->untracked.nr) {
+			if (s->hints)
+				printf(_("nothing added to commit but untracked files "
+					 "present (use \"git add\" to track)\n"));
+			else
+				printf(_("nothing added to commit but untracked files present\n"));
+		} else if (s->is_initial) {
+			if (s->hints)
+				printf(_("nothing to commit (create/copy files "
+					 "and use \"git add\" to track)\n"));
+			else
+				printf(_("nothing to commit\n"));
+		} else if (!s->show_untracked_files) {
+			if (s->hints)
+				printf(_("nothing to commit (use -u to show untracked files)\n"));
+			else
+				printf(_("nothing to commit\n"));
+		} else
+			printf(_("nothing to commit, working directory clean\n"));
+	}
 }

@@ -1,11 +1,9 @@
 fputs(
-"              help keeping the speed-limit logic working.\n"
+"              tion-trusted on how to change this. You can limit the amount  of\n"
+"              redirects to follow by using the --max-redirs option.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --local-port <num>[-num]\n"
-"              Set a preferred number or range of local port numbers to use for\n"
-"              the connection(s).  Note that  port  numbers  by  nature  are  a\n"
-"              scarce resource that will be busy at times so setting this range\n"
-"              to something too narrow might cause unnecessary connection setup\n"
+"              When  curl follows a redirect and the request is not a plain GET\n"
+"              (for example POST or PUT), it will do the following request with\n"
+"              a GET if the HTTP response was 301, 302, or 303. If the response\n"
+"              code was any other 3xx code, curl  will  re-send  the  following\n"
 , stdout);

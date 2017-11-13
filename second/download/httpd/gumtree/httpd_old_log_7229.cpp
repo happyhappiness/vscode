@@ -1,1 +1,1 @@
-fprintf(stderr, "   -v   Verify the username/password.\n");
+fprintf(stderr, "   -x   Remove the username record from database.\n");

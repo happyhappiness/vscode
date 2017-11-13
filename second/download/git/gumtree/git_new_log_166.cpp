@@ -1,2 +1,1 @@
-warning("curl_multi_add_handle failed: %s",
-			curl_multi_strerror(curlm_result));
+for_each_reflog_ent_reverse(refname, read_ref_at_ent, &cb);

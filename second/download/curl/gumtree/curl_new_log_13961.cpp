@@ -1,11 +1,10 @@
 fputs(
-"              are  errors (such as the file or server not being available). It\n"
-"              will also verify the hash of the file after  the  download  com-\n"
-"              pletes.  The Metalink file itself is downloaded and processed in\n"
-"              memory and not stored in the local file system.\n"
+"       --mail-rcpt <address>\n"
+"              (SMTP) Specify a single address, user name or mailing list name.\n"
+"              Repeat this option several times to send to multiple recipients.\n"
+"              When performing a mail transfer, the recipient should specify  a\n"
+"              valid email address to send the mail to.\n"
 "\n"
-"              Example to use a remote Metalink file:\n"
-"\n"
-"               curl --metalink http://www.example.com/example.metalink\n"
-"\n"
+"              When  performing  an  address  verification  (VRFY command), the\n"
+"              recipient should be specified as the user name or user name  and\n"
 , stdout);

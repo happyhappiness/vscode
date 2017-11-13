@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "%s: unable to create temporary file %s" NL,
-                        argv[0], dirname);
+fprintf(stderr,"Errors reported here must be corrected before the "
+                "service can be started.\n");

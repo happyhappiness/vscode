@@ -1,41 +1,13 @@
-int main(int argc, char **argv) {
-	char **opts, **opt, *pfx;
-	int i;
+static void pgp_current_time (STATE *s)
+{
+  time_t t;
+  char p[STRING];
 
-	opts = malloc((2 * argc + 1) * sizeof (* opts));	/* __MEM_CHECKED__ */
-	if(!opts) {
-		perror(argv[0]);
-		exit(2);
-	}
-
-	if (argc < 2)
-	{
-	  fprintf (stderr,
-		   "Command line usage: %s [flags] -- prefix [recipients]\n",
-		   argv[0]);
-	  return 1;
-	}
-
-	opt = opts;
-	*opt++ = argv[1];
-	pfx = NULL;
-
-	for(i = 2; i < argc; ) {
-		if(!strcmp(argv[i], "--")) {
-			i += 2;
-			if(i > argc) {
-				fprintf(stderr, "Command line usage: %s [flags] -- prefix [recipients]\n", argv[0]);
-				return 1;
-			}
-			pfx = argv[i-1];
-		}
-		if(pfx)
-			*opt++ = pfx;
-		*opt++ = argv[i++];
-	}
-	*opt = NULL;
-
-	execvp(opts[0], opts);
-	perror(argv[0]);
-	return 2;
+  t = time (NULL);
+  setlocale (LC_TIME, "");
+  strftime (p, sizeof (p),
+	    _("[-- PGP output follows (current time: %c) --]\n"),
+	    localtime (&t));
+  setlocale (LC_TIME, "C");
+  state_attach_puts (p, s);
 }

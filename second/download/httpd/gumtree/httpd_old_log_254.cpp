@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
-                         0, NULL, "Pre-configuration failed\n");
+fprintf(stderr, "%s: Include directory '%s' not found",
+                        ap_server_argv0, path);

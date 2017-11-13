@@ -1,1 +1,1 @@
-(apr_ipsubnet_test(*ip, r->useragent_addr);
+printf("HTML transferred:       %" APR_INT64_T_FMT " bytes\n", totalbread);

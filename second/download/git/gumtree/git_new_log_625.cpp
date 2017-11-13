@@ -1,1 +1,0 @@
-warning("ignoring alternate with unknown protocol: %s", url);

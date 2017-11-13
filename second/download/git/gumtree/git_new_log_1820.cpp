@@ -1,1 +1,1 @@
-die("unable to generate diffstat for %s", one->path);
+printf("Diag: path=%s\n", path ? path : "NULL");

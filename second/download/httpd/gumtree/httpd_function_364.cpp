@@ -1,52 +1,32 @@
-void util_ldap_url_node_display(request_rec *r, util_ald_cache_t *cache, void *n)
+static void usage(void)
 {
-    util_url_node_t *node = (util_url_node_t *)n;
-    char date_str[APR_CTIME_LEN+1];
-    char *buf;
-    const char *type_str;
-    util_ald_cache_t *cache_node;
-    int x;
-
-    for (x=0;x<3;x++) {
-        switch (x) {
-            case 0:
-                cache_node = node->search_cache;
-                type_str = "Searches";
-                break;
-            case 1:
-                cache_node = node->compare_cache;
-                type_str = "Compares";
-                break;
-            case 2:
-                cache_node = node->dn_compare_cache;
-                type_str = "DN Compares";
-                break;
-        }
-        
-        if (cache_node->marktime) {
-            apr_ctime(date_str, cache_node->marktime);
-        }
-        else 
-            date_str[0] = 0;
-
-        buf = apr_psprintf(r->pool, 
-                 "<tr valign='top'>"
-                 "<td nowrap>%s (%s)</td>"
-                 "<td nowrap>%ld</td>"
-                 "<td nowrap>%ld</td>"
-                 "<td nowrap>%ld</td>"
-                 "<td nowrap>%ld</td>"
-                 "<td nowrap>%s</td>"
-                 "<tr>",
-             node->url,
-             type_str,
-             cache_node->size,
-             cache_node->maxentries,
-             cache_node->numentries,
-             cache_node->fullmark,
-             date_str);
-    
-        ap_rputs(buf, r);
-    }
-
+    apr_file_printf(errfile, "Usage:\n");
+    apr_file_printf(errfile, "\thtpasswd [-cmdps] passwordfile username\n");
+    apr_file_printf(errfile, "\thtpasswd -b[cmdps] passwordfile username "
+                    "password\n\n");
+    apr_file_printf(errfile, "\thtpasswd -n[mdps] username\n");
+    apr_file_printf(errfile, "\thtpasswd -nb[mdps] username password\n");
+    apr_file_printf(errfile, " -c  Create a new file.\n");
+    apr_file_printf(errfile, " -n  Don't update file; display results on "
+                    "stdout.\n");
+    apr_file_printf(errfile, " -m  Force MD5 encryption of the password"
+#if defined(WIN32) || defined(TPF) || defined(NETWARE)
+        " (default)"
+#endif
+        ".\n");
+    apr_file_printf(errfile, " -d  Force CRYPT encryption of the password"
+#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
+            " (default)"
+#endif
+            ".\n");
+    apr_file_printf(errfile, " -p  Do not encrypt the password (plaintext).\n");
+    apr_file_printf(errfile, " -s  Force SHA encryption of the password.\n");
+    apr_file_printf(errfile, " -b  Use the password from the command line "
+            "rather than prompting for it.\n");
+    apr_file_printf(errfile,
+            "On Windows, NetWare and TPF systems the '-m' flag is used by "
+            "default.\n");
+    apr_file_printf(errfile,
+            "On all other systems, the '-p' flag will probably not work.\n");
+    exit(ERR_SYNTAX);
 }

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                            "Parent: Unable to connect child stderr.");
+printf("%sdebug: after reduction, shifting from state %d \
+to state %d\n", YYPREFIX, *ssl_expr_yyssp, ssl_expr_yystate);

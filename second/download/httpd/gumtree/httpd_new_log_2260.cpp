@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, 0, ap_server_conf,
-                     "refusing to send signal %d to pid %ld outside "
-                     "process group", sig, (long)pid);
+ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(),
+                         ap_server_conf,
+                         "Child %d: WAIT_FAILED -- shutting down server", 
+                         my_pid);

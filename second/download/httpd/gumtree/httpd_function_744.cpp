@@ -1,107 +1,182 @@
-static apr_status_t ssl_filter_io_shutdown(ssl_filter_ctx_t *filter_ctx,
-                                           conn_rec *c,
-                                           int abortive)
+static int display_info(request_rec * r)
 {
-    SSL *ssl = filter_ctx->pssl;
-    const char *type = "";
-    SSLConnRec *sslconn = myConnConfig(c);
-    int shutdown_type;
+    module *modp = NULL;
+    server_rec *serv = r->server;
+    const char *more_info;
+    const command_rec *cmd = NULL;
+    int comma = 0;
 
-    if (!ssl) {
-        return APR_SUCCESS;
+    if (strcmp(r->handler, "server-info"))
+        return DECLINED;
+
+    r->allowed |= (AP_METHOD_BIT << M_GET);
+    if (r->method_number != M_GET)
+        return DECLINED;
+
+    ap_set_content_type(r, "text/html");
+
+    ap_rputs(DOCTYPE_XHTML_1_0T
+             "<html xmlns=\"http://www.w3.org/1999/xhtml\">\n"
+             "<head>\n"
+             "  <title>Server Information</title>\n" "</head>\n", r);
+    ap_rputs("<body><h1 style=\"text-align: center\">"
+             "Apache Server Information</h1>\n", r);
+    if (!r->args || strcasecmp(r->args, "list")) {
+        if (!r->args) {
+            ap_rputs("<dl><dt><tt>Subpages:<br />", r);
+            ap_rputs("<a href=\"?config\">Configuration Files</a>, "
+                     "<a href=\"?server\">Server Settings</a>, "
+                     "<a href=\"?list\">Module List</a>,  "
+                     "<a href=\"?hooks\">Active Hooks</a>", r);
+            ap_rputs("</tt></dt></dl><hr />", r);
+
+            ap_rputs("<dl><dt><tt>Sections:<br />", r);
+            ap_rputs("<a href=\"#server\">Server Settings</a>, "
+                     "<a href=\"#startup_hooks\">Startup Hooks</a>, "
+                     "<a href=\"#request_hooks\">Request Hooks</a>", r);
+            ap_rputs("</tt></dt></dl><hr />", r);
+
+            ap_rputs("<dl><dt><tt>Loaded Modules: <br />", r);
+            /* TODO: Sort by Alpha */
+            for (modp = ap_top_module; modp; modp = modp->next) {
+                ap_rprintf(r, "<a href=\"#%s\">%s</a>", modp->name,
+                           modp->name);
+                if (modp->next) {
+                    ap_rputs(", ", r);
+                }
+            }
+            ap_rputs("</tt></dt></dl><hr />", r);
+        }
+
+        if (!r->args || !strcasecmp(r->args, "server")) {
+            show_server_settings(r);
+        }
+
+        if (!r->args || !strcasecmp(r->args, "hooks")) {
+            show_active_hooks(r);
+        }
+
+        if (r->args && 0 == strcasecmp(r->args, "config")) {
+            ap_rputs("<dl><dt><strong>Configuration:</strong>\n", r);
+            mod_info_module_cmds(r, NULL, ap_conftree, 0, 0);
+            ap_rputs("</dl><hr />", r);
+        }
+        else {
+            for (modp = ap_top_module; modp; modp = modp->next) {
+                if (!r->args || !strcasecmp(modp->name, r->args)) {
+                    ap_rprintf(r,
+                               "<dl><dt><a name=\"%s\"><strong>Module Name:</strong></a> "
+                               "<font size=\"+1\"><tt><a href=\"?%s\">%s</a></tt></font></dt>\n",
+                               modp->name, modp->name, modp->name);
+                    ap_rputs("<dt><strong>Content handlers:</strong> ", r);
+
+                    if (module_find_hook(modp, ap_hook_get_handler)) {
+                        ap_rputs("<tt> <em>yes</em></tt>", r);
+                    }
+                    else {
+                        ap_rputs("<tt> <em>none</em></tt>", r);
+                    }
+
+                    ap_rputs("</dt>", r);
+                    ap_rputs
+                        ("<dt><strong>Configuration Phase Participation:</strong>\n",
+                         r);
+                    if (modp->create_dir_config) {
+                        if (comma) {
+                            ap_rputs(", ", r);
+                        }
+                        ap_rputs("<tt>Create Directory Config</tt>", r);
+                        comma = 1;
+                    }
+                    if (modp->merge_dir_config) {
+                        if (comma) {
+                            ap_rputs(", ", r);
+                        }
+                        ap_rputs("<tt>Merge Directory Configs</tt>", r);
+                        comma = 1;
+                    }
+                    if (modp->create_server_config) {
+                        if (comma) {
+                            ap_rputs(", ", r);
+                        }
+                        ap_rputs("<tt>Create Server Config</tt>", r);
+                        comma = 1;
+                    }
+                    if (modp->merge_server_config) {
+                        if (comma) {
+                            ap_rputs(", ", r);
+                        }
+                        ap_rputs("<tt>Merge Server Configs</tt>", r);
+                        comma = 1;
+                    }
+                    if (!comma)
+                        ap_rputs("<tt> <em>none</em></tt>", r);
+                    comma = 0;
+                    ap_rputs("</dt>", r);
+
+                    module_request_hook_participate(r, modp);
+
+                    cmd = modp->cmds;
+                    if (cmd) {
+                        ap_rputs
+                            ("<dt><strong>Module Directives:</strong></dt>",
+                             r);
+                        while (cmd) {
+                            if (cmd->name) {
+                                ap_rprintf(r, "<dd><tt>%s%s - <i>",
+                                           ap_escape_html(r->pool, cmd->name),
+                                           cmd->name[0] == '<' ? "&gt;" : "");
+                                if (cmd->errmsg) {
+                                    ap_rputs(cmd->errmsg, r);
+                                }
+                                ap_rputs("</i></tt></dd>\n", r);
+                            }
+                            else {
+                                break;
+                            }
+                            cmd++;
+                        }
+                        ap_rputs
+                            ("<dt><strong>Current Configuration:</strong></dt>\n",
+                             r);
+                        mod_info_module_cmds(r, modp->cmds, ap_conftree, 0,
+                                             0);
+                    }
+                    else {
+                        ap_rputs
+                            ("<dt><strong>Module Directives:</strong> <tt>none</tt></dt>",
+                             r);
+                    }
+                    more_info = find_more_info(serv, modp->name);
+                    if (more_info) {
+                        ap_rputs
+                            ("<dt><strong>Additional Information:</strong>\n</dt><dd>",
+                             r);
+                        ap_rputs(more_info, r);
+                        ap_rputs("</dd>", r);
+                    }
+                    ap_rputs("</dl><hr />\n", r);
+                    if (r->args) {
+                        break;
+                    }
+                }
+            }
+            if (!modp && r->args && strcasecmp(r->args, "server")) {
+                ap_rputs("<p><b>No such module</b></p>\n", r);
+            }
+        }
     }
-
-    /*
-     * Now close the SSL layer of the connection. We've to take
-     * the TLSv1 standard into account here:
-     *
-     * | 7.2.1. Closure alerts
-     * |
-     * | The client and the server must share knowledge that the connection is
-     * | ending in order to avoid a truncation attack. Either party may
-     * | initiate the exchange of closing messages.
-     * |
-     * | close_notify
-     * |     This message notifies the recipient that the sender will not send
-     * |     any more messages on this connection. The session becomes
-     * |     unresumable if any connection is terminated without proper
-     * |     close_notify messages with level equal to warning.
-     * |
-     * | Either party may initiate a close by sending a close_notify alert.
-     * | Any data received after a closure alert is ignored.
-     * |
-     * | Each party is required to send a close_notify alert before closing
-     * | the write side of the connection. It is required that the other party
-     * | respond with a close_notify alert of its own and close down the
-     * | connection immediately, discarding any pending writes. It is not
-     * | required for the initiator of the close to wait for the responding
-     * | close_notify alert before closing the read side of the connection.
-     *
-     * This means we've to send a close notify message, but haven't to wait
-     * for the close notify of the client. Actually we cannot wait for the
-     * close notify of the client because some clients (including Netscape
-     * 4.x) don't send one, so we would hang.
-     */
-
-    /*
-     * exchange close notify messages, but allow the user
-     * to force the type of handshake via SetEnvIf directive
-     */
-    if (abortive) {
-        shutdown_type = SSL_SENT_SHUTDOWN|SSL_RECEIVED_SHUTDOWN;
-        type = "abortive";
+    else {
+        ap_rputs("<dl><dt>Server Module List</dt>", r);
+        for (modp = ap_top_module; modp; modp = modp->next) {
+            ap_rputs("<dd>", r);
+            ap_rputs(modp->name, r);
+            ap_rputs("</dd>", r);
+        }
+        ap_rputs("</dl><hr />", r);
     }
-    else switch (sslconn->shutdown_type) {
-      case SSL_SHUTDOWN_TYPE_UNCLEAN:
-        /* perform no close notify handshake at all
-           (violates the SSL/TLS standard!) */
-        shutdown_type = SSL_SENT_SHUTDOWN|SSL_RECEIVED_SHUTDOWN;
-        type = "unclean";
-        break;
-      case SSL_SHUTDOWN_TYPE_ACCURATE:
-        /* send close notify and wait for clients close notify
-           (standard compliant, but usually causes connection hangs) */
-        shutdown_type = 0;
-        type = "accurate";
-        break;
-      default:
-        /*
-         * case SSL_SHUTDOWN_TYPE_UNSET:
-         * case SSL_SHUTDOWN_TYPE_STANDARD:
-         */
-        /* send close notify, but don't wait for clients close notify
-           (standard compliant and safe, so it's the DEFAULT!) */
-        shutdown_type = SSL_RECEIVED_SHUTDOWN;
-        type = "standard";
-        break;
-    }
-
-    SSL_set_shutdown(ssl, shutdown_type);
-    SSL_smart_shutdown(ssl);
-
-    /* and finally log the fact that we've closed the connection */
-    if (c->base_server->loglevel >= APLOG_INFO) {
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, c->base_server,
-                     "Connection to child %ld closed with %s shutdown"
-                     "(server %s, client %s)",
-                     c->id, type,
-                     ssl_util_vhostid(c->pool, c->base_server),
-                     c->remote_ip ? c->remote_ip : "unknown");
-    }
-
-    /* deallocate the SSL connection */
-    if (sslconn->client_cert) {
-        X509_free(sslconn->client_cert);
-        sslconn->client_cert = NULL;
-    }
-    SSL_free(ssl);
-    sslconn->ssl = NULL;
-    filter_ctx->pssl = NULL; /* so filters know we've been shutdown */
-
-    if (abortive) {
-        /* prevent any further I/O */
-        c->aborted = 1;
-    }
-
-    return APR_SUCCESS;
+    ap_rputs(ap_psignature("", r), r);
+    ap_rputs("</body></html>\n", r);
+    /* Done, turn off timeout, close file and return */
+    return 0;
 }

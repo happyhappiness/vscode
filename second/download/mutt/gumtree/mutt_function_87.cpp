@@ -1,60 +1,112 @@
-static int _mutt_bounce_message (FILE *fp, HEADER *h, ADDRESS *to, const char *resent_from,
-				  ADDRESS *env_from)
+int mutt_write_rfc822_header (FILE *fp, ENVELOPE *env, BODY *attach, 
+			      int mode, int privacy)
 {
-  int i, ret = 0;
-  FILE *f;
-  char date[SHORT_STRING], tempfile[_POSIX_PATH_MAX];
-  MESSAGE *msg = NULL;
+  char buffer[LONG_STRING];
+  char *p;
+  LIST *tmp = env->userhdrs;
+  
+  if (mode == 0 && !privacy)
+    fputs (mutt_make_date (buffer, sizeof(buffer)), fp);
 
-  if (!h)
+  /* OPTUSEFROM is not consulted here so that we can still write a From:
+   * field if the user sets it with the `my_hdr' command
+   */
+  if (env->from && !privacy)
   {
-	  /* Try to bounce each message out, aborting if we get any failures. */
-    for (i=0; i<Context->msgcount; i++)
-      if (Context->hdrs[i]->tagged)
-        ret |= _mutt_bounce_message (fp, Context->hdrs[i], to, resent_from, env_from);
-    return ret;
+    buffer[0] = 0;
+    rfc822_write_address (buffer, sizeof (buffer), env->from);
+    fprintf (fp, "From: %s\n", buffer);
   }
 
-  /* If we failed to open a message, return with error */
-  if (!fp && (msg = mx_open_message (Context, h->msgno)) == NULL)
-    return -1;
-
-  if (!fp) fp = msg->fp;
-
-  mutt_mktemp (tempfile, sizeof (tempfile));
-  if ((f = safe_fopen (tempfile, "w")) != NULL)
+  if (env->to)
   {
-    int ch_flags = CH_XMIT | CH_NONEWLINE | CH_NOQFROM;
-    char* msgid_str;
+    fputs ("To: ", fp);
+    mutt_write_address_list (env->to, fp, 4);
+  }
+  else if (mode > 0)
+    fputs ("To: \n", fp);
 
-    if (!option (OPTBOUNCEDELIVERED))
-      ch_flags |= CH_WEED_DELIVERED;
+  if (env->cc)
+  {
+    fputs ("Cc: ", fp);
+    mutt_write_address_list (env->cc, fp, 4);
+  }
+  else if (mode > 0)
+    fputs ("Cc: \n", fp);
 
-    fseeko (fp, h->offset, 0);
-    fprintf (f, "Resent-From: %s", resent_from);
-    fprintf (f, "\nResent-%s", mutt_make_date (date, sizeof(date)));
-    msgid_str = mutt_gen_msgid();
-    fprintf (f, "Resent-Message-ID: %s\n", msgid_str);
-    fputs ("Resent-To: ", f);
-    mutt_write_address_list (to, f, 11, 0);
-    mutt_copy_header (fp, h, f, ch_flags, NULL);
-    fputc ('\n', f);
-    mutt_copy_bytes (fp, f, h->content->length);
-    safe_fclose (&f);
-    FREE (&msgid_str);
+  if (env->bcc)
+  {
+    if(mode != 0 || option(OPTWRITEBCC))
+    {
+      fputs ("Bcc: ", fp);
+      mutt_write_address_list (env->bcc, fp, 5);
+    }
+  }
+  else if (mode > 0)
+    fputs ("Bcc: \n", fp);
 
-#if USE_SMTP
-    if (SmtpUrl)
-      ret = mutt_smtp_send (env_from, to, NULL, NULL, tempfile,
-                            h->content->encoding == ENC8BIT);
-    else
-#endif /* USE_SMTP */
-    ret = mutt_invoke_sendmail (env_from, to, NULL, NULL, tempfile,
-			  	h->content->encoding == ENC8BIT);
+  if (env->subject)
+    fprintf (fp, "Subject: %s\n", env->subject);
+  else if (mode == 1)
+    fputs ("Subject: \n", fp);
+
+  /* save message id if the user has set it */
+  if (env->message_id && !privacy)
+    fprintf (fp, "Message-ID: %s\n", env->message_id);
+
+  if (env->reply_to)
+  {
+    fputs ("Reply-To: ", fp);
+    mutt_write_address_list (env->reply_to, fp, 10);
+  }
+  else if (mode > 0)
+    fputs ("Reply-To: \n", fp);
+
+  if (env->mail_followup_to)
+  {
+    fputs ("Mail-Followup-To: ", fp);
+    mutt_write_address_list (env->mail_followup_to, fp, 18);
   }
 
-  if (msg)
-    mx_close_message (&msg);
+  if (mode <= 0)
+  {
+    if (env->references)
+    {
+      fputs ("References:", fp);
+      write_references (env->references, fp);
+      fputc('\n', fp);
+    }
 
-  return ret;
+    /* Add the MIME headers */
+    fputs ("Mime-Version: 1.0\n", fp);
+    mutt_write_mime_header (attach, fp);
+  }
+
+  if (env->in_reply_to)
+  {
+    fputs ("In-Reply-To:", fp);
+    write_references (env->in_reply_to, fp);
+    fputc ('\n', fp);
+  }
+  
+  if (mode == 0 && !privacy && option (OPTXMAILER))
+  {
+    /* Add a vanity header */
+    fprintf (fp, "User-Agent: Mutt/%s\n", MUTT_VERSION);
+  }
+
+  /* Add any user defined headers */
+  for (; tmp; tmp = tmp->next)
+  {
+    if ((p = strchr (tmp->data, ':')))
+    {
+      p++; SKIPWS (p);
+      if (!*p) 	continue;  /* don't emit empty fields. */
+
+      fputs (tmp->data, fp);
+      fputc ('\n', fp);
+    }
+  }
+
+  return (ferror (fp) == 0 ? 0 : -1);
 }

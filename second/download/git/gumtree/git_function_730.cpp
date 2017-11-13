@@ -1,64 +1,77 @@
-static int git_config_parse_key_1(const char *key, char **store_key, int *baselen_, int quiet)
+static void wt_porcelain_v2_print_unmerged_entry(
+	struct string_list_item *it,
+	struct wt_status *s)
 {
-	int i, dot, baselen;
-	const char *last_dot = strrchr(key, '.');
+	struct wt_status_change_data *d = it->util;
+	const struct cache_entry *ce;
+	struct strbuf buf_index = STRBUF_INIT;
+	const char *path_index = NULL;
+	int pos, stage, sum;
+	struct {
+		int mode;
+		struct object_id oid;
+	} stages[3];
+	char *key;
+	char submodule_token[5];
+	char unmerged_prefix = 'u';
+	char eol_char = s->null_termination ? '\0' : '\n';
+
+	wt_porcelain_v2_submodule_state(d, submodule_token);
+
+	switch (d->stagemask) {
+	case 1: key = "DD"; break; /* both deleted */
+	case 2: key = "AU"; break; /* added by us */
+	case 3: key = "UD"; break; /* deleted by them */
+	case 4: key = "UA"; break; /* added by them */
+	case 5: key = "DU"; break; /* deleted by us */
+	case 6: key = "AA"; break; /* both added */
+	case 7: key = "UU"; break; /* both modified */
+	default:
+		die("BUG: unhandled unmerged status %x", d->stagemask);
+	}
 
 	/*
-	 * Since "key" actually contains the section name and the real
-	 * key name separated by a dot, we have to know where the dot is.
+	 * Disregard d.aux.porcelain_v2 data that we accumulated
+	 * for the head and index columns during the scans and
+	 * replace with the actual stage data.
+	 *
+	 * Note that this is a last-one-wins for each the individual
+	 * stage [123] columns in the event of multiple cache entries
+	 * for same stage.
 	 */
-
-	if (last_dot == NULL || last_dot == key) {
-		if (!quiet)
-			error("key does not contain a section: %s", key);
-		return -CONFIG_NO_SECTION_OR_NAME;
+	memset(stages, 0, sizeof(stages));
+	sum = 0;
+	pos = cache_name_pos(it->string, strlen(it->string));
+	assert(pos < 0);
+	pos = -pos-1;
+	while (pos < active_nr) {
+		ce = active_cache[pos++];
+		stage = ce_stage(ce);
+		if (strcmp(ce->name, it->string) || !stage)
+			break;
+		stages[stage - 1].mode = ce->ce_mode;
+		hashcpy(stages[stage - 1].oid.hash, ce->oid.hash);
+		sum |= (1 << (stage - 1));
 	}
+	if (sum != d->stagemask)
+		die("BUG: observed stagemask 0x%x != expected stagemask 0x%x", sum, d->stagemask);
 
-	if (!last_dot[1]) {
-		if (!quiet)
-			error("key does not contain variable name: %s", key);
-		return -CONFIG_NO_SECTION_OR_NAME;
-	}
+	if (s->null_termination)
+		path_index = it->string;
+	else
+		path_index = quote_path(it->string, s->prefix, &buf_index);
 
-	baselen = last_dot - key;
-	if (baselen_)
-		*baselen_ = baselen;
+	fprintf(s->fp, "%c %s %s %06o %06o %06o %06o %s %s %s %s%c",
+			unmerged_prefix, key, submodule_token,
+			stages[0].mode, /* stage 1 */
+			stages[1].mode, /* stage 2 */
+			stages[2].mode, /* stage 3 */
+			d->mode_worktree,
+			oid_to_hex(&stages[0].oid), /* stage 1 */
+			oid_to_hex(&stages[1].oid), /* stage 2 */
+			oid_to_hex(&stages[2].oid), /* stage 3 */
+			path_index,
+			eol_char);
 
-	/*
-	 * Validate the key and while at it, lower case it for matching.
-	 */
-	if (store_key)
-		*store_key = xmallocz(strlen(key));
-
-	dot = 0;
-	for (i = 0; key[i]; i++) {
-		unsigned char c = key[i];
-		if (c == '.')
-			dot = 1;
-		/* Leave the extended basename untouched.. */
-		if (!dot || i > baselen) {
-			if (!iskeychar(c) ||
-			    (i == baselen + 1 && !isalpha(c))) {
-				if (!quiet)
-					error("invalid key: %s", key);
-				goto out_free_ret_1;
-			}
-			c = tolower(c);
-		} else if (c == '\n') {
-			if (!quiet)
-				error("invalid key (newline): %s", key);
-			goto out_free_ret_1;
-		}
-		if (store_key)
-			(*store_key)[i] = c;
-	}
-
-	return 0;
-
-out_free_ret_1:
-	if (store_key) {
-		free(*store_key);
-		*store_key = NULL;
-	}
-	return -CONFIG_INVALID_KEY;
+	strbuf_release(&buf_index);
 }

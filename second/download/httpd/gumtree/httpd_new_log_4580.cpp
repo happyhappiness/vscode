@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, 0, s, APLOGNO(00200)
-                         "no listening sockets available, shutting down");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01814)
+                      "excluded by configuration for: %s", r->uri);

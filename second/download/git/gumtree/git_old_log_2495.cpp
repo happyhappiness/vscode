@@ -1,1 +1,1 @@
-printf("unreachable %s %s\n", typename(obj->type), oid_to_hex(&obj->oid));
+die("Commit %s doesn't have an indexed bitmap", sha1_to_hex(root->sha1));

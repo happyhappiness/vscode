@@ -1,11 +1,11 @@
 fputs(
-"              forest in your setup for example.\n"
+"               curl -T \"img[1-1000].png\" ftp://ftp.example.com/upload/\n"
 "\n"
-"              To  specify  the domain name use either Down-Level Logon Name or\n"
-"              UPN (User Principal Name) formats. For example, EXAMPLE\\user and\n"
-"              user@example.com respectively.\n"
+"              When uploading to an SMTP server: the uploaded data  is  assumed\n"
+"              to be RFC 5322 formatted. It has to feature the necessary set of\n"
+"              headers and mail body formatted correctly by the  user  as  curl\n"
+"              will not transcode nor encode it further in any way.\n"
 "\n"
-"              If  you  use a Windows SSPI-enabled curl binary and perform Ker-\n"
-"              beros V5, Negotiate, NTLM or Digest authentication then you  can\n"
-"              tell  curl  to select the user name and password from your envi-\n"
+"       --url <url>\n"
+"              Specify  a  URL  to  fetch. This option is mostly handy when you\n"
 , stdout);

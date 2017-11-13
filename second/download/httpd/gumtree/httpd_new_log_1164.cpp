@@ -1,1 +1,1 @@
-fprintf(stderr, "    %-32s Comment\n", "Username");
+printf("No named substrings\n");

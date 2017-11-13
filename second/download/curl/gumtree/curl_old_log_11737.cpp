@@ -1,11 +1,11 @@
 fputs(
-"              of base64 encoded sha256 hashes preceded by 'sha256//' and sepa-\n"
-"              rated by ';'\n"
+"              (SSL)  Specify  the  path  name  to the Entropy Gathering Daemon\n"
+"              socket. The socket is used to seed the  random  engine  for  SSL\n"
+"              connections. See also the --random-file option.\n"
 "\n"
-"              When negotiating a TLS or SSL connection,  the  server  sends  a\n"
-"              certificate  indicating  its identity. A public key is extracted\n"
-"              from this certificate and if it does not exactly match the  pub-\n"
-"              lic  key provided to this option, curl will abort the connection\n"
-"              before sending or receiving any data.\n"
+"       --cert-type <type>\n"
+"              (SSL)  Tells curl what certificate type the provided certificate\n"
+"              is in. PEM, DER and ENG are recognized types.  If not specified,\n"
+"              PEM is assumed.\n"
 "\n"
 , stdout);

@@ -1,1 +1,0 @@
-io_printf(fd,"%s%s\n", leader, b64_challenge);

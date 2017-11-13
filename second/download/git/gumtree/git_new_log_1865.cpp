@@ -1,1 +1,2 @@
-error("duplicate parent %s ignored", oid_to_hex(oid));
+die("BUG: unknown get_sha1_with_context result %d\n",
+			       result);

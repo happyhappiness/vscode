@@ -1,17 +1,57 @@
-static void check_reachable_object(struct object *obj)
+void test_bitmap_walk(struct rev_info *revs)
 {
-	/*
-	 * We obviously want the object to be parsed,
-	 * except if it was in a pack-file and we didn't
-	 * do a full fsck
-	 */
-	if (!(obj->flags & HAS_OBJ)) {
-		if (has_sha1_pack(obj->oid.hash))
-			return; /* it is in pack - forget about it */
-		if (connectivity_only && has_object_file(&obj->oid))
-			return;
-		printf("missing %s %s\n", typename(obj->type), oid_to_hex(&obj->oid));
-		errors_found |= ERROR_REACHABLE;
-		return;
+	struct object *root;
+	struct bitmap *result = NULL;
+	khiter_t pos;
+	size_t result_popcnt;
+	struct bitmap_test_data tdata;
+
+	if (prepare_bitmap_git())
+		die("failed to load bitmap indexes");
+
+	if (revs->pending.nr != 1)
+		die("you must specify exactly one commit to test");
+
+	fprintf(stderr, "Bitmap v%d test (%d entries loaded)\n",
+		bitmap_git.version, bitmap_git.entry_count);
+
+	root = revs->pending.objects[0].item;
+	pos = kh_get_sha1(bitmap_git.bitmaps, root->sha1);
+
+	if (pos < kh_end(bitmap_git.bitmaps)) {
+		struct stored_bitmap *st = kh_value(bitmap_git.bitmaps, pos);
+		struct ewah_bitmap *bm = lookup_stored_bitmap(st);
+
+		fprintf(stderr, "Found bitmap for %s. %d bits / %08x checksum\n",
+			sha1_to_hex(root->sha1), (int)bm->bit_size, ewah_checksum(bm));
+
+		result = ewah_to_bitmap(bm);
 	}
+
+	if (result == NULL)
+		die("Commit %s doesn't have an indexed bitmap", sha1_to_hex(root->sha1));
+
+	revs->tag_objects = 1;
+	revs->tree_objects = 1;
+	revs->blob_objects = 1;
+
+	result_popcnt = bitmap_popcount(result);
+
+	if (prepare_revision_walk(revs))
+		die("revision walk setup failed");
+
+	tdata.base = bitmap_new();
+	tdata.prg = start_progress("Verifying bitmap entries", result_popcnt);
+	tdata.seen = 0;
+
+	traverse_commit_list(revs, &test_show_commit, &test_show_object, &tdata);
+
+	stop_progress(&tdata.prg);
+
+	if (bitmap_equals(result, tdata.base))
+		fprintf(stderr, "OK!\n");
+	else
+		fprintf(stderr, "Mismatch!\n");
+
+	bitmap_free(result);
 }

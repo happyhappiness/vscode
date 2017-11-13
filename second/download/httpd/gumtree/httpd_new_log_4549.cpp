@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL, APLOGNO(00495)
-                         "Couldn't create a Thread Safe Pollset. "
-                         "Is it supported on your platform?"
-                         "Also check system or user limits!");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00934)
+                      "all workers are busy.  Unable to serve %s", *url);

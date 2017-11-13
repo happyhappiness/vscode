@@ -1,18 +1,13 @@
-static void prompt_help_cmd(int singleton)
+static struct files_ref_store *files_downcast(
+		struct ref_store *ref_store, int submodule_allowed,
+		const char *caller)
 {
-	clean_print_color(CLEAN_COLOR_HELP);
-	printf_ln(singleton ?
-		  _("Prompt help:\n"
-		    "1          - select a numbered item\n"
-		    "foo        - select item based on unique prefix\n"
-		    "           - (empty) select nothing") :
-		  _("Prompt help:\n"
-		    "1          - select a single item\n"
-		    "3-5        - select a range of items\n"
-		    "2-3,6-9    - select multiple ranges\n"
-		    "foo        - select item based on unique prefix\n"
-		    "-...       - unselect specified items\n"
-		    "*          - choose all items\n"
-		    "           - (empty) finish selecting"));
-	clean_print_color(CLEAN_COLOR_RESET);
+	if (ref_store->be != &refs_be_files)
+		die("BUG: ref_store is type \"%s\" not \"files\" in %s",
+		    ref_store->be->name, caller);
+
+	if (!submodule_allowed)
+		assert_main_repository(ref_store, caller);
+
+	return (struct files_ref_store *)ref_store;
 }

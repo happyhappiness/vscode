@@ -1,18 +1,33 @@
-static int on_invalid_header_cb(nghttp2_session *ngh2, 
-                                const nghttp2_frame *frame, 
-                                const uint8_t *name, size_t namelen, 
-                                const uint8_t *value, size_t valuelen, 
-                                uint8_t flags, void *user_data)
+apr_status_t h2_response_trailers_filter(ap_filter_t *f, apr_bucket_brigade *bb)
 {
-    h2_proxy_session *session = user_data;
-    if (APLOGcdebug(session->c)) {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03469)
-                      "h2_proxy_session(%s-%d): denying stream with invalid header "
-                      "'%s: %s'", session->id, (int)frame->hd.stream_id,
-                      apr_pstrndup(session->pool, (const char *)name, namelen),
-                      apr_pstrndup(session->pool, (const char *)value, valuelen));
+    h2_task *task = f->ctx;
+    h2_from_h1 *from_h1 = task->output? task->output->from_h1 : NULL;
+    request_rec *r = f->r;
+    apr_bucket *b;
+ 
+    if (from_h1 && from_h1->response) {
+        /* Detect the EOR bucket and forward any trailers that may have
+         * been set to our h2_response.
+         */
+        for (b = APR_BRIGADE_FIRST(bb);
+             b != APR_BRIGADE_SENTINEL(bb);
+             b = APR_BUCKET_NEXT(b))
+        {
+            if (AP_BUCKET_IS_EOR(b)) {
+                /* FIXME: need a better test case than this.
+                apr_table_setn(r->trailers_out, "X", "1"); */
+                if (r->trailers_out && !apr_is_empty_table(r->trailers_out)) {
+                    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
+                                  "h2_from_h1(%d): trailers filter, saving trailers",
+                                  from_h1->stream_id);
+                    h2_response_set_trailers(from_h1->response,
+                                             apr_table_clone(from_h1->pool, 
+                                                             r->trailers_out));
+                }
+                break;
+            }
+        }     
     }
-    return nghttp2_submit_rst_stream(session->ngh2, NGHTTP2_FLAG_NONE,
-                                     frame->hd.stream_id, 
-                                     NGHTTP2_PROTOCOL_ERROR);
+     
+    return ap_pass_brigade(f->next, bb);
 }

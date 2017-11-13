@@ -1,1 +1,0 @@
-die_errno(_("could not close '%s'"), filename);

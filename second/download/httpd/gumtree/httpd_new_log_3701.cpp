@@ -1,1 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00870) "request is chunked");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01465)
+                          "apr_file_pipe_timeout_set(child output)");

@@ -1,1 +1,1 @@
-die_errno("cannot getcwd");
+die("create: missing <ref>");

@@ -1,9 +1,11 @@
 fputs(
-"              Use the specified proxy before connecting to the ordinary proxy.\n"
-"              Hence pre proxy. A pre proxy must be a SOCKS speaking proxy.\n"
+"              of base64 encoded sha256 hashes preceded by 'sha256//' and sepa-\n"
+"              rated by ';'\n"
 "\n"
-"              The pre proxy string should be specified with a protocol:// pre-\n"
-"              fix to  specify  alternative  proxy  protocols.  Use  socks4://,\n"
-"              socks4a://,  socks5://  or  socks5h://  to  request the specific\n"
-"              SOCKS version to be used. No protocol specified will  make  curl\n"
+"              When  negotiating  a  TLS  or SSL connection, the server sends a\n"
+"              certificate indicating its identity. A public key  is  extracted\n"
+"              from  this certificate and if it does not exactly match the pub-\n"
+"              lic key provided to this option, curl will abort the  connection\n"
+"              before sending or receiving any data.\n"
+"\n"
 , stdout);

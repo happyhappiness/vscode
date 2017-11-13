@@ -1,1 +1,1 @@
-error_errno("cannot open mail %s", file);
+error_errno("cannot read mail %s", file);

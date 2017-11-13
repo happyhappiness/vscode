@@ -1,1 +1,0 @@
-printf(" -D SHARED_CORE\n");

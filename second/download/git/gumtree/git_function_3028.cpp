@@ -1,79 +1,99 @@
-static int pack_objects(int fd, struct ref *refs, struct sha1_array *extra, struct send_pack_args *args)
+int recv_sideband(const char *me, int in_stream, int out)
 {
-	/*
-	 * The child becomes pack-objects --revs; we feed
-	 * the revision parameters to it via its stdin and
-	 * let its stdout go back to the other end.
-	 */
-	const char *argv[] = {
-		"pack-objects",
-		"--all-progress-implied",
-		"--revs",
-		"--stdout",
-		NULL,
-		NULL,
-		NULL,
-		NULL,
-		NULL,
-		NULL,
-	};
-	struct child_process po = CHILD_PROCESS_INIT;
-	FILE *po_in;
-	int i;
+	unsigned pf = strlen(PREFIX);
+	unsigned sf;
+	char buf[LARGE_PACKET_MAX + 2*FIX_SIZE];
+	char *suffix, *term;
+	int skip_pf = 0;
 
-	i = 4;
-	if (args->use_thin_pack)
-		argv[i++] = "--thin";
-	if (args->use_ofs_delta)
-		argv[i++] = "--delta-base-offset";
-	if (args->quiet || !args->progress)
-		argv[i++] = "-q";
-	if (args->progress)
-		argv[i++] = "--progress";
-	if (is_repository_shallow())
-		argv[i++] = "--shallow";
-	po.argv = argv;
-	po.in = -1;
-	po.out = args->stateless_rpc ? -1 : fd;
-	po.git_cmd = 1;
-	if (start_command(&po))
-		die_errno("git pack-objects failed");
+	memcpy(buf, PREFIX, pf);
+	term = getenv("TERM");
+	if (isatty(2) && term && strcmp(term, "dumb"))
+		suffix = ANSI_SUFFIX;
+	else
+		suffix = DUMB_SUFFIX;
+	sf = strlen(suffix);
 
-	/*
-	 * We feed the pack-objects we just spawned with revision
-	 * parameters by writing to the pipe.
-	 */
-	po_in = xfdopen(po.in, "w");
-	for (i = 0; i < extra->nr; i++)
-		feed_object(extra->sha1[i], po_in, 1);
-
-	while (refs) {
-		if (!is_null_oid(&refs->old_oid))
-			feed_object(refs->old_oid.hash, po_in, 1);
-		if (!is_null_oid(&refs->new_oid))
-			feed_object(refs->new_oid.hash, po_in, 0);
-		refs = refs->next;
-	}
-
-	fflush(po_in);
-	if (ferror(po_in))
-		die_errno("error writing to pack-objects");
-	fclose(po_in);
-
-	if (args->stateless_rpc) {
-		char *buf = xmalloc(LARGE_PACKET_MAX);
-		while (1) {
-			ssize_t n = xread(po.out, buf, LARGE_PACKET_MAX);
-			if (n <= 0)
-				break;
-			send_sideband(fd, -1, buf, n, LARGE_PACKET_MAX);
+	while (1) {
+		int band, len;
+		len = packet_read(in_stream, NULL, NULL, buf + pf, LARGE_PACKET_MAX, 0);
+		if (len == 0)
+			break;
+		if (len < 1) {
+			fprintf(stderr, "%s: protocol error: no band designator\n", me);
+			return SIDEBAND_PROTOCOL_ERROR;
 		}
-		free(buf);
-		close(po.out);
-		po.out = -1;
-	}
+		band = buf[pf] & 0xff;
+		len--;
+		switch (band) {
+		case 3:
+			buf[pf] = ' ';
+			buf[pf+1+len] = '\0';
+			fprintf(stderr, "%s\n", buf);
+			return SIDEBAND_REMOTE_ERROR;
+		case 2:
+			buf[pf] = ' ';
+			do {
+				char *b = buf;
+				int brk = 0;
 
-	if (finish_command(&po))
-		return -1;
+				/*
+				 * If the last buffer didn't end with a line
+				 * break then we should not print a prefix
+				 * this time around.
+				 */
+				if (skip_pf) {
+					b += pf+1;
+				} else {
+					len += pf+1;
+					brk += pf+1;
+				}
+
+				/* Look for a line break. */
+				for (;;) {
+					brk++;
+					if (brk > len) {
+						brk = 0;
+						break;
+					}
+					if (b[brk-1] == '\n' ||
+					    b[brk-1] == '\r')
+						break;
+				}
+
+				/*
+				 * Let's insert a suffix to clear the end
+				 * of the screen line if a line break was
+				 * found.  Also, if we don't skip the
+				 * prefix, then a non-empty string must be
+				 * present too.
+				 */
+				if (brk > (skip_pf ? 0 : (pf+1 + 1))) {
+					char save[FIX_SIZE];
+					memcpy(save, b + brk, sf);
+					b[brk + sf - 1] = b[brk - 1];
+					memcpy(b + brk - 1, suffix, sf);
+					fprintf(stderr, "%.*s", brk + sf, b);
+					memcpy(b + brk, save, sf);
+					len -= brk;
+				} else {
+					int l = brk ? brk : len;
+					fprintf(stderr, "%.*s", l, b);
+					len -= l;
+				}
+
+				skip_pf = !brk;
+				memmove(buf + pf+1, b + brk, len);
+			} while (len);
+			continue;
+		case 1:
+			write_or_die(out, buf + pf+1, len);
+			continue;
+		default:
+			fprintf(stderr, "%s: protocol error: bad band #%d\n",
+				me, band);
+			return SIDEBAND_PROTOCOL_ERROR;
+		}
+	}
 	return 0;
 }

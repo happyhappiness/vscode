@@ -1,52 +1,49 @@
-int daemon_main(void)
+int piped_child(char **command,int *f_in,int *f_out)
 {
-	extern char *config_file;
-	extern int orig_umask;
-	char *pid_file;
+  int pid;
+  int to_child_pipe[2];
+  int from_child_pipe[2];
 
-	if (is_a_socket(STDIN_FILENO)) {
-		int i;
+  if (pipe(to_child_pipe) < 0 ||
+      pipe(from_child_pipe) < 0) {
+    fprintf(FERROR,"pipe: %s\n",strerror(errno));
+    exit_cleanup(1);
+  }
 
-		/* we are running via inetd - close off stdout and
-		   stderr so that library functions (and getopt) don't
-		   try to use them. Redirect them to /dev/null */
-		for (i=1;i<3;i++) {
-			close(i); 
-			open("/dev/null", O_RDWR);
-		}
 
-		set_nonblocking(STDIN_FILENO);
+  pid = do_fork();
+  if (pid < 0) {
+    fprintf(FERROR,"fork: %s\n",strerror(errno));
+    exit_cleanup(1);
+  }
 
-		return start_daemon(STDIN_FILENO);
-	}
+  if (pid == 0)
+    {
+      extern int orig_umask;
+      if (dup2(to_child_pipe[0], STDIN_FILENO) < 0 ||
+	  close(to_child_pipe[1]) < 0 ||
+	  close(from_child_pipe[0]) < 0 ||
+	  dup2(from_child_pipe[1], STDOUT_FILENO) < 0) {
+	fprintf(FERROR,"Failed to dup/close : %s\n",strerror(errno));
+	exit_cleanup(1);
+      }
+      if (to_child_pipe[0] != STDIN_FILENO) close(to_child_pipe[0]);
+      if (from_child_pipe[1] != STDOUT_FILENO) close(from_child_pipe[1]);
+      umask(orig_umask);
+      execvp(command[0], command);
+      fprintf(FERROR,"Failed to exec %s : %s\n",
+	      command[0],strerror(errno));
+      exit_cleanup(1);
+    }
 
-	become_daemon();
+  if (close(from_child_pipe[1]) < 0 ||
+      close(to_child_pipe[0]) < 0) {
+    fprintf(FERROR,"Failed to close : %s\n",strerror(errno));   
+    exit_cleanup(1);
+  }
 
-	if (!lp_load(config_file, 1)) {
-		fprintf(stderr,"failed to load config file %s\n", config_file);
-		exit_cleanup(RERR_SYNTAX);
-	}
-
-	log_open();
-
-	rprintf(FINFO,"rsyncd version %s starting\n",VERSION);
-
-	if (((pid_file = lp_pid_file()) != NULL) && (*pid_file != '\0')) {
-		char pidbuf[16];
-		int fd;
-		int pid = (int) getpid();
-		cleanup_set_pid(pid);
-		if ((fd = do_open(lp_pid_file(), O_WRONLY|O_CREAT|O_TRUNC,
-					0666 & ~orig_umask)) == -1) {
-		    cleanup_set_pid(0);
-		    fprintf(stderr,"failed to create pid file %s\n", pid_file);
-		    exit_cleanup(RERR_FILEIO);
-		}
-		slprintf(pidbuf, sizeof(pidbuf), "%d\n", pid);
-		write(fd, pidbuf, strlen(pidbuf));
-		close(fd);
-	}
-
-	start_accept_loop(rsync_port, start_daemon);
-	return -1;
+  *f_in = from_child_pipe[0];
+  *f_out = to_child_pipe[1];
+  
+  return pid;
 }

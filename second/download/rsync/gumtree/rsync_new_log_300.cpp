@@ -1,1 +1,2 @@
-fprintf(FINFO,"server_recv(%d) starting pid=%d\n",argc,(int)getpid());
+fprintf(FERROR,"unlink %s: %s\n",
+			dest,strerror(errno));

@@ -1,10 +1,8 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -p, --proxytunnel\n"
-"              When an HTTP proxy is used (-x, --proxy), this option will cause\n"
-"              non-HTTP protocols  to  attempt  to  tunnel  through  the  proxy\n"
-"              instead  of merely using it to do HTTP-like operations. The tun-\n"
-"              nel approach is made with the HTTP  proxy  CONNECT  request  and\n"
-"              requires that the proxy allows direct connect to the remote port\n"
+"              has pressed the submit button. This causes  curl  to  POST  data\n"
+"              using  the  Content-Type  multipart/form-data  according  to RFC\n"
+"              2388. This enables uploading of binary files etc. To  force  the\n"
+"              'content'  part  to  be  a  file, prefix the file name with an @\n"
+"              sign. To just get the content part from a file, prefix the  file\n"
+"              name  with  the symbol <. The difference between @ and < is then\n"
 , stdout);

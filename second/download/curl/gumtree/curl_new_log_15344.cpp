@@ -1,0 +1,16 @@
+fputs(
+"              returns, they will only mess things up for you.\n"
+"\n"
+"              Headers  specified  with  this  option  will  not be included in\n"
+"              requests that curl knows will not be sent to a proxy.\n"
+"\n"
+"              This option can be used  multiple  times  to  add/replace/remove\n"
+"              multiple headers.\n"
+"\n"
+"              Added in 7.37.0.\n"
+"       --proxy-insecure\n"
+"              Same as -k, --insecure but used in HTTPS proxy context.\n"
+"\n"
+"              Added in 7.52.0.\n"
+"\n"
+, stdout);

@@ -1,1 +1,1 @@
-die(_("--contains option is only allowed in list mode"));
+die(_("Unknown action: %d"), opts->action);

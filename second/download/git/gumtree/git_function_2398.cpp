@@ -1,67 +1,50 @@
-static int read_tree_1(struct tree *tree, struct strbuf *base,
-		       int stage, const struct pathspec *pathspec,
-		       read_tree_fn_t fn, void *context)
+static int get_url(int argc, const char **argv)
 {
-	struct tree_desc desc;
-	struct name_entry entry;
-	unsigned char sha1[20];
-	int len, oldlen = base->len;
-	enum interesting retval = entry_not_interesting;
+	int i, push_mode = 0, all_mode = 0;
+	const char *remotename = NULL;
+	struct remote *remote;
+	const char **url;
+	int url_nr;
+	struct option options[] = {
+		OPT_BOOL('\0', "push", &push_mode,
+			 N_("query push URLs rather than fetch URLs")),
+		OPT_BOOL('\0', "all", &all_mode,
+			 N_("return all URLs")),
+		OPT_END()
+	};
+	argc = parse_options(argc, argv, NULL, options, builtin_remote_geturl_usage, 0);
 
-	if (parse_tree(tree))
-		return -1;
+	if (argc != 1)
+		usage_with_options(builtin_remote_geturl_usage, options);
 
-	init_tree_desc(&desc, tree->buffer, tree->size);
+	remotename = argv[0];
 
-	while (tree_entry(&desc, &entry)) {
-		if (retval != all_entries_interesting) {
-			retval = tree_entry_interesting(&entry, base, 0, pathspec);
-			if (retval == all_entries_not_interesting)
-				break;
-			if (retval == entry_not_interesting)
-				continue;
-		}
+	if (!remote_is_configured(remotename))
+		die(_("No such remote '%s'"), remotename);
+	remote = remote_get(remotename);
 
-		switch (fn(entry.sha1, base,
-			   entry.path, entry.mode, stage, context)) {
-		case 0:
-			continue;
-		case READ_TREE_RECURSIVE:
-			break;
-		default:
-			return -1;
-		}
-
-		if (S_ISDIR(entry.mode))
-			hashcpy(sha1, entry.sha1);
-		else if (S_ISGITLINK(entry.mode)) {
-			struct commit *commit;
-
-			commit = lookup_commit(entry.sha1);
-			if (!commit)
-				die("Commit %s in submodule path %s%s not found",
-				    sha1_to_hex(entry.sha1),
-				    base->buf, entry.path);
-
-			if (parse_commit(commit))
-				die("Invalid commit %s in submodule path %s%s",
-				    sha1_to_hex(entry.sha1),
-				    base->buf, entry.path);
-
-			hashcpy(sha1, commit->tree->object.oid.hash);
-		}
-		else
-			continue;
-
-		len = tree_entry_len(&entry);
-		strbuf_add(base, entry.path, len);
-		strbuf_addch(base, '/');
-		retval = read_tree_1(lookup_tree(sha1),
-				     base, stage, pathspec,
-				     fn, context);
-		strbuf_setlen(base, oldlen);
-		if (retval)
-			return -1;
+	url_nr = 0;
+	if (push_mode) {
+		url = remote->pushurl;
+		url_nr = remote->pushurl_nr;
 	}
+	/* else fetch mode */
+
+	/* Use the fetch URL when no push URLs were found or requested. */
+	if (!url_nr) {
+		url = remote->url;
+		url_nr = remote->url_nr;
+	}
+
+	if (!url_nr)
+		die(_("no URLs configured for remote '%s'"), remotename);
+
+	if (all_mode) {
+		for (i = 0; i < url_nr; i++)
+			printf_ln("%s", url[i]);
+	} else {
+		printf_ln("%s", *url);
+	}
+
 	return 0;
 }

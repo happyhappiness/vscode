@@ -1,11 +1,10 @@
 fputs(
-"              debugging and seeing what's going on \"under the  hood\".  A  line\n"
-"              starting  with  '>'  means \"header data\" sent by curl, '<' means\n"
-"              \"header data\" received by curl that is hidden in  normal  cases,\n"
-"              and  a  line starting with '*' means additional info provided by\n"
-"              curl.\n"
+"              the  conversion  by  default to maintain consistency. However, a\n"
+"              server may require a POST to remain a POST after  such  a  redi-\n"
+"              rection.  This  option is meaningful only when using -L, --loca-\n"
+"              tion (Added in 7.17.1)\n"
 "\n"
-"              Note that if you only want  HTTP  headers  in  the  output,  -i,\n"
-"              --include might be the option you're looking for.\n"
-"\n"
+"       --post302\n"
+"              (HTTP) Tells curl to respect RFC 7230/6.4.3 and not convert POST\n"
+"              requests into GET requests when following a 302 redirection. The\n"
 , stdout);

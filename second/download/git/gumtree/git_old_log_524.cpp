@@ -1,1 +1,2 @@
-packet_write(1, "ACK %s ready\n", last_hex);
+fprintf(opt->file, "%s ",
+			diff_unique_abbrev(p->two->oid.hash, opt->abbrev));

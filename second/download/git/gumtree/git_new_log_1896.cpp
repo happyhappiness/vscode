@@ -1,1 +1,1 @@
-fprintf(stderr, "Checking %s\n", oid_to_hex(&obj->oid));
+die_errno("unable to read object %s", oid_to_hex(oid));

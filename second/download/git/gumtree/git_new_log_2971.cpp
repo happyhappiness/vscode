@@ -1,1 +1,1 @@
-error_errno("fork (async) failed");
+error_errno("cannot create thread");

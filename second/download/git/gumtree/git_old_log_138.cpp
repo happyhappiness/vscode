@@ -1,1 +1,1 @@
-fprintf(stderr, "Unknown command '%s'\n", buf.buf);
+fprintf(stderr, "external diff died, stopping at %s.\n", name);

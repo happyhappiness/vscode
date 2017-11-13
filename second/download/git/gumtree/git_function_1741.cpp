@@ -1,93 +1,117 @@
-int rename_ref(const char *oldrefname, const char *newrefname, const char *logmsg)
+static struct ref_lock *lock_ref_sha1_basic(const char *refname,
+					    const unsigned char *old_sha1,
+					    const struct string_list *skip,
+					    int flags, int *type_p)
 {
-	unsigned char sha1[20], orig_sha1[20];
-	int flag = 0, logmoved = 0;
+	char *ref_file;
+	const char *orig_refname = refname;
 	struct ref_lock *lock;
-	struct stat loginfo;
-	int log = !lstat(git_path("logs/%s", oldrefname), &loginfo);
-	const char *symref = NULL;
-	struct strbuf err = STRBUF_INIT;
+	int last_errno = 0;
+	int type, lflags;
+	int mustexist = (old_sha1 && !is_null_sha1(old_sha1));
+	int resolve_flags = 0;
+	int missing = 0;
+	int attempts_remaining = 3;
 
-	if (log && S_ISLNK(loginfo.st_mode))
-		return error("reflog for %s is a symlink", oldrefname);
+	lock = xcalloc(1, sizeof(struct ref_lock));
+	lock->lock_fd = -1;
 
-	symref = resolve_ref_unsafe(oldrefname, RESOLVE_REF_READING,
-				    orig_sha1, &flag);
-	if (flag & REF_ISSYMREF)
-		return error("refname %s is a symbolic ref, renaming it is not supported",
-			oldrefname);
-	if (!symref)
-		return error("refname %s not found", oldrefname);
-
-	if (!rename_ref_available(oldrefname, newrefname))
-		return 1;
-
-	if (log && rename(git_path("logs/%s", oldrefname), git_path(TMP_RENAMED_LOG)))
-		return error("unable to move logfile logs/%s to "TMP_RENAMED_LOG": %s",
-			oldrefname, strerror(errno));
-
-	if (delete_ref(oldrefname, orig_sha1, REF_NODEREF)) {
-		error("unable to delete old %s", oldrefname);
-		goto rollback;
+	if (mustexist)
+		resolve_flags |= RESOLVE_REF_READING;
+	if (flags & REF_DELETING) {
+		resolve_flags |= RESOLVE_REF_ALLOW_BAD_NAME;
+		if (flags & REF_NODEREF)
+			resolve_flags |= RESOLVE_REF_NO_RECURSE;
 	}
 
-	if (!read_ref_full(newrefname, RESOLVE_REF_READING, sha1, NULL) &&
-	    delete_ref(newrefname, sha1, REF_NODEREF)) {
-		if (errno==EISDIR) {
-			if (remove_empty_directories(git_path("%s", newrefname))) {
-				error("Directory not empty: %s", newrefname);
-				goto rollback;
-			}
-		} else {
-			error("unable to delete existing %s", newrefname);
-			goto rollback;
+	refname = resolve_ref_unsafe(refname, resolve_flags,
+				     lock->old_sha1, &type);
+	if (!refname && errno == EISDIR) {
+		/* we are trying to lock foo but we used to
+		 * have foo/bar which now does not exist;
+		 * it is normal for the empty directory 'foo'
+		 * to remain.
+		 */
+		ref_file = git_path("%s", orig_refname);
+		if (remove_empty_directories(ref_file)) {
+			last_errno = errno;
+			error("there are still refs under '%s'", orig_refname);
+			goto error_return;
+		}
+		refname = resolve_ref_unsafe(orig_refname, resolve_flags,
+					     lock->old_sha1, &type);
+	}
+	if (type_p)
+	    *type_p = type;
+	if (!refname) {
+		last_errno = errno;
+		error("unable to resolve reference %s: %s",
+			orig_refname, strerror(errno));
+		goto error_return;
+	}
+	missing = is_null_sha1(lock->old_sha1);
+	/* When the ref did not exist and we are creating it,
+	 * make sure there is no existing ref that is packed
+	 * whose name begins with our refname, nor a ref whose
+	 * name is a proper prefix of our refname.
+	 */
+	if (missing &&
+	     !is_refname_available(refname, skip, get_packed_refs(&ref_cache))) {
+		last_errno = ENOTDIR;
+		goto error_return;
+	}
+
+	lock->lk = xcalloc(1, sizeof(struct lock_file));
+
+	lflags = 0;
+	if (flags & REF_NODEREF) {
+		refname = orig_refname;
+		lflags |= LOCK_NO_DEREF;
+	}
+	lock->ref_name = xstrdup(refname);
+	lock->orig_ref_name = xstrdup(orig_refname);
+	ref_file = git_path("%s", refname);
+	if (missing)
+		lock->force_write = 1;
+	if ((flags & REF_NODEREF) && (type & REF_ISSYMREF))
+		lock->force_write = 1;
+
+ retry:
+	switch (safe_create_leading_directories(ref_file)) {
+	case SCLD_OK:
+		break; /* success */
+	case SCLD_VANISHED:
+		if (--attempts_remaining > 0)
+			goto retry;
+		/* fall through */
+	default:
+		last_errno = errno;
+		error("unable to create directory for %s", ref_file);
+		goto error_return;
+	}
+
+	lock->lock_fd = hold_lock_file_for_update(lock->lk, ref_file, lflags);
+	if (lock->lock_fd < 0) {
+		last_errno = errno;
+		if (errno == ENOENT && --attempts_remaining > 0)
+			/*
+			 * Maybe somebody just deleted one of the
+			 * directories leading to ref_file.  Try
+			 * again:
+			 */
+			goto retry;
+		else {
+			struct strbuf err = STRBUF_INIT;
+			unable_to_lock_message(ref_file, errno, &err);
+			error("%s", err.buf);
+			strbuf_release(&err);
+			goto error_return;
 		}
 	}
+	return old_sha1 ? verify_lock(lock, old_sha1, mustexist) : lock;
 
-	if (log && rename_tmp_log(newrefname))
-		goto rollback;
-
-	logmoved = log;
-
-	lock = lock_ref_sha1_basic(newrefname, NULL, NULL, NULL, 0, NULL, &err);
-	if (!lock) {
-		error("unable to rename '%s' to '%s': %s", oldrefname, newrefname, err.buf);
-		strbuf_release(&err);
-		goto rollback;
-	}
-	hashcpy(lock->old_oid.hash, orig_sha1);
-
-	if (write_ref_to_lockfile(lock, orig_sha1) ||
-	    commit_ref_update(lock, orig_sha1, logmsg)) {
-		error("unable to write current sha1 into %s", newrefname);
-		goto rollback;
-	}
-
-	return 0;
-
- rollback:
-	lock = lock_ref_sha1_basic(oldrefname, NULL, NULL, NULL, 0, NULL, &err);
-	if (!lock) {
-		error("unable to lock %s for rollback: %s", oldrefname, err.buf);
-		strbuf_release(&err);
-		goto rollbacklog;
-	}
-
-	flag = log_all_ref_updates;
-	log_all_ref_updates = 0;
-	if (write_ref_to_lockfile(lock, orig_sha1) ||
-	    commit_ref_update(lock, orig_sha1, NULL))
-		error("unable to write current sha1 into %s", oldrefname);
-	log_all_ref_updates = flag;
-
- rollbacklog:
-	if (logmoved && rename(git_path("logs/%s", newrefname), git_path("logs/%s", oldrefname)))
-		error("unable to restore logfile %s from %s: %s",
-			oldrefname, newrefname, strerror(errno));
-	if (!logmoved && log &&
-	    rename(git_path(TMP_RENAMED_LOG), git_path("logs/%s", oldrefname)))
-		error("unable to restore logfile %s from "TMP_RENAMED_LOG": %s",
-			oldrefname, strerror(errno));
-
-	return 1;
+ error_return:
+	unlock_ref(lock);
+	errno = last_errno;
+	return NULL;
 }

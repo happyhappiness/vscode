@@ -1,1 +1,2 @@
-fprintf(stderr, "apr_table_mergen: key not in ancestor pool of t\n");
+apr_psprintf(p, "Could not open config directory %s: %s",
+                                path, apr_strerror(rv, errmsg, sizeof errmsg));

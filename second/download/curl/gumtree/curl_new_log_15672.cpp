@@ -1,11 +1,10 @@
 fputs(
-"              port. Use -V, --version  to  see  if  your  curl  supports  GSS-\n"
-"              API/SSPI or SPNEGO.\n"
+"       --mail-rcpt <address>\n"
+"              (SMTP) Specify a single address, user name or mailing list name.\n"
+"              Repeat this option several times to send to multiple recipients.\n"
+"              When  performing a mail transfer, the recipient should specify a\n"
+"              valid email address to send the mail to.\n"
 "\n"
-"              When  using this option, you must also provide a fake -u, --user\n"
-"              option to activate the authentication code properly.  Sending  a\n"
-"              '-u  :'  is  enough  as  the user name and password from the -u,\n"
-"              --user option aren't actually used.\n"
-"\n"
-"              If this option is used several times,  only  the  first  one  is\n"
+"              When performing an  address  verification  (VRFY  command),  the\n"
+"              recipient  should be specified as the user name or user name and\n"
 , stdout);

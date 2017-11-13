@@ -1,1 +1,1 @@
-printf("%lu ", commit->date);
+die(_("--merged and --no-merged option are only allowed with -l"));

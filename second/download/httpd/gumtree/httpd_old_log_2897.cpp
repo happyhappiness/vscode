@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                          "ISAPI: %s: %s", cid->r->filename,
-                          (char*) buf_data);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "inside shmcb_store_session");

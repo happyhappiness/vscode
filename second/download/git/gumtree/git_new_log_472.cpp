@@ -1,2 +1,2 @@
-error_errno(_("could not write to '%s'"),
-				   git_path_head_file());
+printf("%06o %s %d\t", ce->ce_mode,
+			       oid_to_hex(&ce->oid), ce_stage(ce));

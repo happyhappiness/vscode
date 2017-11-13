@@ -1,85 +1,77 @@
-static apr_status_t ssl_io_filter_Upgrade(ap_filter_t *f,
-                                         apr_bucket_brigade *bb)
-
+int ssl_hook_ReadReq(request_rec *r)
 {
-    const char *upgrade;
-    apr_bucket_brigade *upgradebb;
-    request_rec *r = f->r;
-    apr_socket_t *csd = NULL;
-    char *key;
-    int ret;
-    secsocket_data *csd_data;
-    apr_bucket *b;
-    apr_status_t rv;
+    SSLConnRec *sslconn = myConnConfig(r->connection);
+    SSL *ssl;
 
-    /* Just remove the filter, if it doesn't work the first time, it won't
-     * work at all for this request.
-     */
-    ap_remove_output_filter(f);
-
-    /* No need to ensure that this is a server with optional SSL, the filter
-     * is only inserted if that is true.
-     */
-
-    upgrade = apr_table_get(r->headers_in, "Upgrade");
-    if (upgrade == NULL
-        || strcmp(ap_getword(r->pool, &upgrade, ','), "TLS/1.0")) {
-            /* "Upgrade: TLS/1.0, ..." header not found, don't do Upgrade */
-        return ap_pass_brigade(f->next, bb);
+    if (!sslconn) {
+        return DECLINED;
     }
 
-    apr_table_unset(r->headers_out, "Upgrade");
+    if (sslconn->non_ssl_request) {
+        const char *errmsg;
+        char *thisurl;
+        char *thisport = "";
+        int port = ap_get_server_port(r);
 
-    if (r) {
-        csd_data = (secsocket_data*)ap_get_module_config(r->connection->conn_config, &nwssl_module);
-        csd = csd_data->csd;
-    }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "Unable to get upgradeable socket handle");
-        return ap_pass_brigade(f->next, bb);
-    }
-
-
-    /* Send the interim 101 response. */
-    upgradebb = apr_brigade_create(r->pool, f->c->bucket_alloc);
-
-    ap_fputstrs(f->next, upgradebb, SWITCH_STATUS_LINE, CRLF,
-                UPGRADE_HEADER, CRLF, CONNECTION_HEADER, CRLF, CRLF, NULL);
-
-    b = apr_bucket_flush_create(f->c->bucket_alloc);
-    APR_BRIGADE_INSERT_TAIL(upgradebb, b);
-
-    rv = ap_pass_brigade(f->next, upgradebb);
-    if (rv) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "could not send interim 101 Upgrade response");
-        return AP_FILTER_ERROR;
-    }
-
-    key = get_port_key(r->connection);
-
-    if (csd && key) {
-        int sockdes;
-        apr_os_sock_get(&sockdes, csd);
-
-
-        ret = SSLize_Socket(sockdes, key, r);
-        if (!ret) {
-            csd_data->is_secure = 1;
+        if (!ap_is_default_port(port, r)) {
+            thisport = apr_psprintf(r->pool, ":%u", port);
         }
-    }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "Upgradeable socket handle not found");
-        return AP_FILTER_ERROR;
+
+        thisurl = ap_escape_html(r->pool,
+                                 apr_psprintf(r->pool, "https://%s%s/",
+                                              ap_get_server_name(r),
+                                              thisport));
+
+        errmsg = apr_psprintf(r->pool,
+                              "Reason: You're speaking plain HTTP "
+                              "to an SSL-enabled server port.<br />\n"
+                              "Instead use the HTTPS scheme to access "
+                              "this URL, please.<br />\n"
+                              "<blockquote>Hint: "
+                              "<a href=\"%s\"><b>%s</b></a></blockquote>",
+                              thisurl, thisurl);
+
+        apr_table_setn(r->notes, "error-notes", errmsg);
+
+        /* Now that we have caught this error, forget it. we are done
+         * with using SSL on this request.
+         */
+        sslconn->non_ssl_request = 0;
+        
+
+        return HTTP_BAD_REQUEST;
     }
 
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                 "Awaiting re-negotiation handshake");
+    /*
+     * Get the SSL connection structure and perform the
+     * delayed interlinking from SSL back to request_rec
+     */
+    ssl = sslconn->ssl;
+    if (!ssl) {
+        return DECLINED;
+    }
+    SSL_set_app_data2(ssl, r);
 
-    /* Now that we have initialized the ssl connection which added the ssl_io_filter,
-       pass the brigade off to the connection based output filters so that the
-       request can complete encrypted */
-    return ap_pass_brigade(f->c->output_filters, bb);
+    /*
+     * Log information about incoming HTTPS requests
+     */
+    if (r->server->loglevel >= APLOG_INFO && ap_is_initial_req(r)) {
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                     "%s HTTPS request received for child %ld (server %s)",
+                     (r->connection->keepalives <= 0 ?
+                     "Initial (No.1)" :
+                     apr_psprintf(r->pool, "Subsequent (No.%d)",
+                                  r->connection->keepalives+1)),
+                     r->connection->id,
+                     ssl_util_vhostid(r->pool, r->server));
+    }
+
+    /* SetEnvIf ssl-*-shutdown flags can only be per-server,
+     * so they won't change across keepalive requests
+     */
+    if (sslconn->shutdown_type == SSL_SHUTDOWN_TYPE_UNSET) {
+        ssl_configure_env(r, sslconn);
+    }
+
+    return DECLINED;
 }

@@ -1,1 +1,1 @@
-die_errno(_("failed to open '%s'"), path);
+die("git-%s failed", argv[0]);

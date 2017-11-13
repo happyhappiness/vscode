@@ -1,1 +1,1 @@
-fprintf(f, "%s\n", describe_object(obj));
+error(_("malformed object name '%s'"), arg);

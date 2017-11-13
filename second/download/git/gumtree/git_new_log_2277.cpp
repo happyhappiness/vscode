@@ -1,1 +1,1 @@
-error(_("Unable to write index."));
+die(_("cannot delete packs in a precious-objects repo"));

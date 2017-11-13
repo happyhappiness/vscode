@@ -1,1 +1,1 @@
-warning("alternate disabled by http.followRedirects: %s", url);
+error("abbrev length out of range: %d", abbrev);

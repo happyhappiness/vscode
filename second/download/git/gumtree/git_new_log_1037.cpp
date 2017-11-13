@@ -1,1 +1,1 @@
-error("%s %s", oid_to_hex(&e->oid), e->name);
+die("BUG: how is this possible?");

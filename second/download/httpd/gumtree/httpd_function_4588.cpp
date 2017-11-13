@@ -1,26 +1,60 @@
-static void spawn_child(int slot)
+static int ap_session_save(request_rec * r, session_rec * z)
 {
-    PPIB ppib;
-    PTIB ptib;
-    char fail_module[100];
-    char progname[CCHMAXPATH];
-    RESULTCODES proc_rc;
-    ULONG rc;
+    if (z) {
+        apr_time_t now = apr_time_now();
+        int rv = 0;
 
-    ap_scoreboard_image->parent[slot].generation = ap_my_generation;
-    DosGetInfoBlocks(&ptib, &ppib);
-    DosQueryModuleName(ppib->pib_hmte, sizeof(progname), progname);
-    rc = DosExecPgm(fail_module, sizeof(fail_module), EXEC_ASYNCRESULT,
-                    ppib->pib_pchcmd, NULL, &proc_rc, progname);
+        session_dir_conf *dconf = ap_get_module_config(r->per_dir_config,
+                                                       &session_module);
 
-    if (rc) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, APR_FROM_OS_ERROR(rc), ap_server_conf,
-                     "error spawning child, slot %d", slot);
+        /* sanity checks, should we try save at all? */
+        if (z->written) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, SESSION_PREFIX
+                          "attempt made to save the session twice, "
+                          "session not saved: %s", r->uri);
+            return APR_EGENERAL;
+        }
+        if (z->expiry && z->expiry < now) {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, SESSION_PREFIX
+                          "attempt made to save a session when the session had already expired, "
+                          "session not saved: %s", r->uri);
+            return APR_EGENERAL;
+        }
+
+        /* reset the expiry back to maxage, if the expiry is present */
+        if (dconf->maxage) {
+            z->expiry = now + dconf->maxage * APR_USEC_PER_SEC;
+            z->maxage = dconf->maxage;
+        }
+
+        /* encode the session */
+        rv = ap_run_session_encode(r, z);
+        if (OK != rv) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, SESSION_PREFIX
+                          "error while encoding the session, "
+                          "session not saved: %s", r->uri);
+            return rv;
+        }
+
+        /* try the save */
+        rv = ap_run_session_save(r, z);
+        if (DECLINED == rv) {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, SESSION_PREFIX
+                          "session is enabled but no session modules have been configured, "
+                          "session not saved: %s", r->uri);
+            return APR_EGENERAL;
+        }
+        else if (OK != rv) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, SESSION_PREFIX
+                          "error while saving the session, "
+                          "session not saved: %s", r->uri);
+            return rv;
+        }
+        else {
+            z->written = 1;
+        }
     }
 
-    if (ap_max_daemons_limit < slot) {
-        ap_max_daemons_limit = slot;
-    }
+    return APR_SUCCESS;
 
-    ap_scoreboard_image->parent[slot].pid = proc_rc.codeTerminate;
 }

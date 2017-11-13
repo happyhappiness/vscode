@@ -1,2 +1,1 @@
-(mutt_yesorno (_("PGP already selected. Clear & continue ? "),
-                                M_YES);
+(mutt_yesorno (_("Can't match nametemplate, continue?"), M_YES);

@@ -1,1 +1,2 @@
-printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1706008 $");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, status, workers->s,
+                     "h2_workers: register mplx(%ld)", m->id);

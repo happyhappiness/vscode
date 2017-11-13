@@ -1,1 +1,1 @@
-die("BUG: unhandled diff status %c", status);
+die(_("unrecognized %%(contents) argument: %s"), arg);

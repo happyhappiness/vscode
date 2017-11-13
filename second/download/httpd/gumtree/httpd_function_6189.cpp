@@ -1,134 +1,164 @@
-static int on_frame_recv_cb(nghttp2_session *ng2s,
-                            const nghttp2_frame *frame,
-                            void *userp)
+static int lua_websocket_read(lua_State *L) 
 {
-    h2_session *session = (h2_session *)userp;
-    apr_status_t status = APR_SUCCESS;
-    h2_stream *stream;
+    apr_socket_t *sock;
+    apr_status_t rv;
+    int do_read = 1;
+    int n = 0;
+    apr_size_t len = 1;
+    apr_size_t plen = 0;
+    unsigned short payload_short = 0;
+    apr_uint64_t payload_long = 0;
+    unsigned char *mask_bytes;
+    char byte;
+    int plaintext;
     
-    if (APLOGcdebug(session->c)) {
-        char buffer[256];
-        
-        h2_util_frame_print(frame, buffer, sizeof(buffer)/sizeof(buffer[0]));
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03066)
-                      "h2_session(%ld): recv FRAME[%s], frames=%ld/%ld (r/s)",
-                      session->id, buffer, (long)session->frames_received,
-                     (long)session->frames_sent);
-    }
+    
+    request_rec *r = ap_lua_check_request_rec(L, 1);
+    plaintext = ap_lua_ssl_is_https(r->connection) ? 0 : 1;
 
-    ++session->frames_received;
-    switch (frame->hd.type) {
-        case NGHTTP2_HEADERS:
-            /* This can be HEADERS for a new stream, defining the request,
-             * or HEADER may come after DATA at the end of a stream as in
-             * trailers */
-            stream = get_stream(session, frame->hd.stream_id);
-            if (stream) {
-                int eos = (frame->hd.flags & NGHTTP2_FLAG_END_STREAM);
-                
-                if (h2_stream_is_scheduled(stream)) {
-                    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
-                                  "h2_stream(%ld-%d): TRAILER, eos=%d", 
-                                  session->id, frame->hd.stream_id, eos);
-                    if (eos) {
-                        status = h2_stream_close_input(stream);
-                    }
+    
+    mask_bytes = apr_pcalloc(r->pool, 4);
+    sock = ap_get_conn_socket(r->connection);
+
+    while (do_read) { 
+    do_read = 0;
+    /* Get opcode and FIN bit */
+    if (plaintext) {
+        rv = apr_socket_recv(sock, &byte, &len);
+    }
+    else {
+        rv = lua_websocket_readbytes(r->connection, &byte, 1);
+    }
+    if (rv == APR_SUCCESS) {
+        unsigned char ubyte, fin, opcode, mask, payload;
+        ubyte = (unsigned char)byte;
+        /* fin bit is the first bit */
+        fin = ubyte >> (CHAR_BIT - 1);
+        /* opcode is the last four bits (there's 3 reserved bits we don't care about) */
+        opcode = ubyte & 0xf;
+        
+        /* Get the payload length and mask bit */
+        if (plaintext) {
+            rv = apr_socket_recv(sock, &byte, &len);
+        }
+        else {
+            rv = lua_websocket_readbytes(r->connection, &byte, 1);
+        }
+        if (rv == APR_SUCCESS) {
+            ubyte = (unsigned char)byte;
+            /* Mask is the first bit */
+            mask = ubyte >> (CHAR_BIT - 1);
+            /* Payload is the last 7 bits */
+            payload = ubyte & 0x7f;
+            plen = payload;
+            
+            /* Extended payload? */
+            if (payload == 126) {
+                len = 2;
+                if (plaintext) {
+                    /* XXX: apr_socket_recv does not receive len bits, only up to len bits! */
+                    rv = apr_socket_recv(sock, (char*) &payload_short, &len);
                 }
                 else {
-                    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
-                                  "h2_stream(%ld-%d): HEADER, eos=%d", 
-                                  session->id, frame->hd.stream_id, eos);
-                    status = stream_schedule(session, stream, eos);
+                    rv = lua_websocket_readbytes(r->connection, 
+                        (char*) &payload_short, 2);
                 }
-            }
-            else {
-                status = APR_EINVAL;
-            }
-            break;
-        case NGHTTP2_DATA:
-            stream = get_stream(session, frame->hd.stream_id);
-            if (stream) {
-                int eos = (frame->hd.flags & NGHTTP2_FLAG_END_STREAM);
-                ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
-                              "h2_stream(%ld-%d): DATA, len=%ld, eos=%d", 
-                              session->id, frame->hd.stream_id, 
-                              (long)frame->hd.length, eos);
-                if (eos) {
-                    status = h2_stream_close_input(stream);
-                }
-            }
-            else {
-                status = APR_EINVAL;
-            }
-            break;
-        case NGHTTP2_PRIORITY:
-            session->reprioritize = 1;
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
-                          "h2_session:  stream(%ld-%d): PRIORITY frame "
-                          " weight=%d, dependsOn=%d, exclusive=%d", 
-                          session->id, (int)frame->hd.stream_id,
-                          frame->priority.pri_spec.weight,
-                          frame->priority.pri_spec.stream_id,
-                          frame->priority.pri_spec.exclusive);
-            break;
-        case NGHTTP2_WINDOW_UPDATE:
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
-                          "h2_session:  stream(%ld-%d): WINDOW_UPDATE "
-                          "incr=%d", 
-                          session->id, (int)frame->hd.stream_id,
-                          frame->window_update.window_size_increment);
-            break;
-        case NGHTTP2_RST_STREAM:
-            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03067)
-                          "h2_session(%ld-%d): RST_STREAM by client, errror=%d",
-                          session->id, (int)frame->hd.stream_id,
-                          (int)frame->rst_stream.error_code);
-            stream = get_stream(session, frame->hd.stream_id);
-            if (stream && stream->initiated_on) {
-                ++session->pushes_reset;
-            }
-            else {
-                ++session->streams_reset;
-            }
-            break;
-        case NGHTTP2_GOAWAY:
-            if (frame->goaway.error_code == 0 
-                && frame->goaway.last_stream_id == ((1u << 31) - 1)) {
-                /* shutdown notice. Should not come from a client... */
-                session->remote.accepting = 0;
-            }
-            else {
-                session->remote.accepted_max = frame->goaway.last_stream_id;
-                dispatch_event(session, H2_SESSION_EV_REMOTE_GOAWAY, 
-                               frame->goaway.error_code, NULL);
-            }
-            break;
-        default:
-            if (APLOGctrace2(session->c)) {
-                char buffer[256];
+                payload_short = ntohs(payload_short);
                 
-                h2_util_frame_print(frame, buffer,
-                                    sizeof(buffer)/sizeof(buffer[0]));
-                ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
-                              "h2_session: on_frame_rcv %s", buffer);
+                if (rv == APR_SUCCESS) {
+                    plen = payload_short;
+                }
+                else {
+                    return 0;
+                }
             }
-            break;
-    }
-
-    if (status != APR_SUCCESS) {
-        int rv;
-        
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
-                      APLOGNO(02923) 
-                      "h2_session: stream(%ld-%d): error handling frame",
-                      session->id, (int)frame->hd.stream_id);
-        rv = nghttp2_submit_rst_stream(ng2s, NGHTTP2_FLAG_NONE,
-                                       frame->hd.stream_id,
-                                       NGHTTP2_INTERNAL_ERROR);
-        if (nghttp2_is_fatal(rv)) {
-            return NGHTTP2_ERR_CALLBACK_FAILURE;
+            /* Super duper extended payload? */
+            if (payload == 127) {
+                len = 8;
+                if (plaintext) {
+                    rv = apr_socket_recv(sock, (char*) &payload_long, &len);
+                }
+                else {
+                    rv = lua_websocket_readbytes(r->connection, 
+                            (char*) &payload_long, 8);
+                }
+                if (rv == APR_SUCCESS) {
+                    plen = ap_ntoh64(&payload_long);
+                }
+                else {
+                    return 0;
+                }
+            }
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03210)
+                    "Websocket: Reading %" APR_SIZE_T_FMT " (%s) bytes, masking is %s. %s", 
+                    plen,
+                    (payload >= 126) ? "extra payload" : "no extra payload", 
+                    mask ? "on" : "off", 
+                    fin ? "This is a final frame" : "more to follow");
+            if (mask) {
+                len = 4;
+                if (plaintext) {
+                    rv = apr_socket_recv(sock, (char*) mask_bytes, &len);
+                }
+                else {
+                    rv = lua_websocket_readbytes(r->connection, 
+                            (char*) mask_bytes, 4);
+                }
+                if (rv != APR_SUCCESS) {
+                    return 0;
+                }
+            }
+            if (plen < (HUGE_STRING_LEN*1024) && plen > 0) {
+                apr_size_t remaining = plen;
+                apr_size_t received;
+                apr_off_t at = 0;
+                char *buffer = apr_palloc(r->pool, plen+1);
+                buffer[plen] = 0;
+                
+                if (plaintext) {
+                    while (remaining > 0) {
+                        received = remaining;
+                        rv = apr_socket_recv(sock, buffer+at, &received);
+                        if (received > 0 ) {
+                            remaining -= received;
+                            at += received;
+                        }
+                    }
+                    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
+                    "Websocket: Frame contained %" APR_OFF_T_FMT " bytes, pushed to Lua stack", 
+                        at);
+                }
+                else {
+                    rv = lua_websocket_readbytes(r->connection, buffer, 
+                            remaining);
+                    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
+                    "Websocket: SSL Frame contained %" APR_SIZE_T_FMT " bytes, "\
+                            "pushed to Lua stack", 
+                        remaining);
+                }
+                if (mask) {
+                    for (n = 0; n < plen; n++) {
+                        buffer[n] ^= mask_bytes[n%4];
+                    }
+                }
+                
+                lua_pushlstring(L, buffer, (size_t) plen); /* push to stack */
+                lua_pushboolean(L, fin); /* push FIN bit to stack as boolean */
+                return 2;
+            }
+            
+            
+            /* Decide if we need to react to the opcode or not */
+            if (opcode == 0x09) { /* ping */
+                char frame[2];
+                plen = 2;
+                frame[0] = 0x8A;
+                frame[1] = 0;
+                apr_socket_send(sock, frame, &plen); /* Pong! */
+                do_read = 1;
+            }
         }
     }
-    
+    }
     return 0;
 }

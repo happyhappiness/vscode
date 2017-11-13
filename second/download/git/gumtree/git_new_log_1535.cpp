@@ -1,1 +1,1 @@
-die_errno(_("failed to create directory %s"), path);
+die("'%s' does not appear to be a git repository", service_dir);

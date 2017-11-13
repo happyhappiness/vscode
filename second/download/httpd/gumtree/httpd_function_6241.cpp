@@ -1,64 +1,54 @@
-static apr_status_t h2_session_read(h2_session *session, int block)
+static int start_lingering_close_common(event_conn_state_t *cs, int in_worker)
 {
-    apr_status_t status, rstatus = APR_EAGAIN;
-    conn_rec *c = session->c;
-    apr_off_t read_start = session->io.bytes_read;
-    
-    while (1) {
-        /* H2_IN filter handles all incoming data against the session.
-         * We just pull at the filter chain to make it happen */
-        status = ap_get_brigade(c->input_filters,
-                                session->bbtmp, AP_MODE_READBYTES,
-                                block? APR_BLOCK_READ : APR_NONBLOCK_READ,
-                                APR_BUCKET_BUFF_SIZE);
-        /* get rid of any possible data we do not expect to get */
-        apr_brigade_cleanup(session->bbtmp); 
-
-        switch (status) {
-            case APR_SUCCESS:
-                /* successful read, reset our idle timers */
-                rstatus = APR_SUCCESS;
-                if (block) {
-                    /* successful blocked read, try unblocked to
-                     * get more. */
-                    block = 0;
-                }
-                break;
-            case APR_EAGAIN:
-                return rstatus;
-            case APR_TIMEUP:
-                return status;
-            default:
-                if (session->io.bytes_read == read_start) {
-                    /* first attempt failed */
-                    if (APR_STATUS_IS_ETIMEDOUT(status)
-                        || APR_STATUS_IS_ECONNABORTED(status)
-                        || APR_STATUS_IS_ECONNRESET(status)
-                        || APR_STATUS_IS_EOF(status)
-                        || APR_STATUS_IS_EBADF(status)) {
-                        /* common status for a client that has left */
-                        ap_log_cerror( APLOG_MARK, APLOG_TRACE1, status, c,
-                                      "h2_session(%ld): input gone", session->id);
-                    }
-                    else {
-                        /* uncommon status, log on INFO so that we see this */
-                        ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, c,
-                                      APLOGNO(02950) 
-                                      "h2_session(%ld): error reading, terminating",
-                                      session->id);
-                    }
-                    return status;
-                }
-                /* subsequent failure after success(es), return initial
-                 * status. */
-                return rstatus;
-        }
-        if ((session->io.bytes_read - read_start) > (64*1024)) {
-            /* read enough in one go, give write a chance */
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, c,
-                          "h2_session(%ld): read 64k, returning", session->id);
-            break;
-        }
+    apr_status_t rv;
+    struct timeout_queue *q;
+    apr_socket_t *csd = cs->pfd.desc.s;
+#ifdef AP_DEBUG
+    {
+        rv = apr_socket_timeout_set(csd, 0);
+        AP_DEBUG_ASSERT(rv == APR_SUCCESS);
     }
-    return rstatus;
+#else
+    apr_socket_timeout_set(csd, 0);
+#endif
+    cs->queue_timestamp = apr_time_now();
+    /*
+     * If some module requested a shortened waiting period, only wait for
+     * 2s (SECONDS_TO_LINGER). This is useful for mitigating certain
+     * DoS attacks.
+     */
+    if (apr_table_get(cs->c->notes, "short-lingering-close")) {
+        q = short_linger_q;
+        cs->pub.state = CONN_STATE_LINGER_SHORT;
+    }
+    else {
+        q = linger_q;
+        cs->pub.state = CONN_STATE_LINGER_NORMAL;
+    }
+    apr_atomic_inc32(&lingering_count);
+    if (in_worker) { 
+        notify_suspend(cs);
+    }
+    else {
+        cs->c->sbh = NULL;
+    }
+    apr_thread_mutex_lock(timeout_mutex);
+    TO_QUEUE_APPEND(q, cs);
+    cs->pfd.reqevents = (
+            cs->pub.sense == CONN_SENSE_WANT_WRITE ? APR_POLLOUT :
+                    APR_POLLIN) | APR_POLLHUP | APR_POLLERR;
+    cs->pub.sense = CONN_SENSE_DEFAULT;
+    rv = apr_pollset_add(event_pollset, &cs->pfd);
+    apr_thread_mutex_unlock(timeout_mutex);
+    if (rv != APR_SUCCESS && !APR_STATUS_IS_EEXIST(rv)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                     "start_lingering_close: apr_pollset_add failure");
+        apr_thread_mutex_lock(timeout_mutex);
+        TO_QUEUE_REMOVE(q, cs);
+        apr_thread_mutex_unlock(timeout_mutex);
+        apr_socket_close(cs->pfd.desc.s);
+        ap_push_pool(worker_queue_info, cs->p);
+        return 0;
+    }
+    return 1;
 }

@@ -1,10 +1,9 @@
 fputs(
-"              without having them being interpreted by curl itself. Note  that\n"
-"              these  letters are not normal legal URL contents but they should\n"
-"              be encoded according to the URI standard.\n"
+"              (FTP)  Use  CCC  (Clear  Command Channel) Shuts down the SSL/TLS\n"
+"              layer after authenticating. The rest of the control channel com-\n"
+"              munication  will be unencrypted. This allows NAT routers to fol-\n"
+"              low the FTP transaction. The default mode is passive. See --ftp-\n"
+"              ssl-ccc-mode for other modes.  (Added in 7.16.1)\n"
 "\n"
-"       -G, --get\n"
-"              When used, this option will make all  data  specified  with  -d,\n"
-"              --data,  --data-binary or --data-urlencode to be used in an HTTP\n"
-"              GET request instead of the POST request that otherwise would  be\n"
+"       --ftp-ssl-ccc-mode [active/passive]\n"
 , stdout);

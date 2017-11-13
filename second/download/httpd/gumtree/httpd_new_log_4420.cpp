@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, cmd->server, APLOGNO(00118)
-                "%s not supported on this platform", cmd->cmd->name);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01044)
+                              "PASV contacting host %d.%d.%d.%d:%d",
+                              h3, h2, h1, h0, pasvport);

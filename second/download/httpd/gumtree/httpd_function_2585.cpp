@@ -1,31 +1,20 @@
-static char *lookup_map_dbmfile(request_rec *r, const char *file,
-                                const char *dbmtype, char *key)
+static int dumpio_output_filter (ap_filter_t *f, apr_bucket_brigade *bb)
 {
-    apr_dbm_t *dbmfp = NULL;
-    apr_datum_t dbmkey;
-    apr_datum_t dbmval;
-    char *value;
-    apr_status_t rv;
+    apr_bucket *b;
+    conn_rec *c = f->c;
 
-    if ((rv = apr_dbm_open_ex(&dbmfp, dbmtype, file, APR_DBM_READONLY,
-                              APR_OS_DEFAULT, r->pool)) != APR_SUCCESS)
-    {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "mod_rewrite: can't open DBM RewriteMap %s", file);
-        return NULL;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, c->base_server, "mod_dumpio: %s", f->frec->name) ;
+
+    for (b = APR_BRIGADE_FIRST(bb); b != APR_BRIGADE_SENTINEL(bb); b = APR_BUCKET_NEXT(b)) {
+        /*
+         * If we ever see an EOS, make sure to FLUSH.
+         */
+        if (APR_BUCKET_IS_EOS(b)) {
+            apr_bucket *flush = apr_bucket_flush_create(f->c->bucket_alloc);
+            APR_BUCKET_INSERT_BEFORE(b, flush);
+        }
+        dumpit(f, b);
     }
 
-    dbmkey.dptr  = key;
-    dbmkey.dsize = strlen(key);
-
-    if (apr_dbm_fetch(dbmfp, dbmkey, &dbmval) == APR_SUCCESS && dbmval.dptr) {
-        value = apr_pstrmemdup(r->pool, dbmval.dptr, dbmval.dsize);
-    }
-    else {
-        value = NULL;
-    }
-
-    apr_dbm_close(dbmfp);
-
-    return value;
+    return ap_pass_brigade(f->next, bb) ;
 }

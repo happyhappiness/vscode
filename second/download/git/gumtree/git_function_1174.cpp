@@ -1,16 +1,16 @@
-const char *fast_export_read_path(const char *path, uint32_t *mode_out)
+static void atfork_prepare(struct atfork_state *as)
 {
-	int err;
-	static struct strbuf buf = STRBUF_INIT;
+	sigset_t all;
 
-	strbuf_reset(&buf);
-	err = fast_export_ls(path, mode_out, &buf);
-	if (err) {
-		if (errno != ENOENT)
-			die_errno("BUG: unexpected fast_export_ls error");
-		/* Treat missing paths as directories. */
-		*mode_out = S_IFDIR;
-		return NULL;
-	}
-	return buf.buf;
+	if (sigfillset(&all))
+		die_errno("sigfillset");
+#ifdef NO_PTHREADS
+	if (sigprocmask(SIG_SETMASK, &all, &as->old))
+		die_errno("sigprocmask");
+#else
+	bug_die(pthread_sigmask(SIG_SETMASK, &all, &as->old),
+		"blocking all signals");
+	bug_die(pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &as->cs),
+		"disabling cancellation");
+#endif
 }

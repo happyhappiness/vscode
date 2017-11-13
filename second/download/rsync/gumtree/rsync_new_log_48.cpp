@@ -1,1 +1,2 @@
-fprintf(am_server?stderr:stdout,"building file list ... ");
+fprintf(stderr,"mkdir %s : %s\n",
+		flist->files[i].name,strerror(errno));

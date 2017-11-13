@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_ENOPROC, r,
-                          MODNAME ": could not execute `%s'.",
-                          compr[parm->method].argv[0]);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Unknown Transfer-Encoding %s", tenc);

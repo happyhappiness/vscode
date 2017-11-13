@@ -1,1 +1,1 @@
-out_of_memory("string_set");
+out_of_memory("copy_section");

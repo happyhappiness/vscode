@@ -1,1 +1,1 @@
-fprintf(FERROR,"fork: %s\n",strerror(errno));
+fprintf(FERROR,"backup filename too long\n");

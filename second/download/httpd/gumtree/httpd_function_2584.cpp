@@ -1,59 +1,28 @@
-static char *lookup_map_txtfile(request_rec *r, const char *file, char *key)
+static int dumpio_input_filter (ap_filter_t *f, apr_bucket_brigade *bb,
+    ap_input_mode_t mode, apr_read_type_e block, apr_off_t readbytes)
 {
-    apr_file_t *fp = NULL;
-    char line[REWRITE_MAX_TXT_MAP_LINE + 1]; /* +1 for \0 */
-    char *value, *keylast;
-    apr_status_t rv;
 
-    if ((rv = apr_file_open(&fp, file, APR_READ|APR_BUFFERED, APR_OS_DEFAULT,
-                            r->pool)) != APR_SUCCESS)
-    {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "mod_rewrite: can't open text RewriteMap file %s", file);
-        return NULL;
+    apr_bucket *b;
+    apr_status_t ret;
+    conn_rec *c = f->c;
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, c->base_server,
+        "mod_dumpio: %s [%s-%s] %" APR_OFF_T_FMT " readbytes",
+         f->frec->name,
+         whichmode(mode),
+         ((block) == APR_BLOCK_READ) ? "blocking" : "nonblocking",
+         readbytes) ;
+
+    ret = ap_get_brigade(f->next, bb, mode, block, readbytes);
+
+    if (ret == APR_SUCCESS) {
+        for (b = APR_BRIGADE_FIRST(bb); b != APR_BRIGADE_SENTINEL(bb); b = APR_BUCKET_NEXT(b)) {
+          dumpit(f, b);
+        }
+    } else {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, c->base_server,
+        "mod_dumpio: %s - %d", f->frec->name, ret) ;
     }
 
-    keylast = key + strlen(key);
-    value = NULL;
-    while (apr_file_gets(line, sizeof(line), fp) == APR_SUCCESS) {
-        char *p, *c;
-
-        /* ignore comments and lines starting with whitespaces */
-        if (*line == '#' || apr_isspace(*line)) {
-            continue;
-        }
-
-        p = line;
-        c = key;
-        while (c < keylast && *p == *c && !apr_isspace(*p)) {
-            ++p;
-            ++c;
-        }
-
-        /* key doesn't match - ignore. */
-        if (c != keylast || !apr_isspace(*p)) {
-            continue;
-        }
-
-        /* jump to the value */
-        while (*p && apr_isspace(*p)) {
-            ++p;
-        }
-
-        /* no value? ignore */
-        if (!*p) {
-            continue;
-        }
-
-        /* extract the value and return. */
-        c = p;
-        while (*p && !apr_isspace(*p)) {
-            ++p;
-        }
-        value = apr_pstrmemdup(r->pool, c, p - c);
-        break;
-    }
-    apr_file_close(fp);
-
-    return value;
+    return APR_SUCCESS ;
 }

@@ -1,3 +1,3 @@
-fprintf(stderr, " x %-*s %-*s -> %s\n",
-				TRANSPORT_SUMMARY(_("[deleted]")),
-				REFCOL_WIDTH, _("(none)"), prettify_refname(ref->name));
+die(_("merging of trees %s and %s failed"),
+			    sha1_to_hex(head->object.sha1),
+			    sha1_to_hex(merge->object.sha1));

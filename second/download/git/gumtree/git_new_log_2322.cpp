@@ -1,2 +1,1 @@
-error_errno("could not write config file %s",
-				  config_filename);
+printf("%s", find_unique_abbrev(oid->hash, abbrev));

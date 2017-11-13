@@ -1,1 +1,1 @@
-die(_("format: %%(then) atom used without an %%(if) atom"));
+die("Too large to be a .git file: '%s'", path);

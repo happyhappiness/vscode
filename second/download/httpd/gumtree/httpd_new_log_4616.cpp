@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf, APLOGNO(00225)
-            "Server built: %s", ap_get_server_built());
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01850)
+                          "You must load mod_dbd to enable AuthDBD functions");

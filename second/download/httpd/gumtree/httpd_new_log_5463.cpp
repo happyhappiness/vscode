@@ -1,4 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
-                                  "h2_mplx(%ld): request(%d) done, %f ms"
-                                  " elapsed", m->id, io->id, 
-                                  (io->done_at - io->started_at) / 1000.0);
+ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ap_server_conf, APLOGNO(00005)
+                     "Fatal error: shared scoreboard too small for child!");

@@ -1,1 +1,1 @@
-fprintf(stderr, "\n");
+die("Command input error");

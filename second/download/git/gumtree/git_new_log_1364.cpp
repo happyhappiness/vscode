@@ -1,1 +1,1 @@
-xgetcwd();
+die("cannot use Perl-compatible regexes when not compiled with USE_LIBPCRE");

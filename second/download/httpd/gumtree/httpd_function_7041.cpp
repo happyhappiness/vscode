@@ -1,97 +1,93 @@
-static int initialize_tables(server_rec *s, apr_pool_t *ctx)
+static authn_status authn_dbd_password(request_rec *r, const char *user,
+                                       const char *password)
 {
-    unsigned long idx;
-    apr_status_t   sts;
-    const char *tempdir;
+    apr_status_t rv;
+    const char *dbd_password = NULL;
+    apr_dbd_prepared_t *statement;
+    apr_dbd_results_t *res = NULL;
+    apr_dbd_row_t *row = NULL;
 
-    /* set up client list */
-
-    sts = apr_temp_dir_get(&tempdir, ctx);
-    if (APR_SUCCESS != sts) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, sts, s, APLOGNO(01761)
-                     "Failed to find temporary directory");
-        log_error_and_cleanup("failed to find temp dir", sts, s);
-        return HTTP_INTERNAL_SERVER_ERROR;
+    authn_dbd_conf *conf = ap_get_module_config(r->per_dir_config,
+                                                &authn_dbd_module);
+    ap_dbd_t *dbd = authn_dbd_acquire_fn(r);
+    if (dbd == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01653)
+                      "Failed to acquire database connection to look up "
+                      "user '%s'", user);
+        return AUTH_GENERAL_ERROR;
     }
 
-    /* Create the shared memory segment */
-
-    /*
-     * Create a unique filename using our pid. This information is
-     * stashed in the global variable so the children inherit it.
-     */
-    client_shm_filename = apr_psprintf(ctx, "%s/authdigest_shm.%"APR_PID_T_FMT, tempdir,
-                                       getpid());
-
-    /* Now create that segment */
-    sts = apr_shm_create(&client_shm, shmem_size,
-                        client_shm_filename, ctx);
-    if (APR_SUCCESS != sts) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, sts, s, APLOGNO(01762)
-                     "Failed to create shared memory segment on file %s",
-                     client_shm_filename);
-        log_error_and_cleanup("failed to initialize shm", sts, s);
-        return HTTP_INTERNAL_SERVER_ERROR;
+    if (conf->user == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01654)
+                      "No AuthDBDUserPWQuery has been specified");
+        return AUTH_GENERAL_ERROR;
     }
 
-    sts = apr_rmm_init(&client_rmm,
-                       NULL, /* no lock, we'll do the locking ourselves */
-                       apr_shm_baseaddr_get(client_shm),
-                       shmem_size, ctx);
-    if (sts != APR_SUCCESS) {
-        log_error_and_cleanup("failed to initialize rmm", sts, s);
-        return !OK;
+    statement = apr_hash_get(dbd->prepared, conf->user, APR_HASH_KEY_STRING);
+    if (statement == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01655)
+                      "A prepared statement could not be found for "
+                      "AuthDBDUserPWQuery with the key '%s'", conf->user);
+        return AUTH_GENERAL_ERROR;
+    }
+    if (apr_dbd_pvselect(dbd->driver, r->pool, dbd->handle, &res, statement,
+                              0, user, NULL) != 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01656)
+                      "Query execution error looking up '%s' "
+                      "in database", user);
+        return AUTH_GENERAL_ERROR;
+    }
+    for (rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1);
+         rv != -1;
+         rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1)) {
+        if (rv != 0) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01657)
+                          "Error retrieving results while looking up '%s' "
+                          "in database", user);
+            return AUTH_GENERAL_ERROR;
+        }
+        if (dbd_password == NULL) {
+#if APU_MAJOR_VERSION > 1 || (APU_MAJOR_VERSION == 1 && APU_MINOR_VERSION >= 3)
+            /* add the rest of the columns to the environment */
+            int i = 1;
+            const char *name;
+            for (name = apr_dbd_get_name(dbd->driver, res, i);
+                 name != NULL;
+                 name = apr_dbd_get_name(dbd->driver, res, i)) {
+
+                char *str = apr_pstrcat(r->pool, AUTHN_PREFIX,
+                                        name,
+                                        NULL);
+                int j = sizeof(AUTHN_PREFIX)-1; /* string length of "AUTHENTICATE_", excluding the trailing NIL */
+                while (str[j]) {
+                    if (!apr_isalnum(str[j])) {
+                        str[j] = '_';
+                    }
+                    else {
+                        str[j] = apr_toupper(str[j]);
+                    }
+                    j++;
+                }
+                apr_table_set(r->subprocess_env, str,
+                              apr_dbd_get_entry(dbd->driver, row, i));
+                i++;
+            }
+#endif
+            dbd_password = apr_dbd_get_entry(dbd->driver, row, 0);
+        }
+        /* we can't break out here or row won't get cleaned up */
     }
 
-    client_list = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(*client_list) +
-                                                          sizeof(client_entry*)*num_buckets));
-    if (!client_list) {
-        log_error_and_cleanup("failed to allocate shared memory", -1, s);
-        return !OK;
+    if (!dbd_password) {
+        return AUTH_USER_NOT_FOUND;
     }
-    client_list->table = (client_entry**) (client_list + 1);
-    for (idx = 0; idx < num_buckets; idx++) {
-        client_list->table[idx] = NULL;
-    }
-    client_list->tbl_len     = num_buckets;
-    client_list->num_entries = 0;
+    AUTHN_CACHE_STORE(r, user, NULL, dbd_password);
 
-    sts = ap_global_mutex_create(&client_lock, NULL, client_mutex_type, NULL,
-                                 s, ctx, 0);
-    if (sts != APR_SUCCESS) {
-        log_error_and_cleanup("failed to create lock (client_lock)", sts, s);
-        return !OK;
+    rv = apr_password_validate(password, dbd_password);
+
+    if (rv != APR_SUCCESS) {
+        return AUTH_DENIED;
     }
 
-
-    /* setup opaque */
-
-    opaque_cntr = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(*opaque_cntr)));
-    if (opaque_cntr == NULL) {
-        log_error_and_cleanup("failed to allocate shared memory", -1, s);
-        return !OK;
-    }
-    *opaque_cntr = 1UL;
-
-    sts = ap_global_mutex_create(&opaque_lock, NULL, opaque_mutex_type, NULL,
-                                 s, ctx, 0);
-    if (sts != APR_SUCCESS) {
-        log_error_and_cleanup("failed to create lock (opaque_lock)", sts, s);
-        return !OK;
-    }
-
-
-    /* setup one-time-nonce counter */
-
-    otn_counter = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(*otn_counter)));
-    if (otn_counter == NULL) {
-        log_error_and_cleanup("failed to allocate shared memory", -1, s);
-        return !OK;
-    }
-    *otn_counter = 0;
-    /* no lock here */
-
-
-    /* success */
-    return OK;
+    return AUTH_GRANTED;
 }

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server, APLOGNO(01283)
-                             "LDAP: Could not set LDAP_OPT_TIMEOUT");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(00763)
+            "cache: running CACHE_OUT filter");

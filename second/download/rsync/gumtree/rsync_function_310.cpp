@@ -1,92 +1,91 @@
-static void hash_search(int f,struct sum_struct *s,
-			struct map_struct *buf,off_t len)
+void receive_file_entry(struct file_struct **fptr,
+			unsigned char flags,int f)
 {
-  int offset,j,k;
-  int end;
-  char sum2[SUM_LENGTH];
-  uint32 s1, s2, sum; 
-  signed char *map;
+  static time_t last_time;
+  static mode_t last_mode;
+  static dev_t last_rdev;
+  static uid_t last_uid;
+  static gid_t last_gid;
+  static char lastname[MAXPATHLEN];
+  char thisname[MAXPATHLEN];
+  int l1=0,l2=0;
+  char *p;
+  struct file_struct *file;
 
-  if (verbose > 2)
-    fprintf(FERROR,"hash search b=%d len=%d\n",s->n,(int)len);
+  if (flags & SAME_NAME)
+    l1 = read_byte(f);
+  
+  if (flags & LONG_NAME)
+    l2 = read_int(f);
+  else
+    l2 = read_byte(f);
 
-  k = MIN(len, s->n);
+  file = (struct file_struct *)malloc(sizeof(*file));
+  if (!file) out_of_memory("receive_file_entry");
+  bzero((char *)file,sizeof(*file));
+  (*fptr) = file;
 
-  map = (signed char *)map_ptr(buf,0,k);
+  strncpy(thisname,lastname,l1);
+  read_buf(f,&thisname[l1],l2);
+  thisname[l1+l2] = 0;
 
-  sum = get_checksum1((char *)map, k);
-  s1 = sum & 0xFFFF;
-  s2 = sum >> 16;
-  if (verbose > 3)
-    fprintf(FERROR, "sum=%.8x k=%d\n", sum, k);
+  strncpy(lastname,thisname,MAXPATHLEN-1);
+  lastname[MAXPATHLEN-1] = 0;
 
-  offset = 0;
+  clean_fname(thisname);
 
-  end = len + 1 - s->sums[s->count-1].len;
-
-  if (verbose > 3)
-    fprintf(FERROR,"hash search s->n=%d len=%d count=%d\n",
-	    s->n,(int)len,s->count);
-
-  do {
-    tag t = gettag2(s1,s2);
-    j = tag_table[t];
-    if (verbose > 4)
-      fprintf(FERROR,"offset=%d sum=%08x\n",
-	      offset,sum);
-
-    if (j != NULL_TAG) {
-      int done_csum2 = 0;
-
-      sum = (s1 & 0xffff) | (s2 << 16);
-      tag_hits++;
-      do {
-	int i = targets[j].i;
-
-	if (sum == s->sums[i].sum1) {
-	  if (verbose > 3)
-	    fprintf(FERROR,"potential match at %d target=%d %d sum=%08x\n",
-		    offset,j,i,sum);
-
-	  if (!done_csum2) {
-	    int l = MIN(s->n,len-offset);
-	    map = (signed char *)map_ptr(buf,offset,l);
-	    get_checksum2((char *)map,l,sum2);
-	    done_csum2 = 1;
-	  }
-	  if (memcmp(sum2,s->sums[i].sum2,csum_length) == 0) {
-	    matched(f,s,buf,offset,i);
-	    offset += s->sums[i].len - 1;
-	    k = MIN((len-offset), s->n);
-	    map = (signed char *)map_ptr(buf,offset,k);
-	    sum = get_checksum1((char *)map, k);
-	    s1 = sum & 0xFFFF;
-	    s2 = sum >> 16;
-	    ++matches;
-	    break;
+  if ((p = strrchr(thisname,'/'))) {
+	  static char *lastdir;
+	  *p = 0;
+	  if (lastdir && strcmp(thisname, lastdir)==0) {
+		  file->dirname = lastdir;
 	  } else {
-	    false_alarms++;
+		  file->dirname = strdup(thisname);
+		  lastdir = file->dirname;
 	  }
-	}
-	j++;
-      } while (j<s->count && targets[j].t == t);
-    }
+	  file->basename = strdup(p+1);
+  } else {
+	  file->dirname = NULL;
+	  file->basename = strdup(thisname);
+  }
 
-    /* Trim off the first byte from the checksum */
-    map = (signed char *)map_ptr(buf,offset,k+1);
-    s1 -= map[0] + CHAR_OFFSET;
-    s2 -= k * (map[0]+CHAR_OFFSET);
+  if (!file->basename) out_of_memory("receive_file_entry 1");
 
-    /* Add on the next byte (if there is one) to the checksum */
-    if (k < (len-offset)) {
-      s1 += (map[k]+CHAR_OFFSET);
-      s2 += s1;
-    } else {
-      --k;
-    }
 
-  } while (++offset < end);
+  file->length = read_longint(f);
+  file->modtime = (flags & SAME_TIME) ? last_time : (time_t)read_int(f);
+  file->mode = (flags & SAME_MODE) ? last_mode : (mode_t)read_int(f);
+  if (preserve_uid)
+    file->uid = (flags & SAME_UID) ? last_uid : (uid_t)read_int(f);
+  if (preserve_gid)
+    file->gid = (flags & SAME_GID) ? last_gid : (gid_t)read_int(f);
+  if (preserve_devices && IS_DEVICE(file->mode))
+    file->rdev = (flags & SAME_RDEV) ? last_rdev : (dev_t)read_int(f);
 
-  matched(f,s,buf,len,-1);
-  map_ptr(buf,len-1,1);
+  if (preserve_links && S_ISLNK(file->mode)) {
+    int l = read_int(f);
+    file->link = (char *)malloc(l+1);
+    if (!file->link) out_of_memory("receive_file_entry 2");
+    read_buf(f,file->link,l);
+    file->link[l] = 0;
+  }
+
+#if SUPPORT_HARD_LINKS
+  if (preserve_hard_links && S_ISREG(file->mode)) {
+    file->dev = read_int(f);
+    file->inode = read_int(f);
+  }
+#endif
+  
+  if (always_checksum) {
+	  file->sum = (char *)malloc(MD4_SUM_LENGTH);
+	  if (!file->sum) out_of_memory("md4 sum");
+	  read_buf(f,file->sum,csum_length);
+  }
+  
+  last_mode = file->mode;
+  last_rdev = file->rdev;
+  last_uid = file->uid;
+  last_gid = file->gid;
+  last_time = file->modtime;
 }

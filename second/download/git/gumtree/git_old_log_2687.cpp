@@ -1,1 +1,1 @@
-die_errno("Cannot change to '%s/..'", cwd.buf);
+die("strange pathname '%s' blocked", path);

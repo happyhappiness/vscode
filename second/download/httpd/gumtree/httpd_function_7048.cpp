@@ -1,58 +1,24 @@
-static int authz_core_check_section(apr_pool_t *p, server_rec *s,
-                                    authz_section_conf *section, int is_conf)
+static authz_status expr_check_authorization(request_rec *r,
+                                             const char *require_line,
+                                             const void *parsed_require_line)
 {
-    authz_section_conf *prev = NULL;
-    authz_section_conf *child = section->first;
-    int ret = !OK;
+    const char *err = NULL;
+    const struct require_expr_info *info = parsed_require_line;
+    int rc = ap_expr_exec(r, info->expr, &err);
 
-    while (child) {
-        if (child->first) {
-            if (authz_core_check_section(p, s, child, 0) != OK) {
-                return !OK;
-            }
-
-            if (child->negate && child->op != section->op) {
-                authz_section_conf *next = child->next;
-
-                /* avoid one level of recursion when De Morgan permits */
-                child = child->first;
-
-                if (prev) {
-                    prev->next = child;
-                }
-                else {
-                    section->first = child;
-                }
-
-                do {
-                    child->negate = !child->negate;
-                } while (child->next && (child = child->next));
-
-                child->next = next;
-            }
-        }
-
-        prev = child;
-        child = child->next;
+    if (rc < 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02320)
+                      "Error evaluating expression in 'Require expr': %s",
+                      err);
+        return AUTHZ_GENERAL_ERROR;
     }
-
-    child = section->first;
-
-    while (child) {
-        if (!child->negate) {
-            ret = OK;
-            break;
-        }
-
-        child = child->next;
+    else if (rc == 0) {
+        if (info->want_user)
+            return AUTHZ_DENIED_NO_USER;
+        else
+            return AUTHZ_DENIED;
     }
-
-    if (ret != OK) {
-        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, APR_SUCCESS, s, APLOGNO(01624)
-                     "%s directive contains only negative authorization directives",
-                     is_conf ? "<Directory>, <Location>, or similar"
-                             : format_authz_command(p, section));
+    else {
+        return AUTHZ_GRANTED;
     }
-
-    return ret;
 }

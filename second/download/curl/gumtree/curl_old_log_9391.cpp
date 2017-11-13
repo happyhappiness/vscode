@@ -1,8 +1,12 @@
 fputs(
-"              ported for FTP). You may specify any number of commands. If  the\n"
-"              server returns failure for one of the commands, the entire oper-\n"
-"              ation will be aborted. You must send syntactically  correct  FTP\n"
-"              commands  as  RFC 959 defines to FTP servers, or one of the com-\n"
-"              mands listed below to SFTP servers.  This  option  can  be  used\n"
-"              multiple  times. When speaking to an FTP server, prefix the com-\n"
+"              home directory.\n"
+"\n"
+"              A quick and very simple example of how  to  setup  a  .netrc  to\n"
+"              allow  curl to FTP to the machine host.domain.com with user name\n"
+"              'myself' and password 'secret' should look similar to:\n"
+"\n"
+"              machine host.domain.com login myself password secret\n"
+"\n"
+"       -N, --no-buffer\n"
+"              Disables the buffering of the output stream. In normal work sit-\n"
 , stdout);

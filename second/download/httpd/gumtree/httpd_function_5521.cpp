@@ -1,51 +1,52 @@
-static void dispatch_event(h2_session *session, h2_session_event_t ev, 
-                      int arg, const char *msg)
+static void usage(const char *progname)
 {
-    switch (ev) {
-        case H2_SESSION_EV_INIT:
-            h2_session_ev_init(session, arg, msg);
-            break;            
-        case H2_SESSION_EV_LOCAL_GOAWAY:
-            h2_session_ev_local_goaway(session, arg, msg);
-            break;
-        case H2_SESSION_EV_REMOTE_GOAWAY:
-            h2_session_ev_remote_goaway(session, arg, msg);
-            break;
-        case H2_SESSION_EV_CONN_ERROR:
-            h2_session_ev_conn_error(session, arg, msg);
-            break;
-        case H2_SESSION_EV_PROTO_ERROR:
-            h2_session_ev_proto_error(session, arg, msg);
-            break;
-        case H2_SESSION_EV_CONN_TIMEOUT:
-            h2_session_ev_conn_timeout(session, arg, msg);
-            break;
-        case H2_SESSION_EV_NO_IO:
-            h2_session_ev_no_io(session, arg, msg);
-            break;
-        case H2_SESSION_EV_STREAM_READY:
-            h2_session_ev_stream_ready(session, arg, msg);
-            break;
-        case H2_SESSION_EV_DATA_READ:
-            h2_session_ev_data_read(session, arg, msg);
-            break;
-        case H2_SESSION_EV_NGH2_DONE:
-            h2_session_ev_ngh2_done(session, arg, msg);
-            break;
-        case H2_SESSION_EV_MPM_STOPPING:
-            h2_session_ev_mpm_stopping(session, arg, msg);
-            break;
-        case H2_SESSION_EV_PRE_CLOSE:
-            h2_session_ev_pre_close(session, arg, msg);
-            break;
-        default:
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
-                          "h2_session(%ld): unknown event %d", 
-                          session->id, ev);
-            break;
-    }
-    
-    if (session->state == H2_SESSION_ST_DONE) {
-        h2_mplx_abort(session->mplx);
-    }
+    fprintf(stderr, "Usage: %s [options] [http"
+#ifdef USE_SSL
+        "[s]"
+#endif
+        "://]hostname[:port]/path\n", progname);
+/* 80 column ruler:  ********************************************************************************
+ */
+    fprintf(stderr, "Options are:\n");
+    fprintf(stderr, "    -n requests     Number of requests to perform\n");
+    fprintf(stderr, "    -c concurrency  Number of multiple requests to make\n");
+    fprintf(stderr, "    -t timelimit    Seconds to max. wait for responses\n");
+    fprintf(stderr, "    -b windowsize   Size of TCP send/receive buffer, in bytes\n");
+    fprintf(stderr, "    -B address      Address to bind to when making outgoing connections\n");
+    fprintf(stderr, "    -p postfile     File containing data to POST. Remember also to set -T\n");
+    fprintf(stderr, "    -u putfile      File containing data to PUT. Remember also to set -T\n");
+    fprintf(stderr, "    -T content-type Content-type header for POSTing, eg.\n");
+    fprintf(stderr, "                    'application/x-www-form-urlencoded'\n");
+    fprintf(stderr, "                    Default is 'text/plain'\n");
+    fprintf(stderr, "    -v verbosity    How much troubleshooting info to print\n");
+    fprintf(stderr, "    -w              Print out results in HTML tables\n");
+    fprintf(stderr, "    -i              Use HEAD instead of GET\n");
+    fprintf(stderr, "    -x attributes   String to insert as table attributes\n");
+    fprintf(stderr, "    -y attributes   String to insert as tr attributes\n");
+    fprintf(stderr, "    -z attributes   String to insert as td or th attributes\n");
+    fprintf(stderr, "    -C attribute    Add cookie, eg. 'Apache=1234'. (repeatable)\n");
+    fprintf(stderr, "    -H attribute    Add Arbitrary header line, eg. 'Accept-Encoding: gzip'\n");
+    fprintf(stderr, "                    Inserted after all normal header lines. (repeatable)\n");
+    fprintf(stderr, "    -A attribute    Add Basic WWW Authentication, the attributes\n");
+    fprintf(stderr, "                    are a colon separated username and password.\n");
+    fprintf(stderr, "    -P attribute    Add Basic Proxy Authentication, the attributes\n");
+    fprintf(stderr, "                    are a colon separated username and password.\n");
+    fprintf(stderr, "    -X proxy:port   Proxyserver and port number to use\n");
+    fprintf(stderr, "    -V              Print version number and exit\n");
+    fprintf(stderr, "    -k              Use HTTP KeepAlive feature\n");
+    fprintf(stderr, "    -d              Do not show percentiles served table.\n");
+    fprintf(stderr, "    -S              Do not show confidence estimators and warnings.\n");
+    fprintf(stderr, "    -g filename     Output collected data to gnuplot format file.\n");
+    fprintf(stderr, "    -e filename     Output CSV file with percentages served\n");
+    fprintf(stderr, "    -r              Don't exit on socket receive errors.\n");
+    fprintf(stderr, "    -h              Display usage information (this message)\n");
+#ifdef USE_SSL
+    fprintf(stderr, "    -Z ciphersuite  Specify SSL/TLS cipher suite (See openssl ciphers)\n");
+#ifndef OPENSSL_NO_SSL2
+    fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol (SSL2, SSL3, TLS1, or ALL)\n");
+#else
+    fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol (SSL3, TLS1, or ALL)\n");
+#endif
+#endif
+    exit(EINVAL);
 }

@@ -1,1 +1,1 @@
-out_of_memory("recv_group_name");
+fprintf(out, "#endif\n");

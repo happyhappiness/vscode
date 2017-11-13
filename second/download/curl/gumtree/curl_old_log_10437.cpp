@@ -1,1 +1,1 @@
-warnf(config, "--test-event is ignored unless a debug build!\n");
+warnf(config, "unsupported rate unit. Use G, M, K or B!\n");

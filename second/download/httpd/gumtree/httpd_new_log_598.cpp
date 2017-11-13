@@ -1,1 +1,2 @@
-ap_get_module_config(r->request_config, &info_module);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "inflate: data not deflated!");

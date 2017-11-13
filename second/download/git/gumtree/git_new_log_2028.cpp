@@ -1,1 +1,2 @@
-die(_("malformed object name %s"), arg);
+die("BUG: both update and delete flags are set on %s",
+				    ce->name);

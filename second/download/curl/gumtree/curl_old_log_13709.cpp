@@ -1,10 +1,11 @@
 fputs(
-"                     This will  make  curl  load  data  from  the  given  file\n"
-"                     (including  any  newlines), URL-encode that data and pass\n"
-"                     it on in the POST. The  name  part  gets  an  equal  sign\n"
-"                     appended, resulting in name=urlencoded-file-content. Note\n"
-"                     that the name is expected to be URL-encoded already.\n"
+"              This  option  is handy to use when you want to store the headers\n"
+"              that an HTTP site sends to you. Cookies from the  headers  could\n"
+"              then  be  read  in  a  second  curl  invocation by using the -b,\n"
+"              --cookie option! The -c, --cookie-jar option is a better way  to\n"
+"              store cookies.\n"
 "\n"
-"       --delegation LEVEL\n"
-"              Set LEVEL to tell the server what it is allowed to delegate when\n"
+"              When  used  in FTP, the FTP server response lines are considered\n"
+"              being \"headers\" and thus are saved there.\n"
+"\n"
 , stdout);

@@ -1,4 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, apr_get_netos_error(),
-                             ap_server_conf, APLOGNO(00336)
-                             "winnt_accept: Failed to allocate an accept socket. "
-                             "Temporary resource constraint? Try again.");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(01909)
+                         "%s certificate configured for %s does NOT include "
+                         "an ID which matches the server name",
+                         ssl_asn1_keystr(type), (mySrvConfig(s))->vhost_id);

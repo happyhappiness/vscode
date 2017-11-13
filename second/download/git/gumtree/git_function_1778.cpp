@@ -1,51 +1,34 @@
-const char *read_gitfile(const char *path)
+int ref_transaction_update(struct ref_transaction *transaction,
+			   const char *refname,
+			   const unsigned char *new_sha1,
+			   const unsigned char *old_sha1,
+			   int flags, int have_old, const char *msg,
+			   struct strbuf *err)
 {
-	char *buf;
-	char *dir;
-	const char *slash;
-	struct stat st;
-	int fd;
-	ssize_t len;
+	struct ref_update *update;
 
-	if (stat(path, &st))
-		return NULL;
-	if (!S_ISREG(st.st_mode))
-		return NULL;
-	fd = open(path, O_RDONLY);
-	if (fd < 0)
-		die_errno("Error opening '%s'", path);
-	buf = xmalloc(st.st_size + 1);
-	len = read_in_full(fd, buf, st.st_size);
-	close(fd);
-	if (len != st.st_size)
-		die("Error reading %s", path);
-	buf[len] = '\0';
-	if (!starts_with(buf, "gitdir: "))
-		die("Invalid gitfile format: %s", path);
-	while (buf[len - 1] == '\n' || buf[len - 1] == '\r')
-		len--;
-	if (len < 9)
-		die("No path in gitfile: %s", path);
-	buf[len] = '\0';
-	dir = buf + 8;
+	assert(err);
 
-	if (!is_absolute_path(dir) && (slash = strrchr(path, '/'))) {
-		size_t pathlen = slash+1 - path;
-		size_t dirlen = pathlen + len - 8;
-		dir = xmalloc(dirlen + 1);
-		strncpy(dir, path, pathlen);
-		strncpy(dir + pathlen, buf + 8, len - 8);
-		dir[dirlen] = '\0';
-		free(buf);
-		buf = dir;
+	if (transaction->state != REF_TRANSACTION_OPEN)
+		die("BUG: update called for transaction that is not open");
+
+	if (have_old && !old_sha1)
+		die("BUG: have_old is true but old_sha1 is NULL");
+
+	if (!is_null_sha1(new_sha1) &&
+	    check_refname_format(refname, REFNAME_ALLOW_ONELEVEL)) {
+		strbuf_addf(err, "refusing to update ref with bad name %s",
+			    refname);
+		return -1;
 	}
 
-	if (!is_git_directory(dir))
-		die("Not a git repository: %s", dir);
-
-	update_linked_gitdir(path, dir);
-	path = real_path(dir);
-
-	free(buf);
-	return path;
+	update = add_update(transaction, refname);
+	hashcpy(update->new_sha1, new_sha1);
+	update->flags = flags;
+	update->have_old = have_old;
+	if (have_old)
+		hashcpy(update->old_sha1, old_sha1);
+	if (msg)
+		update->msg = xstrdup(msg);
+	return 0;
 }

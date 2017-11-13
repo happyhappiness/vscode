@@ -1,8 +1,9 @@
 fputs(
-"              has  pressed  the  submit  button. This causes curl to POST data\n"
-"              using the  Content-Type  multipart/form-data  according  to  RFC\n"
-"              2388.  This  enables uploading of binary files etc. To force the\n"
-"              'content' part to be a file, prefix the  file  name  with  an  @\n"
-"              sign.  To just get the content part from a file, prefix the file\n"
-"              name with the symbol <. The difference between @ and <  is  then\n"
+"              When  curl is used to do multiple transfers on the command line,\n"
+"              it will attempt to operate on each given URL,  one  by  one.  By\n"
+"              default,  it will ignore errors if there are more URLs given and\n"
+"              the last URL's  success  will  determine  the  error  code  curl\n"
+"              returns.  So  early failures will be \"hidden\" by subsequent suc-\n"
+"              cessful transfers.\n"
+"\n"
 , stdout);

@@ -1,330 +1,194 @@
-static apr_status_t proxy_send_dir_filter(ap_filter_t *f,
-                                          apr_bucket_brigade *in)
+static int uldap_connection_init(request_rec *r,
+                                 util_ldap_connection_t *ldc)
 {
-    request_rec *r = f->r;
-    conn_rec *c = r->connection;
-    apr_pool_t *p = r->pool;
-    apr_bucket_brigade *out = apr_brigade_create(p, c->bucket_alloc);
-    apr_status_t rv;
+    int rc = 0, ldap_option = 0;
+    int version  = LDAP_VERSION3;
+    apr_ldap_err_t *result = NULL;
+#ifdef LDAP_OPT_NETWORK_TIMEOUT
+    struct timeval connectionTimeout = {10,0};    /* 10 second connection timeout */
+#endif
+    util_ldap_state_t *st =
+        (util_ldap_state_t *)ap_get_module_config(r->server->module_config,
+        &ldap_module);
 
-    register int n;
-    char *dir, *path, *reldir, *site, *str, *type;
+    /* Since the host will include a port if the default port is not used,
+     * always specify the default ports for the port parameter.  This will
+     * allow a host string that contains multiple hosts the ability to mix
+     * some hosts with ports and some without. All hosts which do not
+     * specify a port will use the default port.
+     */
+    apr_ldap_init(r->pool, &(ldc->ldap),
+                  ldc->host,
+                  APR_LDAP_SSL == ldc->secure ? LDAPS_PORT : LDAP_PORT,
+                  APR_LDAP_NONE,
+                  &(result));
 
-    const char *pwd = apr_table_get(r->notes, "Directory-PWD");
-    const char *readme = apr_table_get(r->notes, "Directory-README");
-
-    proxy_dir_ctx_t *ctx = f->ctx;
-
-    if (!ctx) {
-        f->ctx = ctx = apr_pcalloc(p, sizeof(*ctx));
-        ctx->in = apr_brigade_create(p, c->bucket_alloc);
-        ctx->buffer[0] = 0;
-        ctx->state = HEADER;
+    if (NULL == result) {
+        /* something really bad happened */
+        ldc->bound = 0;
+        if (NULL == ldc->reason) {
+            ldc->reason = "LDAP: ldap initialization failed";
+        }
+        return(APR_EGENERAL);
     }
 
-    /* combine the stored and the new */
-    APR_BRIGADE_CONCAT(ctx->in, in);
+    if (result->rc) {
+        ldc->reason = result->reason;
+        ldc->bound = 0;
+        return result->rc;
+    }
 
-    if (HEADER == ctx->state) {
-
-        /* basedir is either "", or "/%2f" for the "squid %2f hack" */
-        const char *basedir = "";  /* By default, path is relative to the $HOME dir */
-        char *wildcard = NULL;
-        const char *escpath;
-
-        /*
-         * In the reverse proxy case we need to construct our site string
-         * via ap_construct_url. For non anonymous sites apr_uri_unparse would
-         * only supply us with 'username@' which leads to the construction of
-         * an invalid base href later on. Losing the username part of the URL
-         * is no problem in the reverse proxy case as the browser sents the
-         * credentials anyway once entered.
-         */
-        if (r->proxyreq == PROXYREQ_REVERSE) {
-            site = ap_construct_url(p, "", r);
+    if (NULL == ldc->ldap)
+    {
+        ldc->bound = 0;
+        if (NULL == ldc->reason) {
+            ldc->reason = "LDAP: ldap initialization failed";
         }
         else {
-            /* Save "scheme://site" prefix without password */
-            site = apr_uri_unparse(p, &f->r->parsed_uri,
-                                   APR_URI_UNP_OMITPASSWORD |
-                                   APR_URI_UNP_OMITPATHINFO);
+            ldc->reason = result->reason;
         }
-
-        /* ... and path without query args */
-        path = apr_uri_unparse(p, &f->r->parsed_uri, APR_URI_UNP_OMITSITEPART | APR_URI_UNP_OMITQUERY);
-
-        /* If path began with /%2f, change the basedir */
-        if (strncasecmp(path, "/%2f", 4) == 0) {
-            basedir = "/%2f";
-        }
-
-        /* Strip off a type qualifier. It is ignored for dir listings */
-        if ((type = strstr(path, ";type=")) != NULL)
-            *type++ = '\0';
-
-        (void)decodeenc(path);
-
-        while (path[1] == '/') /* collapse multiple leading slashes to one */
-            ++path;
-
-        reldir = strrchr(path, '/');
-        if (reldir != NULL && ftp_check_globbingchars(reldir)) {
-            wildcard = &reldir[1];
-            reldir[0] = '\0'; /* strip off the wildcard suffix */
-        }
-
-        /* Copy path, strip (all except the last) trailing slashes */
-        /* (the trailing slash is needed for the dir component loop below) */
-        path = dir = apr_pstrcat(p, path, "/", NULL);
-        for (n = strlen(path); n > 1 && path[n - 1] == '/' && path[n - 2] == '/'; --n)
-            path[n - 1] = '\0';
-
-        /* Add a link to the root directory (if %2f hack was used) */
-        str = (basedir[0] != '\0') ? "<a href=\"/%2f/\">%2f</a>/" : "";
-
-        /* print "ftp://host/" */
-        escpath = ap_escape_html(p, path);
-        str = apr_psprintf(p, DOCTYPE_HTML_3_2
-                "<html>\n <head>\n  <title>%s%s%s</title>\n"
-                "<base href=\"%s%s%s\">\n"
-                " </head>\n"
-                " <body>\n  <h2>Directory of "
-                "<a href=\"/\">%s</a>/%s",
-                site, basedir, escpath, site, basedir, escpath, site, str);
-
-        APR_BRIGADE_INSERT_TAIL(out, apr_bucket_pool_create(str, strlen(str),
-                                                          p, c->bucket_alloc));
-
-        for (dir = path+1; (dir = strchr(dir, '/')) != NULL; )
-        {
-            *dir = '\0';
-            if ((reldir = strrchr(path+1, '/'))==NULL) {
-                reldir = path+1;
-            }
-            else
-                ++reldir;
-            /* print "path/" component */
-            str = apr_psprintf(p, "<a href=\"%s%s/\">%s</a>/", basedir,
-                        ap_escape_uri(p, path),
-                        ap_escape_html(p, reldir));
-            *dir = '/';
-            while (*dir == '/')
-              ++dir;
-            APR_BRIGADE_INSERT_TAIL(out, apr_bucket_pool_create(str,
-                                                           strlen(str), p,
-                                                           c->bucket_alloc));
-        }
-        if (wildcard != NULL) {
-            wildcard = ap_escape_html(p, wildcard);
-            APR_BRIGADE_INSERT_TAIL(out, apr_bucket_pool_create(wildcard,
-                                                           strlen(wildcard), p,
-                                                           c->bucket_alloc));
-        }
-
-        /* If the caller has determined the current directory, and it differs */
-        /* from what the client requested, then show the real name */
-        if (pwd == NULL || strncmp(pwd, path, strlen(pwd)) == 0) {
-            str = apr_psprintf(p, "</h2>\n\n  <hr />\n\n<pre>");
-        }
-        else {
-            str = apr_psprintf(p, "</h2>\n\n(%s)\n\n  <hr />\n\n<pre>",
-                               ap_escape_html(p, pwd));
-        }
-        APR_BRIGADE_INSERT_TAIL(out, apr_bucket_pool_create(str, strlen(str),
-                                                           p, c->bucket_alloc));
-
-        /* print README */
-        if (readme) {
-            str = apr_psprintf(p, "%s\n</pre>\n\n<hr />\n\n<pre>\n",
-                               ap_escape_html(p, readme));
-
-            APR_BRIGADE_INSERT_TAIL(out, apr_bucket_pool_create(str,
-                                                           strlen(str), p,
-                                                           c->bucket_alloc));
-        }
-
-        /* make sure page intro gets sent out */
-        APR_BRIGADE_INSERT_TAIL(out, apr_bucket_flush_create(c->bucket_alloc));
-        if (APR_SUCCESS != (rv = ap_pass_brigade(f->next, out))) {
-            return rv;
-        }
-        apr_brigade_cleanup(out);
-
-        ctx->state = BODY;
+        return(result->rc);
     }
 
-    /* loop through each line of directory */
-    while (BODY == ctx->state) {
-        char *filename;
-        int found = 0;
-        int eos = 0;
-
-        ap_regex_t *re = NULL;
-        ap_regmatch_t re_result[LS_REG_MATCH];
-
-        /* Compile the output format of "ls -s1" as a fallback for non-unix ftp listings */
-        re = ap_pregcomp(p, LS_REG_PATTERN, AP_REG_EXTENDED);
-        ap_assert(re != NULL);
-
-        /* get a complete line */
-        /* if the buffer overruns - throw data away */
-        while (!found && !APR_BRIGADE_EMPTY(ctx->in)) {
-            char *pos, *response;
-            apr_size_t len, max;
-            apr_bucket *e;
-
-            e = APR_BRIGADE_FIRST(ctx->in);
-            if (APR_BUCKET_IS_EOS(e)) {
-                eos = 1;
-                break;
-            }
-            if (APR_SUCCESS != (rv = apr_bucket_read(e, (const char **)&response, &len, APR_BLOCK_READ))) {
-                return rv;
-            }
-            pos = memchr(response, APR_ASCII_LF, len);
-            if (pos != NULL) {
-                if ((response + len) != (pos + 1)) {
-                    len = pos - response + 1;
-                    apr_bucket_split(e, pos - response + 1);
-                }
-                found = 1;
-            }
-            max = sizeof(ctx->buffer) - strlen(ctx->buffer) - 1;
-            if (len > max) {
-                len = max;
-            }
-
-            /* len+1 to leave space for the trailing nil char */
-            apr_cpystrn(ctx->buffer+strlen(ctx->buffer), response, len+1);
-
-            APR_BUCKET_REMOVE(e);
-            apr_bucket_destroy(e);
-        }
-
-        /* EOS? jump to footer */
-        if (eos) {
-            ctx->state = FOOTER;
-            break;
-        }
-
-        /* not complete? leave and try get some more */
-        if (!found) {
-            return APR_SUCCESS;
-        }
-
-        {
-            apr_size_t n = strlen(ctx->buffer);
-            if (ctx->buffer[n-1] == CRLF[1])  /* strip trailing '\n' */
-                ctx->buffer[--n] = '\0';
-            if (ctx->buffer[n-1] == CRLF[0])  /* strip trailing '\r' if present */
-                ctx->buffer[--n] = '\0';
-        }
-
-        /* a symlink? */
-        if (ctx->buffer[0] == 'l' && (filename = strstr(ctx->buffer, " -> ")) != NULL) {
-            char *link_ptr = filename;
-
-            do {
-                filename--;
-            } while (filename[0] != ' ' && filename > ctx->buffer);
-            if (filename > ctx->buffer)
-                *(filename++) = '\0';
-            *(link_ptr++) = '\0';
-            str = apr_psprintf(p, "%s <a href=\"%s\">%s %s</a>\n",
-                               ap_escape_html(p, ctx->buffer),
-                               ap_escape_uri(p, filename),
-                               ap_escape_html(p, filename),
-                               ap_escape_html(p, link_ptr));
-        }
-
-        /* a directory/file? */
-        else if (ctx->buffer[0] == 'd' || ctx->buffer[0] == '-' || ctx->buffer[0] == 'l' || apr_isdigit(ctx->buffer[0])) {
-            int searchidx = 0;
-            char *searchptr = NULL;
-            int firstfile = 1;
-            if (apr_isdigit(ctx->buffer[0])) {  /* handle DOS dir */
-                searchptr = strchr(ctx->buffer, '<');
-                if (searchptr != NULL)
-                    *searchptr = '[';
-                searchptr = strchr(ctx->buffer, '>');
-                if (searchptr != NULL)
-                    *searchptr = ']';
-            }
-
-            filename = strrchr(ctx->buffer, ' ');
-            if (filename == NULL) {
-                /* Line is broken.  Ignore it. */
-                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
-                             "proxy_ftp: could not parse line %s", ctx->buffer);
-                /* erase buffer for next time around */
-                ctx->buffer[0] = 0;
-                continue;  /* while state is BODY */
-            }
-            *(filename++) = '\0';
-
-            /* handle filenames with spaces in 'em */
-            if (!strcmp(filename, ".") || !strcmp(filename, "..") || firstfile) {
-                firstfile = 0;
-                searchidx = filename - ctx->buffer;
-            }
-            else if (searchidx != 0 && ctx->buffer[searchidx] != 0) {
-                *(--filename) = ' ';
-                ctx->buffer[searchidx - 1] = '\0';
-                filename = &ctx->buffer[searchidx];
-            }
-
-            /* Append a slash to the HREF link for directories */
-            if (!strcmp(filename, ".") || !strcmp(filename, "..") || ctx->buffer[0] == 'd') {
-                str = apr_psprintf(p, "%s <a href=\"%s/\">%s</a>\n",
-                                   ap_escape_html(p, ctx->buffer),
-                                   ap_escape_uri(p, filename),
-                                   ap_escape_html(p, filename));
-            }
-            else {
-                str = apr_psprintf(p, "%s <a href=\"%s\">%s</a>\n",
-                                   ap_escape_html(p, ctx->buffer),
-                                   ap_escape_uri(p, filename),
-                                   ap_escape_html(p, filename));
-            }
-        }
-        /* Try a fallback for listings in the format of "ls -s1" */
-        else if (0 == ap_regexec(re, ctx->buffer, LS_REG_MATCH, re_result, 0)) {
-
-            filename = apr_pstrndup(p, &ctx->buffer[re_result[2].rm_so], re_result[2].rm_eo - re_result[2].rm_so);
-
-            str = apr_pstrcat(p, ap_escape_html(p, apr_pstrndup(p, ctx->buffer, re_result[2].rm_so)),
-                              "<a href=\"", ap_escape_uri(p, filename), "\">",
-                              ap_escape_html(p, filename), "</a>\n", NULL);
-        }
-        else {
-            strcat(ctx->buffer, "\n"); /* re-append the newline */
-            str = ap_escape_html(p, ctx->buffer);
-        }
-
-        /* erase buffer for next time around */
-        ctx->buffer[0] = 0;
-
-        APR_BRIGADE_INSERT_TAIL(out, apr_bucket_pool_create(str, strlen(str), p,
-                                                            c->bucket_alloc));
-        APR_BRIGADE_INSERT_TAIL(out, apr_bucket_flush_create(c->bucket_alloc));
-        if (APR_SUCCESS != (rv = ap_pass_brigade(f->next, out))) {
-            return rv;
-        }
-        apr_brigade_cleanup(out);
-
+    /* Now that we have an ldap struct, add it to the referral list for rebinds. */
+    rc = apr_ldap_rebind_add(ldc->pool, ldc->ldap, ldc->binddn, ldc->bindpw);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "LDAP: Unable to add rebind cross reference entry. Out of memory?");
+        uldap_connection_unbind(ldc);
+        ldc->reason = "LDAP: Unable to add rebind cross reference entry.";
+        return(rc);
     }
 
-    if (FOOTER == ctx->state) {
-        str = apr_psprintf(p, "</pre>\n\n  <hr />\n\n  %s\n\n </body>\n</html>\n", ap_psignature("", r));
-        APR_BRIGADE_INSERT_TAIL(out, apr_bucket_pool_create(str, strlen(str), p,
-                                                            c->bucket_alloc));
-        APR_BRIGADE_INSERT_TAIL(out, apr_bucket_flush_create(c->bucket_alloc));
-        APR_BRIGADE_INSERT_TAIL(out, apr_bucket_eos_create(c->bucket_alloc));
-        if (APR_SUCCESS != (rv = ap_pass_brigade(f->next, out))) {
-            return rv;
+    /* always default to LDAP V3 */
+    ldap_set_option(ldc->ldap, LDAP_OPT_PROTOCOL_VERSION, &version);
+
+    /* set client certificates */
+    if (!apr_is_empty_array(ldc->client_certs)) {
+        apr_ldap_set_option(r->pool, ldc->ldap, APR_LDAP_OPT_TLS_CERT,
+                            ldc->client_certs, &(result));
+        if (LDAP_SUCCESS != result->rc) {
+            uldap_connection_unbind( ldc );
+            ldc->reason = result->reason;
+            return(result->rc);
         }
-        apr_brigade_destroy(out);
     }
 
-    return APR_SUCCESS;
+    /* switch on SSL/TLS */
+    if (APR_LDAP_NONE != ldc->secure) {
+        apr_ldap_set_option(r->pool, ldc->ldap,
+                            APR_LDAP_OPT_TLS, &ldc->secure, &(result));
+        if (LDAP_SUCCESS != result->rc) {
+            uldap_connection_unbind( ldc );
+            ldc->reason = result->reason;
+            return(result->rc);
+        }
+    }
+
+    /* Set the alias dereferencing option */
+    ldap_option = ldc->deref;
+    ldap_set_option(ldc->ldap, LDAP_OPT_DEREF, &ldap_option);
+
+    /* Set options for rebind and referrals. */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "LDAP: Setting referrals to %s.",
+                 ((ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) ? "On" : "Off"));
+    apr_ldap_set_option(r->pool, ldc->ldap,
+                        APR_LDAP_OPT_REFERRALS,
+                        (void *)((ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) ?
+                                 LDAP_OPT_ON : LDAP_OPT_OFF),
+                        &(result));
+    if (result->rc != LDAP_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "Unable to set LDAP_OPT_REFERRALS option to %s: %d.",
+                     ((ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) ? "On" : "Off"),
+                     result->rc);
+        result->reason = "Unable to set LDAP_OPT_REFERRALS.";
+        ldc->reason = result->reason;
+        uldap_connection_unbind(ldc);
+        return(result->rc);
+    }
+
+    if ((ldc->ReferralHopLimit != AP_LDAP_HOPLIMIT_UNSET) && ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) {
+        /* Referral hop limit - only if referrals are enabled and a hop limit is explicitly requested */
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "Setting referral hop limit to %d.",
+                     ldc->ReferralHopLimit);
+        apr_ldap_set_option(r->pool, ldc->ldap,
+                            APR_LDAP_OPT_REFHOPLIMIT,
+                            (void *)&ldc->ReferralHopLimit,
+                            &(result));
+        if (result->rc != LDAP_SUCCESS) {
+          ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                       "Unable to set LDAP_OPT_REFHOPLIMIT option to %d: %d.",
+                       ldc->ReferralHopLimit,
+                       result->rc);
+          result->reason = "Unable to set LDAP_OPT_REFHOPLIMIT.";
+          ldc->reason = result->reason;
+          uldap_connection_unbind(ldc);
+          return(result->rc);
+        }
+    }
+
+/*XXX All of the #ifdef's need to be removed once apr-util 1.2 is released */
+#ifdef APR_LDAP_OPT_VERIFY_CERT
+    apr_ldap_set_option(r->pool, ldc->ldap, APR_LDAP_OPT_VERIFY_CERT,
+                        &(st->verify_svr_cert), &(result));
+#else
+#if defined(LDAPSSL_VERIFY_SERVER)
+    if (st->verify_svr_cert) {
+        result->rc = ldapssl_set_verify_mode(LDAPSSL_VERIFY_SERVER);
+    }
+    else {
+        result->rc = ldapssl_set_verify_mode(LDAPSSL_VERIFY_NONE);
+    }
+#elif defined(LDAP_OPT_X_TLS_REQUIRE_CERT)
+    /* This is not a per-connection setting so just pass NULL for the
+       Ldap connection handle */
+    if (st->verify_svr_cert) {
+        int i = LDAP_OPT_X_TLS_DEMAND;
+        result->rc = ldap_set_option(NULL, LDAP_OPT_X_TLS_REQUIRE_CERT, &i);
+    }
+    else {
+        int i = LDAP_OPT_X_TLS_NEVER;
+        result->rc = ldap_set_option(NULL, LDAP_OPT_X_TLS_REQUIRE_CERT, &i);
+    }
+#endif
+#endif
+
+#ifdef LDAP_OPT_NETWORK_TIMEOUT
+    if (st->connectionTimeout > 0) {
+        connectionTimeout.tv_sec = st->connectionTimeout;
+    }
+
+    if (st->connectionTimeout >= 0) {
+        rc = apr_ldap_set_option(r->pool, ldc->ldap, LDAP_OPT_NETWORK_TIMEOUT,
+                                 (void *)&connectionTimeout, &(result));
+        if (APR_SUCCESS != rc) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "LDAP: Could not set the connection timeout");
+        }
+    }
+#endif
+
+#ifdef LDAP_OPT_TIMEOUT
+    /*
+     * LDAP_OPT_TIMEOUT is not portable, but it influences all synchronous ldap
+     * function calls and not just ldap_search_ext_s(), which accepts a timeout
+     * parameter.
+     * XXX: It would be possible to simulate LDAP_OPT_TIMEOUT by replacing all
+     * XXX: synchronous ldap function calls with asynchronous calls and using
+     * XXX: ldap_result() with a timeout.
+     */
+    if (st->opTimeout) {
+        rc = apr_ldap_set_option(r->pool, ldc->ldap, LDAP_OPT_TIMEOUT,
+                                 st->opTimeout, &(result));
+        if (APR_SUCCESS != rc) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "LDAP: Could not set LDAP_OPT_TIMEOUT");
+        }
+    }
+#endif
+
+    return(rc);
 }

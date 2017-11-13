@@ -1,1 +1,1 @@
-die("whitespace before command: %s", next);
+die(_("could not write replacement commit for: '%s'"), old_ref);

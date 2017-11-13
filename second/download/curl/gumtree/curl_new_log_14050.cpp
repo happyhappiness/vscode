@@ -1,11 +1,10 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              User and password that might be provided in the proxy string are\n"
+"              URL decoded by curl. This allows you to pass in special  charac-\n"
+"              ters such as @ by using %40 or pass in a colon with %3a.\n"
 "\n"
-"              Added in 7.12.3.\n"
+"              The  proxy host can be specified the exact same way as the proxy\n"
+"              environment variables, including the protocol  prefix  (http://)\n"
+"              and the embedded user + password.\n"
 "\n"
-"       --retry-max-time <seconds>\n"
-"              The  retry  timer  is  reset  before the first transfer attempt.\n"
-"              Retries will be done as usual (see --retry) as long as the timer\n"
-"              hasn't reached this given limit. Notice that if the timer hasn't\n"
-"              reached the limit, the request will be made and  while  perform-\n"
 , stdout);

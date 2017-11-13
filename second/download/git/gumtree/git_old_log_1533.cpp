@@ -1,1 +1,0 @@
-die_errno("unable to read object %s", sha1_to_hex(sha1));

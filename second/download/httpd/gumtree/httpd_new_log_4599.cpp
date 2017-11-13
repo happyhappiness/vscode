@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, APR_FROM_OS_ERROR(rc), ap_server_conf, APLOGNO(00191)
-                     "accept mutex couldn't be accessed in child, exiting");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, res, r, APLOGNO(01833)
+                    "padding is not supported for cipher");

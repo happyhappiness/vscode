@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00201)
-                         "caught %s, shutting down",
-                         (rc == DONE) ? "SIGTERM" : "error");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02830)
+                        "ajp_marshal_into_msgb: "
+                        "Error appending attribute %s=%s",
+                        key, envvar);

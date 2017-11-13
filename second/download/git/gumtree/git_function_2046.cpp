@@ -1,126 +1,91 @@
-static void try_to_simplify_commit(struct rev_info *revs, struct commit *commit)
+static int diff_get_patch_id(struct diff_options *options, unsigned char *sha1)
 {
-	struct commit_list **pp, *parent;
-	struct treesame_state *ts = NULL;
-	int relevant_change = 0, irrelevant_change = 0;
-	int relevant_parents, nth_parent;
+	struct diff_queue_struct *q = &diff_queued_diff;
+	int i;
+	git_SHA_CTX ctx;
+	struct patch_id_t data;
+	char buffer[PATH_MAX * 4 + 20];
 
-	/*
-	 * If we don't do pruning, everything is interesting
-	 */
-	if (!revs->prune)
-		return;
+	git_SHA1_Init(&ctx);
+	memset(&data, 0, sizeof(struct patch_id_t));
+	data.ctx = &ctx;
 
-	if (!commit->tree)
-		return;
+	for (i = 0; i < q->nr; i++) {
+		xpparam_t xpp;
+		xdemitconf_t xecfg;
+		mmfile_t mf1, mf2;
+		struct diff_filepair *p = q->queue[i];
+		int len1, len2;
 
-	if (!commit->parents) {
-		if (rev_same_tree_as_empty(revs, commit))
-			commit->object.flags |= TREESAME;
-		return;
-	}
+		memset(&xpp, 0, sizeof(xpp));
+		memset(&xecfg, 0, sizeof(xecfg));
+		if (p->status == 0)
+			return error("internal diff status error");
+		if (p->status == DIFF_STATUS_UNKNOWN)
+			continue;
+		if (diff_unmodified_pair(p))
+			continue;
+		if ((DIFF_FILE_VALID(p->one) && S_ISDIR(p->one->mode)) ||
+		    (DIFF_FILE_VALID(p->two) && S_ISDIR(p->two->mode)))
+			continue;
+		if (DIFF_PAIR_UNMERGED(p))
+			continue;
 
-	/*
-	 * Normal non-merge commit? If we don't want to make the
-	 * history dense, we consider it always to be a change..
-	 */
-	if (!revs->dense && !commit->parents->next)
-		return;
+		diff_fill_sha1_info(p->one);
+		diff_fill_sha1_info(p->two);
+		if (fill_mmfile(&mf1, p->one) < 0 ||
+				fill_mmfile(&mf2, p->two) < 0)
+			return error("unable to read files to diff");
 
-	for (pp = &commit->parents, nth_parent = 0, relevant_parents = 0;
-	     (parent = *pp) != NULL;
-	     pp = &parent->next, nth_parent++) {
-		struct commit *p = parent->item;
-		if (relevant_commit(p))
-			relevant_parents++;
+		len1 = remove_space(p->one->path, strlen(p->one->path));
+		len2 = remove_space(p->two->path, strlen(p->two->path));
+		if (p->one->mode == 0)
+			len1 = snprintf(buffer, sizeof(buffer),
+					"diff--gita/%.*sb/%.*s"
+					"newfilemode%06o"
+					"---/dev/null"
+					"+++b/%.*s",
+					len1, p->one->path,
+					len2, p->two->path,
+					p->two->mode,
+					len2, p->two->path);
+		else if (p->two->mode == 0)
+			len1 = snprintf(buffer, sizeof(buffer),
+					"diff--gita/%.*sb/%.*s"
+					"deletedfilemode%06o"
+					"---a/%.*s"
+					"+++/dev/null",
+					len1, p->one->path,
+					len2, p->two->path,
+					p->one->mode,
+					len1, p->one->path);
+		else
+			len1 = snprintf(buffer, sizeof(buffer),
+					"diff--gita/%.*sb/%.*s"
+					"---a/%.*s"
+					"+++b/%.*s",
+					len1, p->one->path,
+					len2, p->two->path,
+					len1, p->one->path,
+					len2, p->two->path);
+		git_SHA1_Update(&ctx, buffer, len1);
 
-		if (nth_parent == 1) {
-			/*
-			 * This our second loop iteration - so we now know
-			 * we're dealing with a merge.
-			 *
-			 * Do not compare with later parents when we care only about
-			 * the first parent chain, in order to avoid derailing the
-			 * traversal to follow a side branch that brought everything
-			 * in the path we are limited to by the pathspec.
-			 */
-			if (revs->first_parent_only)
-				break;
-			/*
-			 * If this will remain a potentially-simplifiable
-			 * merge, remember per-parent treesame if needed.
-			 * Initialise the array with the comparison from our
-			 * first iteration.
-			 */
-			if (revs->treesame.name &&
-			    !revs->simplify_history &&
-			    !(commit->object.flags & UNINTERESTING)) {
-				ts = initialise_treesame(revs, commit);
-				if (!(irrelevant_change || relevant_change))
-					ts->treesame[0] = 1;
-			}
-		}
-		if (parse_commit(p) < 0)
-			die("cannot simplify commit %s (because of %s)",
-			    sha1_to_hex(commit->object.sha1),
-			    sha1_to_hex(p->object.sha1));
-		switch (rev_compare_tree(revs, p, commit)) {
-		case REV_TREE_SAME:
-			if (!revs->simplify_history || !relevant_commit(p)) {
-				/* Even if a merge with an uninteresting
-				 * side branch brought the entire change
-				 * we are interested in, we do not want
-				 * to lose the other branches of this
-				 * merge, so we just keep going.
-				 */
-				if (ts)
-					ts->treesame[nth_parent] = 1;
-				continue;
-			}
-			parent->next = NULL;
-			commit->parents = parent;
-			commit->object.flags |= TREESAME;
-			return;
-
-		case REV_TREE_NEW:
-			if (revs->remove_empty_trees &&
-			    rev_same_tree_as_empty(revs, p)) {
-				/* We are adding all the specified
-				 * paths from this parent, so the
-				 * history beyond this parent is not
-				 * interesting.  Remove its parents
-				 * (they are grandparents for us).
-				 * IOW, we pretend this parent is a
-				 * "root" commit.
-				 */
-				if (parse_commit(p) < 0)
-					die("cannot simplify commit %s (invalid %s)",
-					    sha1_to_hex(commit->object.sha1),
-					    sha1_to_hex(p->object.sha1));
-				p->parents = NULL;
-			}
-		/* fallthrough */
-		case REV_TREE_OLD:
-		case REV_TREE_DIFFERENT:
-			if (relevant_commit(p))
-				relevant_change = 1;
-			else
-				irrelevant_change = 1;
+		if (diff_filespec_is_binary(p->one) ||
+		    diff_filespec_is_binary(p->two)) {
+			git_SHA1_Update(&ctx, sha1_to_hex(p->one->sha1), 40);
+			git_SHA1_Update(&ctx, sha1_to_hex(p->two->sha1), 40);
 			continue;
 		}
-		die("bad tree compare for commit %s", sha1_to_hex(commit->object.sha1));
+
+		xpp.flags = 0;
+		xecfg.ctxlen = 3;
+		xecfg.flags = 0;
+		if (xdi_diff_outf(&mf1, &mf2, patch_id_consume, &data,
+				  &xpp, &xecfg))
+			return error("unable to generate patch-id diff for %s",
+				     p->one->path);
 	}
 
-	/*
-	 * TREESAME is straightforward for single-parent commits. For merge
-	 * commits, it is most useful to define it so that "irrelevant"
-	 * parents cannot make us !TREESAME - if we have any relevant
-	 * parents, then we only consider TREESAMEness with respect to them,
-	 * allowing irrelevant merges from uninteresting branches to be
-	 * simplified away. Only if we have only irrelevant parents do we
-	 * base TREESAME on them. Note that this logic is replicated in
-	 * update_treesame, which should be kept in sync.
-	 */
-	if (relevant_parents ? !relevant_change : !irrelevant_change)
-		commit->object.flags |= TREESAME;
+	git_SHA1_Final(sha1, &ctx);
+	return 0;
 }

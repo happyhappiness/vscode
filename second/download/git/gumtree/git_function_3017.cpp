@@ -1,80 +1,111 @@
-int sequencer_pick_revisions(struct replay_opts *opts)
+void wt_status_print(struct wt_status *s)
 {
-	struct commit_list *todo_list = NULL;
-	unsigned char sha1[20];
-	int i;
+	const char *branch_color = color(WT_STATUS_ONBRANCH, s);
+	const char *branch_status_color = color(WT_STATUS_HEADER, s);
+	struct wt_status_state state;
 
-	if (opts->subcommand == REPLAY_NONE)
-		assert(opts->revs);
+	memset(&state, 0, sizeof(state));
+	wt_status_get_state(&state,
+			    s->branch && !strcmp(s->branch, "HEAD"));
 
-	read_and_refresh_cache(opts);
-
-	/*
-	 * Decide what to do depending on the arguments; a fresh
-	 * cherry-pick should be handled differently from an existing
-	 * one that is being continued
-	 */
-	if (opts->subcommand == REPLAY_REMOVE_STATE) {
-		remove_sequencer_state();
-		return 0;
-	}
-	if (opts->subcommand == REPLAY_ROLLBACK)
-		return sequencer_rollback(opts);
-	if (opts->subcommand == REPLAY_CONTINUE)
-		return sequencer_continue(opts);
-
-	for (i = 0; i < opts->revs->pending.nr; i++) {
-		unsigned char sha1[20];
-		const char *name = opts->revs->pending.objects[i].name;
-
-		/* This happens when using --stdin. */
-		if (!strlen(name))
-			continue;
-
-		if (!get_sha1(name, sha1)) {
-			if (!lookup_commit_reference_gently(sha1, 1)) {
-				enum object_type type = sha1_object_info(sha1, NULL);
-				die(_("%s: can't cherry-pick a %s"), name, typename(type));
+	if (s->branch) {
+		const char *on_what = _("On branch ");
+		const char *branch_name = s->branch;
+		if (!strcmp(branch_name, "HEAD")) {
+			branch_status_color = color(WT_STATUS_NOBRANCH, s);
+			if (state.rebase_in_progress || state.rebase_interactive_in_progress) {
+				if (state.rebase_interactive_in_progress)
+					on_what = _("interactive rebase in progress; onto ");
+				else
+					on_what = _("rebase in progress; onto ");
+				branch_name = state.onto;
+			} else if (state.detached_from) {
+				branch_name = state.detached_from;
+				if (state.detached_at)
+					on_what = _("HEAD detached at ");
+				else
+					on_what = _("HEAD detached from ");
+			} else {
+				branch_name = "";
+				on_what = _("Not currently on any branch.");
 			}
 		} else
-			die(_("%s: bad revision"), name);
+			skip_prefix(branch_name, "refs/heads/", &branch_name);
+		status_printf(s, color(WT_STATUS_HEADER, s), "%s", "");
+		status_printf_more(s, branch_status_color, "%s", on_what);
+		status_printf_more(s, branch_color, "%s\n", branch_name);
+		if (!s->is_initial)
+			wt_status_print_tracking(s);
 	}
 
-	/*
-	 * If we were called as "git cherry-pick <commit>", just
-	 * cherry-pick/revert it, set CHERRY_PICK_HEAD /
-	 * REVERT_HEAD, and don't touch the sequencer state.
-	 * This means it is possible to cherry-pick in the middle
-	 * of a cherry-pick sequence.
-	 */
-	if (opts->revs->cmdline.nr == 1 &&
-	    opts->revs->cmdline.rev->whence == REV_CMD_REV &&
-	    opts->revs->no_walk &&
-	    !opts->revs->cmdline.rev->flags) {
-		struct commit *cmit;
-		if (prepare_revision_walk(opts->revs))
-			die(_("revision walk setup failed"));
-		cmit = get_revision(opts->revs);
-		if (!cmit || get_revision(opts->revs))
-			die("BUG: expected exactly one commit from walk");
-		return single_pick(cmit, opts);
+	wt_status_print_state(s, &state);
+	free(state.branch);
+	free(state.onto);
+	free(state.detached_from);
+
+	if (s->is_initial) {
+		status_printf_ln(s, color(WT_STATUS_HEADER, s), "%s", "");
+		status_printf_ln(s, color(WT_STATUS_HEADER, s), _("Initial commit"));
+		status_printf_ln(s, color(WT_STATUS_HEADER, s), "%s", "");
 	}
 
-	/*
-	 * Start a new cherry-pick/ revert sequence; but
-	 * first, make sure that an existing one isn't in
-	 * progress
-	 */
-
-	walk_revs_populate_todo(&todo_list, opts);
-	if (create_seq_dir() < 0)
-		return -1;
-	if (get_sha1("HEAD", sha1)) {
-		if (opts->action == REPLAY_REVERT)
-			return error(_("Can't revert as initial commit"));
-		return error(_("Can't cherry-pick into empty head"));
+	wt_status_print_updated(s);
+	wt_status_print_unmerged(s);
+	wt_status_print_changed(s);
+	if (s->submodule_summary &&
+	    (!s->ignore_submodule_arg ||
+	     strcmp(s->ignore_submodule_arg, "all"))) {
+		wt_status_print_submodule_summary(s, 0);  /* staged */
+		wt_status_print_submodule_summary(s, 1);  /* unstaged */
 	}
-	save_head(sha1_to_hex(sha1));
-	save_opts(opts);
-	return pick_commits(todo_list, opts);
+	if (s->show_untracked_files) {
+		wt_status_print_other(s, &s->untracked, _("Untracked files"), "add");
+		if (s->show_ignored_files)
+			wt_status_print_other(s, &s->ignored, _("Ignored files"), "add -f");
+		if (advice_status_u_option && 2000 < s->untracked_in_ms) {
+			status_printf_ln(s, GIT_COLOR_NORMAL, "%s", "");
+			status_printf_ln(s, GIT_COLOR_NORMAL,
+					 _("It took %.2f seconds to enumerate untracked files. 'status -uno'\n"
+					   "may speed it up, but you have to be careful not to forget to add\n"
+					   "new files yourself (see 'git help status')."),
+					 s->untracked_in_ms / 1000.0);
+		}
+	} else if (s->commitable)
+		status_printf_ln(s, GIT_COLOR_NORMAL, _("Untracked files not listed%s"),
+			s->hints
+			? _(" (use -u option to show untracked files)") : "");
+
+	if (s->verbose)
+		wt_status_print_verbose(s);
+	if (!s->commitable) {
+		if (s->amend)
+			status_printf_ln(s, GIT_COLOR_NORMAL, _("No changes"));
+		else if (s->nowarn)
+			; /* nothing */
+		else if (s->workdir_dirty) {
+			if (s->hints)
+				printf(_("no changes added to commit "
+					 "(use \"git add\" and/or \"git commit -a\")\n"));
+			else
+				printf(_("no changes added to commit\n"));
+		} else if (s->untracked.nr) {
+			if (s->hints)
+				printf(_("nothing added to commit but untracked files "
+					 "present (use \"git add\" to track)\n"));
+			else
+				printf(_("nothing added to commit but untracked files present\n"));
+		} else if (s->is_initial) {
+			if (s->hints)
+				printf(_("nothing to commit (create/copy files "
+					 "and use \"git add\" to track)\n"));
+			else
+				printf(_("nothing to commit\n"));
+		} else if (!s->show_untracked_files) {
+			if (s->hints)
+				printf(_("nothing to commit (use -u to show untracked files)\n"));
+			else
+				printf(_("nothing to commit\n"));
+		} else
+			printf(_("nothing to commit, working directory clean\n"));
+	}
 }

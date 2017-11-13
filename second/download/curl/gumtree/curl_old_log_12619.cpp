@@ -1,12 +1,8 @@
 fputs(
-"       -2, --sslv2\n"
-"              (SSL) Forces curl to use SSL version 2 when negotiating  with  a\n"
-"              remote  SSL  server.  Sometimes curl is built without SSLv2 sup-\n"
-"              port. SSLv2 is widely considered insecure (see RFC 6176).\n"
-"\n"
-"       -3, --sslv3\n"
-"              (SSL) Forces curl to use SSL version 3 when negotiating  with  a\n"
-"              remote  SSL  server.  Sometimes curl is built without SSLv3 sup-\n"
-"              port. SSLv3 is widely considered insecure (see RFC 7568).\n"
-"\n"
+"  certificate needs to be in PEM-format. PEM is a standard and open format to\n"
+"  store certificates with, but it is not used by the most commonly used\n"
+"  browsers (Netscape and MSIE both use the so called PKCS#12 format). If you\n"
+"  want curl to use the certificates you use with your (favourite) browser, you\n"
+"  may need to download/compile a converter that can convert your browser's\n"
+"  formatted certificates to PEM formatted ones. This kind of converter is\n"
 , stdout);

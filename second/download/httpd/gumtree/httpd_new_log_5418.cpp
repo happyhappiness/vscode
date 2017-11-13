@@ -1,5 +1,6 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, io->c,
-                      "h2_conn_io(%ld): init, buffering=%d, warmup_size=%ld, "
-                      "cd_secs=%f", io->c->id, io->buffer_output, 
-                      (long)io->warmup_size,
-                      ((float)io->cooldown_usecs/APR_USEC_PER_SEC));
+ap_log_error(APLOG_MARK, APLOG_NOTICE,
+                             0, ap_server_conf, APLOGNO(00051)
+                             "child pid %ld exit signal %s (%d), "
+                             "possible coredump in %s",
+                             (long)pid->pid, sigdesc, signum,
+                             ap_coredump_dir);

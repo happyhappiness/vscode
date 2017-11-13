@@ -1,1 +1,1 @@
-die(_("expected shallow/unshallow, got %s"), line);
+die("object %s changed type!?", oid_to_hex(oid));

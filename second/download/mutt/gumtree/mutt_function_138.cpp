@@ -1,88 +1,58 @@
-int imap_fast_trash (CONTEXT* ctx, char* dest)
+static void redraw_crypt_lines (HEADER *msg)
 {
-  IMAP_DATA* idata;
-  char mbox[LONG_STRING];
-  char mmbox[LONG_STRING];
-  char prompt[LONG_STRING];
-  int rc;
-  IMAP_MBOX mx;
-  int triedcreate = 0;
+  mvaddstr (HDR_CRYPT, 0, "Security: ");
 
-  idata = (IMAP_DATA*) ctx->data;
-
-  if (imap_parse_path (dest, &mx))
+  if ((WithCrypto & (APPLICATION_PGP | APPLICATION_SMIME)) == 0)
   {
-    dprint (1, (debugfile, "imap_fast_trash: bad destination %s\n", dest));
-    return -1;
+    addstr(_("Not supported"));
+    return;
   }
 
-  /* check that the save-to folder is in the same account */
-  if (!mutt_account_match (&(CTX_DATA->conn->account), &(mx.account)))
-  {
-    dprint (3, (debugfile, "imap_fast_trash: %s not same server as %s\n",
-      dest, ctx->path));
-    return 1;
-  }
+  if ((msg->security & (ENCRYPT | SIGN)) == (ENCRYPT | SIGN))
+    addstr (_("Sign, Encrypt"));
+  else if (msg->security & ENCRYPT)
+    addstr (_("Encrypt"));
+  else if (msg->security & SIGN)
+    addstr (_("Sign"));
+  else
+    addstr (_("None"));
 
-  imap_fix_path (idata, mx.mbox, mbox, sizeof (mbox));
-  if (!*mbox)
-    strfcpy (mbox, "INBOX", sizeof (mbox));
-  imap_munge_mbox_name (idata, mmbox, sizeof (mmbox), mbox);
-
-  /* loop in case of TRYCREATE */
-  do
+  if ((msg->security & (ENCRYPT | SIGN)))
   {
-    rc = imap_exec_msgset (idata, "UID COPY", mmbox, MUTT_TRASH, 0, 0);
-    if (!rc)
+    if ((WithCrypto & APPLICATION_PGP) && (msg->security & APPLICATION_PGP))
     {
-      dprint (1, (debugfile, "imap_fast_trash: No messages to trash\n"));
-      rc = -1;
-      goto out;
+      if ((msg->security & INLINE))
+        addstr (_(" (inline PGP)"));
+      else
+        addstr (_(" (PGP/MIME)"));
     }
-    else if (rc < 0)
-    {
-      dprint (1, (debugfile, "could not queue copy\n"));
-      goto out;
-    }
-    else
-      mutt_message (_("Copying %d messages to %s..."), rc, mbox);
-
-    /* let's get it on */
-    rc = imap_exec (idata, NULL, IMAP_CMD_FAIL_OK);
-    if (rc == -2)
-    {
-      if (triedcreate)
-      {
-        dprint (1, (debugfile, "Already tried to create mailbox %s\n", mbox));
-        break;
-      }
-      /* bail out if command failed for reasons other than nonexistent target */
-      if (ascii_strncasecmp (imap_get_qualifier (idata->buf), "[TRYCREATE]", 11))
-        break;
-      dprint (3, (debugfile, "imap_fast_trash: server suggests TRYCREATE\n"));
-      snprintf (prompt, sizeof (prompt), _("Create %s?"), mbox);
-      if (option (OPTCONFIRMCREATE) && mutt_yesorno (prompt, 1) < 1)
-      {
-        mutt_clear_error ();
-        goto out;
-      }
-      if (imap_create_mailbox (idata, mbox) < 0)
-        break;
-      triedcreate = 1;
-    }
-  }
-  while (rc == -2);
-
-  if (rc != 0)
-  {
-    imap_error ("imap_fast_trash", idata->buf);
-    goto out;
+    else if ((WithCrypto & APPLICATION_SMIME) &&
+             (msg->security & APPLICATION_SMIME))
+      addstr (_(" (S/MIME)"));
   }
 
-  rc = 0;
+  if (option (OPTCRYPTOPPORTUNISTICENCRYPT) && (msg->security & OPPENCRYPT))
+      addstr (_(" (OppEnc mode)"));
 
- out:
-  FREE (&mx.mbox);
+  clrtoeol ();
+  move (HDR_CRYPTINFO, 0);
+  clrtoeol ();
 
-  return rc < 0 ? -1 : rc;
+  if ((WithCrypto & APPLICATION_PGP)
+      && (msg->security & APPLICATION_PGP) && (msg->security & SIGN))
+    printw ("%s%s", _(" sign as: "), PgpSignAs ? PgpSignAs : _("<default>"));
+
+  if ((WithCrypto & APPLICATION_SMIME)
+      && (msg->security & APPLICATION_SMIME) && (msg->security & SIGN)) {
+      printw ("%s%s", _(" sign as: "), SmimeDefaultKey ? SmimeDefaultKey : _("<default>"));
+  }
+
+  if ((WithCrypto & APPLICATION_SMIME)
+      && (msg->security & APPLICATION_SMIME)
+      && (msg->security & ENCRYPT)
+      && SmimeCryptAlg
+      && *SmimeCryptAlg) {
+      mvprintw (HDR_CRYPTINFO, 40, "%s%s", _("Encrypt with: "),
+		NONULL(SmimeCryptAlg));
+  }
 }

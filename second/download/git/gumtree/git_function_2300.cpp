@@ -1,86 +1,44 @@
-static void init_submodule(const char *path, const char *prefix, int quiet)
+static void get_commit_info(struct am_state *state, struct commit *commit)
 {
-	const struct submodule *sub;
+	const char *buffer, *ident_line, *author_date, *msg;
+	size_t ident_len;
+	struct ident_split ident_split;
 	struct strbuf sb = STRBUF_INIT;
-	char *upd = NULL, *url = NULL, *displaypath;
 
-	/* Only loads from .gitmodules, no overlay with .git/config */
-	gitmodules_config();
+	buffer = logmsg_reencode(commit, NULL, get_commit_output_encoding());
 
-	if (prefix) {
-		strbuf_addf(&sb, "%s%s", prefix, path);
-		displaypath = strbuf_detach(&sb, NULL);
+	ident_line = find_commit_header(buffer, "author", &ident_len);
+
+	if (split_ident_line(&ident_split, ident_line, ident_len) < 0) {
+		strbuf_add(&sb, ident_line, ident_len);
+		die(_("invalid ident line: %s"), sb.buf);
+	}
+
+	assert(!state->author_name);
+	if (ident_split.name_begin) {
+		strbuf_add(&sb, ident_split.name_begin,
+			ident_split.name_end - ident_split.name_begin);
+		state->author_name = strbuf_detach(&sb, NULL);
 	} else
-		displaypath = xstrdup(path);
+		state->author_name = xstrdup("");
 
-	sub = submodule_from_path(null_sha1, path);
+	assert(!state->author_email);
+	if (ident_split.mail_begin) {
+		strbuf_add(&sb, ident_split.mail_begin,
+			ident_split.mail_end - ident_split.mail_begin);
+		state->author_email = strbuf_detach(&sb, NULL);
+	} else
+		state->author_email = xstrdup("");
 
-	if (!sub)
-		die(_("No url found for submodule path '%s' in .gitmodules"),
-			displaypath);
+	author_date = show_ident_date(&ident_split, DATE_MODE(NORMAL));
+	strbuf_addstr(&sb, author_date);
+	assert(!state->author_date);
+	state->author_date = strbuf_detach(&sb, NULL);
 
-	/*
-	 * Copy url setting when it is not set yet.
-	 * To look up the url in .git/config, we must not fall back to
-	 * .gitmodules, so look it up directly.
-	 */
-	strbuf_reset(&sb);
-	strbuf_addf(&sb, "submodule.%s.url", sub->name);
-	if (git_config_get_string(sb.buf, &url)) {
-		url = xstrdup(sub->url);
-
-		if (!url)
-			die(_("No url found for submodule path '%s' in .gitmodules"),
-				displaypath);
-
-		/* Possibly a url relative to parent */
-		if (starts_with_dot_dot_slash(url) ||
-		    starts_with_dot_slash(url)) {
-			char *remoteurl, *relurl;
-			char *remote = get_default_remote();
-			struct strbuf remotesb = STRBUF_INIT;
-			strbuf_addf(&remotesb, "remote.%s.url", remote);
-			free(remote);
-
-			if (git_config_get_string(remotesb.buf, &remoteurl))
-				/*
-				 * The repository is its own
-				 * authoritative upstream
-				 */
-				remoteurl = xgetcwd();
-			relurl = relative_url(remoteurl, url, NULL);
-			strbuf_release(&remotesb);
-			free(remoteurl);
-			free(url);
-			url = relurl;
-		}
-
-		if (git_config_set_gently(sb.buf, url))
-			die(_("Failed to register url for submodule path '%s'"),
-			    displaypath);
-		if (!quiet)
-			fprintf(stderr,
-				_("Submodule '%s' (%s) registered for path '%s'\n"),
-				sub->name, url, displaypath);
-	}
-
-	/* Copy "update" setting when it is not set yet */
-	strbuf_reset(&sb);
-	strbuf_addf(&sb, "submodule.%s.update", sub->name);
-	if (git_config_get_string(sb.buf, &upd) &&
-	    sub->update_strategy.type != SM_UPDATE_UNSPECIFIED) {
-		if (sub->update_strategy.type == SM_UPDATE_COMMAND) {
-			fprintf(stderr, _("warning: command update mode suggested for submodule '%s'\n"),
-				sub->name);
-			upd = xstrdup("none");
-		} else
-			upd = xstrdup(submodule_strategy_to_string(&sub->update_strategy));
-
-		if (git_config_set_gently(sb.buf, upd))
-			die(_("Failed to register update mode for submodule path '%s'"), displaypath);
-	}
-	strbuf_release(&sb);
-	free(displaypath);
-	free(url);
-	free(upd);
+	assert(!state->msg);
+	msg = strstr(buffer, "\n\n");
+	if (!msg)
+		die(_("unable to parse commit %s"), sha1_to_hex(commit->object.sha1));
+	state->msg = xstrdup(msg + 2);
+	state->msg_len = strlen(state->msg);
 }

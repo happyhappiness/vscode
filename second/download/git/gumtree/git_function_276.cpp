@@ -1,17 +1,25 @@
-static int merge_abort(struct notes_merge_options *o)
+static int load_patch_target(struct apply_state *state,
+			     struct strbuf *buf,
+			     const struct cache_entry *ce,
+			     struct stat *st,
+			     const char *name,
+			     unsigned expected_mode)
 {
-	int ret = 0;
-
-	/*
-	 * Remove .git/NOTES_MERGE_PARTIAL and .git/NOTES_MERGE_REF, and call
-	 * notes_merge_abort() to remove .git/NOTES_MERGE_WORKTREE.
-	 */
-
-	if (delete_ref("NOTES_MERGE_PARTIAL", NULL, 0))
-		ret += error("Failed to delete ref NOTES_MERGE_PARTIAL");
-	if (delete_ref("NOTES_MERGE_REF", NULL, REF_NODEREF))
-		ret += error("Failed to delete ref NOTES_MERGE_REF");
-	if (notes_merge_abort(o))
-		ret += error("Failed to remove 'git notes merge' worktree");
-	return ret;
+	if (state->cached || state->check_index) {
+		if (read_file_or_gitlink(ce, buf))
+			return error(_("failed to read %s"), name);
+	} else if (name) {
+		if (S_ISGITLINK(expected_mode)) {
+			if (ce)
+				return read_file_or_gitlink(ce, buf);
+			else
+				return SUBMODULE_PATCH_WITHOUT_INDEX;
+		} else if (has_symlink_leading_path(name, strlen(name))) {
+			return error(_("reading from '%s' beyond a symbolic link"), name);
+		} else {
+			if (read_old_data(st, name, buf))
+				return error(_("failed to read %s"), name);
+		}
+	}
+	return 0;
 }

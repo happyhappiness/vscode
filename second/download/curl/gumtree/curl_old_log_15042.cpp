@@ -1,9 +1,11 @@
 fputs(
-"              in-memory cookie storage to the given file at the end of  opera-\n"
-"              tions.  If  no  cookies  are known, no data will be written. The\n"
-"              file will be written using the Netscape cookie file  format.  If\n"
-"              you set the file name to a single dash, \"-\", the cookies will be\n"
-"              written to stdout.\n"
+"              Note  that  to  be able to specify a URL in the config file, you\n"
+"              need to specify it using the --url option,  and  not  by  simply\n"
+"              writing  the  URL  on its own line. So, it could look similar to\n"
+"              this:\n"
 "\n"
-"              This command line option will activate the  cookie  engine  that\n"
+"              url = \"https://curl.haxx.se/docs/\"\n"
+"\n"
+"              When curl is invoked, it always (unless -q, --disable  is  used)\n"
+"              checks  for  a  default  config  file  and uses it if found. The\n"
 , stdout);

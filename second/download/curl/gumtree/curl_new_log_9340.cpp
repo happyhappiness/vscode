@@ -1,10 +1,9 @@
 fputs(
-"              (HTTP) Request a compressed response using one of the algorithms\n"
-"              curl supports, and save  the  uncompressed  document.   If  this\n"
-"              option  is  used  and  the server sends an unsupported encoding,\n"
-"              curl will report an error.\n"
+"              Continue/Resume  a  previous  file transfer at the given offset.\n"
+"              The given offset is the exact  number  of  bytes  that  will  be\n"
+"              skipped,  counting  from the beginning of the source file before\n"
+"              it is transferred to the destination.  If used with uploads, the\n"
+"              FTP server command SIZE will not be used by curl.\n"
 "\n"
-"       --connect-timeout <seconds>\n"
-"              Maximum time in seconds that  you  allow  curl's  connection  to\n"
-"              take.   This  only  limits the connection phase, so if curl con-\n"
+"              Use  \"-C  -\" to tell curl to automatically find out where/how to\n"
 , stdout);

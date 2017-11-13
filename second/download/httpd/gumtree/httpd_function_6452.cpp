@@ -1,24 +1,49 @@
-static void menu_default(request_rec *r, const char *menu, const char *href, const char *text)
+apr_status_t h2_stream_out_prepare(h2_stream *stream,
+                                   apr_off_t *plen, int *peos)
 {
-    char *ehref, *etext;
-    if (!strcasecmp(href, "error") || !strcasecmp(href, "nocontent")) {
-        return;                 /* don't print such lines, these aren't
-                                   really href's */
+    conn_rec *c = stream->session->c;
+    apr_status_t status = APR_SUCCESS;
+    apr_off_t requested;
+
+    if (stream->rst_error) {
+        *plen = 0;
+        *peos = 1;
+        return APR_ECONNRESET;
     }
 
-    ehref = ap_escape_uri(r->pool, href);
-    etext = ap_escape_html(r->pool, text);
-
-    if (!strcasecmp(menu, "formatted")) {
-        ap_rvputs(r, "<pre>(Default) <a href=\"", ehref, "\">", etext,
-                     "</a></pre>\n", NULL);
+    if (*plen > 0) {
+        requested = H2MIN(*plen, DATA_CHUNK_SIZE);
     }
-    else if (!strcasecmp(menu, "semiformatted")) {
-        ap_rvputs(r, "<pre>(Default) <a href=\"", ehref, "\">", etext,
-               "</a></pre>\n", NULL);
+    else {
+        requested = DATA_CHUNK_SIZE;
     }
-    else if (!strcasecmp(menu, "unformatted")) {
-        ap_rvputs(r, "<a href=\"", ehref, "\">", etext, "</a>", NULL);
+    *plen = requested;
+    
+    H2_STREAM_OUT_LOG(APLOG_TRACE2, stream, "h2_stream_out_prepare_pre");
+    h2_util_bb_avail(stream->buffer, plen, peos);
+    if (!*peos && *plen < requested) {
+        /* try to get more data */
+        status = fill_buffer(stream, (requested - *plen) + DATA_CHUNK_SIZE);
+        if (APR_STATUS_IS_EOF(status)) {
+            apr_bucket *eos = apr_bucket_eos_create(c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(stream->buffer, eos);
+            status = APR_SUCCESS;
+        }
+        else if (status == APR_EAGAIN) {
+            /* did not receive more, it's ok */
+            status = APR_SUCCESS;
+        }
+        *plen = requested;
+        h2_util_bb_avail(stream->buffer, plen, peos);
     }
-    return;
+    H2_STREAM_OUT_LOG(APLOG_TRACE2, stream, "h2_stream_out_prepare_post");
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, c,
+                  "h2_stream(%ld-%d): prepare, len=%ld eos=%d, trailers=%s",
+                  c->id, stream->id, (long)*plen, *peos,
+                  (stream->response && stream->response->trailers)? 
+                  "yes" : "no");
+    if (!*peos && !*plen && status == APR_SUCCESS) {
+        return APR_EAGAIN;
+    }
+    return status;
 }

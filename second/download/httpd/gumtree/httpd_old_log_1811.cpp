@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, srvr,
-            "+-------------------------------------------------------------------------+");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, error, expr,
+                              r->filename);

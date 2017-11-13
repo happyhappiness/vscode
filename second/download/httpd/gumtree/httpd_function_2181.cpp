@@ -1,63 +1,82 @@
-static proxy_worker *find_best_worker(proxy_balancer *balancer,
-                                      request_rec *r)
+static int netware_check_config(apr_pool_t *p, apr_pool_t *plog,
+                                apr_pool_t *ptemp, server_rec *s)
 {
-    proxy_worker *candidate = NULL;
-    apr_status_t rv;
+    static int restart_num = 0;
+    int startup = 0;
 
-    if ((rv = PROXY_THREAD_LOCK(balancer)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-        "proxy: BALANCER: (%s). Lock failed for find_best_worker()", balancer->name);
-        return NULL;
+    /* we want this only the first time around */
+    if (restart_num++ == 0) {
+        startup = 1;
     }
 
-    candidate = (*balancer->lbmethod->finder)(balancer, r);
-
-    if (candidate)
-        candidate->s->elected++;
-
-/*
-        PROXY_THREAD_UNLOCK(balancer);
-        return NULL;
-*/
-
-    if ((rv = PROXY_THREAD_UNLOCK(balancer)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-        "proxy: BALANCER: (%s). Unlock failed for find_best_worker()", balancer->name);
-    }
-
-    if (candidate == NULL) {
-        /* All the workers are in error state or disabled.
-         * If the balancer has a timeout sleep for a while
-         * and try again to find the worker. The chances are
-         * that some other thread will release a connection.
-         * By default the timeout is not set, and the server
-         * returns SERVER_BUSY.
-         */
-#if APR_HAS_THREADS
-        if (balancer->timeout) {
-            /* XXX: This can perhaps be build using some
-             * smarter mechanism, like tread_cond.
-             * But since the statuses can came from
-             * different childs, use the provided algo.
-             */
-            apr_interval_time_t timeout = balancer->timeout;
-            apr_interval_time_t step, tval = 0;
-            /* Set the timeout to 0 so that we don't
-             * end in infinite loop
-             */
-            balancer->timeout = 0;
-            step = timeout / 100;
-            while (tval < timeout) {
-                apr_sleep(step);
-                /* Try again */
-                if ((candidate = find_best_worker(balancer, r)))
-                    break;
-                tval += step;
-            }
-            /* restore the timeout */
-            balancer->timeout = timeout;
+    if (ap_threads_limit > HARD_THREAD_LIMIT) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxThreads of %d exceeds compile-time "
+                         "limit of", ap_threads_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d threads, decreasing to %d.",
+                         HARD_THREAD_LIMIT, HARD_THREAD_LIMIT);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " To increase, please see the HARD_THREAD_LIMIT"
+                         "define in");
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " server/mpm/netware%s.", MPM_HARD_LIMITS_FILE);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxThreads of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         ap_threads_limit, HARD_THREAD_LIMIT);
         }
-#endif
+        ap_threads_limit = HARD_THREAD_LIMIT;
     }
-    return candidate;
+    else if (ap_threads_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxThreads of %d not allowed, "
+                         "increasing to 1.", ap_threads_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxThreads of %d not allowed, increasing to 1",
+                         ap_threads_limit);
+        }
+        ap_threads_limit = 1;
+    }
+
+    /* ap_threads_to_start > ap_threads_limit effectively checked in
+     * call to startup_workers(ap_threads_to_start) in ap_mpm_run()
+     */
+    if (ap_threads_to_start < 0) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: StartThreads of %d not allowed, "
+                         "increasing to 1.", ap_threads_to_start);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "StartThreads of %d not allowed, increasing to 1",
+                         ap_threads_to_start);
+        }
+        ap_threads_to_start = 1;
+    }
+
+    if (ap_threads_min_free < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MinSpareThreads of %d not allowed, "
+                         "increasing to 1", ap_threads_min_free);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " to avoid almost certain server failure.");
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " Please read the documentation.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MinSpareThreads of %d not allowed, increasing to 1",
+                         ap_threads_min_free);
+        }
+        ap_threads_min_free = 1;
+    }
+
+    /* ap_threads_max_free < ap_threads_min_free + 1 checked in ap_mpm_run() */
+
+    return OK;
 }

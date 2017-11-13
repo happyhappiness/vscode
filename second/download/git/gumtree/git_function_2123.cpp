@@ -1,40 +1,44 @@
-void shortlog_output(struct shortlog *log)
+static int add(int ac, const char **av, const char *prefix)
 {
-	int i, j;
-	struct strbuf sb = STRBUF_INIT;
+	int force = 0, detach = 0;
+	const char *new_branch = NULL, *new_branch_force = NULL;
+	const char *path, *branch;
+	struct argv_array cmd = ARGV_ARRAY_INIT;
+	struct option options[] = {
+		OPT__FORCE(&force, N_("checkout <branch> even if already checked out in other worktree")),
+		OPT_STRING('b', NULL, &new_branch, N_("branch"),
+			   N_("create a new branch")),
+		OPT_STRING('B', NULL, &new_branch_force, N_("branch"),
+			   N_("create or reset a branch")),
+		OPT_BOOL(0, "detach", &detach, N_("detach HEAD at named commit")),
+		OPT_END()
+	};
 
-	if (log->sort_by_number)
-		qsort(log->list.items, log->list.nr, sizeof(struct string_list_item),
-			compare_by_number);
-	for (i = 0; i < log->list.nr; i++) {
-		struct string_list *onelines = log->list.items[i].util;
+	ac = parse_options(ac, av, prefix, options, worktree_usage, 0);
+	if (new_branch && new_branch_force)
+		die(_("-b and -B are mutually exclusive"));
+	if (ac < 1 || ac > 2)
+		usage_with_options(worktree_usage, options);
 
-		if (log->summary) {
-			printf("%6d\t%s\n", onelines->nr, log->list.items[i].string);
-		} else {
-			printf("%s (%d):\n", log->list.items[i].string, onelines->nr);
-			for (j = onelines->nr - 1; j >= 0; j--) {
-				const char *msg = onelines->items[j].string;
+	path = prefix ? prefix_filename(prefix, strlen(prefix), av[0]) : av[0];
+	branch = ac < 2 ? "HEAD" : av[1];
 
-				if (log->wrap_lines) {
-					strbuf_reset(&sb);
-					add_wrapped_shortlog_msg(&sb, msg, log);
-					fwrite(sb.buf, sb.len, 1, stdout);
-				}
-				else
-					printf("      %s\n", msg);
-			}
-			putchar('\n');
-		}
-
-		onelines->strdup_strings = 1;
-		string_list_clear(onelines, 0);
-		free(onelines);
-		log->list.items[i].util = NULL;
+	if (ac < 2 && !new_branch && !new_branch_force) {
+		int n;
+		const char *s = worktree_basename(path, &n);
+		new_branch = xstrndup(s, n);
 	}
 
-	strbuf_release(&sb);
-	log->list.strdup_strings = 1;
-	string_list_clear(&log->list, 1);
-	clear_mailmap(&log->mailmap);
+	argv_array_push(&cmd, "checkout");
+	if (force)
+		argv_array_push(&cmd, "--ignore-other-worktrees");
+	if (new_branch)
+		argv_array_pushl(&cmd, "-b", new_branch, NULL);
+	if (new_branch_force)
+		argv_array_pushl(&cmd, "-B", new_branch_force, NULL);
+	if (detach)
+		argv_array_push(&cmd, "--detach");
+	argv_array_push(&cmd, branch);
+
+	return add_worktree(path, cmd.argv);
 }

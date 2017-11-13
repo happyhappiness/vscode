@@ -1,1 +1,1 @@
-(isprint(ch);
+printf("yes (fixed thread count)\n");

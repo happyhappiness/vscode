@@ -1,105 +1,51 @@
-static void doRotate(rotate_config_t *config, rotate_status_t *status)
+static void piped_log_maintenance(int reason, void *data, apr_wait_t status)
 {
+    piped_log *pl = data;
+    apr_status_t stats;
+    int mpm_state;
 
-    int now = get_now(config);
-    int tLogStart;
-    apr_status_t rv;
-
-    status->rotateReason = ROTATE_NONE;
-    status->nLogFDprev = status->nLogFD;
-    status->nLogFD = NULL;
-    status->pfile_prev = status->pfile;
-
-    if (config->tRotation) {
-        int tLogEnd;
-        tLogStart = (now / config->tRotation) * config->tRotation;
-        tLogEnd = tLogStart + config->tRotation;
-        /*
-         * Check if rotation was forced and the last rotation
-         * interval is not yet over. Use the value of now instead
-         * of the time interval boundary for the file name then.
-         */
-        if (tLogStart < status->tLogEnd) {
-            tLogStart = now;
+    switch (reason) {
+    case APR_OC_REASON_DEATH:
+    case APR_OC_REASON_LOST:
+        pl->pid = NULL; /* in case we don't get it going again, this
+                         * tells other logic not to try to kill it
+                         */
+        apr_proc_other_child_unregister(pl);
+        stats = ap_mpm_query(AP_MPMQ_MPM_STATE, &mpm_state);
+        if (stats != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "can't query MPM state; not restarting "
+                         "piped log program '%s'",
+                         pl->program);
         }
-        status->tLogEnd = tLogEnd;
-    }
-    else {
-        tLogStart = now;
-    }
-
-    if (config->use_strftime) {
-        apr_time_t tNow = apr_time_from_sec(tLogStart);
-        apr_time_exp_t e;
-        apr_size_t rs;
-
-        apr_time_exp_gmt(&e, tNow);
-        apr_strftime(status->filename, &rs, sizeof(status->filename), config->szLogRoot, &e);
-    }
-    else {
-        if (config->truncate) {
-            apr_snprintf(status->filename, sizeof(status->filename), "%s", config->szLogRoot);
-        }
-        else {
-            apr_snprintf(status->filename, sizeof(status->filename), "%s.%010d", config->szLogRoot,
-                    tLogStart);
-        }
-    }
-    apr_pool_create(&status->pfile, status->pool);
-    if (config->verbose) {
-        fprintf(stderr, "Opening file %s\n", status->filename);
-    }
-    rv = apr_file_open(&status->nLogFD, status->filename, APR_WRITE | APR_CREATE | APR_APPEND
-                       | (config->truncate ? APR_TRUNCATE : 0), APR_OS_DEFAULT, status->pfile);
-    if (rv != APR_SUCCESS) {
-        char error[120];
-
-        apr_strerror(rv, error, sizeof error);
-
-        /* Uh-oh. Failed to open the new log file. Try to clear
-         * the previous log file, note the lost log entries,
-         * and keep on truckin'. */
-        if (status->nLogFDprev == NULL) {
-            fprintf(stderr, "Could not open log file '%s' (%s)\n", status->filename, error);
-            exit(2);
-        }
-        else {
-            apr_size_t nWrite;
-            status->nLogFD = status->nLogFDprev;
-            apr_pool_destroy(status->pfile);
-            status->pfile = status->pfile_prev;
-            /* Try to keep this error message constant length
-             * in case it occurs several times. */
-            apr_snprintf(status->errbuf, sizeof status->errbuf,
-                         "Resetting log file due to error opening "
-                         "new log file, %10d messages lost: %-25.25s\n",
-                         status->nMessCount, error);
-            nWrite = strlen(status->errbuf);
-            apr_file_trunc(status->nLogFD, 0);
-            if (apr_file_write(status->nLogFD, status->errbuf, &nWrite) != APR_SUCCESS) {
-                fprintf(stderr, "Error writing to the file %s\n", status->filename);
-                exit(2);
+        else if (mpm_state != AP_MPMQ_STOPPING) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "piped log program '%s' failed unexpectedly",
+                         pl->program);
+            if ((stats = piped_log_spawn(pl)) != APR_SUCCESS) {
+                /* what can we do?  This could be the error log we're having
+                 * problems opening up... */
+                char buf[120];
+                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                             "piped_log_maintenance: unable to respawn '%s': %s",
+                             pl->program, apr_strerror(stats, buf, sizeof(buf)));
             }
         }
-    }
-    else {
-        closeFile(config, status->pfile_prev, status->nLogFDprev);
-        status->nLogFDprev = NULL;
-        status->pfile_prev = NULL;
-    }
-    status->nMessCount = 0;
-    if (config->linkfile) {
-        apr_file_remove(config->linkfile, status->pfile);
-        if (config->verbose) {
-            fprintf(stderr,"Linking %s to %s\n", status->filename, config->linkfile);
+        break;
+
+    case APR_OC_REASON_UNWRITABLE:
+        /* We should not kill off the pipe here, since it may only be full.
+         * If it really is locked, we should kill it off manually. */
+    break;
+
+    case APR_OC_REASON_RESTART:
+        if (pl->pid != NULL) {
+            apr_proc_kill(pl->pid, SIGTERM);
+            pl->pid = NULL;
         }
-        rv = apr_file_link(status->filename, config->linkfile);
-        if (rv != APR_SUCCESS) {
-            char error[120];
-            apr_strerror(rv, error, sizeof error);
-            fprintf(stderr, "Error linking file %s to %s (%s)\n",
-                    status->filename, config->linkfile, error);
-            exit(2);
-        }
+        break;
+
+    case APR_OC_REASON_UNREGISTER:
+        break;
     }
 }

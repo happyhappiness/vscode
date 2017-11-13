@@ -1,1 +1,0 @@
-fprintf(stderr, "                -l                       [-TDBTYPE] database\n");

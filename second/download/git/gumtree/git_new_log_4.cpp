@@ -1,1 +1,0 @@
-die_errno(_("unable to open %s"), curr_pack);

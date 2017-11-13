@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                  "inflate: bad flags %02x",
-                                  ctx->zlib_flags);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "xlate output filter not added implicitly because "
+                          "CharsetOptions included 'NoImplicitAdd'");

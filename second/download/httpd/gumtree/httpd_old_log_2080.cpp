@@ -1,4 +1,6 @@
-decl_die(access_status, ap_auth_type(r)
-                                  ? "check user.  Check your authn provider!"
-                                  : "perform authentication. AuthType not set!",
-                                  r);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, conn,
+                      "Certificate Verification: "
+                      "depth: %d, subject: %s, issuer: %s",
+                      errdepth,
+                      sname ? sname : "-unknown-",
+                      iname ? iname : "-unknown-");

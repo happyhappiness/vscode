@@ -1,46 +1,121 @@
-static apr_status_t upgrade_connection(request_rec *r)
+static void emit_head(request_rec *r, char *header_fname, int suppress_amble,
+                      int emit_xhtml, char *title)
 {
-    struct conn_rec *conn = r->connection;
-    apr_bucket_brigade *bb;
-    SSLConnRec *sslconn;
-    apr_status_t rv;
-    SSL *ssl;
+    autoindex_config_rec *d;
+    apr_table_t *hdrs = r->headers_in;
+    apr_file_t *f = NULL;
+    request_rec *rr = NULL;
+    int emit_amble = 1;
+    int emit_H1 = 1;
+    const char *r_accept;
+    const char *r_accept_enc;
 
-    ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, 
-                  "upgrading connection to TLS");
+    /*
+     * If there's a header file, send a subrequest to look for it.  If it's
+     * found and html do the subrequest, otherwise handle it
+     */
+    r_accept = apr_table_get(hdrs, "Accept");
+    r_accept_enc = apr_table_get(hdrs, "Accept-Encoding");
+    apr_table_setn(hdrs, "Accept", "text/html, text/plain");
+    apr_table_unset(hdrs, "Accept-Encoding");
 
-    bb = apr_brigade_create(r->pool, conn->bucket_alloc);
 
-    rv = ap_fputstrs(conn->output_filters, bb, SWITCH_STATUS_LINE, CRLF,
-                     UPGRADE_HEADER, CRLF, CONNECTION_HEADER, CRLF, CRLF, NULL);
-    if (rv == APR_SUCCESS) {
-        APR_BRIGADE_INSERT_TAIL(bb,
-                                apr_bucket_flush_create(conn->bucket_alloc));
-        rv = ap_pass_brigade(conn->output_filters, bb);
+    if ((header_fname != NULL) && r->args) {
+        header_fname = apr_pstrcat(r->pool, header_fname, "?", r->args, NULL);
     }
 
-    if (rv) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "failed to send 101 interim response for connection "
-                      "upgrade");
-        return rv;
+    if ((header_fname != NULL)
+        && (rr = ap_sub_req_lookup_uri(header_fname, r, r->output_filters))
+        && (rr->status == HTTP_OK)
+        && (rr->filename != NULL)
+        && (rr->finfo.filetype == APR_REG)) {
+        /*
+         * Check for the two specific cases we allow: text/html and
+         * text/anything-else.  The former is allowed to be processed for
+         * SSIs.
+         */
+        if (rr->content_type != NULL) {
+            if (response_is_html(rr)) {
+                ap_filter_t *f;
+               /* Hope everything will work... */
+                emit_amble = 0;
+                emit_H1 = 0;
+
+                if (! suppress_amble) {
+                    emit_preamble(r, emit_xhtml, title);
+                }
+                /* This is a hack, but I can't find any better way to do this.
+                 * The problem is that we have already created the sub-request,
+                 * but we just inserted the OLD_WRITE filter, and the
+                 * sub-request needs to pass its data through the OLD_WRITE
+                 * filter, or things go horribly wrong (missing data, data in
+                 * the wrong order, etc).  To fix it, if you create a
+                 * sub-request and then insert the OLD_WRITE filter before you
+                 * run the request, you need to make sure that the sub-request
+                 * data goes through the OLD_WRITE filter.  Just steal this
+                 * code.  The long-term solution is to remove the ap_r*
+                 * functions.
+                 */
+                for (f=rr->output_filters;
+                     f->frec != ap_subreq_core_filter_handle; f = f->next);
+                f->next = r->output_filters;
+
+                /*
+                 * If there's a problem running the subrequest, display the
+                 * preamble if we didn't do it before -- the header file
+                 * didn't get displayed.
+                 */
+                if (ap_run_sub_req(rr) != OK) {
+                    /* It didn't work */
+                    emit_amble = suppress_amble;
+                    emit_H1 = 1;
+                }
+            }
+            else if (!strncasecmp("text/", rr->content_type, 5)) {
+                /*
+                 * If we can open the file, prefix it with the preamble
+                 * regardless; since we'll be sending a <pre> block around
+                 * the file's contents, any HTML header it had won't end up
+                 * where it belongs.
+                 */
+                if (apr_file_open(&f, rr->filename, APR_READ,
+                                  APR_OS_DEFAULT, r->pool) == APR_SUCCESS) {
+                    emit_preamble(r, emit_xhtml, title);
+                    emit_amble = 0;
+                    do_emit_plain(r, f);
+                    apr_file_close(f);
+                    emit_H1 = 0;
+                }
+            }
+        }
     }
 
-    ssl_init_ssl_connection(conn, r);
+    if (r_accept) {
+        apr_table_setn(hdrs, "Accept", r_accept);
+    }
+    else {
+        apr_table_unset(hdrs, "Accept");
+    }
+
+    if (r_accept_enc) {
+        apr_table_setn(hdrs, "Accept-Encoding", r_accept_enc);
+    }
+
+    if (emit_amble) {
+        emit_preamble(r, emit_xhtml, title);
+    }
     
-    sslconn = myConnConfig(conn);
-    ssl = sslconn->ssl;
+    d = (autoindex_config_rec *) ap_get_module_config(r->per_dir_config, &autoindex_module);
     
-    /* Perform initial SSL handshake. */
-    SSL_set_accept_state(ssl);
-    SSL_do_handshake(ssl);
-
-    if (SSL_get_state(ssl) != SSL_ST_OK) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "TLS upgrade handshake failed: not accepted by client!?");
-        
-        return APR_ECONNABORTED;
+    if (emit_H1) {
+        if (d->style_sheet != NULL) {
+    	    /* Insert style id if stylesheet used */
+    	    ap_rvputs(r, "  <h1 id=\"indextitle\">Index of ", title, "</h1>\n", NULL);
+    	} else {
+        ap_rvputs(r, "<h1>Index of ", title, "</h1>\n", NULL);
     }
-
-    return APR_SUCCESS;
+    }
+    if (rr != NULL) {
+        ap_destroy_sub_req(rr);
+    }
 }

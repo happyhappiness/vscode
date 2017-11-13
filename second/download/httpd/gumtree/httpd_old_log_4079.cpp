@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, SESSION_PREFIX
-                          "error while saving the session, "
-                          "session not saved: %s", r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                    "((%lx & %lx) == %lx) = %d", v, l, l, matched);

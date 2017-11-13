@@ -1,1 +1,1 @@
-error(_("invalid key: %s"), key);
+die(_("no such ref %s"), *av);

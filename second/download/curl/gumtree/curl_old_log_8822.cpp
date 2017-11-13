@@ -1,10 +1,10 @@
 fputs(
-"              If this option is used several times, the  last  specified  file\n"
-"              name will be used.\n"
+"              default and this option is usually pointless, unless you use  it\n"
+"              to  override  a  previously  set  option  that  sets a different\n"
+"              authentication method (such as --ntlm,  --digest,  or  --negoti-\n"
+"              ate).\n"
 "\n"
-"       -C, --continue-at <offset>\n"
-"              Continue/Resume  a  previous  file transfer at the given offset.\n"
-"              The given offset is the exact  number  of  bytes  that  will  be\n"
-"              skipped,  counting  from the beginning of the source file before\n"
-"              it is transferred to the destination.  If used with uploads, the\n"
+"       -c, --cookie-jar <file name>\n"
+"              (HTTP)  Specify to which file you want curl to write all cookies\n"
+"              after a completed operation. Curl writes all cookies  previously\n"
 , stdout);

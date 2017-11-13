@@ -1,1 +1,1 @@
-fprintf(stderr,"generator wrote %d\n",write_total());
+fprintf(stderr,"write failed on %s : %s\n",fname,strerror(errno));

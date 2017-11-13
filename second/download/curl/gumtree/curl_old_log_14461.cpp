@@ -1,11 +1,11 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              mand line options.\n"
 "\n"
-"              Added in 7.12.3.\n"
+"              This option only changes  the  actual  word  used  in  the  HTTP\n"
+"              request,  it does not alter the way curl behaves. So for example\n"
+"              if you want to make a proper HEAD request, using  -X  HEAD  will\n"
+"              not suffice. You need to use the -I, --head option.\n"
 "\n"
-"       --retry-max-time <seconds>\n"
-"              The  retry  timer  is  reset  before the first transfer attempt.\n"
-"              Retries will be done as usual (see --retry) as long as the timer\n"
-"              hasn't reached this given limit. Notice that if the timer hasn't\n"
-"              reached the limit, the request will be made and  while  perform-\n"
+"              The  method  string  you set with -X, --request will be used for\n"
+"              all requests, which if you for example use  -L,  --location  may\n"
 , stdout);

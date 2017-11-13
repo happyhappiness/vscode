@@ -1,26 +1,16 @@
-const char *branch_get_upstream(struct branch *branch, struct strbuf *err)
+static void git_config_raw(config_fn_t fn, void *data)
 {
-	if (!branch)
-		return error_buf(err, _("HEAD does not point to a branch"));
-
-	if (!branch->merge || !branch->merge[0]) {
+	if (git_config_with_options(fn, data, NULL, 1) < 0)
 		/*
-		 * no merge config; is it because the user didn't define any,
-		 * or because it is not a real branch, and get_branch
-		 * auto-vivified it?
+		 * git_config_with_options() normally returns only
+		 * positive values, as most errors are fatal, and
+		 * non-fatal potential errors are guarded by "if"
+		 * statements that are entered only when no error is
+		 * possible.
+		 *
+		 * If we ever encounter a non-fatal error, it means
+		 * something went really wrong and we should stop
+		 * immediately.
 		 */
-		if (!ref_exists(branch->refname))
-			return error_buf(err, _("no such branch: '%s'"),
-					 branch->name);
-		return error_buf(err,
-				 _("no upstream configured for branch '%s'"),
-				 branch->name);
-	}
-
-	if (!branch->merge[0]->dst)
-		return error_buf(err,
-				 _("upstream branch '%s' not stored as a remote-tracking branch"),
-				 branch->merge[0]->src);
-
-	return branch->merge[0]->dst;
+		die(_("unknown error occured while reading the configuration files"));
 }

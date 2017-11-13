@@ -1,28 +1,20 @@
-static void emit_preamble(request_rec *r, int xhtml, const char *title)
+void h2_stream_cleanup(h2_stream *stream)
 {
-    autoindex_config_rec *d;
-
-    d = (autoindex_config_rec *) ap_get_module_config(r->per_dir_config,
-                                                      &autoindex_module);
-
-    if (xhtml) {
-        ap_rvputs(r, DOCTYPE_XHTML_1_0T,
-                  "<html xmlns=\"http://www.w3.org/1999/xhtml\">\n"
-                  " <head>\n  <title>Index of ", title,
-                  "</title>\n", NULL);
-    } else {
-        ap_rvputs(r, DOCTYPE_HTML_3_2,
-                  "<html>\n <head>\n"
-                  "  <title>Index of ", title,
-                  "</title>\n", NULL);
+    AP_DEBUG_ASSERT(stream);
+    if (stream->buffer) {
+        apr_brigade_cleanup(stream->buffer);
     }
-
-    if (d->style_sheet != NULL) {
-        ap_rvputs(r, "  <link rel=\"stylesheet\" href=\"", d->style_sheet,
-                "\" type=\"text/css\"", xhtml ? " />\n" : ">\n", NULL);
+    if (stream->input) {
+        apr_status_t status;
+        status = h2_beam_shutdown(stream->input, APR_NONBLOCK_READ, 1);
+        if (status == APR_EAGAIN) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, stream->session->c, 
+                          "h2_stream(%ld-%d): wait on input shutdown", 
+                          stream->session->id, stream->id);
+            status = h2_beam_shutdown(stream->input, APR_BLOCK_READ, 1);
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, stream->session->c, 
+                          "h2_stream(%ld-%d): input shutdown returned", 
+                          stream->session->id, stream->id);
+        }
     }
-    if (d->head_insert != NULL) {
-        ap_rputs(d->head_insert, r);
-    }
-    ap_rvputs(r, " </head>\n <body>\n", NULL);
 }

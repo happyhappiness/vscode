@@ -1,1 +1,1 @@
-mutt_error (_("Error extracting key data!\n"));
+fputs ("X-Mutt-SMIME: ", msg->fp);

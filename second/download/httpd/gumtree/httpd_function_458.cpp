@@ -1,392 +1,274 @@
-static apr_status_t core_output_filter(ap_filter_t *f, apr_bucket_brigade *b)
+int mod_auth_ldap_auth_checker(request_rec *r)
 {
-    apr_status_t rv;
-    apr_bucket_brigade *more;
-    conn_rec *c = f->c;
-    core_net_rec *net = f->ctx;
-    core_output_filter_ctx_t *ctx = net->out_ctx;
-    apr_read_type_e eblock = APR_NONBLOCK_READ;
-    apr_pool_t *input_pool = b->p;
+    int result = 0;
+    mod_auth_ldap_request_t *req =
+        (mod_auth_ldap_request_t *)ap_get_module_config(r->request_config,
+        &auth_ldap_module);
+    mod_auth_ldap_config_t *sec =
+        (mod_auth_ldap_config_t *)ap_get_module_config(r->per_dir_config, 
+        &auth_ldap_module);
 
-    if (ctx == NULL) {
-        ctx = apr_pcalloc(c->pool, sizeof(*ctx));
-        net->out_ctx = ctx;
+    util_ldap_connection_t *ldc = NULL;
+    int m = r->method_number;
+
+    const apr_array_header_t *reqs_arr = ap_requires(r);
+    require_line *reqs = reqs_arr ? (require_line *)reqs_arr->elts : NULL;
+
+    register int x;
+    const char *t;
+    char *w, *value;
+    int method_restricted = 0;
+
+    if (!sec->enabled) {
+        return DECLINED;
     }
 
-    /* If we have a saved brigade, concatenate the new brigade to it */
-    if (ctx->b) {
-        APR_BRIGADE_CONCAT(ctx->b, b);
-        b = ctx->b;
-        ctx->b = NULL;
+    if (!sec->have_ldap_url) {
+        return DECLINED;
     }
 
-    /* Perform multiple passes over the brigade, sending batches of output
-       to the connection. */
-    while (b && !APR_BRIGADE_EMPTY(b)) {
-        apr_size_t nbytes = 0;
-        apr_bucket *last_e = NULL; /* initialized for debugging */
-        apr_bucket *e;
+    if (sec->host) {
+        ldc = util_ldap_connection_find(r, sec->host, sec->port,
+                                       sec->binddn, sec->bindpw, sec->deref,
+                                       sec->secure);
+        apr_pool_cleanup_register(r->pool, ldc,
+                                  mod_auth_ldap_cleanup_connection_close,
+                                  apr_pool_cleanup_null);
+    }
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING|APLOG_NOERRNO, 0, r, 
+                      "[%d] auth_ldap authorise: no sec->host - weird...?", getpid());
+        return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
+    }
 
-        /* one group of iovecs per pass over the brigade */
-        apr_size_t nvec = 0;
-        apr_size_t nvec_trailers = 0;
-        struct iovec vec[MAX_IOVEC_TO_WRITE];
-        struct iovec vec_trailers[MAX_IOVEC_TO_WRITE];
+    /* 
+     * If there are no elements in the group attribute array, the default should be
+     * member and uniquemember; populate the array now.
+     */
+    if (sec->groupattr->nelts == 0) {
+        struct mod_auth_ldap_groupattr_entry_t *grp;
+#if APR_HAS_THREADS
+        apr_thread_mutex_lock(sec->lock);
+#endif
+        grp = apr_array_push(sec->groupattr);
+        grp->name = "member";
+        grp = apr_array_push(sec->groupattr);
+        grp->name = "uniquemember";
+#if APR_HAS_THREADS
+        apr_thread_mutex_unlock(sec->lock);
+#endif
+    }
 
-        /* one file per pass over the brigade */
-        apr_file_t *fd = NULL;
-        apr_size_t flen = 0;
-        apr_off_t foffset = 0;
+    if (!reqs_arr) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
+		      "[%d] auth_ldap authorise: no requirements array", getpid());
+        return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
+    }
 
-        /* keep track of buckets that we've concatenated
-         * to avoid small writes
-         */
-        apr_bucket *last_merged_bucket = NULL;
+    /* Loop through the requirements array until there's no elements
+     * left, or something causes a return from inside the loop */
+    for(x=0; x < reqs_arr->nelts; x++) {
+        if (! (reqs[x].method_mask & (1 << m))) {
+            continue;
+        }
+        method_restricted = 1;
+	
+        t = reqs[x].requirement;
+        w = ap_getword_white(r->pool, &t);    
 
-        /* tail of brigade if we need another pass */
-        more = NULL;
-
-        /* Iterate over the brigade: collect iovecs and/or a file */
-        APR_BRIGADE_FOREACH(e, b) {
-            /* keep track of the last bucket processed */
-            last_e = e;
-            if (APR_BUCKET_IS_EOS(e) || AP_BUCKET_IS_EOC(e)) {
-                break;
-            }
-            else if (APR_BUCKET_IS_FLUSH(e)) {
-                if (e != APR_BRIGADE_LAST(b)) {
-                    more = apr_brigade_split(b, APR_BUCKET_NEXT(e));
-                }
-                break;
-            }
-
-            /* It doesn't make any sense to use sendfile for a file bucket
-             * that represents 10 bytes.
+        if (strcmp(w, "valid-user") == 0) {
+            /*
+             * Valid user will always be true if we authenticated with ldap,
+             * but when using front page, valid user should only be true if
+             * he exists in the frontpage password file. This hack will get
+             * auth_ldap to look up the user in the the pw file to really be
+             * sure that he's valid. Naturally, it requires mod_auth to be
+             * compiled in, but if mod_auth wasn't in there, then the need
+             * for this hack wouldn't exist anyway.
              */
-            else if (APR_BUCKET_IS_FILE(e)
-                     && (e->length >= AP_MIN_SENDFILE_BYTES)) {
-                apr_bucket_file *a = e->data;
-
-                /* We can't handle more than one file bucket at a time
-                 * so we split here and send the file we have already
-                 * found.
-                 */
-                if (fd) {
-                    more = apr_brigade_split(b, e);
-                    break;
-                }
-
-                fd = a->fd;
-                flen = e->length;
-                foffset = e->start;
+            if (sec->frontpage_hack) {
+	        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+			      "[%d] auth_ldap authorise: "
+			      "deferring authorisation to mod_auth (FP Hack)", 
+			      getpid());
+                return OK;
             }
             else {
-                const char *str;
-                apr_size_t n;
-
-                rv = apr_bucket_read(e, &str, &n, eblock);
-                if (APR_STATUS_IS_EAGAIN(rv)) {
-                    /* send what we have so far since we shouldn't expect more
-                     * output for a while...  next time we read, block
-                     */
-                    more = apr_brigade_split(b, e);
-                    eblock = APR_BLOCK_READ;
-                    break;
-                }
-                eblock = APR_NONBLOCK_READ;
-                if (n) {
-                    if (!fd) {
-                        if (nvec == MAX_IOVEC_TO_WRITE) {
-                            /* woah! too many. buffer them up, for use later. */
-                            apr_bucket *temp, *next;
-                            apr_bucket_brigade *temp_brig;
-
-                            if (nbytes >= AP_MIN_BYTES_TO_WRITE) {
-                                /* We have enough data in the iovec
-                                 * to justify doing a writev
-                                 */
-                                more = apr_brigade_split(b, e);
-                                break;
-                            }
-
-                            /* Create a temporary brigade as a means
-                             * of concatenating a bunch of buckets together
-                             */
-                            if (last_merged_bucket) {
-                                /* If we've concatenated together small
-                                 * buckets already in a previous pass,
-                                 * the initial buckets in this brigade
-                                 * are heap buckets that may have extra
-                                 * space left in them (because they
-                                 * were created by apr_brigade_write()).
-                                 * We can take advantage of this by
-                                 * building the new temp brigade out of
-                                 * these buckets, so that the content
-                                 * in them doesn't have to be copied again.
-                                 */
-                                apr_bucket_brigade *bb;
-                                bb = apr_brigade_split(b,
-                                         APR_BUCKET_NEXT(last_merged_bucket));
-                                temp_brig = b;
-                                b = bb;
-                            }
-                            else {
-                                temp_brig = apr_brigade_create(f->c->pool,
-                                                           f->c->bucket_alloc);
-                            }
-
-                            temp = APR_BRIGADE_FIRST(b);
-                            while (temp != e) {
-                                apr_bucket *d;
-                                rv = apr_bucket_read(temp, &str, &n, APR_BLOCK_READ);
-                                apr_brigade_write(temp_brig, NULL, NULL, str, n);
-                                d = temp;
-                                temp = APR_BUCKET_NEXT(temp);
-                                apr_bucket_delete(d);
-                            }
-
-                            nvec = 0;
-                            nbytes = 0;
-                            temp = APR_BRIGADE_FIRST(temp_brig);
-                            APR_BUCKET_REMOVE(temp);
-                            APR_BRIGADE_INSERT_HEAD(b, temp);
-                            apr_bucket_read(temp, &str, &n, APR_BLOCK_READ);
-                            vec[nvec].iov_base = (char*) str;
-                            vec[nvec].iov_len = n;
-                            nvec++;
-
-                            /* Just in case the temporary brigade has
-                             * multiple buckets, recover the rest of
-                             * them and put them in the brigade that
-                             * we're sending.
-                             */
-                            for (next = APR_BRIGADE_FIRST(temp_brig);
-                                 next != APR_BRIGADE_SENTINEL(temp_brig);
-                                 next = APR_BRIGADE_FIRST(temp_brig)) {
-                                APR_BUCKET_REMOVE(next);
-                                APR_BUCKET_INSERT_AFTER(temp, next);
-                                temp = next;
-                                apr_bucket_read(next, &str, &n,
-                                                APR_BLOCK_READ);
-                                vec[nvec].iov_base = (char*) str;
-                                vec[nvec].iov_len = n;
-                                nvec++;
-                            }
-
-                            apr_brigade_destroy(temp_brig);
-
-                            last_merged_bucket = temp;
-                            e = temp;
-                            last_e = e;
-                        }
-                        else {
-                            vec[nvec].iov_base = (char*) str;
-                            vec[nvec].iov_len = n;
-                            nvec++;
-                        }
-                    }
-                    else {
-                        /* The bucket is a trailer to a file bucket */
-
-                        if (nvec_trailers == MAX_IOVEC_TO_WRITE) {
-                            /* woah! too many. stop now. */
-                            more = apr_brigade_split(b, e);
-                            break;
-                        }
-
-                        vec_trailers[nvec_trailers].iov_base = (char*) str;
-                        vec_trailers[nvec_trailers].iov_len = n;
-                        nvec_trailers++;
-                    }
-
-                    nbytes += n;
-                }
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                              "[%d] auth_ldap authorise: "
+                              "successful authorisation because user "
+                              "is valid-user", getpid());
+                return OK;
             }
         }
-
-
-        /* Completed iterating over the brigade, now determine if we want
-         * to buffer the brigade or send the brigade out on the network.
-         *
-         * Save if we haven't accumulated enough bytes to send, the connection
-         * is not about to be closed, and:
-         *
-         *   1) we didn't see a file, we don't have more passes over the
-         *      brigade to perform,  AND we didn't stop at a FLUSH bucket.
-         *      (IOW, we will save plain old bytes such as HTTP headers)
-         * or
-         *   2) we hit the EOS and have a keep-alive connection
-         *      (IOW, this response is a bit more complex, but we save it
-         *       with the hope of concatenating with another response)
-         */
-        if (nbytes + flen < AP_MIN_BYTES_TO_WRITE
-            && !AP_BUCKET_IS_EOC(last_e)
-            && ((!fd && !more && !APR_BUCKET_IS_FLUSH(last_e))
-                || (APR_BUCKET_IS_EOS(last_e)
-                    && c->keepalive == AP_CONN_KEEPALIVE))) {
-
-            /* NEVER save an EOS in here.  If we are saving a brigade with
-             * an EOS bucket, then we are doing keepalive connections, and
-             * we want to process to second request fully.
+        else if (strcmp(w, "user") == 0) {
+            if (req->dn == NULL || strlen(req->dn) == 0) {
+	        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
+                              "[%d] auth_ldap authorise: "
+                              "require user: user's DN has not been defined; failing authorisation", 
+                              getpid());
+                return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
+            }
+            /* 
+             * First do a whole-line compare, in case it's something like
+             *   require user Babs Jensen
              */
-            if (APR_BUCKET_IS_EOS(last_e)) {
-                apr_bucket *bucket;
-                int file_bucket_saved = 0;
-                apr_bucket_delete(last_e);
-                for (bucket = APR_BRIGADE_FIRST(b);
-                     bucket != APR_BRIGADE_SENTINEL(b);
-                     bucket = APR_BUCKET_NEXT(bucket)) {
-
-                    /* Do a read on each bucket to pull in the
-                     * data from pipe and socket buckets, so
-                     * that we don't leave their file descriptors
-                     * open indefinitely.  Do the same for file
-                     * buckets, with one exception: allow the
-                     * first file bucket in the brigade to remain
-                     * a file bucket, so that we don't end up
-                     * doing an mmap+memcpy every time a client
-                     * requests a <8KB file over a keepalive
-                     * connection.
-                     */
-                    if (APR_BUCKET_IS_FILE(bucket) && !file_bucket_saved) {
-                        file_bucket_saved = 1;
-                    }
-                    else {
-                        const char *buf;
-                        apr_size_t len = 0;
-                        rv = apr_bucket_read(bucket, &buf, &len,
-                                             APR_BLOCK_READ);
-                        if (rv != APR_SUCCESS) {
-                            ap_log_error(APLOG_MARK, APLOG_ERR, rv,
-                                         c->base_server, "core_output_filter:"
-                                         " Error reading from bucket.");
-                            return HTTP_INTERNAL_SERVER_ERROR;
-                        }
-                    }
+            result = util_ldap_cache_compare(r, ldc, sec->url, req->dn, sec->attribute, t);
+            switch(result) {
+                case LDAP_COMPARE_TRUE: {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                                  "[%d] auth_ldap authorise: "
+                                  "require user: authorisation successful", getpid());
+                    return OK;
+                }
+                default: {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                                  "[%d] auth_ldap authorise: require user: "
+                                  "authorisation failed [%s][%s]", getpid(),
+                                  ldc->reason, ldap_err2string(result));
                 }
             }
-            if (!ctx->deferred_write_pool) {
-                apr_pool_create(&ctx->deferred_write_pool, c->pool);
-                apr_pool_tag(ctx->deferred_write_pool, "deferred_write");
-            }
-            ap_save_brigade(f, &ctx->b, &b, ctx->deferred_write_pool);
-
-            return APR_SUCCESS;
-        }
-
-        if (fd) {
-            apr_hdtr_t hdtr;
-            apr_size_t bytes_sent;
-
-#if APR_HAS_SENDFILE
-            apr_int32_t flags = 0;
-#endif
-
-            memset(&hdtr, '\0', sizeof(hdtr));
-            if (nvec) {
-                hdtr.numheaders = nvec;
-                hdtr.headers = vec;
-            }
-
-            if (nvec_trailers) {
-                hdtr.numtrailers = nvec_trailers;
-                hdtr.trailers = vec_trailers;
-            }
-
-#if APR_HAS_SENDFILE
-            if (apr_file_flags_get(fd) & APR_SENDFILE_ENABLED) {
-
-                if (c->keepalive == AP_CONN_CLOSE && APR_BUCKET_IS_EOS(last_e)) {
-                    /* Prepare the socket to be reused */
-                    flags |= APR_SENDFILE_DISCONNECT_SOCKET;
-                }
-
-                rv = sendfile_it_all(net,      /* the network information   */
-                                     fd,       /* the file to send          */
-                                     &hdtr,    /* header and trailer iovecs */
-                                     foffset,  /* offset in the file to begin
-                                                  sending from              */
-                                     flen,     /* length of file            */
-                                     nbytes + flen, /* total length including
-                                                       headers              */
-                                     &bytes_sent,   /* how many bytes were
-                                                       sent                 */
-                                     flags);   /* apr_sendfile flags        */
-
-                if (logio_add_bytes_out && bytes_sent > 0)
-                    logio_add_bytes_out(c, bytes_sent);
-            }
-            else
-#endif
-            {
-                rv = emulate_sendfile(net, fd, &hdtr, foffset, flen,
-                                      &bytes_sent);
-
-                if (logio_add_bytes_out && bytes_sent > 0)
-                    logio_add_bytes_out(c, bytes_sent);
-            }
-
-            fd = NULL;
-        }
-        else {
-            apr_size_t bytes_sent;
-
-            rv = writev_it_all(net->client_socket,
-                               vec, nvec,
-                               nbytes, &bytes_sent);
-
-            if (logio_add_bytes_out && bytes_sent > 0)
-                logio_add_bytes_out(c, bytes_sent);
-        }
-
-        apr_brigade_destroy(b);
-        
-        /* drive cleanups for resources which were set aside 
-         * this may occur before or after termination of the request which
-         * created the resource
-         */
-        if (ctx->deferred_write_pool) {
-            if (more && more->p == ctx->deferred_write_pool) {
-                /* "more" belongs to the deferred_write_pool,
-                 * which is about to be cleared.
-                 */
-                if (APR_BRIGADE_EMPTY(more)) {
-                    more = NULL;
-                }
-                else {
-                    /* uh oh... change more's lifetime 
-                     * to the input brigade's lifetime 
-                     */
-                    apr_bucket_brigade *tmp_more = more;
-                    more = NULL;
-                    ap_save_brigade(f, &more, &tmp_more, input_pool);
-                }
-            }
-            apr_pool_clear(ctx->deferred_write_pool);  
-        }
-
-        if (rv != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_INFO, rv, c->base_server,
-                         "core_output_filter: writing data to the network");
-
-            if (more)
-                apr_brigade_destroy(more);
-
-            /* No need to check for SUCCESS, we did that above. */
-            if (!APR_STATUS_IS_EAGAIN(rv)) {
-                c->aborted = 1;
-            }
-
-            /* The client has aborted, but the request was successful. We
-             * will report success, and leave it to the access and error
-             * logs to note that the connection was aborted.
+            /* 
+             * Now break apart the line and compare each word on it 
              */
-            return APR_SUCCESS;
+            while (t[0]) {
+	        w = ap_getword_conf(r->pool, &t);
+                result = util_ldap_cache_compare(r, ldc, sec->url, req->dn, sec->attribute, w);
+                switch(result) {
+                    case LDAP_COMPARE_TRUE: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                                      "[%d] auth_ldap authorise: "
+                                      "require user: authorisation successful", getpid());
+                        return OK;
+                    }
+                    default: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                                      "[%d] auth_ldap authorise: "
+                                      "require user: authorisation failed [%s][%s]",
+                                      getpid(), ldc->reason, ldap_err2string(result));
+                    }
+                }
+            }
         }
+        else if (strcmp(w, "dn") == 0) {
+            if (req->dn == NULL || strlen(req->dn) == 0) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
+                              "[%d] auth_ldap authorise: "
+                              "require dn: user's DN has not been defined; failing authorisation", 
+                              getpid());
+                return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
+            }
 
-        b = more;
-        more = NULL;
-    }  /* end while () */
+            result = util_ldap_cache_comparedn(r, ldc, sec->url, req->dn, t, sec->compare_dn_on_server);
+            switch(result) {
+                case LDAP_COMPARE_TRUE: {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                                  "[%d] auth_ldap authorise: "
+                                  "require dn: authorisation successful", getpid());
+                    return OK;
+                }
+                default: {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                                  "[%d] auth_ldap authorise: "
+                                  "require dn \"%s\": LDAP error [%s][%s]",
+                                  getpid(), t, ldc->reason, ldap_err2string(result));
+                }
+            }
+        }
+        else if (strcmp(w, "group") == 0) {
+            struct mod_auth_ldap_groupattr_entry_t *ent = (struct mod_auth_ldap_groupattr_entry_t *) sec->groupattr->elts;
+            int i;
 
-    return APR_SUCCESS;
+            if (sec->group_attrib_is_dn) {
+                if (req->dn == NULL || strlen(req->dn) == 0) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
+                                  "[%d] auth_ldap authorise: require group: user's DN has not been defined; failing authorisation", 
+                                  getpid());
+                    return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
+                }
+            }
+            else {
+                if (req->user == NULL || strlen(req->user) == 0) {
+	            /* We weren't called in the authentication phase, so we didn't have a 
+                     * chance to set the user field. Do so now. */
+                    req->user = r->user;
+                }
+            }
+
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                          "[%d] auth_ldap authorise: require group: testing for group membership in \"%s\"", 
+		          getpid(), t);
+
+            for (i = 0; i < sec->groupattr->nelts; i++) {
+	        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                              "[%d] auth_ldap authorise: require group: testing for %s: %s (%s)", getpid(),
+                              ent[i].name, sec->group_attrib_is_dn ? req->dn : req->user, t);
+
+                result = util_ldap_cache_compare(r, ldc, sec->url, t, ent[i].name, 
+                                     sec->group_attrib_is_dn ? req->dn : req->user);
+                switch(result) {
+                    case LDAP_COMPARE_TRUE: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                                      "[%d] auth_ldap authorise: require group: "
+                                      "authorisation successful (attribute %s) [%s][%s]",
+                                      getpid(), ent[i].name, ldc->reason, ldap_err2string(result));
+                        return OK;
+                    }
+                    default: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                                      "[%d] auth_ldap authorise: require group \"%s\": "
+                                      "authorisation failed [%s][%s]",
+                                      getpid(), t, ldc->reason, ldap_err2string(result));
+                    }
+                }
+            }
+        }
+        else if (strcmp(w, "ldap-attribute") == 0) {
+            while (t[0]) {
+                w = ap_getword(r->pool, &t, '=');
+                value = ap_getword_conf(r->pool, &t);
+
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
+                              "[%d] auth_ldap authorise: checking attribute"
+                              " %s has value %s", getpid(), w, value);
+                result = util_ldap_cache_compare(r, ldc, sec->url, req->dn,
+                                                 w, value);
+                switch(result) {
+                    case LDAP_COMPARE_TRUE: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 
+                                      0, r, "[%d] auth_ldap authorise: "
+                                      "require attribute: authorisation "
+                                      "successful", getpid());
+                        return OK;
+                    }
+                    default: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 
+                                      0, r, "[%d] auth_ldap authorise: "
+                                      "require attribute: authorisation "
+                                      "failed [%s][%s]", getpid(), 
+                                      ldc->reason, ldap_err2string(result));
+                    }
+                }
+            }
+        }
+    }
+
+    if (!method_restricted) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                      "[%d] auth_ldap authorise: agreeing because non-restricted", 
+                      getpid());
+        return OK;
+    }
+
+    if (!sec->auth_authoritative) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                      "[%d] auth_ldap authorise: declining to authorise", getpid());
+        return DECLINED;
+    }
+
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                  "[%d] auth_ldap authorise: authorisation denied", getpid());
+    ap_note_basic_auth_failure (r);
+
+    return HTTP_UNAUTHORIZED;
 }

@@ -1,61 +1,77 @@
-apr_status_t h2_conn_setup(h2_task_env *env, struct h2_worker *worker)
+void get_handles_from_parent(server_rec *s, HANDLE *child_exit_event,
+                             apr_proc_mutex_t **child_start_mutex,
+                             apr_shm_t **scoreboard_shm)
 {
-    conn_rec *master = env->mplx->c;
-    
-    ap_log_perror(APLOG_MARK, APLOG_TRACE3, 0, env->pool,
-                  "h2_conn(%ld): created from master", master->id);
-    
-    /* Ok, we are just about to start processing the connection and
-     * the worker is calling us to setup all necessary resources.
-     * We can borrow some from the worker itself and some we do as
-     * sub-resources from it, so that we get a nice reuse of
-     * pools.
+    HANDLE hScore;
+    HANDLE ready_event;
+    HANDLE os_start;
+    DWORD BytesRead;
+    void *sb_shared;
+    apr_status_t rv;
+
+    /* *** We now do this was back in winnt_rewrite_args
+     * pipe = GetStdHandle(STD_INPUT_HANDLE);
      */
-    env->c.pool = env->pool;
-    env->c.bucket_alloc = h2_worker_get_bucket_alloc(worker);
-    env->c.current_thread = h2_worker_get_thread(worker);
-    
-    env->c.conn_config = ap_create_conn_config(env->pool);
-    env->c.notes = apr_table_make(env->pool, 5);
-    
-    ap_set_module_config(env->c.conn_config, &core_module, 
-                         h2_worker_get_socket(worker));
-    
-    /* If we serve http:// requests over a TLS connection, we do
-     * not want any mod_ssl vars to be visible.
-     */
-    if (ssl_module && (!env->scheme || strcmp("http", env->scheme))) {
-        /* See #19, there is a range of SSL variables to be gotten from
-         * the main connection that should be available in request handlers
-         */
-        void *sslcfg = ap_get_module_config(master->conn_config, ssl_module);
-        if (sslcfg) {
-            ap_set_module_config(env->c.conn_config, ssl_module, sslcfg);
-        }
+    if (!ReadFile(pipe, &ready_event, sizeof(HANDLE),
+                  &BytesRead, (LPOVERLAPPED) NULL)
+        || (BytesRead != sizeof(HANDLE))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %d: Unable to retrieve the ready event from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
     }
-    
-    /* This works for mpm_worker so far. Other mpm modules have 
-     * different needs, unfortunately. The most interesting one 
-     * being mpm_event...
-     */
-    switch (h2_conn_mpm_type()) {
-        case H2_MPM_WORKER:
-            /* all fine */
-            break;
-        case H2_MPM_EVENT: 
-            fix_event_conn(&env->c, master);
-            break;
-        default:
-            /* fingers crossed */
-            break;
+
+    SetEvent(ready_event);
+    CloseHandle(ready_event);
+
+    if (!ReadFile(pipe, child_exit_event, sizeof(HANDLE),
+                  &BytesRead, (LPOVERLAPPED) NULL)
+        || (BytesRead != sizeof(HANDLE))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %d: Unable to retrieve the exit event from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
     }
-    
-    /* TODO: we simulate that we had already a request on this connection.
-     * This keeps the mod_ssl SNI vs. Host name matcher from answering 
-     * 400 Bad Request
-     * when names do not match. We prefer a predictable 421 status.
+
+    if (!ReadFile(pipe, &os_start, sizeof(os_start),
+                  &BytesRead, (LPOVERLAPPED) NULL)
+        || (BytesRead != sizeof(os_start))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %d: Unable to retrieve the start_mutex from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
+    *child_start_mutex = NULL;
+    if ((rv = apr_os_proc_mutex_put(child_start_mutex, &os_start, s->process->pool))
+            != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Child %d: Unable to access the start_mutex from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
+
+    if (!ReadFile(pipe, &hScore, sizeof(hScore),
+                  &BytesRead, (LPOVERLAPPED) NULL)
+        || (BytesRead != sizeof(hScore))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %d: Unable to retrieve the scoreboard from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
+    *scoreboard_shm = NULL;
+    if ((rv = apr_os_shm_put(scoreboard_shm, &hScore, s->process->pool))
+            != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Child %d: Unable to access the scoreboard from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
+
+    rv = ap_reopen_scoreboard(s->process->pool, scoreboard_shm, 1);
+    if (rv || !(sb_shared = apr_shm_baseaddr_get(*scoreboard_shm))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
+                     "Child %d: Unable to reopen the scoreboard from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
+    /* We must 'initialize' the scoreboard to relink all the
+     * process-local pointer arrays into the shared memory block.
      */
-    env->c.keepalives = 1;
-    
-    return APR_SUCCESS;
+    ap_init_scoreboard(sb_shared);
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                 "Child %d: Retrieved our scoreboard from the parent.", my_pid);
 }

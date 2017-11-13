@@ -1,11 +1,12 @@
-static int check_header_line(struct apply_state *state, struct patch *patch)
+static int do_cvs_cmd(const char *me, char *arg)
 {
-	int extensions = (patch->is_delete == 1) + (patch->is_new == 1) +
-			 (patch->is_rename == 1) + (patch->is_copy == 1);
-	if (extensions > 1)
-		return error(_("inconsistent header lines %d and %d"),
-			     patch->extension_linenr, state->linenr);
-	if (extensions && !patch->extension_linenr)
-		patch->extension_linenr = state->linenr;
-	return 0;
+	const char *cvsserver_argv[3] = {
+		"cvsserver", "server", NULL
+	};
+
+	if (!arg || strcmp(arg, "server"))
+		die("git-cvsserver only handles server: %s", arg);
+
+	setup_path();
+	return execv_git_cmd(cvsserver_argv);
 }

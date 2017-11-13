@@ -1,49 +1,54 @@
-static apr_bucket *cgi_bucket_create(request_rec *r,
-                                     apr_file_t *out, apr_file_t *err,
-                                     apr_bucket_alloc_t *list)
+static char *authz_owner_get_file_group(request_rec *r)
 {
-    apr_bucket *b = apr_bucket_alloc(sizeof(*b), list);
-    apr_status_t rv;
-    apr_pollfd_t fd;
-    struct cgi_bucket_data *data = apr_palloc(r->pool, sizeof *data);
+    char *reason = NULL;
 
-    APR_BUCKET_INIT(b);
-    b->free = apr_bucket_free;
-    b->list = list;
-    b->type = &bucket_type_cgi;
-    b->length = (apr_size_t)(-1);
-    b->start = -1;
+    /* file-group only figures out the file's group and lets
+    * other modules do the actual authorization (against a group file/db).
+    * Thus, these modules have to hook themselves after
+    * mod_authz_owner and of course recognize 'file-group', too.
+    */
+#if !APR_HAS_USER
+    return NULL;
+#else  /* APR_HAS_USER */
+    char *group = NULL;
+    apr_finfo_t finfo;
+    apr_status_t status = 0;
 
-    /* Create the pollset */
-    rv = apr_pollset_create(&data->pollset, 2, r->pool, 0);
-    if (rv != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                     "cgi: apr_pollset_create(); check system or user limits");
+    if (!r->filename) {
+        reason = "no filename available";
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");
         return NULL;
     }
 
-    fd.desc_type = APR_POLL_FILE;
-    fd.reqevents = APR_POLLIN;
-    fd.p = r->pool;
-    fd.desc.f = out; /* script's stdout */
-    fd.client_data = (void *)1;
-    rv = apr_pollset_add(data->pollset, &fd);
-    if (rv != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                     "cgi: apr_pollset_add(); check system or user limits");
+    status = apr_stat(&finfo, r->filename, APR_FINFO_GROUP, r->pool);
+    if (status != APR_SUCCESS) {
+        reason = apr_pstrcat(r->pool, "could not stat file ",
+                                r->filename, NULL);
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");
         return NULL;
     }
 
-    fd.desc.f = err; /* script's stderr */
-    fd.client_data = (void *)2;
-    rv = apr_pollset_add(data->pollset, &fd);
-    if (rv != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                     "cgi: apr_pollset_add(); check system or user limits");
+    if (!(finfo.valid & APR_FINFO_GROUP)) {
+        reason = "no file group information available";
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");
         return NULL;
     }
 
-    data->r = r;
-    b->data = data;
-    return b;
+    status = apr_gid_name_get(&group, finfo.group, r->pool);
+    if (status != APR_SUCCESS || !group) {
+        reason = "could not get name of file group";
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");
+        return NULL;
+    }
+
+    return group;
+#endif /* APR_HAS_USER */
 }

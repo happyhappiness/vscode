@@ -1,1 +1,2 @@
-rprintf(FINFO,"recv_files(%s)\n",fname);
+rprintf(FERROR,"failed to set permissions on %s : %s\n",
+	      fname,strerror(errno));

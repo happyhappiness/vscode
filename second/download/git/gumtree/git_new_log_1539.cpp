@@ -1,1 +1,1 @@
-die_errno(_("failed to delete directory %s"), path);
+ref_transaction_begin(&err);

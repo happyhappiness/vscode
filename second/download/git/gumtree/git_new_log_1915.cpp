@@ -1,1 +1,2 @@
-printf("%s	%s\n", oid_to_hex(&ref->old_oid), ref->name);;
+printf(" %s", diff_unique_abbrev(p->parent[i].oid.hash,
+							 opt->abbrev));

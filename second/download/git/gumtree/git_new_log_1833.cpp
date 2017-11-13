@@ -1,1 +1,2 @@
-warning("symbolic ref is dangling: %s", path);
+die("the receiving end asked to sign an invalid nonce <%.*s>",
+		    len, nonce);

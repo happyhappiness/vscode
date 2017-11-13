@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, SESSION_PREFIX
-                      "excluded by configuration for: %s", r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                    MODNAME ": invalid type %d in mcheck().", m->type);

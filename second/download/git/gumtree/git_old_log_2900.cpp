@@ -1,1 +1,2 @@
-error(_("could not verify the tag '%s'"), name);
+error("poll failed resuming: %s",
+				      strerror(errno));

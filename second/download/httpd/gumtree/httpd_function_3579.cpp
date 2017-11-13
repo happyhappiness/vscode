@@ -1,221 +1,98 @@
-static int parse(server_rec *serv, apr_pool_t *p, char *l, int lineno)
+static apr_status_t dbd_construct(void **data_ptr,
+                                  void *params, apr_pool_t *pool)
 {
-    struct magic *m;
-    char *t, *s;
-    magic_server_config_rec *conf = (magic_server_config_rec *)
-                    ap_get_module_config(serv->module_config, &mime_magic_module);
+    dbd_group_t *group = params;
+    dbd_cfg_t *cfg = group->cfg;
+    apr_pool_t *rec_pool, *prepared_pool;
+    ap_dbd_t *rec;
+    apr_status_t rv;
+    const char *err = "";
 
-    /* allocate magic structure entry */
-    m = (struct magic *) apr_pcalloc(p, sizeof(struct magic));
-
-    /* append to linked list */
-    m->next = NULL;
-    if (!conf->magic || !conf->last) {
-        conf->magic = conf->last = m;
-    }
-    else {
-        conf->last->next = m;
-        conf->last = m;
+    rv = apr_pool_create(&rec_pool, pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, cfg->server,
+                     "DBD: Failed to create memory pool");
+        return rv;
     }
 
-    /* set values in magic structure */
-    m->flag = 0;
-    m->cont_level = 0;
-    m->lineno = lineno;
+    rec = apr_pcalloc(rec_pool, sizeof(ap_dbd_t));
 
-    while (*l == '>') {
-        ++l;  /* step over */
-        m->cont_level++;
-    }
+    rec->pool = rec_pool;
 
-    if (m->cont_level != 0 && *l == '(') {
-        ++l;  /* step over */
-        m->flag |= INDIR;
-    }
-
-    /* get offset, then skip over it */
-    m->offset = (int) strtol(l, &t, 0);
-    if (l == t) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, serv,
-                    MODNAME ": offset %s invalid", l);
-    }
-    l = t;
-
-    if (m->flag & INDIR) {
-        m->in.type = LONG;
-        m->in.offset = 0;
-        /*
-         * read [.lbs][+-]nnnnn)
-         */
-        if (*l == '.') {
-            switch (*++l) {
-            case 'l':
-                m->in.type = LONG;
-                break;
-            case 's':
-                m->in.type = SHORT;
-                break;
-            case 'b':
-                m->in.type = BYTE;
-                break;
-            default:
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, serv,
-                        MODNAME ": indirect offset type %c invalid", *l);
-                break;
-            }
-            l++;
+    /* The driver is loaded at config time now, so this just checks a hash.
+     * If that changes, the driver DSO could be registered to unload against
+     * our pool, which is probably not what we want.  Error checking isn't
+     * necessary now, but in case that changes in the future ...
+     */
+    rv = apr_dbd_get_driver(rec->pool, cfg->name, &rec->driver);
+    if (rv != APR_SUCCESS) {
+        if (APR_STATUS_IS_ENOTIMPL(rv)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: driver for %s not available", cfg->name);
         }
-        s = l;
-        if (*l == '+' || *l == '-')
-            l++;
-        if (apr_isdigit((unsigned char) *l)) {
-            m->in.offset = strtol(l, &t, 0);
-            if (*s == '-')
-                m->in.offset = -m->in.offset;
+        else if (APR_STATUS_IS_EDSOOPEN(rv)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: can't find driver for %s", cfg->name);
         }
-        else
-            t = l;
-        if (*t++ != ')') {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, serv,
-                        MODNAME ": missing ')' in indirect offset");
+        else if (APR_STATUS_IS_ESYMNOTFOUND(rv)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: driver for %s is invalid or corrupted",
+                         cfg->name);
         }
-        l = t;
+        else {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: mod_dbd not compatible with APR in get_driver");
+        }
+        apr_pool_destroy(rec->pool);
+        return rv;
     }
 
-
-    while (apr_isdigit((unsigned char) *l))
-        ++l;
-    EATAB;
-
-#define NBYTE           4
-#define NSHORT          5
-#define NLONG           4
-#define NSTRING         6
-#define NDATE           4
-#define NBESHORT        7
-#define NBELONG         6
-#define NBEDATE         6
-#define NLESHORT        7
-#define NLELONG         6
-#define NLEDATE         6
-
-    if (*l == 'u') {
-        ++l;
-        m->flag |= UNSIGNED;
-    }
-
-    /* get type, skip it */
-    if (strncmp(l, "byte", NBYTE) == 0) {
-        m->type = BYTE;
-        l += NBYTE;
-    }
-    else if (strncmp(l, "short", NSHORT) == 0) {
-        m->type = SHORT;
-        l += NSHORT;
-    }
-    else if (strncmp(l, "long", NLONG) == 0) {
-        m->type = LONG;
-        l += NLONG;
-    }
-    else if (strncmp(l, "string", NSTRING) == 0) {
-        m->type = STRING;
-        l += NSTRING;
-    }
-    else if (strncmp(l, "date", NDATE) == 0) {
-        m->type = DATE;
-        l += NDATE;
-    }
-    else if (strncmp(l, "beshort", NBESHORT) == 0) {
-        m->type = BESHORT;
-        l += NBESHORT;
-    }
-    else if (strncmp(l, "belong", NBELONG) == 0) {
-        m->type = BELONG;
-        l += NBELONG;
-    }
-    else if (strncmp(l, "bedate", NBEDATE) == 0) {
-        m->type = BEDATE;
-        l += NBEDATE;
-    }
-    else if (strncmp(l, "leshort", NLESHORT) == 0) {
-        m->type = LESHORT;
-        l += NLESHORT;
-    }
-    else if (strncmp(l, "lelong", NLELONG) == 0) {
-        m->type = LELONG;
-        l += NLELONG;
-    }
-    else if (strncmp(l, "ledate", NLEDATE) == 0) {
-        m->type = LEDATE;
-        l += NLEDATE;
-    }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, serv,
-                    MODNAME ": type %s invalid", l);
-        return -1;
-    }
-    /* New-style anding: "0 byte&0x80 =0x80 dynamically linked" */
-    if (*l == '&') {
-        ++l;
-        m->mask = signextend(serv, m, strtol(l, &l, 0));
-    }
-    else
-        m->mask = ~0L;
-    EATAB;
-
-    switch (*l) {
-    case '>':
-    case '<':
-        /* Old-style anding: "0 byte &0x80 dynamically linked" */
-    case '&':
-    case '^':
-    case '=':
-        m->reln = *l;
-        ++l;
-        break;
-    case '!':
-        if (m->type != STRING) {
-            m->reln = *l;
-            ++l;
+    rv = apr_dbd_open_ex(rec->driver, rec->pool, cfg->params, &rec->handle, &err);
+    if (rv != APR_SUCCESS) {
+        switch (rv) {
+        case APR_EGENERAL:
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: Can't connect to %s: %s", cfg->name, err);
+            break;
+        default:
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: mod_dbd not compatible with APR in open");
             break;
         }
-        /* FALL THROUGH */
-    default:
-        if (*l == 'x' && apr_isspace(l[1])) {
-            m->reln = *l;
-            ++l;
-            goto GetDesc;  /* Bill The Cat */
-        }
-        m->reln = '=';
-        break;
-    }
-    EATAB;
 
-    if (getvalue(serv, m, &l))
-        return -1;
-    /*
-     * now get last part - the description
+        apr_pool_destroy(rec->pool);
+        return rv;
+    }
+
+    apr_pool_cleanup_register(rec->pool, rec, dbd_close,
+                              apr_pool_cleanup_null);
+
+    /* we use a sub-pool for the prepared statements for each connection so
+     * that they will be cleaned up first, before the connection is closed
      */
-  GetDesc:
-    EATAB;
-    if (l[0] == '\b') {
-        ++l;
-        m->nospflag = 1;
-    }
-    else if ((l[0] == '\\') && (l[1] == 'b')) {
-        ++l;
-        ++l;
-        m->nospflag = 1;
-    }
-    else
-        m->nospflag = 0;
-    apr_cpystrn(m->desc, l, sizeof(m->desc));
+    rv = apr_pool_create(&prepared_pool, rec->pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, cfg->server,
+                     "DBD: Failed to create memory pool");
 
-#if MIME_MAGIC_DEBUG
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, serv,
-                MODNAME ": parse line=%d m=%x next=%x cont=%d desc=%s",
-                lineno, m, m->next, m->cont_level, m->desc);
-#endif /* MIME_MAGIC_DEBUG */
+        apr_pool_destroy(rec->pool);
+        return rv;
+    }
 
-    return 0;
+    rv = dbd_prepared_init(prepared_pool, cfg, rec);
+    if (rv != APR_SUCCESS) {
+        const char *errmsg = apr_dbd_error(rec->driver, rec->handle, rv);
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                     "DBD: failed to prepare SQL statements: %s",
+                     (errmsg ? errmsg : "[???]"));
+
+        apr_pool_destroy(rec->pool);
+        return rv;
+    }
+
+    dbd_run_post_connect(prepared_pool, cfg, rec);
+
+    *data_ptr = rec;
+
+    return APR_SUCCESS;
 }

@@ -1,1 +1,1 @@
-fprintf(F," -f, --fake-super            display attributes including fake-super xattrs\n");
+fprintf(F," -h, --help                  show this help\n");

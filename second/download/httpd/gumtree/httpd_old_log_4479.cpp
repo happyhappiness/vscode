@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
-                     "%s: could not log pid to file %s",
-                     ap_server_argv0, fname);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "proxy: " PROXY_FUNCTION ": sending data to "
+                          "%s:%u failed", conn->hostname, conn->port);

@@ -1,1 +1,2 @@
-die(_("fetch-pack: unable to fork off %s"), cmd_name);
+die(_("clone --recursive is not compatible with "
+			      "both --reference and --reference-if-able"));

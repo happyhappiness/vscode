@@ -1,2 +1,1 @@
-fprintf(FERROR,"rename %s -> %s : %s\n",
-			      fnametmp,fname,strerror(errno));
+fprintf(FERROR,"mknod %s : %s\n",fname,strerror(errno));

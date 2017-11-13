@@ -1,1 +1,1 @@
-die("strange pathname '%s' blocked", path);
+die_errno(_("could not open '%s' for reading and writing"), path);

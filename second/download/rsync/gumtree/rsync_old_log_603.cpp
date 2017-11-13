@@ -1,0 +1,1 @@
+fprintf(FINFO,"generate_files phase=%d\n",phase);

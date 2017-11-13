@@ -1,2 +1,1 @@
-die("-L argument '%s' not of the form start,end:file",
-			    item->string);
+die("revision walk setup failed");

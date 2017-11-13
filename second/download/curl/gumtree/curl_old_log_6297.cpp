@@ -1,11 +1,9 @@
 fputs(
-"              feedback you get about this possibly lethal situation.\n"
+"              ten.  The  file  will  be written using the Netscape cookie file\n"
+"              format. If you set the file name to  a  single  dash,  \"-\",  the\n"
+"              cookies will be written to stdout.\n"
 "\n"
-"              If this option is used several times, the  last  specified  file\n"
-"              name will be used.\n"
-"\n"
-"       -C/--continue-at <offset>\n"
-"              Continue/Resume  a  previous  file transfer at the given offset.\n"
-"              The given offset is the exact  number  of  bytes  that  will  be\n"
-"              skipped,  counting  from the beginning of the source file before\n"
+"              NOTE If the cookie jar can't be created or written to, the whole\n"
+"              curl operation won't fail or even report an error clearly. Using\n"
+"              -v  will  get  a warning displayed, but that is the only visible\n"
 , stdout);

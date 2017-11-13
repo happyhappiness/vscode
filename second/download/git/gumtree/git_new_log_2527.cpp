@@ -1,1 +1,0 @@
-error(_("Must specify a notes ref to merge"));

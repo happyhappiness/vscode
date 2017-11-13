@@ -1,34 +1,56 @@
-static apr_status_t dbd_setup_lock(apr_pool_t *pool, server_rec *s)
+apr_status_t ap_init_ebcdic(apr_pool_t *pool)
 {
-    svr_cfg *svr = ap_get_module_config(s->module_config, &dbd_module);
-    apr_status_t rv, rv2 = APR_SUCCESS;
+    apr_status_t rv;
+    char buf[80];
 
-    /* several threads could be here at the same time, all trying to
-     * initialize the reslist because dbd_setup_init failed to do so
-     */
-    if (!svr->mutex) {
-        /* we already logged an error when the mutex couldn't be created */
-        return APR_EGENERAL;
-    }
-
-    rv = apr_thread_mutex_lock(svr->mutex);
-    if (rv != APR_SUCCESS) {
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, pool,
-                      "DBD: Failed to acquire thread mutex");
+    rv = apr_xlate_open(&ap_hdrs_to_ascii, "ISO8859-1", APR_DEFAULT_CHARSET, pool);
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+                     "apr_xlate_open() failed");
         return rv;
     }
 
-    if (!svr->dbpool) {
-        rv2 = dbd_setup(s->process->pool, svr);
+    rv = apr_xlate_open(&ap_hdrs_from_ascii, APR_DEFAULT_CHARSET, "ISO8859-1", pool);
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+                     "apr_xlate_open() failed");
+        return rv;
     }
 
-    rv = apr_thread_mutex_unlock(svr->mutex);
-    if (rv != APR_SUCCESS) {
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, pool,
-                      "DBD: Failed to release thread mutex");
-        if (rv2 == APR_SUCCESS) {
-            rv2 = rv;
-        }
+    rv = apr_xlate_open(&ap_locale_to_ascii, "ISO8859-1", APR_LOCALE_CHARSET, pool);
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+                     "apr_xlate_open() failed");
+        return rv;
     }
-    return rv2;
+
+    rv = apr_xlate_open(&ap_locale_from_ascii, APR_LOCALE_CHARSET, "ISO8859-1", pool);
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+                     "apr_xlate_open() failed");
+        return rv;
+    }
+
+    rv = apr_MD5InitEBCDIC(ap_hdrs_to_ascii);
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+                     "apr_MD5InitEBCDIC() failed");
+        return rv;
+    }
+    
+    rv = apr_base64init_ebcdic(ap_hdrs_to_ascii, ap_hdrs_from_ascii);
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+                     "apr_base64init_ebcdic() failed");
+        return rv;
+    }
+    
+    rv = apr_SHA1InitEBCDIC(ap_hdrs_to_ascii);
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+                     "apr_SHA1InitEBCDIC() failed");
+        return rv;
+    }
+    
+    return APR_SUCCESS;
 }

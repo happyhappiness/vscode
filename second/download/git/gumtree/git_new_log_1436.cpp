@@ -1,1 +1,1 @@
-printf("prune %s", message);
+die("strange port '%s' blocked", port);

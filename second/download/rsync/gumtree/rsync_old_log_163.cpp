@@ -1,1 +1,2 @@
-fprintf(stderr,"failed to open %s : %s\n",fname,strerror(errno));
+fprintf(stderr,"hash search s->n=%d len=%d count=%d\n",
+	    s->n,(int)len,s->count);

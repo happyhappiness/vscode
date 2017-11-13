@@ -1,1 +1,0 @@
-die("git-http-push failed");

@@ -1,1 +1,1 @@
-fprintf(FERROR,"received %d names\n",flist->count);
+set_perms(fname,&flist->files[i],&st,1);

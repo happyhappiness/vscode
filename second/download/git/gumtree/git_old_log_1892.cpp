@@ -1,1 +1,1 @@
-printf("missing %s %s\n", typename(obj->type), sha1_to_hex(obj->sha1));
+die("unable to generate diff for %s", name);

@@ -1,2 +1,1 @@
-logerror("unable to set SO_KEEPALIVE on socket: %s",
-			strerror(errno));
+error(_("cannot abort from a branch yet to be born"));

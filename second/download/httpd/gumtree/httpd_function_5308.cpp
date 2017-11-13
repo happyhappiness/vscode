@@ -1,51 +1,26 @@
-struct h2_stream *h2_session_push(h2_session *session, h2_stream *is,
-                                  h2_push *push)
+static int winnt_open_logs(apr_pool_t *p, apr_pool_t *plog, apr_pool_t *ptemp, server_rec *s)
 {
-    apr_status_t status;
-    h2_stream *stream;
-    h2_ngheader *ngh;
-    int nid;
-    
-    ngh = h2_util_ngheader_make_req(is->pool, push->req);
-    nid = nghttp2_submit_push_promise(session->ngh2, 0, is->id, 
-                                      ngh->nv, ngh->nvlen, NULL);
-                                      
-    if (nid <= 0) {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
-                      "h2_stream(%ld-%d): submitting push promise fail: %s",
-                      session->id, is->id, nghttp2_strerror(nid));
-        return NULL;
+    /* Initialize shared static objects.
+     */
+    if (parent_pid != my_pid) {
+        return OK;
     }
 
-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
-                  "h2_stream(%ld-%d): promised new stream %d for %s %s on %d",
-                  session->id, is->id, nid,
-                  push->req->method, push->req->path, is->id);
-                  
-    stream = h2_session_open_stream(session, nid);
-    if (stream) {
-        h2_stream_set_h2_request(stream, is->id, push->req);
-        status = stream_schedule(session, stream, 1);
-        if (status != APR_SUCCESS) {
-            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
-                          "h2_stream(%ld-%d): scheduling push stream",
-                          session->id, stream->id);
-            h2_stream_cleanup(stream);
-            stream = NULL;
-        }
-        ++session->unsent_promises;
-    }
-    else {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
-                      "h2_stream(%ld-%d): failed to create stream obj %d",
-                      session->id, is->id, nid);
+    /* We cannot initialize our listeners if we are restarting
+     * (the parent process already has glomed on to them)
+     * nor should we do so for service reconfiguration
+     * (since the service may already be running.)
+     */
+    if (!strcasecmp(signal_arg, "restart")
+            || !strcasecmp(signal_arg, "config")) {
+        return OK;
     }
 
-    if (!stream) {
-        /* try to tell the client that it should not wait. */
-        nghttp2_submit_rst_stream(session->ngh2, NGHTTP2_FLAG_NONE, nid,
-                                  NGHTTP2_INTERNAL_ERROR);
+    if (ap_setup_listeners(s) < 1) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_STARTUP, 0,
+                     NULL, "no listening sockets available, shutting down");
+        return DONE;
     }
-    
-    return stream;
+
+    return OK;
 }

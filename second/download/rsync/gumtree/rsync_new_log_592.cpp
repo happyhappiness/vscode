@@ -1,2 +1,1 @@
-rprintf(FERROR,"write %s: %s\n",
-				dest,strerror(errno));
+rprintf(FINFO,"send_files phase=%d\n",phase);

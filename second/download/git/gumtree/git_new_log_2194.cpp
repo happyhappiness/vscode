@@ -1,1 +1,2 @@
-die("not a gitdir '%s'", argv[i]);
+error("cannot fdopen %s (%s)",
+			      get_lock_file_path(&reflog_lock), strerror(errno));

@@ -1,1 +1,1 @@
-status_printf_ln(s, c, _("Changes not staged for commit:"));
+error("Could not write requested version");

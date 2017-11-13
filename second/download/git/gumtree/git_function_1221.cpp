@@ -1,221 +1,122 @@
-int cmd_mv(int argc, const char **argv, const char *prefix)
+static struct commit *fake_working_tree_commit(struct diff_options *opt,
+					       const char *path,
+					       const char *contents_from)
 {
-	int i, gitmodules_modified = 0;
-	int verbose = 0, show_only = 0, force = 0, ignore_errors = 0;
-	struct option builtin_mv_options[] = {
-		OPT__VERBOSE(&verbose, N_("be verbose")),
-		OPT__DRY_RUN(&show_only, N_("dry run")),
-		OPT__FORCE(&force, N_("force move/rename even if target exists")),
-		OPT_BOOL('k', NULL, &ignore_errors, N_("skip move/rename errors")),
-		OPT_END(),
-	};
-	const char **source, **destination, **dest_path, **submodule_gitfile;
-	enum update_mode { BOTH = 0, WORKING_DIRECTORY, INDEX } *modes;
-	struct stat st;
-	struct string_list src_for_dst = STRING_LIST_INIT_NODUP;
+	struct commit *commit;
+	struct origin *origin;
+	struct commit_list **parent_tail, *parent;
+	struct object_id head_oid;
+	struct strbuf buf = STRBUF_INIT;
+	const char *ident;
+	time_t now;
+	int size, len;
+	struct cache_entry *ce;
+	unsigned mode;
+	struct strbuf msg = STRBUF_INIT;
 
-	gitmodules_config();
-	git_config(git_default_config, NULL);
+	read_cache();
+	time(&now);
+	commit = alloc_commit_node();
+	commit->object.parsed = 1;
+	commit->date = now;
+	parent_tail = &commit->parents;
 
-	argc = parse_options(argc, argv, prefix, builtin_mv_options,
-			     builtin_mv_usage, 0);
-	if (--argc < 1)
-		usage_with_options(builtin_mv_usage, builtin_mv_options);
+	if (!resolve_ref_unsafe("HEAD", RESOLVE_REF_READING, head_oid.hash, NULL))
+		die("no such ref: HEAD");
 
-	hold_locked_index(&lock_file, 1);
-	if (read_cache() < 0)
-		die(_("index file corrupt"));
+	parent_tail = append_parent(parent_tail, &head_oid);
+	append_merge_parents(parent_tail);
+	verify_working_tree_path(commit, path);
 
-	source = internal_copy_pathspec(prefix, argv, argc, 0);
-	modes = xcalloc(argc, sizeof(enum update_mode));
+	origin = make_origin(commit, path);
+
+	ident = fmt_ident("Not Committed Yet", "not.committed.yet", NULL, 0);
+	strbuf_addstr(&msg, "tree 0000000000000000000000000000000000000000\n");
+	for (parent = commit->parents; parent; parent = parent->next)
+		strbuf_addf(&msg, "parent %s\n",
+			    oid_to_hex(&parent->item->object.oid));
+	strbuf_addf(&msg,
+		    "author %s\n"
+		    "committer %s\n\n"
+		    "Version of %s from %s\n",
+		    ident, ident, path,
+		    (!contents_from ? path :
+		     (!strcmp(contents_from, "-") ? "standard input" : contents_from)));
+	set_commit_buffer_from_strbuf(commit, &msg);
+
+	if (!contents_from || strcmp("-", contents_from)) {
+		struct stat st;
+		const char *read_from;
+		char *buf_ptr;
+		unsigned long buf_len;
+
+		if (contents_from) {
+			if (stat(contents_from, &st) < 0)
+				die_errno("Cannot stat '%s'", contents_from);
+			read_from = contents_from;
+		}
+		else {
+			if (lstat(path, &st) < 0)
+				die_errno("Cannot lstat '%s'", path);
+			read_from = path;
+		}
+		mode = canon_mode(st.st_mode);
+
+		switch (st.st_mode & S_IFMT) {
+		case S_IFREG:
+			if (DIFF_OPT_TST(opt, ALLOW_TEXTCONV) &&
+			    textconv_object(read_from, mode, &null_oid, 0, &buf_ptr, &buf_len))
+				strbuf_attach(&buf, buf_ptr, buf_len, buf_len + 1);
+			else if (strbuf_read_file(&buf, read_from, st.st_size) != st.st_size)
+				die_errno("cannot open or read '%s'", read_from);
+			break;
+		case S_IFLNK:
+			if (strbuf_readlink(&buf, read_from, st.st_size) < 0)
+				die_errno("cannot readlink '%s'", read_from);
+			break;
+		default:
+			die("unsupported file type %s", read_from);
+		}
+	}
+	else {
+		/* Reading from stdin */
+		mode = 0;
+		if (strbuf_read(&buf, 0, 0) < 0)
+			die_errno("failed to read from stdin");
+	}
+	convert_to_git(path, buf.buf, buf.len, &buf, 0);
+	origin->file.ptr = buf.buf;
+	origin->file.size = buf.len;
+	pretend_sha1_file(buf.buf, buf.len, OBJ_BLOB, origin->blob_oid.hash);
+
 	/*
-	 * Keep trailing slash, needed to let
-	 * "git mv file no-such-dir/" error out.
+	 * Read the current index, replace the path entry with
+	 * origin->blob_sha1 without mucking with its mode or type
+	 * bits; we are not going to write this index out -- we just
+	 * want to run "diff-index --cached".
 	 */
-	dest_path = internal_copy_pathspec(prefix, argv + argc, 1,
-					   KEEP_TRAILING_SLASH);
-	submodule_gitfile = xcalloc(argc, sizeof(char *));
+	discard_cache();
+	read_cache();
 
-	if (dest_path[0][0] == '\0')
-		/* special case: "." was normalized to "" */
-		destination = internal_copy_pathspec(dest_path[0], argv, argc, DUP_BASENAME);
-	else if (!lstat(dest_path[0], &st) &&
-			S_ISDIR(st.st_mode)) {
-		dest_path[0] = add_slash(dest_path[0]);
-		destination = internal_copy_pathspec(dest_path[0], argv, argc, DUP_BASENAME);
-	} else {
-		if (argc != 1)
-			die("destination '%s' is not a directory", dest_path[0]);
-		destination = dest_path;
-	}
-
-	/* Checking */
-	for (i = 0; i < argc; i++) {
-		const char *src = source[i], *dst = destination[i];
-		int length, src_is_dir;
-		const char *bad = NULL;
-
-		if (show_only)
-			printf(_("Checking rename of '%s' to '%s'\n"), src, dst);
-
-		length = strlen(src);
-		if (lstat(src, &st) < 0)
-			bad = _("bad source");
-		else if (!strncmp(src, dst, length) &&
-				(dst[length] == 0 || dst[length] == '/')) {
-			bad = _("can not move directory into itself");
-		} else if ((src_is_dir = S_ISDIR(st.st_mode))
-				&& lstat(dst, &st) == 0)
-			bad = _("cannot move directory over file");
-		else if (src_is_dir) {
-			int first = cache_name_pos(src, length);
-			if (first >= 0) {
-				struct strbuf submodule_dotgit = STRBUF_INIT;
-				if (!S_ISGITLINK(active_cache[first]->ce_mode))
-					die (_("Huh? Directory %s is in index and no submodule?"), src);
-				if (!is_staging_gitmodules_ok())
-					die (_("Please, stage your changes to .gitmodules or stash them to proceed"));
-				strbuf_addf(&submodule_dotgit, "%s/.git", src);
-				submodule_gitfile[i] = read_gitfile(submodule_dotgit.buf);
-				if (submodule_gitfile[i])
-					submodule_gitfile[i] = xstrdup(submodule_gitfile[i]);
-				else
-					submodule_gitfile[i] = SUBMODULE_WITH_GITDIR;
-				strbuf_release(&submodule_dotgit);
-			} else {
-				const char *src_w_slash = add_slash(src);
-				int last, len_w_slash = length + 1;
-
-				modes[i] = WORKING_DIRECTORY;
-
-				first = cache_name_pos(src_w_slash, len_w_slash);
-				if (first >= 0)
-					die (_("Huh? %.*s is in index?"),
-							len_w_slash, src_w_slash);
-
-				first = -1 - first;
-				for (last = first; last < active_nr; last++) {
-					const char *path = active_cache[last]->name;
-					if (strncmp(path, src_w_slash, len_w_slash))
-						break;
-				}
-				if (src_w_slash != src)
-					free((char *)src_w_slash);
-
-				if (last - first < 1)
-					bad = _("source directory is empty");
-				else {
-					int j, dst_len;
-
-					if (last - first > 0) {
-						source = xrealloc(source,
-								(argc + last - first)
-								* sizeof(char *));
-						destination = xrealloc(destination,
-								(argc + last - first)
-								* sizeof(char *));
-						modes = xrealloc(modes,
-								(argc + last - first)
-								* sizeof(enum update_mode));
-						submodule_gitfile = xrealloc(submodule_gitfile,
-								(argc + last - first)
-								* sizeof(char *));
-					}
-
-					dst = add_slash(dst);
-					dst_len = strlen(dst);
-
-					for (j = 0; j < last - first; j++) {
-						const char *path =
-							active_cache[first + j]->name;
-						source[argc + j] = path;
-						destination[argc + j] =
-							prefix_path(dst, dst_len,
-								path + length + 1);
-						modes[argc + j] = INDEX;
-						submodule_gitfile[argc + j] = NULL;
-					}
-					argc += last - first;
-				}
-			}
-		} else if (cache_name_pos(src, length) < 0)
-			bad = _("not under version control");
-		else if (lstat(dst, &st) == 0 &&
-			 (!ignore_case || strcasecmp(src, dst))) {
-			bad = _("destination exists");
-			if (force) {
-				/*
-				 * only files can overwrite each other:
-				 * check both source and destination
-				 */
-				if (S_ISREG(st.st_mode) || S_ISLNK(st.st_mode)) {
-					if (verbose)
-						warning(_("overwriting '%s'"), dst);
-					bad = NULL;
-				} else
-					bad = _("Cannot overwrite");
-			}
-		} else if (string_list_has_string(&src_for_dst, dst))
-			bad = _("multiple sources for the same target");
-		else if (is_dir_sep(dst[strlen(dst) - 1]))
-			bad = _("destination directory does not exist");
+	len = strlen(path);
+	if (!mode) {
+		int pos = cache_name_pos(path, len);
+		if (0 <= pos)
+			mode = active_cache[pos]->ce_mode;
 		else
-			string_list_insert(&src_for_dst, dst);
-
-		if (bad) {
-			if (ignore_errors) {
-				if (--argc > 0) {
-					memmove(source + i, source + i + 1,
-						(argc - i) * sizeof(char *));
-					memmove(destination + i,
-						destination + i + 1,
-						(argc - i) * sizeof(char *));
-					memmove(modes + i, modes + i + 1,
-						(argc - i) * sizeof(enum update_mode));
-					memmove(submodule_gitfile + i,
-						submodule_gitfile + i + 1,
-						(argc - i) * sizeof(char *));
-					i--;
-				}
-			} else
-				die (_("%s, source=%s, destination=%s"),
-				     bad, src, dst);
-		}
+			/* Let's not bother reading from HEAD tree */
+			mode = S_IFREG | 0644;
 	}
+	size = cache_entry_size(len);
+	ce = xcalloc(1, size);
+	oidcpy(&ce->oid, &origin->blob_oid);
+	memcpy(ce->name, path, len);
+	ce->ce_flags = create_ce_flags(0);
+	ce->ce_namelen = len;
+	ce->ce_mode = create_ce_mode(mode);
+	add_cache_entry(ce, ADD_CACHE_OK_TO_ADD|ADD_CACHE_OK_TO_REPLACE);
 
-	for (i = 0; i < argc; i++) {
-		const char *src = source[i], *dst = destination[i];
-		enum update_mode mode = modes[i];
-		int pos;
-		if (show_only || verbose)
-			printf(_("Renaming %s to %s\n"), src, dst);
-		if (!show_only && mode != INDEX) {
-			if (rename(src, dst) < 0 && !ignore_errors)
-				die_errno (_("renaming '%s' failed"), src);
-			if (submodule_gitfile[i]) {
-				if (submodule_gitfile[i] != SUBMODULE_WITH_GITDIR)
-					connect_work_tree_and_git_dir(dst, submodule_gitfile[i]);
-				if (!update_path_in_gitmodules(src, dst))
-					gitmodules_modified = 1;
-			}
-		}
+	cache_tree_invalidate_path(&the_index, path);
 
-		if (mode == WORKING_DIRECTORY)
-			continue;
-
-		pos = cache_name_pos(src, strlen(src));
-		assert(pos >= 0);
-		if (!show_only)
-			rename_cache_entry_at(pos, dst);
-	}
-
-	if (gitmodules_modified)
-		stage_updated_gitmodules();
-
-	if (active_cache_changed) {
-		if (write_locked_index(&the_index, &lock_file, COMMIT_LOCK))
-			die(_("Unable to write new index file"));
-	}
-
-	return 0;
+	return commit;
 }

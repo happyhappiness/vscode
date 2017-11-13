@@ -1,78 +1,66 @@
-static void set_signals(void)
+static int session_dbd_save(request_rec * r, session_rec * z)
 {
-#ifndef NO_USE_SIGACTION
-    struct sigaction sa;
-#endif
 
-    if (!one_process) {
-        ap_fatal_signal_setup(ap_server_conf, pconf);
+    char *buffer;
+    apr_status_t ret = APR_SUCCESS;
+    session_dbd_dir_conf *conf = ap_get_module_config(r->per_dir_config,
+                                                      &session_dbd_module);
+
+    /* support anonymous sessions */
+    if (conf->name_set || conf->name2_set) {
+
+        /* don't cache pages with a session */
+        apr_table_addn(r->headers_out, "Cache-Control", "no-cache");
+
+        /* must we create a uuid? */
+        buffer = apr_pcalloc(r->pool, APR_UUID_FORMATTED_LENGTH + 1);
+        apr_uuid_format(buffer, z->uuid);
+
+        /* save the session with the uuid as key */
+        if (z->encoded && z->encoded[0]) {
+            ret = dbd_save(r, buffer, z->encoded, z->expiry);
+        }
+        else {
+            ret = dbd_remove(r, buffer);
+        }
+        if (ret != APR_SUCCESS) {
+            return ret;
+        }
+
+        /* create RFC2109 compliant cookie */
+        if (conf->name_set) {
+            ap_cookie_write(r, conf->name, buffer, conf->name_attrs, z->maxage, r->headers_out, r->err_headers_out, NULL);
+        }
+
+        /* create RFC2965 compliant cookie */
+        if (conf->name2_set) {
+            ap_cookie_write2(r, conf->name2, buffer, conf->name2_attrs, z->maxage, r->headers_out, r->err_headers_out, NULL);
+        }
+
+        return OK;
+
     }
 
-#ifndef NO_USE_SIGACTION
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
+    /* save named session */
+    else if (conf->peruser) {
 
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGTERM)");
-#ifdef AP_SIG_GRACEFUL_STOP
-    if (sigaction(AP_SIG_GRACEFUL_STOP, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
-                     "sigaction(" AP_SIG_GRACEFUL_STOP_STRING ")");
-#endif
-#ifdef SIGINT
-    if (sigaction(SIGINT, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGINT)");
-#endif
-#ifdef SIGXCPU
-    sa.sa_handler = SIG_DFL;
-    if (sigaction(SIGXCPU, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGXCPU)");
-#endif
-#ifdef SIGXFSZ
-    sa.sa_handler = SIG_DFL;
-    if (sigaction(SIGXFSZ, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGXFSZ)");
-#endif
-#ifdef SIGPIPE
-    sa.sa_handler = SIG_IGN;
-    if (sigaction(SIGPIPE, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGPIPE)");
-#endif
+        /* don't cache pages with a session */
+        apr_table_addn(r->headers_out, "Cache-Control", "no-cache");
 
-    /* we want to ignore HUPs and AP_SIG_GRACEFUL while we're busy
-     * processing one
-     */
-    sigaddset(&sa.sa_mask, SIGHUP);
-    sigaddset(&sa.sa_mask, AP_SIG_GRACEFUL);
-    sa.sa_handler = restart;
-    if (sigaction(SIGHUP, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGHUP)");
-    if (sigaction(AP_SIG_GRACEFUL, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(" AP_SIG_GRACEFUL_STRING ")");
-#else
-    if (!one_process) {
-#ifdef SIGXCPU
-        apr_signal(SIGXCPU, SIG_DFL);
-#endif /* SIGXCPU */
-#ifdef SIGXFSZ
-        apr_signal(SIGXFSZ, SIG_DFL);
-#endif /* SIGXFSZ */
+        if (r->user) {
+            ret = dbd_save(r, r->user, z->encoded, z->expiry);
+            if (ret != APR_SUCCESS) {
+                return ret;
+            }
+            return OK;
+        }
+        else {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, LOG_PREFIX
+               "peruser sessions can only be saved if a user is logged in, "
+                          "session not saved: %s", r->uri);
+        }
     }
 
-    apr_signal(SIGTERM, sig_term);
-#ifdef SIGHUP
-    apr_signal(SIGHUP, restart);
-#endif /* SIGHUP */
-#ifdef AP_SIG_GRACEFUL
-    apr_signal(AP_SIG_GRACEFUL, restart);
-#endif /* AP_SIG_GRACEFUL */
-#ifdef AP_SIG_GRACEFUL_STOP
-    apr_signal(AP_SIG_GRACEFUL_STOP, sig_term);
-#endif /* AP_SIG_GRACEFUL */
-#ifdef SIGPIPE
-    apr_signal(SIGPIPE, SIG_IGN);
-#endif /* SIGPIPE */
+    return DECLINED;
 
-#endif
 }

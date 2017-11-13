@@ -1,14 +1,25 @@
-static void save_env(void)
+static const char *parse_cmd_create(struct strbuf *input, const char *next)
 {
-	int i;
-	if (saved_environment)
-		return;
-	saved_environment = 1;
-	if (!getcwd(orig_cwd, sizeof(orig_cwd)))
-		die_errno("cannot getcwd");
-	for (i = 0; i < ARRAY_SIZE(env_names); i++) {
-		orig_env[i] = getenv(env_names[i]);
-		if (orig_env[i])
-			orig_env[i] = xstrdup(orig_env[i]);
-	}
+	char *refname;
+	unsigned char new_sha1[20];
+
+	refname = parse_refname(input, &next);
+	if (!refname)
+		die("create: missing <ref>");
+
+	if (parse_next_sha1(input, &next, new_sha1, "create", refname, 0))
+		die("create %s: missing <newvalue>", refname);
+
+	if (is_null_sha1(new_sha1))
+		die("create %s: zero <newvalue>", refname);
+
+	if (*next != line_termination)
+		die("create %s: extra input: %s", refname, next);
+
+	ref_transaction_create(transaction, refname, new_sha1, update_flags);
+
+	update_flags = 0;
+	free(refname);
+
+	return next;
 }

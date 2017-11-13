@@ -1,108 +1,78 @@
-static int show_one_sig_status (gpgme_ctx_t ctx, int idx, STATE *s)
+int pgp_gpgme_encrypted_handler (BODY *a, STATE *s)
 {
-  const char *fpr;
-  gpgme_key_t key = NULL;
-  int i, anybad = 0, anywarn = 0;
-  unsigned int sum;
-  gpgme_verify_result_t result;
-  gpgme_signature_t sig;
-  gpgme_error_t err = GPG_ERR_NO_ERROR;
-
-  result = gpgme_op_verify_result (ctx);
-  if (result)
+  char tempfile[_POSIX_PATH_MAX];
+  FILE *fpout;
+  BODY *tattach;
+  BODY *orig_body = a;
+  int is_signed;
+  int rc = 0;
+  
+  dprint (2, (debugfile, "Entering pgp_encrypted handler\n"));
+  a = a->parts;
+  if (!a || a->type != TYPEAPPLICATION || !a->subtype
+      || ascii_strcasecmp ("pgp-encrypted", a->subtype) 
+      || !a->next || a->next->type != TYPEAPPLICATION || !a->next->subtype
+      || ascii_strcasecmp ("octet-stream", a->next->subtype) )
     {
-      /* FIXME: this code should use a static variable and remember
-	 the current position in the list of signatures, IMHO.
-	 -moritz.  */
-
-      for (i = 0, sig = result->signatures; sig && (i < idx);
-           i++, sig = sig->next)
-        ;
-      if (! sig)
-	return -1;		/* Signature not found.  */
-
-      if (signature_key)
-	{
-	  gpgme_key_unref (signature_key);
-	  signature_key = NULL;
-	}
-      
-      fpr = sig->fpr;
-      sum = sig->summary;
-
-      if (gpg_err_code (sig->status) != GPG_ERR_NO_ERROR)
-	anybad = 1;
-
-      if (gpg_err_code (sig->status) != GPG_ERR_NO_PUBKEY)
-      {
-	err = gpgme_get_key (ctx, fpr, &key, 0); /* secret key?  */
-	if (! err)
-	{
-	  if (! signature_key)
-	    signature_key = key;
-	}
-	else
-	{
-	  key = NULL; /* Old gpgme versions did not set KEY to NULL on
-			 error.   Do it here to avoid a double free. */
-	}
-      }
-      else
-      {
-	/* pubkey not present */
-      }
-
-      if (!s || !s->fpout || !(s->flags & M_DISPLAY))
-	; /* No state information so no way to print anything. */
-      else if (err)
-	{
-          state_attach_puts (_("Error getting key information for KeyID "), s);
-	  state_attach_puts ( fpr, s );
-          state_attach_puts (_(": "), s);
-          state_attach_puts ( gpgme_strerror (err), s );
-          state_attach_puts ("\n", s);
-          anybad = 1;
-	}
-      else if ((sum & GPGME_SIGSUM_GREEN))
-      {
-        print_smime_keyinfo (_("Good signature from:"), sig, key, s);
-	if (show_sig_summary (sum, ctx, key, idx, s, sig))
-	  anywarn = 1;
-	show_one_sig_validity (ctx, idx, s);
-      }
-      else if ((sum & GPGME_SIGSUM_RED))
-      {
-        print_smime_keyinfo (_("*BAD* signature from:"), sig, key, s);
-        show_sig_summary (sum, ctx, key, idx, s, sig);
-      }
-      else if (!anybad && key && (key->protocol == GPGME_PROTOCOL_OpenPGP))
-      { /* We can't decide (yellow) but this is a PGP key with a good
-           signature, so we display what a PGP user expects: The name,
-	   fingerprint and the key validity (which is neither fully or
-	   ultimate). */
-        print_smime_keyinfo (_("Good signature from:"), sig, key, s);
-	show_one_sig_validity (ctx, idx, s);
-	show_fingerprint (key,s);
-	if (show_sig_summary (sum, ctx, key, idx, s, sig))
-	  anywarn = 1;
-      }
-      else /* can't decide (yellow) */
-      {
-        print_smime_keyinfo (_("Problem signature from:"), sig, key, s);
-	/* 0 indicates no expiration */
-	if (sig->exp_timestamp)
-	{
-	  state_attach_puts (_("               expires: "), s);
-	  print_time (sig->exp_timestamp, s);
-	  state_attach_puts ("\n", s);
-	}
-	show_sig_summary (sum, ctx, key, idx, s, sig);
-        anywarn = 1;
-      }
-
-      if (key != signature_key)
-	gpgme_key_unref (key);
+      if (s->flags & M_DISPLAY)
+        state_attach_puts (_("[-- Error: malformed PGP/MIME message! --]\n\n"),
+                           s);
+      return -1;
     }
 
-  return anybad ? 1 : anywarn ? 2 : 0;
+  /* Move forward to the application/pgp-encrypted body. */
+  a = a->next;
+
+  mutt_mktemp (tempfile, sizeof (tempfile));
+  if (!(fpout = safe_fopen (tempfile, "w+")))
+    {
+      if (s->flags & M_DISPLAY)
+        state_attach_puts (_("[-- Error: could not create temporary file! "
+                             "--]\n"), s);
+      return -1;
+    }
+
+  tattach = decrypt_part (a, s, fpout, 0, &is_signed);
+  if (tattach)
+    {
+      tattach->goodsig = is_signed > 0;
+
+      if (s->flags & M_DISPLAY)
+        state_attach_puts (is_signed?
+          _("[-- The following data is PGP/MIME signed and encrypted --]\n\n"):
+          _("[-- The following data is PGP/MIME encrypted --]\n\n"),
+                           s);
+      
+      {
+        FILE *savefp = s->fpin;
+        s->fpin = fpout;
+        rc = mutt_body_handler (tattach, s);
+        s->fpin = savefp;
+      }
+
+      /* 
+       * if a multipart/signed is the _only_ sub-part of a
+       * multipart/encrypted, cache signature verification
+       * status.
+       */
+      if (mutt_is_multipart_signed (tattach) && !tattach->next)
+        orig_body->goodsig |= tattach->goodsig;
+    
+      if (s->flags & M_DISPLAY)
+        {
+          state_puts ("\n", s);
+          state_attach_puts (is_signed?
+             _("[-- End of PGP/MIME signed and encrypted data --]\n"):
+             _("[-- End of PGP/MIME encrypted data --]\n"),
+                             s);
+        }
+
+      mutt_free_body (&tattach);
+    }
+  
+  safe_fclose (&fpout);
+  mutt_unlink(tempfile);
+  dprint (2, (debugfile, "Leaving pgp_encrypted handler\n"));
+
+  return rc;
 }

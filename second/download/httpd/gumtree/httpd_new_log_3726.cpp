@@ -1,1 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00895) "serving URL %s", url);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, error, expr,r->filename);

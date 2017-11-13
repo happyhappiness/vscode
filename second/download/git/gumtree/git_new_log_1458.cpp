@@ -1,1 +1,2 @@
-die("helper %s does not support --signed", data->name);
+error("Unexpected line '%s', expected %s-server",
+			     line ? line : "<flush packet>", welcome_prefix);

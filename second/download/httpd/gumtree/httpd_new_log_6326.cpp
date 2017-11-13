@@ -1,3 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
-                      "fpm:virtual_script: Modified SCRIPT_NAME to: %s",
-                      pend);
+ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_EMERG, rv, s,
+                         APLOGNO(02297)
+                         "Cannot access directory '%s' for log file '%s' "
+                         "defined at %s:%d", dir, cls->fname,
+                         directive->filename, directive->line_num);

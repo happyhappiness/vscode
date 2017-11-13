@@ -1,1 +1,1 @@
-fprintf(stderr, "   -l   Display usernames from database on stdout.\n");
+fprintf(stderr, "   -t   The last param is username comment.\n");

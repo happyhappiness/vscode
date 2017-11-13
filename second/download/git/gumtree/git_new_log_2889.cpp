@@ -1,2 +1,2 @@
-die(_("No url found for submodule path '%s' in .gitmodules"),
-				displaypath);
+die(_("Failed to register url for submodule path '%s'"),
+			    displaypath);

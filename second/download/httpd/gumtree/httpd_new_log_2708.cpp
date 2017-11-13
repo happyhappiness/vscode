@@ -1,1 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01683) "Failed to release mutex!");
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, f->r,
+                  "Unknown Transfer-Encoding: %s; using Content-Length", tenc);

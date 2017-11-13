@@ -1,1 +1,1 @@
-ap_rputs("-", r);
+mod_info_show_parents(r, node->parent, from, to - 1);

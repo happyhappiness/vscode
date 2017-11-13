@@ -1,0 +1,1 @@
+die(_("deleted file %s still has contents"), patch->old_name);

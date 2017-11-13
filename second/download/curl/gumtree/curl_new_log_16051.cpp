@@ -1,12 +1,10 @@
 fputs(
-"              cause unintended side-effects when curl doesn't  change  request\n"
-"              method according to the HTTP 30x response codes - and similar.\n"
+"              extracting a filename from the URL.\n"
 "\n"
-"              (FTP) Specifies a custom FTP command to use instead of LIST when\n"
-"              doing file lists with FTP.\n"
+"              If  the  server  specifies a file name and a file with that name\n"
+"              already exists in the current working directory it will  not  be\n"
+"              overwritten and an error will occur. If the server doesn't spec-\n"
+"              ify a file name then this option has no effect.\n"
 "\n"
-"              (POP3) Specifies a custom POP3 command to use instead of LIST or\n"
-"              RETR. (Added in 7.26.0)\n"
-"\n"
-"              (IMAP)  Specifies  a custom IMAP command to use instead of LIST.\n"
+"              There's no attempt to decode %-sequences (yet) in  the  provided\n"
 , stdout);

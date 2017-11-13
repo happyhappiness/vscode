@@ -1,51 +1,34 @@
-static client_entry *add_client(unsigned long key, client_entry *info,
-                                server_rec *s)
+static apr_status_t dbd_setup(apr_pool_t *pool, svr_cfg *svr)
 {
-    int bucket;
-    client_entry *entry;
+    apr_status_t rv;
 
-
-    if (!key || !client_shm) {
-        return NULL;
+    /* create a pool just for the reslist from a process-lifetime pool;
+     * that pool (s->process->pool in the dbd_setup_lock case,
+     * whatever was passed to ap_run_child_init in the dbd_setup_init case)
+     * will be shared with other threads doing other non-mod_dbd things
+     * so we can't use it for the reslist directly
+     */
+    rv = apr_pool_create(&svr->pool, pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, pool,
+                      "DBD: Failed to create reslist memory pool");
+        return rv;
     }
 
-    bucket = key % client_list->tbl_len;
-
-    apr_global_mutex_lock(client_lock);
-
-    /* try to allocate a new entry */
-
-    entry = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(client_entry)));
-    if (!entry) {
-        long num_removed = gc();
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                     "Digest: gc'd %ld client entries. Total new clients: "
-                     "%ld; Total removed clients: %ld; Total renewed clients: "
-                     "%ld", num_removed,
-                     client_list->num_created - client_list->num_renewed,
-                     client_list->num_removed, client_list->num_renewed);
-        entry = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(client_entry)));
-        if (!entry) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                         "unable to allocate new auth_digest client");
-            apr_global_mutex_unlock(client_lock);
-            return NULL;       /* give up */
-        }
+    rv = apr_reslist_create(&svr->dbpool, svr->nmin, svr->nkeep, svr->nmax,
+                            apr_time_from_sec(svr->exptime),
+                            dbd_construct, dbd_destruct, svr, svr->pool);
+    if (rv == APR_SUCCESS) {
+        apr_pool_cleanup_register(svr->pool, svr->dbpool,
+                                  (void*)apr_reslist_destroy,
+                                  apr_pool_cleanup_null);
+    }
+    else {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, svr->pool,
+                      "DBD: failed to initialise");
+        apr_pool_destroy(svr->pool);
+        svr->pool = NULL;
     }
 
-    /* now add the entry */
-
-    memcpy(entry, info, sizeof(client_entry));
-    entry->key  = key;
-    entry->next = client_list->table[bucket];
-    client_list->table[bucket] = entry;
-    client_list->num_created++;
-    client_list->num_entries++;
-
-    apr_global_mutex_unlock(client_lock);
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "allocated new client %lu", key);
-
-    return entry;
+    return rv;
 }

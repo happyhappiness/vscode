@@ -1,48 +1,51 @@
-static int run_rebase(const unsigned char *curr_head,
-		const unsigned char *merge_head,
-		const unsigned char *fork_point)
+static int rename_tmp_log(const char *newrefname)
 {
-	int ret;
-	unsigned char oct_merge_base[GIT_SHA1_RAWSZ];
-	struct argv_array args = ARGV_ARRAY_INIT;
+	int attempts_remaining = 4;
+	struct strbuf path = STRBUF_INIT;
+	int ret = -1;
 
-	if (!get_octopus_merge_base(oct_merge_base, curr_head, merge_head, fork_point))
-		if (!is_null_sha1(fork_point) && !hashcmp(oct_merge_base, fork_point))
-			fork_point = NULL;
+ retry:
+	strbuf_reset(&path);
+	strbuf_git_path(&path, "logs/%s", newrefname);
+	switch (safe_create_leading_directories_const(path.buf)) {
+	case SCLD_OK:
+		break; /* success */
+	case SCLD_VANISHED:
+		if (--attempts_remaining > 0)
+			goto retry;
+		/* fall through */
+	default:
+		error("unable to create directory for %s", newrefname);
+		goto out;
+	}
 
-	argv_array_push(&args, "rebase");
-
-	/* Shared options */
-	argv_push_verbosity(&args);
-
-	/* Options passed to git-rebase */
-	if (opt_rebase == REBASE_PRESERVE)
-		argv_array_push(&args, "--preserve-merges");
-	else if (opt_rebase == REBASE_INTERACTIVE)
-		argv_array_push(&args, "--interactive");
-	if (opt_diffstat)
-		argv_array_push(&args, opt_diffstat);
-	argv_array_pushv(&args, opt_strategies.argv);
-	argv_array_pushv(&args, opt_strategy_opts.argv);
-	if (opt_gpg_sign)
-		argv_array_push(&args, opt_gpg_sign);
-	if (opt_autostash == 0)
-		argv_array_push(&args, "--no-autostash");
-	else if (opt_autostash == 1)
-		argv_array_push(&args, "--autostash");
-	if (opt_verify_signatures &&
-	    !strcmp(opt_verify_signatures, "--verify-signatures"))
-		warning(_("ignoring --verify-signatures for rebase"));
-
-	argv_array_push(&args, "--onto");
-	argv_array_push(&args, sha1_to_hex(merge_head));
-
-	if (fork_point && !is_null_sha1(fork_point))
-		argv_array_push(&args, sha1_to_hex(fork_point));
-	else
-		argv_array_push(&args, sha1_to_hex(merge_head));
-
-	ret = run_command_v_opt(args.argv, RUN_GIT_CMD);
-	argv_array_clear(&args);
+	if (rename(git_path(TMP_RENAMED_LOG), path.buf)) {
+		if ((errno==EISDIR || errno==ENOTDIR) && --attempts_remaining > 0) {
+			/*
+			 * rename(a, b) when b is an existing
+			 * directory ought to result in ISDIR, but
+			 * Solaris 5.8 gives ENOTDIR.  Sheesh.
+			 */
+			if (remove_empty_directories(&path)) {
+				error("Directory not empty: logs/%s", newrefname);
+				goto out;
+			}
+			goto retry;
+		} else if (errno == ENOENT && --attempts_remaining > 0) {
+			/*
+			 * Maybe another process just deleted one of
+			 * the directories in the path to newrefname.
+			 * Try again from the beginning.
+			 */
+			goto retry;
+		} else {
+			error("unable to move logfile "TMP_RENAMED_LOG" to logs/%s: %s",
+				newrefname, strerror(errno));
+			goto out;
+		}
+	}
+	ret = 0;
+out:
+	strbuf_release(&path);
 	return ret;
 }

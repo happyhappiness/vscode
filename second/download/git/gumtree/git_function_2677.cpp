@@ -1,44 +1,26 @@
-static struct commit *parse_insn_line(char *bol, char *eol, struct replay_opts *opts)
+void shortlog_add_commit(struct shortlog *log, struct commit *commit)
 {
-	unsigned char commit_sha1[20];
-	enum replay_action action;
-	char *end_of_object_name;
-	int saved, status, padding;
+	struct strbuf author = STRBUF_INIT;
+	struct strbuf oneline = STRBUF_INIT;
+	struct pretty_print_context ctx = {0};
 
-	if (starts_with(bol, "pick")) {
-		action = REPLAY_PICK;
-		bol += strlen("pick");
-	} else if (starts_with(bol, "revert")) {
-		action = REPLAY_REVERT;
-		bol += strlen("revert");
-	} else
-		return NULL;
+	ctx.fmt = CMIT_FMT_USERFORMAT;
+	ctx.abbrev = log->abbrev;
+	ctx.subject = "";
+	ctx.after_subject = "";
+	ctx.date_mode.type = DATE_NORMAL;
+	ctx.output_encoding = get_log_output_encoding();
 
-	/* Eat up extra spaces/ tabs before object name */
-	padding = strspn(bol, " \t");
-	if (!padding)
-		return NULL;
-	bol += padding;
-
-	end_of_object_name = bol + strcspn(bol, " \t\n");
-	saved = *end_of_object_name;
-	*end_of_object_name = '\0';
-	status = get_sha1(bol, commit_sha1);
-	*end_of_object_name = saved;
-
-	/*
-	 * Verify that the action matches up with the one in
-	 * opts; we don't support arbitrary instructions
-	 */
-	if (action != opts->action) {
-		const char *action_str;
-		action_str = action == REPLAY_REVERT ? "revert" : "cherry-pick";
-		error(_("Cannot %s during a %s"), action_str, action_name(opts));
-		return NULL;
+	format_commit_message(commit, "%an <%ae>", &author, &ctx);
+	if (!log->summary) {
+		if (log->user_format)
+			pretty_print_commit(&ctx, commit, &oneline);
+		else
+			format_commit_message(commit, "%s", &oneline, &ctx);
 	}
 
-	if (status < 0)
-		return NULL;
+	insert_one_record(log, author.buf, oneline.len ? oneline.buf : "<none>");
 
-	return lookup_commit_reference(commit_sha1);
+	strbuf_release(&author);
+	strbuf_release(&oneline);
 }

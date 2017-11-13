@@ -1,1 +1,1 @@
-die("Couldn't JIT the PCRE2 pattern '%s', got '%d'\n", p->pattern, jitret);
+die("unable to lookup %s", oid_to_hex(oid));

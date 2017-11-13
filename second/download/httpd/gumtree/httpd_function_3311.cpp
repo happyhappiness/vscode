@@ -1,298 +1,77 @@
-static int cgi_handler(request_rec *r)
+static int make_secure_socket(apr_pool_t *pconf, const struct sockaddr_in *server,
+                              char* key, int mutual, server_rec *sconf)
 {
-    int nph;
-    apr_size_t dbpos = 0;
-    const char *argv0;
-    const char *command;
-    const char **argv;
-    char *dbuf = NULL;
-    apr_file_t *script_out = NULL, *script_in = NULL, *script_err = NULL;
-    apr_bucket_brigade *bb;
-    apr_bucket *b;
-    int is_included;
-    int seen_eos, child_stopped_reading;
-    apr_pool_t *p;
-    cgi_server_conf *conf;
-    apr_status_t rv;
-    cgi_exec_info_t e_info;
-    conn_rec *c = r->connection;
+    int s;
+    char addr[MAX_ADDRESS];
+    struct sslserveropts opts;
+    unsigned int optParam;
+    WSAPROTOCOL_INFO SecureProtoInfo;
 
-    if(strcmp(r->handler, CGI_MAGIC_TYPE) && strcmp(r->handler, "cgi-script"))
-        return DECLINED;
+    if (server->sin_addr.s_addr != htonl(INADDR_ANY))
+        apr_snprintf(addr, sizeof(addr), "address %s port %d",
+            inet_ntoa(server->sin_addr), ntohs(server->sin_port));
+    else
+        apr_snprintf(addr, sizeof(addr), "port %d", ntohs(server->sin_port));
 
-    is_included = !strcmp(r->protocol, "INCLUDED");
+    /* note that because we're about to slack we don't use psocket */
+    memset(&SecureProtoInfo, 0, sizeof(WSAPROTOCOL_INFO));
 
-    p = r->main ? r->main->pool : r->pool;
+    SecureProtoInfo.iAddressFamily = AF_INET;
+    SecureProtoInfo.iSocketType = SOCK_STREAM;
+    SecureProtoInfo.iProtocol = IPPROTO_TCP;
+    SecureProtoInfo.iSecurityScheme = SECURITY_PROTOCOL_SSL;
 
-    argv0 = apr_filepath_name_get(r->filename);
-    nph = !(strncmp(argv0, "nph-", 4));
-    conf = ap_get_module_config(r->server->module_config, &cgi_module);
+    s = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP,
+            (LPWSAPROTOCOL_INFO)&SecureProtoInfo, 0, 0);
 
-    if (!(ap_allow_options(r) & OPT_EXECCGI) && !is_scriptaliased(r))
-        return log_scripterror(r, conf, HTTP_FORBIDDEN, 0,
-                               "Options ExecCGI is off in this directory");
-    if (nph && is_included)
-        return log_scripterror(r, conf, HTTP_FORBIDDEN, 0,
-                               "attempt to include NPH CGI script");
-
-    if (r->finfo.filetype == APR_NOFILE)
-        return log_scripterror(r, conf, HTTP_NOT_FOUND, 0,
-                               "script not found or unable to stat");
-    if (r->finfo.filetype == APR_DIR)
-        return log_scripterror(r, conf, HTTP_FORBIDDEN, 0,
-                               "attempt to invoke directory as script");
-
-    if ((r->used_path_info == AP_REQ_REJECT_PATH_INFO) &&
-        r->path_info && *r->path_info)
-    {
-        /* default to accept */
-        return log_scripterror(r, conf, HTTP_NOT_FOUND, 0,
-                               "AcceptPathInfo off disallows user's path");
-    }
-/*
-    if (!ap_suexec_enabled) {
-        if (!ap_can_exec(&r->finfo))
-            return log_scripterror(r, conf, HTTP_FORBIDDEN, 0,
-                                   "file permissions deny server execution");
+    if (s == INVALID_SOCKET) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
+                     "make_secure_socket: failed to get a socket for %s",
+                     addr);
+        return -1;
     }
 
-*/
-    ap_add_common_vars(r);
-    ap_add_cgi_vars(r);
+    if (!mutual) {
+        optParam = SO_SSL_ENABLE | SO_SSL_SERVER;
 
-    e_info.process_cgi = 1;
-    e_info.cmd_type    = APR_PROGRAM;
-    e_info.detached    = 0;
-    e_info.in_pipe     = APR_CHILD_BLOCK;
-    e_info.out_pipe    = APR_CHILD_BLOCK;
-    e_info.err_pipe    = APR_CHILD_BLOCK;
-    e_info.prog_type   = RUN_AS_CGI;
-    e_info.bb          = NULL;
-    e_info.ctx         = NULL;
-    e_info.next        = NULL;
-    e_info.addrspace   = 0;
-
-    /* build the command line */
-    if ((rv = cgi_build_command(&command, &argv, r, p, &e_info)) != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "don't know how to spawn child process: %s",
-                      r->filename);
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    /* run the script in its own process */
-    if ((rv = run_cgi_child(&script_out, &script_in, &script_err,
-                            command, argv, r, p, &e_info)) != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "couldn't spawn child process: %s", r->filename);
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    /* Transfer any put/post args, CERN style...
-     * Note that we already ignore SIGPIPE in the core server.
-     */
-    bb = apr_brigade_create(r->pool, c->bucket_alloc);
-    seen_eos = 0;
-    child_stopped_reading = 0;
-    if (conf->logname) {
-        dbuf = apr_palloc(r->pool, conf->bufbytes + 1);
-        dbpos = 0;
-    }
-    do {
-        apr_bucket *bucket;
-
-        rv = ap_get_brigade(r->input_filters, bb, AP_MODE_READBYTES,
-                            APR_BLOCK_READ, HUGE_STRING_LEN);
-
-        if (rv != APR_SUCCESS) {
-            if (APR_STATUS_IS_TIMEUP(rv)) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                              "Timeout during reading request entity data");
-                return HTTP_REQUEST_TIME_OUT;
-            }
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "Error reading request entity data");
-            return HTTP_INTERNAL_SERVER_ERROR;
+        if (WSAIoctl(s, SO_SSL_SET_FLAGS, (char *)&optParam,
+            sizeof(optParam), NULL, 0, NULL, NULL, NULL)) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
+                         "make_secure_socket: for %s, WSAIoctl: "
+                         "(SO_SSL_SET_FLAGS)", addr);
+            return -1;
         }
-
-        for (bucket = APR_BRIGADE_FIRST(bb);
-             bucket != APR_BRIGADE_SENTINEL(bb);
-             bucket = APR_BUCKET_NEXT(bucket))
-        {
-            const char *data;
-            apr_size_t len;
-
-            if (APR_BUCKET_IS_EOS(bucket)) {
-                seen_eos = 1;
-                break;
-            }
-
-            /* We can't do much with this. */
-            if (APR_BUCKET_IS_FLUSH(bucket)) {
-                continue;
-            }
-
-            /* If the child stopped, we still must read to EOS. */
-            if (child_stopped_reading) {
-                continue;
-            }
-
-            /* read */
-            apr_bucket_read(bucket, &data, &len, APR_BLOCK_READ);
-
-            if (conf->logname && dbpos < conf->bufbytes) {
-                int cursize;
-
-                if ((dbpos + len) > conf->bufbytes) {
-                    cursize = conf->bufbytes - dbpos;
-                }
-                else {
-                    cursize = len;
-                }
-                memcpy(dbuf + dbpos, data, cursize);
-                dbpos += cursize;
-            }
-
-            /* Keep writing data to the child until done or too much time
-             * elapses with no progress or an error occurs.
-             */
-            rv = apr_file_write_full(script_out, data, len, NULL);
-
-            if (rv != APR_SUCCESS) {
-                /* silly script stopped reading, soak up remaining message */
-                child_stopped_reading = 1;
-            }
-        }
-        apr_brigade_cleanup(bb);
-    }
-    while (!seen_eos);
-
-    if (conf->logname) {
-        dbuf[dbpos] = '\0';
-    }
-    /* Is this flush really needed? */
-    apr_file_flush(script_out);
-    apr_file_close(script_out);
-
-    AP_DEBUG_ASSERT(script_in != NULL);
-
-    apr_brigade_cleanup(bb);
-
-#if APR_FILES_AS_SOCKETS
-    apr_file_pipe_timeout_set(script_in, 0);
-    apr_file_pipe_timeout_set(script_err, 0);
-
-    b = cgi_bucket_create(r, script_in, script_err, c->bucket_alloc);
-    if (b == NULL)
-	return HTTP_INTERNAL_SERVER_ERROR;
-#else
-    b = apr_bucket_pipe_create(script_in, c->bucket_alloc);
-#endif
-    APR_BRIGADE_INSERT_TAIL(bb, b);
-    b = apr_bucket_eos_create(c->bucket_alloc);
-    APR_BRIGADE_INSERT_TAIL(bb, b);
-
-    /* Handle script return... */
-    if (!nph) {
-        const char *location;
-        char sbuf[MAX_STRING_LEN];
-        int ret;
-
-        if ((ret = ap_scan_script_header_err_brigade(r, bb, sbuf))) {
-            ret = log_script(r, conf, ret, dbuf, sbuf, bb, script_err);
-
-            /*
-             * ret could be HTTP_NOT_MODIFIED in the case that the CGI script
-             * does not set an explicit status and ap_meets_conditions, which
-             * is called by ap_scan_script_header_err_brigade, detects that
-             * the conditions of the requests are met and the response is
-             * not modified.
-             * In this case set r->status and return OK in order to prevent
-             * running through the error processing stack as this would
-             * break with mod_cache, if the conditions had been set by
-             * mod_cache itself to validate a stale entity.
-             * BTW: We circumvent the error processing stack anyway if the
-             * CGI script set an explicit status code (whatever it is) and
-             * the only possible values for ret here are:
-             *
-             * HTTP_NOT_MODIFIED          (set by ap_meets_conditions)
-             * HTTP_PRECONDITION_FAILED   (set by ap_meets_conditions)
-             * HTTP_INTERNAL_SERVER_ERROR (if something went wrong during the
-             * processing of the response of the CGI script, e.g broken headers
-             * or a crashed CGI process).
-             */
-            if (ret == HTTP_NOT_MODIFIED) {
-                r->status = ret;
-                return OK;
-            }
-
-            return ret;
-        }
-
-        location = apr_table_get(r->headers_out, "Location");
-
-        if (location && r->status == 200) {
-            /* For a redirect whether internal or not, discard any
-             * remaining stdout from the script, and log any remaining
-             * stderr output, as normal. */
-            discard_script_output(bb);
-            apr_brigade_destroy(bb);
-            apr_file_pipe_timeout_set(script_err, r->server->timeout);
-            log_script_err(r, script_err);
-        }
-
-        if (location && location[0] == '/' && r->status == 200) {
-            /* This redirect needs to be a GET no matter what the original
-             * method was.
-             */
-            r->method = apr_pstrdup(r->pool, "GET");
-            r->method_number = M_GET;
-
-            /* We already read the message body (if any), so don't allow
-             * the redirected request to think it has one.  We can ignore
-             * Transfer-Encoding, since we used REQUEST_CHUNKED_ERROR.
-             */
-            apr_table_unset(r->headers_in, "Content-Length");
-
-            ap_internal_redirect_handler(location, r);
-            return OK;
-        }
-        else if (location && r->status == 200) {
-            /* XX Note that if a script wants to produce its own Redirect
-             * body, it now has to explicitly *say* "Status: 302"
-             */
-            return HTTP_MOVED_TEMPORARILY;
-        }
-
-        rv = ap_pass_brigade(r->output_filters, bb);
-    }
-    else /* nph */ {
-        struct ap_filter_t *cur;
-
-        /* get rid of all filters up through protocol...  since we
-         * haven't parsed off the headers, there is no way they can
-         * work
-         */
-
-        cur = r->proto_output_filters;
-        while (cur && cur->frec->ftype < AP_FTYPE_CONNECTION) {
-            cur = cur->next;
-        }
-        r->output_filters = r->proto_output_filters = cur;
-
-        rv = ap_pass_brigade(r->output_filters, bb);
     }
 
-    /* don't soak up script output if errors occurred writing it
-     * out...  otherwise, we prolong the life of the script when the
-     * connection drops or we stopped sending output for some other
-     * reason */
-    if (rv == APR_SUCCESS && !r->connection->aborted) {
-        apr_file_pipe_timeout_set(script_err, r->server->timeout);
-        log_script_err(r, script_err);
+    opts.cert = key;
+    opts.certlen = strlen(key);
+    opts.sidtimeout = 0;
+    opts.sidentries = 0;
+    opts.siddir = NULL;
+
+    if (WSAIoctl(s, SO_SSL_SET_SERVER, (char *)&opts, sizeof(opts),
+        NULL, 0, NULL, NULL, NULL) != 0) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
+                     "make_secure_socket: for %s, WSAIoctl: "
+                     "(SO_SSL_SET_SERVER)", addr);
+        return -1;
     }
 
-    apr_file_close(script_err);
+    if (mutual) {
+        optParam = 0x07;  // SO_SSL_AUTH_CLIENT
 
-    return OK;                      /* NOT r->status, even if it has changed. */
+        if(WSAIoctl(s, SO_SSL_SET_FLAGS, (char*)&optParam,
+            sizeof(optParam), NULL, 0, NULL, NULL, NULL)) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
+                         "make_secure_socket: for %s, WSAIoctl: "
+                         "(SO_SSL_SET_FLAGS)", addr);
+            return -1;
+        }
+    }
+
+    optParam = SO_TLS_UNCLEAN_SHUTDOWN;
+    WSAIoctl(s, SO_SSL_SET_FLAGS, (char *)&optParam, sizeof(optParam),
+             NULL, 0, NULL, NULL, NULL);
+
+    return s;
 }

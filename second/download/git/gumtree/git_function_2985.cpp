@@ -1,22 +1,35 @@
-static int index_core(unsigned char *sha1, int fd, size_t size,
-		      enum object_type type, const char *path,
-		      unsigned flags)
+int index_path(unsigned char *sha1, const char *path, struct stat *st, unsigned flags)
 {
-	int ret;
+	int fd;
+	struct strbuf sb = STRBUF_INIT;
 
-	if (!size) {
-		ret = index_mem(sha1, "", size, type, path, flags);
-	} else if (size <= SMALL_FILE_SIZE) {
-		char *buf = xmalloc(size);
-		if (size == read_in_full(fd, buf, size))
-			ret = index_mem(sha1, buf, size, type, path, flags);
-		else
-			ret = error("short read %s", strerror(errno));
-		free(buf);
-	} else {
-		void *buf = xmmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
-		ret = index_mem(sha1, buf, size, type, path, flags);
-		munmap(buf, size);
+	switch (st->st_mode & S_IFMT) {
+	case S_IFREG:
+		fd = open(path, O_RDONLY);
+		if (fd < 0)
+			return error("open(\"%s\"): %s", path,
+				     strerror(errno));
+		if (index_fd(sha1, fd, st, OBJ_BLOB, path, flags) < 0)
+			return error("%s: failed to insert into database",
+				     path);
+		break;
+	case S_IFLNK:
+		if (strbuf_readlink(&sb, path, st->st_size)) {
+			char *errstr = strerror(errno);
+			return error("readlink(\"%s\"): %s", path,
+			             errstr);
+		}
+		if (!(flags & HASH_WRITE_OBJECT))
+			hash_sha1_file(sb.buf, sb.len, blob_type, sha1);
+		else if (write_sha1_file(sb.buf, sb.len, blob_type, sha1))
+			return error("%s: failed to insert into database",
+				     path);
+		strbuf_release(&sb);
+		break;
+	case S_IFDIR:
+		return resolve_gitlink_ref(path, "HEAD", sha1);
+	default:
+		return error("%s: unsupported file type", path);
 	}
-	return ret;
+	return 0;
 }

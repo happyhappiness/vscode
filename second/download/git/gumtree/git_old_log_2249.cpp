@@ -1,2 +1,2 @@
-error(_("could not open '%s' for reading: %s"), *paths,
-				strerror(errno));
+status_printf_ln(s, color,
+					 _("You are currently rebasing."));

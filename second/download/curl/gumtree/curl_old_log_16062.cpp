@@ -1,12 +1,9 @@
 fputs(
-"              such a case curl first connects to the SOCKS proxy and then con-\n"
-"              nects (through SOCKS) to the HTTP or HTTPS proxy.\n"
+"              address and prevent the otherwise normally resolved  address  to\n"
+"              be  used.  Consider it a sort of /etc/hosts alternative provided\n"
+"              on the command line. The port number should be the  number  used\n"
+"              for  the  specific  protocol the host will be used for. It means\n"
+"              you need several entries if you want to provide address for  the\n"
+"              same host but different ports.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"              Added in 7.18.0.\n"
-"\n"
-"       --socks5-basic\n"
-"              Tells curl to use username/password authentication when connect-\n"
-"              ing to a SOCKS5 proxy.  The username/password authentication  is\n"
 , stdout);

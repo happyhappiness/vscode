@@ -1,2 +1,1 @@
-apr_file_printf(errfile, " -d  Force CRYPT encryption of the password"
-            "." NL);
+apr_file_printf(errfile, " -s  Force SHA encryption of the password." NL);

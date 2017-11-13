@@ -1,11 +1,11 @@
 fputs(
-"              format. If you set the file name to  a  single  dash,  \"-\",  the\n"
-"              cookies will be written to stdout.\n"
+"              NOTE that the file specified with -b, --cookie is only  used  as\n"
+"              input.  No cookies will be stored in the file. To store cookies,\n"
+"              use the -c, --cookie-jar option or you could even save the  HTTP\n"
+"              headers to a file using -D, --dump-header!\n"
 "\n"
-"              This  command  line  option will activate the cookie engine that\n"
-"              makes curl record and use cookies. Another way to activate it is\n"
-"              to use the -b, --cookie option.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              If the cookie jar can't be created or written to, the whole curl\n"
-"              operation won't fail or even report an error clearly.  Using  -v\n"
+"       -B, --use-ascii\n"
+"              (FTP/LDAP)  Enable  ASCII  transfer.  For  FTP, this can also be\n"
 , stdout);

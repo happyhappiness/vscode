@@ -1,2 +1,2 @@
-die(_("missing object %s for %s"),
-		    sha1_to_hex(tagged), ref->refname);
+error("internal error: %s is not a valid packed reference!",
+		      entry->name);

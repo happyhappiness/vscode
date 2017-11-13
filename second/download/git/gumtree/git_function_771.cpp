@@ -1,71 +1,98 @@
-static void format_and_print_ref_item(struct ref_array_item *item, int maxwidth,
-				      struct ref_filter *filter, const char *remote_prefix)
+static const char *real_path_internal(const char *path, int die_on_error)
 {
-	char c;
-	int current = 0;
-	int color;
-	struct strbuf out = STRBUF_INIT, name = STRBUF_INIT;
-	const char *prefix_to_show = "";
-	const char *prefix_to_skip = NULL;
-	const char *desc = item->refname;
-	char *to_free = NULL;
+	static struct strbuf sb = STRBUF_INIT;
+	char *retval = NULL;
 
-	switch (item->kind) {
-	case FILTER_REFS_BRANCHES:
-		prefix_to_skip = "refs/heads/";
-		skip_prefix(desc, prefix_to_skip, &desc);
-		if (!filter->detached && !strcmp(desc, head))
-			current = 1;
+	/*
+	 * If we have to temporarily chdir(), store the original CWD
+	 * here so that we can chdir() back to it at the end of the
+	 * function:
+	 */
+	struct strbuf cwd = STRBUF_INIT;
+
+	int depth = MAXDEPTH;
+	char *last_elem = NULL;
+	struct stat st;
+
+	/* We've already done it */
+	if (path == sb.buf)
+		return path;
+
+	if (!*path) {
+		if (die_on_error)
+			die("The empty string is not a valid path");
 		else
-			color = BRANCH_COLOR_LOCAL;
-		break;
-	case FILTER_REFS_REMOTES:
-		prefix_to_skip = "refs/remotes/";
-		skip_prefix(desc, prefix_to_skip, &desc);
-		color = BRANCH_COLOR_REMOTE;
-		prefix_to_show = remote_prefix;
-		break;
-	case FILTER_REFS_DETACHED_HEAD:
-		desc = to_free = get_head_description();
-		current = 1;
-		break;
-	default:
-		color = BRANCH_COLOR_PLAIN;
-		break;
+			goto error_out;
 	}
 
-	c = ' ';
-	if (current) {
-		c = '*';
-		color = BRANCH_COLOR_CURRENT;
+	strbuf_reset(&sb);
+	strbuf_addstr(&sb, path);
+
+	while (depth--) {
+		if (!is_directory(sb.buf)) {
+			char *last_slash = find_last_dir_sep(sb.buf);
+			if (last_slash) {
+				last_elem = xstrdup(last_slash + 1);
+				strbuf_setlen(&sb, last_slash - sb.buf + 1);
+			} else {
+				last_elem = xmemdupz(sb.buf, sb.len);
+				strbuf_reset(&sb);
+			}
+		}
+
+		if (sb.len) {
+			if (!cwd.len && strbuf_getcwd(&cwd)) {
+				if (die_on_error)
+					die_errno("Could not get current working directory");
+				else
+					goto error_out;
+			}
+
+			if (chdir(sb.buf)) {
+				if (die_on_error)
+					die_errno("Could not switch to '%s'",
+						  sb.buf);
+				else
+					goto error_out;
+			}
+		}
+		if (strbuf_getcwd(&sb)) {
+			if (die_on_error)
+				die_errno("Could not get current working directory");
+			else
+				goto error_out;
+		}
+
+		if (last_elem) {
+			if (sb.len && !is_dir_sep(sb.buf[sb.len - 1]))
+				strbuf_addch(&sb, '/');
+			strbuf_addstr(&sb, last_elem);
+			free(last_elem);
+			last_elem = NULL;
+		}
+
+		if (!lstat(sb.buf, &st) && S_ISLNK(st.st_mode)) {
+			struct strbuf next_sb = STRBUF_INIT;
+			ssize_t len = strbuf_readlink(&next_sb, sb.buf, 0);
+			if (len < 0) {
+				if (die_on_error)
+					die_errno("Invalid symlink '%s'",
+						  sb.buf);
+				else
+					goto error_out;
+			}
+			strbuf_swap(&sb, &next_sb);
+			strbuf_release(&next_sb);
+		} else
+			break;
 	}
 
-	strbuf_addf(&name, "%s%s", prefix_to_show, desc);
-	if (filter->verbose) {
-		int utf8_compensation = strlen(name.buf) - utf8_strwidth(name.buf);
-		strbuf_addf(&out, "%c %s%-*s%s", c, branch_get_color(color),
-			    maxwidth + utf8_compensation, name.buf,
-			    branch_get_color(BRANCH_COLOR_RESET));
-	} else
-		strbuf_addf(&out, "%c %s%s%s", c, branch_get_color(color),
-			    name.buf, branch_get_color(BRANCH_COLOR_RESET));
+	retval = sb.buf;
+error_out:
+	free(last_elem);
+	if (cwd.len && chdir(cwd.buf))
+		die_errno("Could not change back to '%s'", cwd.buf);
+	strbuf_release(&cwd);
 
-	if (item->symref) {
-		const char *symref = item->symref;
-		if (prefix_to_skip)
-			skip_prefix(symref, prefix_to_skip, &symref);
-		strbuf_addf(&out, " -> %s", symref);
-	}
-	else if (filter->verbose)
-		/* " f7c0c00 [ahead 58, behind 197] vcs-svn: drop obj_pool.h" */
-		add_verbose_info(&out, item, filter, desc);
-	if (column_active(colopts)) {
-		assert(!filter->verbose && "--column and --verbose are incompatible");
-		string_list_append(&output, out.buf);
-	} else {
-		printf("%s\n", out.buf);
-	}
-	strbuf_release(&name);
-	strbuf_release(&out);
-	free(to_free);
+	return retval;
 }

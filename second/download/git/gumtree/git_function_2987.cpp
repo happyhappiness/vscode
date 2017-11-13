@@ -1,35 +1,55 @@
-int index_path(unsigned char *sha1, const char *path, struct stat *st, unsigned flags)
+static int for_each_file_in_obj_subdir(int subdir_nr,
+				       struct strbuf *path,
+				       each_loose_object_fn obj_cb,
+				       each_loose_cruft_fn cruft_cb,
+				       each_loose_subdir_fn subdir_cb,
+				       void *data)
 {
-	int fd;
-	struct strbuf sb = STRBUF_INIT;
+	size_t baselen = path->len;
+	DIR *dir = opendir(path->buf);
+	struct dirent *de;
+	int r = 0;
 
-	switch (st->st_mode & S_IFMT) {
-	case S_IFREG:
-		fd = open(path, O_RDONLY);
-		if (fd < 0)
-			return error("open(\"%s\"): %s", path,
-				     strerror(errno));
-		if (index_fd(sha1, fd, st, OBJ_BLOB, path, flags) < 0)
-			return error("%s: failed to insert into database",
-				     path);
-		break;
-	case S_IFLNK:
-		if (strbuf_readlink(&sb, path, st->st_size)) {
-			char *errstr = strerror(errno);
-			return error("readlink(\"%s\"): %s", path,
-			             errstr);
-		}
-		if (!(flags & HASH_WRITE_OBJECT))
-			hash_sha1_file(sb.buf, sb.len, blob_type, sha1);
-		else if (write_sha1_file(sb.buf, sb.len, blob_type, sha1))
-			return error("%s: failed to insert into database",
-				     path);
-		strbuf_release(&sb);
-		break;
-	case S_IFDIR:
-		return resolve_gitlink_ref(path, "HEAD", sha1);
-	default:
-		return error("%s: unsupported file type", path);
+	if (!dir) {
+		if (errno == ENOENT)
+			return 0;
+		return error("unable to open %s: %s", path->buf, strerror(errno));
 	}
-	return 0;
+
+	while ((de = readdir(dir))) {
+		if (is_dot_or_dotdot(de->d_name))
+			continue;
+
+		strbuf_setlen(path, baselen);
+		strbuf_addf(path, "/%s", de->d_name);
+
+		if (strlen(de->d_name) == 38)  {
+			char hex[41];
+			unsigned char sha1[20];
+
+			snprintf(hex, sizeof(hex), "%02x%s",
+				 subdir_nr, de->d_name);
+			if (!get_sha1_hex(hex, sha1)) {
+				if (obj_cb) {
+					r = obj_cb(sha1, path->buf, data);
+					if (r)
+						break;
+				}
+				continue;
+			}
+		}
+
+		if (cruft_cb) {
+			r = cruft_cb(de->d_name, path->buf, data);
+			if (r)
+				break;
+		}
+	}
+	closedir(dir);
+
+	strbuf_setlen(path, baselen);
+	if (!r && subdir_cb)
+		r = subdir_cb(subdir_nr, path->buf, data);
+
+	return r;
 }

@@ -1,1 +1,2 @@
-fprintf(FINFO,"server_sender starting pid=%d\n",(int)getpid());
+fprintf(FERROR, "send_files failed on long-named directory %s\n",
+                fname);

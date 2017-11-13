@@ -1,161 +1,107 @@
-static void show_compile_settings(void)
+static apr_status_t ssl_filter_io_shutdown(ssl_filter_ctx_t *filter_ctx,
+                                           conn_rec *c,
+                                           int abortive)
 {
-    printf("Server version: %s\n", ap_get_server_version());
-    printf("Server built:   %s\n", ap_get_server_built());
-    printf("Server's Module Magic Number: %u:%u\n",
-           MODULE_MAGIC_NUMBER_MAJOR, MODULE_MAGIC_NUMBER_MINOR);
-    printf("Server loaded:  APR %s, APR-UTIL %s\n",
-           apr_version_string(), apu_version_string());
-    printf("Compiled using: APR %s, APR-UTIL %s\n",
-           APR_VERSION_STRING, APU_VERSION_STRING);
-    /* sizeof(foo) is long on some platforms so we might as well
-     * make it long everywhere to keep the printf format
-     * consistent
+    SSL *ssl = filter_ctx->pssl;
+    const char *type = "";
+    SSLConnRec *sslconn = myConnConfig(c);
+    int shutdown_type;
+
+    if (!ssl) {
+        return APR_SUCCESS;
+    }
+
+    /*
+     * Now close the SSL layer of the connection. We've to take
+     * the TLSv1 standard into account here:
+     *
+     * | 7.2.1. Closure alerts
+     * |
+     * | The client and the server must share knowledge that the connection is
+     * | ending in order to avoid a truncation attack. Either party may
+     * | initiate the exchange of closing messages.
+     * |
+     * | close_notify
+     * |     This message notifies the recipient that the sender will not send
+     * |     any more messages on this connection. The session becomes
+     * |     unresumable if any connection is terminated without proper
+     * |     close_notify messages with level equal to warning.
+     * |
+     * | Either party may initiate a close by sending a close_notify alert.
+     * | Any data received after a closure alert is ignored.
+     * |
+     * | Each party is required to send a close_notify alert before closing
+     * | the write side of the connection. It is required that the other party
+     * | respond with a close_notify alert of its own and close down the
+     * | connection immediately, discarding any pending writes. It is not
+     * | required for the initiator of the close to wait for the responding
+     * | close_notify alert before closing the read side of the connection.
+     *
+     * This means we've to send a close notify message, but haven't to wait
+     * for the close notify of the client. Actually we cannot wait for the
+     * close notify of the client because some clients (including Netscape
+     * 4.x) don't send one, so we would hang.
      */
-    printf("Architecture:   %ld-bit\n", 8 * (long)sizeof(void *));
-    printf("Server compiled with....\n");
-#ifdef BIG_SECURITY_HOLE
-    printf(" -D BIG_SECURITY_HOLE\n");
-#endif
 
-#ifdef SECURITY_HOLE_PASS_AUTHORIZATION
-    printf(" -D SECURITY_HOLE_PASS_AUTHORIZATION\n");
-#endif
+    /*
+     * exchange close notify messages, but allow the user
+     * to force the type of handshake via SetEnvIf directive
+     */
+    if (abortive) {
+        shutdown_type = SSL_SENT_SHUTDOWN|SSL_RECEIVED_SHUTDOWN;
+        type = "abortive";
+    }
+    else switch (sslconn->shutdown_type) {
+      case SSL_SHUTDOWN_TYPE_UNCLEAN:
+        /* perform no close notify handshake at all
+           (violates the SSL/TLS standard!) */
+        shutdown_type = SSL_SENT_SHUTDOWN|SSL_RECEIVED_SHUTDOWN;
+        type = "unclean";
+        break;
+      case SSL_SHUTDOWN_TYPE_ACCURATE:
+        /* send close notify and wait for clients close notify
+           (standard compliant, but usually causes connection hangs) */
+        shutdown_type = 0;
+        type = "accurate";
+        break;
+      default:
+        /*
+         * case SSL_SHUTDOWN_TYPE_UNSET:
+         * case SSL_SHUTDOWN_TYPE_STANDARD:
+         */
+        /* send close notify, but don't wait for clients close notify
+           (standard compliant and safe, so it's the DEFAULT!) */
+        shutdown_type = SSL_RECEIVED_SHUTDOWN;
+        type = "standard";
+        break;
+    }
 
-#ifdef APACHE_MPM_DIR
-    printf(" -D APACHE_MPM_DIR=\"%s\"\n", APACHE_MPM_DIR);
-#endif
+    SSL_set_shutdown(ssl, shutdown_type);
+    SSL_smart_shutdown(ssl);
 
-#ifdef HAVE_SHMGET
-    printf(" -D HAVE_SHMGET\n");
-#endif
+    /* and finally log the fact that we've closed the connection */
+    if (c->base_server->loglevel >= APLOG_INFO) {
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, c->base_server,
+                     "Connection to child %ld closed with %s shutdown"
+                     "(server %s, client %s)",
+                     c->id, type,
+                     ssl_util_vhostid(c->pool, c->base_server),
+                     c->remote_ip ? c->remote_ip : "unknown");
+    }
 
-#if APR_FILE_BASED_SHM
-    printf(" -D APR_FILE_BASED_SHM\n");
-#endif
+    /* deallocate the SSL connection */
+    if (sslconn->client_cert) {
+        X509_free(sslconn->client_cert);
+        sslconn->client_cert = NULL;
+    }
+    SSL_free(ssl);
+    sslconn->ssl = NULL;
+    filter_ctx->pssl = NULL; /* so filters know we've been shutdown */
 
-#if APR_HAS_SENDFILE
-    printf(" -D APR_HAS_SENDFILE\n");
-#endif
+    if (abortive) {
+        /* prevent any further I/O */
+        c->aborted = 1;
+    }
 
-#if APR_HAS_MMAP
-    printf(" -D APR_HAS_MMAP\n");
-#endif
-
-#ifdef NO_WRITEV
-    printf(" -D NO_WRITEV\n");
-#endif
-
-#ifdef NO_LINGCLOSE
-    printf(" -D NO_LINGCLOSE\n");
-#endif
-
-#if APR_HAVE_IPV6
-    printf(" -D APR_HAVE_IPV6 (IPv4-mapped addresses ");
-#ifdef AP_ENABLE_V4_MAPPED
-    printf("enabled)\n");
-#else
-    printf("disabled)\n");
-#endif
-#endif
-
-#if APR_USE_FLOCK_SERIALIZE
-    printf(" -D APR_USE_FLOCK_SERIALIZE\n");
-#endif
-
-#if APR_USE_SYSVSEM_SERIALIZE
-    printf(" -D APR_USE_SYSVSEM_SERIALIZE\n");
-#endif
-
-#if APR_USE_POSIXSEM_SERIALIZE
-    printf(" -D APR_USE_POSIXSEM_SERIALIZE\n");
-#endif
-
-#if APR_USE_FCNTL_SERIALIZE
-    printf(" -D APR_USE_FCNTL_SERIALIZE\n");
-#endif
-
-#if APR_USE_PROC_PTHREAD_SERIALIZE
-    printf(" -D APR_USE_PROC_PTHREAD_SERIALIZE\n");
-#endif
-
-#if APR_USE_PTHREAD_SERIALIZE
-    printf(" -D APR_USE_PTHREAD_SERIALIZE\n");
-#endif
-
-#if APR_PROCESS_LOCK_IS_GLOBAL
-    printf(" -D APR_PROCESS_LOCK_IS_GLOBAL\n");
-#endif
-
-#ifdef SINGLE_LISTEN_UNSERIALIZED_ACCEPT
-    printf(" -D SINGLE_LISTEN_UNSERIALIZED_ACCEPT\n");
-#endif
-
-#if APR_HAS_OTHER_CHILD
-    printf(" -D APR_HAS_OTHER_CHILD\n");
-#endif
-
-#ifdef AP_HAVE_RELIABLE_PIPED_LOGS
-    printf(" -D AP_HAVE_RELIABLE_PIPED_LOGS\n");
-#endif
-
-#ifdef BUFFERED_LOGS
-    printf(" -D BUFFERED_LOGS\n");
-#ifdef PIPE_BUF
-    printf(" -D PIPE_BUF=%ld\n",(long)PIPE_BUF);
-#endif
-#endif
-
-#if APR_CHARSET_EBCDIC
-    printf(" -D APR_CHARSET_EBCDIC\n");
-#endif
-
-#ifdef APACHE_XLATE
-    printf(" -D APACHE_XLATE\n");
-#endif
-
-#ifdef NEED_HASHBANG_EMUL
-    printf(" -D NEED_HASHBANG_EMUL\n");
-#endif
-
-#ifdef SHARED_CORE
-    printf(" -D SHARED_CORE\n");
-#endif
-
-/* This list displays the compiled in default paths: */
-#ifdef HTTPD_ROOT
-    printf(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n");
-#endif
-
-#ifdef SUEXEC_BIN
-    printf(" -D SUEXEC_BIN=\"" SUEXEC_BIN "\"\n");
-#endif
-
-#if defined(SHARED_CORE) && defined(SHARED_CORE_DIR)
-    printf(" -D SHARED_CORE_DIR=\"" SHARED_CORE_DIR "\"\n");
-#endif
-
-#ifdef DEFAULT_PIDLOG
-    printf(" -D DEFAULT_PIDLOG=\"" DEFAULT_PIDLOG "\"\n");
-#endif
-
-#ifdef DEFAULT_SCOREBOARD
-    printf(" -D DEFAULT_SCOREBOARD=\"" DEFAULT_SCOREBOARD "\"\n");
-#endif
-
-#ifdef DEFAULT_LOCKFILE
-    printf(" -D DEFAULT_LOCKFILE=\"" DEFAULT_LOCKFILE "\"\n");
-#endif
-
-#ifdef DEFAULT_ERRORLOG
-    printf(" -D DEFAULT_ERRORLOG=\"" DEFAULT_ERRORLOG "\"\n");
-#endif
-
-#ifdef AP_TYPES_CONFIG_FILE
-    printf(" -D AP_TYPES_CONFIG_FILE=\"" AP_TYPES_CONFIG_FILE "\"\n");
-#endif
-
-#ifdef SERVER_CONFIG_FILE
-    printf(" -D SERVER_CONFIG_FILE=\"" SERVER_CONFIG_FILE "\"\n");
-#endif
+    return APR_SUCCESS;
 }

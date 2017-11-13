@@ -1,1 +1,1 @@
-set_common_push_options(transport, data->name, flags);
+die("cannot combine --no-walk with --graph");

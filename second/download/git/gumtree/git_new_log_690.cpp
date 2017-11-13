@@ -1,1 +1,1 @@
-die("BUG: unknown error code");
+strbuf_addstr(err, _("too-short tree object"));

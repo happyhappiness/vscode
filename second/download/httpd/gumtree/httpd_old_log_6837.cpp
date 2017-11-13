@@ -1,5 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                  "from session: " MOD_SESSION_USER ": %s, " MOD_SESSION_PW
-                  ": %s, " MOD_AUTH_FORM_HASH ": %s",
-                  user ? *user : "<null>", pw ? *pw : "<null>",
-                  hash ? *hash : "<null>");
+ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, session->c, APLOGNO(03199)
+                      "session(%ld): connection disappeared without proper "
+                      "goodbye, clients will be confused, should not happen", 
+                      session->id);

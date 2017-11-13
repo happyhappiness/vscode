@@ -1,1 +1,1 @@
-die("Not a valid commit: %s", oid_to_hex(&b->oid));
+die("unable to create lazy_name_thread");

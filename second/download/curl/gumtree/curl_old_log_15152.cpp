@@ -1,11 +1,11 @@
 fputs(
-"              Note  that  this  is the negated option name documented. You can\n"
-"              thus use --keepalive to enforce keepalive.\n"
+"              This option requires a library built with GSS-API or  SSPI  sup-\n"
+"              port.  Use  -V,  --version  to  see  if  your curl supports GSS-\n"
+"              API/SSPI or SPNEGO.\n"
 "\n"
-"       --no-npn\n"
-"              (HTTPS) Disable the NPN TLS extension. NPN is enabled by default\n"
-"              if  libcurl was built with an SSL library that supports NPN. NPN\n"
-"              is used by a libcurl that supports HTTP/2  to  negotiate  HTTP/2\n"
-"              support with the server during https sessions.\n"
+"              When using this option, you must also provide a fake -u,  --user\n"
+"              option  to  activate the authentication code properly. Sending a\n"
+"              '-u :' is enough as the user name  and  password  from  the  -u,\n"
+"              --user option aren't actually used.\n"
 "\n"
 , stdout);

@@ -1,9 +1,12 @@
-static void die_initial_contact(int got_at_least_one_head)
+static void remove_file(struct apply_state *state, struct patch *patch, int rmdir_empty)
 {
-	if (got_at_least_one_head)
-		die("The remote end hung up upon initial contact");
-	else
-		die("Could not read from remote repository.\n\n"
-		    "Please make sure you have the correct access rights\n"
-		    "and the repository exists.");
+	if (state->update_index) {
+		if (remove_file_from_cache(patch->old_name) < 0)
+			die(_("unable to remove %s from index"), patch->old_name);
+	}
+	if (!state->cached) {
+		if (!remove_or_warn(patch->old_mode, patch->old_name) && rmdir_empty) {
+			remove_path(patch->old_name);
+		}
+	}
 }

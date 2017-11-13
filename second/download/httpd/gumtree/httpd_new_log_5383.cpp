@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, APLOGNO(02989)
-                         "%s on line %d of %s: %s",
-                         what, cfg->line_number, cfg->name, ptr);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00308)
+                         "ThreadLimit of %d not allowed, increasing to 1",
+                         thread_limit);

@@ -1,5 +1,3 @@
-ap_log_rerror(APLOG_MARK, loglevel, rv, r,
-                          "proxy: %s: attempt to connect to %pI (%s) failed",
-                          proxy_function,
-                          backend_addr,
-                          backend_name);
+ap_log_error(APLOG_MARK, APLOG_WARNING, rv, r->server,
+           "disk_cache: could not create temp file %s",
+           dobj->tempfile);

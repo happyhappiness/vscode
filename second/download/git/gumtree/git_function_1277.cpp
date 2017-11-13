@@ -1,15 +1,30 @@
-int main(int argc, const char **argv)
+static void write_commented_object(int fd, const unsigned char *object)
 {
-	socket_path = argv[1];
+	const char *show_args[5] =
+		{"show", "--stat", "--no-notes", sha1_to_hex(object), NULL};
+	struct child_process show = CHILD_PROCESS_INIT;
+	struct strbuf buf = STRBUF_INIT;
+	struct strbuf cbuf = STRBUF_INIT;
 
-	if (!socket_path)
-		die("usage: git-credential-cache--daemon <socket_path>");
-	check_socket_directory(socket_path);
+	/* Invoke "git show --stat --no-notes $object" */
+	show.argv = show_args;
+	show.no_stdin = 1;
+	show.out = -1;
+	show.err = 0;
+	show.git_cmd = 1;
+	if (start_command(&show))
+		die(_("unable to start 'show' for object '%s'"),
+		    sha1_to_hex(object));
 
-	atexit(cleanup_socket);
-	sigchain_push_common(cleanup_socket_on_signal);
+	if (strbuf_read(&buf, show.out, 0) < 0)
+		die_errno(_("could not read 'show' output"));
+	strbuf_add_commented_lines(&cbuf, buf.buf, buf.len);
+	write_or_die(fd, cbuf.buf, cbuf.len);
 
-	serve_cache(socket_path);
+	strbuf_release(&cbuf);
+	strbuf_release(&buf);
 
-	return 0;
+	if (finish_command(&show))
+		die(_("failed to finish 'show' for object '%s'"),
+		    sha1_to_hex(object));
 }

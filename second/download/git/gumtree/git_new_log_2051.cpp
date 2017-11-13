@@ -1,2 +1,2 @@
-error(_("Commit %s is a merge but no -m option was given."),
-				oid_to_hex(&commit->object.oid));
+die("size_t overflow: %"PRIuMAX" * %"PRIuMAX,
+		    (uintmax_t)a, (uintmax_t)b);

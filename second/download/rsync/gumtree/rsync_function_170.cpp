@@ -1,44 +1,52 @@
-static void receive_data(int f_in,char *buf,int fd,char *fname)
+static struct sum_struct *generate_sums(char *buf,off_t len,int n)
 {
-  int i,n,remainder,len,count;
+  int i;
+  struct sum_struct *s;
+  int count;
+  int block_len = n;
+  int remainder = (len%block_len);
   off_t offset = 0;
-  off_t offset2;
 
-  count = read_int(f_in);
-  n = read_int(f_in);
-  remainder = read_int(f_in);
+  count = (len+(block_len-1))/block_len;
 
-  for (i=read_int(f_in); i != 0; i=read_int(f_in)) {
-    if (i > 0) {
-      if (verbose > 3)
-	fprintf(stderr,"data recv %d at %d\n",i,(int)offset);
+  s = (struct sum_struct *)malloc(sizeof(*s));
+  if (!s) out_of_memory("generate_sums");
 
-      if (read_write(f_in,fd,i) != i) {
-	fprintf(stderr,"write failed on %s : %s\n",fname,strerror(errno));
-	exit_cleanup(1);
-      }
-      offset += i;
-    } else {
-      i = -(i+1);
-      offset2 = i*n;
-      len = n;
-      if (i == count-1 && remainder != 0)
-	len = remainder;
+  s->count = count;
+  s->remainder = remainder;
+  s->n = n;
+  s->flength = len;
 
-      if (verbose > 3)
-	fprintf(stderr,"chunk[%d] of size %d at %d offset=%d\n",
-		i,len,(int)offset2,(int)offset);
-
-      if (write_sparse(fd,map_ptr(buf,offset2,len),len) != len) {
-	fprintf(stderr,"write failed on %s : %s\n",fname,strerror(errno));
-	exit_cleanup(1);
-      }
-      offset += len;
-    }
+  if (count==0) {
+    s->sums = NULL;
+    return s;
   }
 
-  if (offset > 0 && sparse_end(fd) != 0) {
-    fprintf(stderr,"write failed on %s : %s\n",fname,strerror(errno));
-    exit_cleanup(1);
+  if (verbose > 3)
+    fprintf(stderr,"count=%d rem=%d n=%d flength=%d\n",
+	    s->count,s->remainder,s->n,(int)s->flength);
+
+  s->sums = (struct sum_buf *)malloc(sizeof(s->sums[0])*s->count);
+  if (!s->sums) out_of_memory("generate_sums");
+  
+  for (i=0;i<count;i++) {
+    int n1 = MIN(len,n);
+    char *map = map_ptr(buf,offset,n1);
+
+    s->sums[i].sum1 = get_checksum1(map,n1);
+    get_checksum2(map,n1,s->sums[i].sum2);
+
+    s->sums[i].offset = offset;
+    s->sums[i].len = n1;
+    s->sums[i].i = i;
+
+    if (verbose > 3)
+      fprintf(stderr,"chunk[%d] offset=%d len=%d sum1=%08x\n",
+	      i,(int)s->sums[i].offset,s->sums[i].len,s->sums[i].sum1);
+
+    len -= n1;
+    offset += n1;
   }
+
+  return s;
 }

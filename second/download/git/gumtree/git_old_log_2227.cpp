@@ -1,1 +1,1 @@
-fprintf_ln(stderr, "    git pull <remote> <branch>");
+die("BUG: attempt to create two temporary shallow files");

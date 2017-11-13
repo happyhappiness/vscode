@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01859)
-                      "query execution error inserting session '%s' "
-                      "in database with '%s': %s", newkey, conf->insertlabel,
-                      apr_dbd_error(dbd->driver, dbd->handle, rv));
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01860)
+                  "the session insert query did not cause any rows to be added "
+                  "to the database for session '%s', session not inserted", newkey);

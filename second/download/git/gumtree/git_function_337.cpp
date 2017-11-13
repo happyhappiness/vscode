@@ -1,53 +1,40 @@
-static int apply_filter(const char *path, const char *src, size_t len, int fd,
-                        struct strbuf *dst, const char *cmd)
+static int write_out_results(struct apply_state *state, struct patch *list)
 {
-	/*
-	 * Create a pipeline to have the command filter the buffer's
-	 * contents.
-	 *
-	 * (child --> cmd) --> us
-	 */
-	int ret = 1;
-	struct strbuf nbuf = STRBUF_INIT;
-	struct async async;
-	struct filter_params params;
+	int phase;
+	int errs = 0;
+	struct patch *l;
+	struct string_list cpath = STRING_LIST_INIT_DUP;
 
-	if (!cmd || !*cmd)
-		return 0;
-
-	if (!dst)
-		return 1;
-
-	memset(&async, 0, sizeof(async));
-	async.proc = filter_buffer_or_fd;
-	async.data = &params;
-	async.out = -1;
-	params.src = src;
-	params.size = len;
-	params.fd = fd;
-	params.cmd = cmd;
-	params.path = path;
-
-	fflush(NULL);
-	if (start_async(&async))
-		return 0;	/* error was already reported */
-
-	if (strbuf_read(&nbuf, async.out, len) < 0) {
-		error("read from external filter %s failed", cmd);
-		ret = 0;
-	}
-	if (close(async.out)) {
-		error("read from external filter %s failed", cmd);
-		ret = 0;
-	}
-	if (finish_async(&async)) {
-		error("external filter %s failed", cmd);
-		ret = 0;
+	for (phase = 0; phase < 2; phase++) {
+		l = list;
+		while (l) {
+			if (l->rejected)
+				errs = 1;
+			else {
+				write_out_one_result(state, l, phase);
+				if (phase == 1) {
+					if (write_out_one_reject(state, l))
+						errs = 1;
+					if (l->conflicted_threeway) {
+						string_list_append(&cpath, l->new_name);
+						errs = 1;
+					}
+				}
+			}
+			l = l->next;
+		}
 	}
 
-	if (ret) {
-		strbuf_swap(dst, &nbuf);
+	if (cpath.nr) {
+		struct string_list_item *item;
+
+		string_list_sort(&cpath);
+		for_each_string_list_item(item, &cpath)
+			fprintf(stderr, "U %s\n", item->string);
+		string_list_clear(&cpath, 0);
+
+		rerere(0);
 	}
-	strbuf_release(&nbuf);
-	return ret;
+
+	return errs;
 }

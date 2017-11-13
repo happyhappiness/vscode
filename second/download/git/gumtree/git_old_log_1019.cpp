@@ -1,2 +1,1 @@
-warning("recursive delta detected for object %s",
-			sha1_to_hex(e->idx.sha1));
+die(_("could not create leading directories of '%s'"), sb.buf);

@@ -1,41 +1,46 @@
-static int on_data_chunk_recv_cb(nghttp2_session *ngh2, uint8_t flags,
-                                 int32_t stream_id,
-                                 const uint8_t *data, size_t len, void *userp)
+static ap_filter_t *add_any_filter(const char *name, void *ctx,
+                                   request_rec *r, conn_rec *c,
+                                   const filter_trie_node *reg_filter_set,
+                                   ap_filter_t **r_filters,
+                                   ap_filter_t **p_filters,
+                                   ap_filter_t **c_filters)
 {
-    h2_session *session = (h2_session *)userp;
-    apr_status_t status = APR_SUCCESS;
-    h2_stream * stream;
-    int rv;
-    
-    (void)flags;
-    if (session->aborted) {
-        return NGHTTP2_ERR_CALLBACK_FAILURE;
-    }
-    
-    stream = h2_session_get_stream(session, stream_id);
-    if (!stream) {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
-                      "h2_session:  stream(%ld-%d): on_data_chunk for unknown stream",
-                      session->id, (int)stream_id);
-        rv = nghttp2_submit_rst_stream(ngh2, NGHTTP2_FLAG_NONE, stream_id,
-                                       NGHTTP2_INTERNAL_ERROR);
-        if (nghttp2_is_fatal(rv)) {
-            return NGHTTP2_ERR_CALLBACK_FAILURE;
+    if (reg_filter_set) {
+        const char *n;
+        const filter_trie_node *node;
+
+        node = reg_filter_set;
+        for (n = name; *n; n++) {
+            int start, end;
+            start = 0;
+            end = node->nchildren - 1;
+            while (end >= start) {
+                int middle = (end + start) / 2;
+                char ch = node->children[middle].c;
+                if (*n == ch) {
+                    node = node->children[middle].child;
+                    break;
+                }
+                else if (*n < ch) {
+                    end = middle - 1;
+                }
+                else {
+                    start = middle + 1;
+                }
+            }
+            if (end < start) {
+                node = NULL;
+                break;
+            }
         }
-        return 0;
-    }
-    
-    status = h2_stream_write_data(stream, (const char *)data, len);
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, session->c,
-                  "h2_stream(%ld-%d): data_chunk_recv, written %ld bytes",
-                  session->id, stream_id, (long)len);
-    if (status != APR_SUCCESS) {
-        update_window(session, stream_id, len);
-        rv = nghttp2_submit_rst_stream(ngh2, NGHTTP2_FLAG_NONE, stream_id,
-                                       H2_STREAM_RST(stream, H2_ERR_INTERNAL_ERROR));
-        if (nghttp2_is_fatal(rv)) {
-            return NGHTTP2_ERR_CALLBACK_FAILURE;
+
+        if (node && node->frec) {
+            return add_any_filter_handle(node->frec, ctx, r, c, r_filters,
+                                         p_filters, c_filters);
         }
     }
-    return 0;
+
+    ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, r ? r->connection : c, APLOGNO(00082)
+                  "an unknown filter was not added: %s", name);
+    return NULL;
 }

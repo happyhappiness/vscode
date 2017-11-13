@@ -1,95 +1,25 @@
-int git_config_rename_section_in_file(const char *config_filename,
-				      const char *old_name, const char *new_name)
+static struct child_process *git_proxy_connect(int fd[2], char *host)
 {
-	int ret = 0, remove = 0;
-	char *filename_buf = NULL;
-	struct lock_file *lock;
-	int out_fd;
-	char buf[1024];
-	FILE *config_file;
-	struct stat st;
+	const char *port = STR(DEFAULT_GIT_PORT);
+	struct child_process *proxy;
 
-	if (new_name && !section_name_is_ok(new_name)) {
-		ret = error("invalid section name: %s", new_name);
-		goto out;
-	}
+	get_host_and_port(&host, &port);
 
-	if (!config_filename)
-		config_filename = filename_buf = git_pathdup("config");
+	if (looks_like_command_line_option(host))
+		die("strange hostname '%s' blocked", host);
+	if (looks_like_command_line_option(port))
+		die("strange port '%s' blocked", port);
 
-	lock = xcalloc(1, sizeof(struct lock_file));
-	out_fd = hold_lock_file_for_update(lock, config_filename, 0);
-	if (out_fd < 0) {
-		ret = error("could not lock config file %s", config_filename);
-		goto out;
-	}
-
-	if (!(config_file = fopen(config_filename, "rb"))) {
-		/* no config file means nothing to rename, no error */
-		goto unlock_and_out;
-	}
-
-	fstat(fileno(config_file), &st);
-
-	if (chmod(get_lock_file_path(lock), st.st_mode & 07777) < 0) {
-		ret = error("chmod on %s failed: %s",
-			    get_lock_file_path(lock), strerror(errno));
-		goto out;
-	}
-
-	while (fgets(buf, sizeof(buf), config_file)) {
-		int i;
-		int length;
-		char *output = buf;
-		for (i = 0; buf[i] && isspace(buf[i]); i++)
-			; /* do nothing */
-		if (buf[i] == '[') {
-			/* it's a section */
-			int offset = section_name_match(&buf[i], old_name);
-			if (offset > 0) {
-				ret++;
-				if (new_name == NULL) {
-					remove = 1;
-					continue;
-				}
-				store.baselen = strlen(new_name);
-				if (!store_write_section(out_fd, new_name)) {
-					ret = write_error(get_lock_file_path(lock));
-					goto out;
-				}
-				/*
-				 * We wrote out the new section, with
-				 * a newline, now skip the old
-				 * section's length
-				 */
-				output += offset + i;
-				if (strlen(output) > 0) {
-					/*
-					 * More content means there's
-					 * a declaration to put on the
-					 * next line; indent with a
-					 * tab
-					 */
-					output -= 1;
-					output[0] = '\t';
-				}
-			}
-			remove = 0;
-		}
-		if (remove)
-			continue;
-		length = strlen(output);
-		if (write_in_full(out_fd, output, length) != length) {
-			ret = write_error(get_lock_file_path(lock));
-			goto out;
-		}
-	}
-	fclose(config_file);
-unlock_and_out:
-	if (commit_lock_file(lock) < 0)
-		ret = error("could not write config file %s: %s",
-			    config_filename, strerror(errno));
-out:
-	free(filename_buf);
-	return ret;
+	proxy = xmalloc(sizeof(*proxy));
+	child_process_init(proxy);
+	argv_array_push(&proxy->args, git_proxy_command);
+	argv_array_push(&proxy->args, host);
+	argv_array_push(&proxy->args, port);
+	proxy->in = -1;
+	proxy->out = -1;
+	if (start_command(proxy))
+		die("cannot start proxy %s", git_proxy_command);
+	fd[0] = proxy->out; /* read from proxy stdout */
+	fd[1] = proxy->in;  /* write to proxy stdin */
+	return proxy;
 }

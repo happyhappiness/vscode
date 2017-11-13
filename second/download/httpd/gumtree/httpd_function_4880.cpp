@@ -1,30 +1,66 @@
-apr_status_t ap_mpm_end_gen_helper(void *unused) /* cleanup on pconf */
+static int stapling_check_response(server_rec *s, modssl_ctx_t *mctx,
+                                   certinfo *cinf, OCSP_RESPONSE *rsp,
+                                   BOOL *pok)
 {
-    int gen = ap_config_generation - 1; /* differs from MPM generation */
-    mpm_gen_info_t *cur;
+    int status, reason;
+    OCSP_BASICRESP *bs = NULL;
+    ASN1_GENERALIZEDTIME *rev, *thisupd, *nextupd;
+    int response_status = OCSP_response_status(rsp);
 
-    if (geninfo == NULL) {
-        /* initial pconf teardown, MPM hasn't run */
-        return APR_SUCCESS;
+    if (pok)
+        *pok = FALSE;
+    /* Check to see if response is an error. If so we automatically accept
+     * it because it would have expired from the cache if it was time to
+     * retry.
+     */
+    if (response_status != OCSP_RESPONSE_STATUS_SUCCESSFUL) {
+        if (mctx->stapling_return_errors)
+            return SSL_TLSEXT_ERR_OK;
+        else
+            return SSL_TLSEXT_ERR_NOACK;
     }
 
-    cur = APR_RING_FIRST(geninfo);
-    while (cur != APR_RING_SENTINEL(geninfo, mpm_gen_info_t, link) &&
-           cur->gen != gen) {
-        cur = APR_RING_NEXT(cur, link);
+    bs = OCSP_response_get1_basic(rsp);
+    if (bs == NULL) {
+        /* If we can't parse response just pass it to client */
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "stapling_check_response: Error Parsing Response!");
+        return SSL_TLSEXT_ERR_OK;
     }
 
-    if (cur == APR_RING_SENTINEL(geninfo, mpm_gen_info_t, link)) {
-        /* last child of generation already exited */
-        ap_log_error(APLOG_MARK, APLOG_TRACE4, 0, ap_server_conf,
-                     "no record of generation %d", gen);
-    }
+    if (!OCSP_resp_find_status(bs, cinf->cid, &status, &reason, &rev,
+                               &thisupd, &nextupd)) {
+        /* If ID not present just pass back to client */
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "stapling_check_response: certificate ID not present in response!");
+    } 
     else {
-        cur->done = 1;
-        if (cur->active == 0) {
-            end_gen(cur);
+        if (OCSP_check_validity(thisupd, nextupd,
+                                mctx->stapling_resptime_skew,
+                                mctx->stapling_resp_maxage)) {
+            if (pok)
+                *pok = TRUE;
+        }
+        else {
+            /* If pok is not NULL response was direct from a responder and
+             * the times should be valide. If pok is NULL the response was
+             * retrieved from cache and it is expected to subsequently expire
+             */
+            if (pok) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                             "stapling_check_response: response times invalid");
+            } 
+            else {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                             "stapling_check_response: cached response expired");
+            }
+
+            OCSP_BASICRESP_free(bs);
+            return SSL_TLSEXT_ERR_NOACK;
         }
     }
 
-    return APR_SUCCESS;
+    OCSP_BASICRESP_free(bs);
+
+    return SSL_TLSEXT_ERR_OK;
 }

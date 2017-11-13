@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01165)
-                         "%s: Forcing recovery for worker (%s)",
-                         balancer->s->name, (*worker)->s->hostname);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01348) "unknown value "
+                              "\"%s\" to parameter \"sizefmt\" of tag config "
+                              "in %s", parsed_string, r->filename);

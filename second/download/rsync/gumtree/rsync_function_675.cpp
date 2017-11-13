@@ -1,43 +1,36 @@
-struct file_list *create_flist_from_batch(void)
+void send_file_name(int f,struct file_list *flist,char *fname,
+			   int recursive, unsigned base_flags)
 {
-	unsigned char flags;
+  struct file_struct *file;
 
-	fdb_open = 1;
-	fdb_close = 0;
+  file = make_file(f,fname, &flist->string_area, 0);
 
-	batch_flist = new(struct file_list);
-	if (!batch_flist) {
-		out_of_memory("create_flist_from_batch");
-	}
-	batch_flist->count = 0;
-	batch_flist->malloced = 1000;
-	batch_flist->files = new_array(struct file_struct *,
-				       batch_flist->malloced);
-	if (!batch_flist->files) {
-		out_of_memory("create_flist_from_batch");
-	}
+  if (!file) return;  
+  
+  if (flist->count >= flist->malloced) {
+	  if (flist->malloced < 1000)
+		  flist->malloced += 1000;
+	  else
+		  flist->malloced *= 2;
+	  flist->files = (struct file_struct **)realloc(flist->files,
+							sizeof(flist->files[0])*
+							flist->malloced);
+	  if (!flist->files)
+		  out_of_memory("send_file_name");
+  }
 
-	for (flags = read_batch_flags(); flags; flags = read_batch_flags()) {
+  if (write_batch) /*  dw  */
+    file->flags = FLAG_DELETE;
 
-		int i = batch_flist->count;
+  if (strcmp(file->basename,"")) {
+    flist->files[flist->count++] = file;
+    send_file_entry(file,f,base_flags);
+  }
 
-		if (i >= batch_flist->malloced) {
-			if (batch_flist->malloced < 1000)
-				batch_flist->malloced += 1000;
-			else
-				batch_flist->malloced *= 2;
-			batch_flist->files
-				= realloc_array(batch_flist->files,
-						struct file_struct *,
-						batch_flist->malloced);
-			if (!batch_flist->files)
-				out_of_memory("create_flist_from_batch");
-		}
-		read_batch_flist_info(&batch_flist->files[i]);
-		batch_flist->files[i]->flags = flags;
-
-		batch_flist->count++;
-	}
-
-	return batch_flist;
+  if (S_ISDIR(file->mode) && recursive) {
+	  struct exclude_struct **last_exclude_list = local_exclude_list;
+	  send_directory(f,flist,f_name(file));
+	  local_exclude_list = last_exclude_list;
+	  return;
+  }
 }

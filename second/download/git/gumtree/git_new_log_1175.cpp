@@ -1,1 +1,1 @@
-die_errno("BUG: unexpected fast_export_ls_rev error");
+die_errno("sigprocmask");

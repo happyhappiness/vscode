@@ -1,1 +1,1 @@
-fprintf(FERROR,"built hash table\n");
+fprintf(FINFO,"created directory %s\n",name);

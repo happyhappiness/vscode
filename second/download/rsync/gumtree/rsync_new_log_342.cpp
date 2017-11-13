@@ -1,1 +1,1 @@
-fprintf(FERROR,"rmdir %s : %s\n",f_name(f),strerror(errno));
+fprintf(FINFO,"hash search b=%d len=%d\n",s->n,(int)len);

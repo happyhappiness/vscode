@@ -1,72 +1,122 @@
-static void create_note(const unsigned char *object, struct msg_arg *msg,
-			int append_only, const unsigned char *prev,
-			unsigned char *result)
+static struct commit *fake_working_tree_commit(struct diff_options *opt,
+					       const char *path,
+					       const char *contents_from)
 {
-	char *path = NULL;
+	struct commit *commit;
+	struct origin *origin;
+	struct commit_list **parent_tail, *parent;
+	struct object_id head_oid;
+	struct strbuf buf = STRBUF_INIT;
+	const char *ident;
+	time_t now;
+	int size, len;
+	struct cache_entry *ce;
+	unsigned mode;
+	struct strbuf msg = STRBUF_INIT;
 
-	if (msg->use_editor || !msg->given) {
-		int fd;
-		struct strbuf buf = STRBUF_INIT;
+	read_cache();
+	time(&now);
+	commit = alloc_commit_node();
+	commit->object.parsed = 1;
+	commit->date = now;
+	parent_tail = &commit->parents;
 
-		/* write the template message before editing: */
-		path = git_pathdup("NOTES_EDITMSG");
-		fd = open(path, O_CREAT | O_TRUNC | O_WRONLY, 0600);
-		if (fd < 0)
-			die_errno(_("could not create file '%s'"), path);
+	if (!resolve_ref_unsafe("HEAD", RESOLVE_REF_READING, head_oid.hash, NULL))
+		die("no such ref: HEAD");
 
-		if (msg->given)
-			write_or_die(fd, msg->buf.buf, msg->buf.len);
-		else if (prev && !append_only)
-			write_note_data(fd, prev);
+	parent_tail = append_parent(parent_tail, &head_oid);
+	append_merge_parents(parent_tail);
+	verify_working_tree_path(commit, path);
 
-		strbuf_addch(&buf, '\n');
-		strbuf_add_commented_lines(&buf, note_template, strlen(note_template));
-		strbuf_addch(&buf, '\n');
-		write_or_die(fd, buf.buf, buf.len);
+	origin = make_origin(commit, path);
 
-		write_commented_object(fd, object);
+	ident = fmt_ident("Not Committed Yet", "not.committed.yet", NULL, 0);
+	strbuf_addstr(&msg, "tree 0000000000000000000000000000000000000000\n");
+	for (parent = commit->parents; parent; parent = parent->next)
+		strbuf_addf(&msg, "parent %s\n",
+			    oid_to_hex(&parent->item->object.oid));
+	strbuf_addf(&msg,
+		    "author %s\n"
+		    "committer %s\n\n"
+		    "Version of %s from %s\n",
+		    ident, ident, path,
+		    (!contents_from ? path :
+		     (!strcmp(contents_from, "-") ? "standard input" : contents_from)));
+	set_commit_buffer_from_strbuf(commit, &msg);
 
-		close(fd);
-		strbuf_release(&buf);
-		strbuf_reset(&(msg->buf));
+	if (!contents_from || strcmp("-", contents_from)) {
+		struct stat st;
+		const char *read_from;
+		char *buf_ptr;
+		unsigned long buf_len;
 
-		if (launch_editor(path, &(msg->buf), NULL)) {
-			die(_("Please supply the note contents using either -m" \
-			    " or -F option"));
+		if (contents_from) {
+			if (stat(contents_from, &st) < 0)
+				die_errno("Cannot stat '%s'", contents_from);
+			read_from = contents_from;
 		}
-		stripspace(&(msg->buf), 1);
-	}
+		else {
+			if (lstat(path, &st) < 0)
+				die_errno("Cannot lstat '%s'", path);
+			read_from = path;
+		}
+		mode = canon_mode(st.st_mode);
 
-	if (prev && append_only) {
-		/* Append buf to previous note contents */
-		unsigned long size;
-		enum object_type type;
-		char *prev_buf = read_sha1_file(prev, &type, &size);
-
-		strbuf_grow(&(msg->buf), size + 1);
-		if (msg->buf.len && prev_buf && size)
-			strbuf_insert(&(msg->buf), 0, "\n", 1);
-		if (prev_buf && size)
-			strbuf_insert(&(msg->buf), 0, prev_buf, size);
-		free(prev_buf);
-	}
-
-	if (!msg->buf.len) {
-		fprintf(stderr, _("Removing note for object %s\n"),
-			sha1_to_hex(object));
-		hashclr(result);
-	} else {
-		if (write_sha1_file(msg->buf.buf, msg->buf.len, blob_type, result)) {
-			error(_("unable to write note object"));
-			if (path)
-				error(_("The note contents has been left in %s"),
-				      path);
-			exit(128);
+		switch (st.st_mode & S_IFMT) {
+		case S_IFREG:
+			if (DIFF_OPT_TST(opt, ALLOW_TEXTCONV) &&
+			    textconv_object(read_from, mode, &null_oid, 0, &buf_ptr, &buf_len))
+				strbuf_attach(&buf, buf_ptr, buf_len, buf_len + 1);
+			else if (strbuf_read_file(&buf, read_from, st.st_size) != st.st_size)
+				die_errno("cannot open or read '%s'", read_from);
+			break;
+		case S_IFLNK:
+			if (strbuf_readlink(&buf, read_from, st.st_size) < 0)
+				die_errno("cannot readlink '%s'", read_from);
+			break;
+		default:
+			die("unsupported file type %s", read_from);
 		}
 	}
-
-	if (path) {
-		unlink_or_warn(path);
-		free(path);
+	else {
+		/* Reading from stdin */
+		mode = 0;
+		if (strbuf_read(&buf, 0, 0) < 0)
+			die_errno("failed to read from stdin");
 	}
+	convert_to_git(path, buf.buf, buf.len, &buf, 0);
+	origin->file.ptr = buf.buf;
+	origin->file.size = buf.len;
+	pretend_sha1_file(buf.buf, buf.len, OBJ_BLOB, origin->blob_oid.hash);
+
+	/*
+	 * Read the current index, replace the path entry with
+	 * origin->blob_sha1 without mucking with its mode or type
+	 * bits; we are not going to write this index out -- we just
+	 * want to run "diff-index --cached".
+	 */
+	discard_cache();
+	read_cache();
+
+	len = strlen(path);
+	if (!mode) {
+		int pos = cache_name_pos(path, len);
+		if (0 <= pos)
+			mode = active_cache[pos]->ce_mode;
+		else
+			/* Let's not bother reading from HEAD tree */
+			mode = S_IFREG | 0644;
+	}
+	size = cache_entry_size(len);
+	ce = xcalloc(1, size);
+	oidcpy(&ce->oid, &origin->blob_oid);
+	memcpy(ce->name, path, len);
+	ce->ce_flags = create_ce_flags(0);
+	ce->ce_namelen = len;
+	ce->ce_mode = create_ce_mode(mode);
+	add_cache_entry(ce, ADD_CACHE_OK_TO_ADD|ADD_CACHE_OK_TO_REPLACE);
+
+	cache_tree_invalidate_path(&the_index, path);
+
+	return commit;
 }

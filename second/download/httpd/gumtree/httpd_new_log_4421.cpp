@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(00119)
-                     "Limiting internal redirects to very low numbers may "
-                     "cause normal requests to fail.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01045)
+                                  "error creating PASV socket");

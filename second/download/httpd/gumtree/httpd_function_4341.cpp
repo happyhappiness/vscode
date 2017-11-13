@@ -1,95 +1,96 @@
-static OCSP_RESPONSE *read_response(apr_socket_t *sd, BIO *bio, conn_rec *c,
-                                    apr_pool_t *p)
+static const char *add_member(cmd_parms *cmd, void *dummy, const char *arg)
 {
-    apr_bucket_brigade *bb, *tmpbb;
-    OCSP_RESPONSE *response;
-    char *line;
-    apr_size_t count;
-    apr_int64_t code;
+    server_rec *s = cmd->server;
+    proxy_server_conf *conf =
+    ap_get_module_config(s->module_config, &proxy_module);
+    proxy_balancer *balancer;
+    proxy_worker *worker;
+    char *path = cmd->path;
+    char *name = NULL;
+    char *word;
+    apr_table_t *params = apr_table_make(cmd->pool, 5);
+    const apr_array_header_t *arr;
+    const apr_table_entry_t *elts;
+    int reuse = 0;
+    int i;
+    /* XXX: Should this be NOT_IN_DIRECTORY|NOT_IN_FILES? */
+    const char *err = ap_check_cmd_context(cmd, NOT_IN_HTACCESS);
+    if (err)
+        return err;
 
-    /* Using brigades for response parsing is much simpler than using
-     * apr_socket_* directly. */
-    bb = apr_brigade_create(p, c->bucket_alloc);
-    tmpbb = apr_brigade_create(p, c->bucket_alloc);
-    APR_BRIGADE_INSERT_TAIL(bb, apr_bucket_socket_create(sd, c->bucket_alloc));
+    if (cmd->path)
+        path = apr_pstrdup(cmd->pool, cmd->path);
 
-    line = get_line(tmpbb, bb, c, p);
-    if (!line || strncmp(line, "HTTP/", 5)
-        || (line = ap_strchr(line, ' ')) == NULL
-        || (code = apr_atoi64(++line)) < 200 || code > 299) {
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
-                      "bad response from OCSP server: %s",
-                      line ? line : "(none)");
-        return NULL;
-    }
+    while (*arg) {
+        char *val;
+        word = ap_getword_conf(cmd->pool, &arg);
+        val = strchr(word, '=');
 
-    /* Read till end of headers; don't have to even bother parsing the
-     * Content-Length since the server is obliged to close the
-     * connection after the response anyway for HTTP/1.0. */
-    count = 0;
-    while ((line = get_line(tmpbb, bb, c, p)) != NULL && line[0]
-           && ++count < MAX_HEADERS) {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-                      "OCSP response header: %s", line);
-    }
-
-    if (count == MAX_HEADERS) {
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
-                      "could not read response headers from OCSP server, "
-                      "exceeded maximum count (%u)", MAX_HEADERS);
-        return NULL;
-    }
-    else if (!line) {
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
-                      "could not read response header from OCSP server");
-        return NULL;
-    }
-
-    /* Read the response body into the memory BIO. */
-    count = 0;
-    while (!APR_BRIGADE_EMPTY(bb)) {
-        const char *data;
-        apr_size_t len;
-        apr_status_t rv;
-        apr_bucket *e = APR_BRIGADE_FIRST(bb);
-
-        rv = apr_bucket_read(e, &data, &len, APR_BLOCK_READ);
-        if (rv == APR_EOF || (rv == APR_SUCCESS && len == 0)) {
-            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-                          "OCSP response: got EOF");
-            break;
+        if (!val) {
+            if (!path)
+                path = word;
+            else if (!name)
+                name = word;
+            else {
+                if (cmd->path)
+                    return "BalancerMember can not have a balancer name when defined in a location";
+                else
+                    return "Invalid BalancerMember parameter. Parameter must "
+                           "be in the form 'key=value'";
+            }
+        } else {
+            *val++ = '\0';
+            apr_table_setn(params, word, val);
         }
-        if (rv != APR_SUCCESS) {
-            ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c,
-                          "error reading response from OCSP server");
-            return NULL;
-        }
-        count += len;
-        if (count > MAX_CONTENT) {
-            ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c,
-                          "OCSP response size exceeds %u byte limit",
-                          MAX_CONTENT);
-            return NULL;
-        }
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-                      "OCSP response: got %" APR_SIZE_T_FMT 
-                      " bytes, %" APR_SIZE_T_FMT " total", len, count);
+    }
+    if (!path)
+        return "BalancerMember must define balancer name when outside <Proxy > section";
+    if (!name)
+        return "BalancerMember must define remote proxy server";
 
-        BIO_write(bio, data, (int)len);
-        apr_bucket_delete(e);
+    ap_str_tolower(path);   /* lowercase scheme://hostname */
+
+    /* Try to find the balancer */
+    balancer = ap_proxy_get_balancer(cmd->temp_pool, conf, path, 0);
+    if (!balancer) {
+        err = ap_proxy_define_balancer(cmd->pool, &balancer, conf, path, "/", 0);
+        if (err)
+            return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
     }
 
-    apr_brigade_destroy(bb);
-    apr_brigade_destroy(tmpbb);
-
-    /* Finally decode the OCSP response from what's stored in the
-     * bio. */
-    response = d2i_OCSP_RESPONSE_bio(bio, NULL);
-    if (response == NULL) {
-        ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, mySrvFromConn(c));
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
-                      "failed to decode OCSP response data");
+    /* Try to find existing worker */
+    worker = ap_proxy_get_worker(cmd->temp_pool, balancer, conf, name);
+    if (!worker) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01147)
+                     "Defining worker '%s' for balancer '%s'",
+                     name, balancer->s->name);
+        if ((err = ap_proxy_define_worker(cmd->pool, &worker, balancer, conf, name, 0)) != NULL)
+            return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01148)
+                     "Defined worker '%s' for balancer '%s'",
+                     worker->s->name, balancer->s->name);
+        PROXY_COPY_CONF_PARAMS(worker, conf);
+    } else {
+        reuse = 1;
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, cmd->server, APLOGNO(01149)
+                     "Sharing worker '%s' instead of creating new worker '%s'",
+                     worker->s->name, name);
     }
 
-    return response;
+    arr = apr_table_elts(params);
+    elts = (const apr_table_entry_t *)arr->elts;
+    for (i = 0; i < arr->nelts; i++) {
+        if (reuse) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(01150)
+                         "Ignoring parameter '%s=%s' for worker '%s' because of worker sharing",
+                         elts[i].key, elts[i].val, worker->s->name);
+        } else {
+            err = set_worker_param(cmd->pool, worker, elts[i].key,
+                                               elts[i].val);
+            if (err)
+                return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
+        }
+    }
+
+    return NULL;
 }

@@ -1,2 +1,1 @@
-warning("could not open '%s' for tracing: %s",
-				trace, strerror(errno));
+warning(_("Untracked cache is disabled on this system or location."));

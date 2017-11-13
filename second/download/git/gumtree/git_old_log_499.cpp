@@ -1,1 +1,1 @@
-fprintf(stderr, " %c %-*s ", flag, TRANSPORT_SUMMARY_WIDTH, summary);
+die("LF would be replaced by CRLF in %s", path);

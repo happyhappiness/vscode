@@ -1,1 +1,2 @@
-die("'%s': not a non-negative integer", optarg);
+die("unknown mode for --abbrev-ref: %s",
+						    arg);

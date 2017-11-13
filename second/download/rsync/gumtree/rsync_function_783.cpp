@@ -1,157 +1,119 @@
-void singleOptionHelp(FILE * fp, int maxLeftCol, 
-		const struct poptOption * opt,
-		/*@null@*/ const char * translation_domain)
-	/*@globals fileSystem @*/
-	/*@modifies *fp, fileSystem @*/
+static void add_rule(struct filter_list_struct *listp, const char *pat,
+		     unsigned int pat_len, uint32 mflags, int xflags)
 {
-    int indentLength = maxLeftCol + 5;
-    int lineLength = 79 - indentLength;
-    const unsigned char * help = D_(translation_domain, opt->descrip);
-    const char * argDescrip = getArgDescrip(opt, translation_domain);
-    int helpLength;
-    unsigned char * defs = NULL;
-    unsigned char * left;
-    int nb = maxLeftCol + 1;
+	struct filter_struct *ret;
+	const char *cp;
+	unsigned int ex_len;
 
-    /* Make sure there's more than enough room in target buffer. */
-    if (opt->longName)	nb += strlen(opt->longName);
-    if (argDescrip)	nb += strlen(argDescrip);
-
-    left = malloc(nb);
-    if (left == NULL) return;	/* XXX can't happen */
-    left[0] = '\0';
-    left[maxLeftCol] = '\0';
-
-    if (opt->longName && opt->shortName)
-	sprintf(left, "-%c, %s%s", opt->shortName,
-		((opt->argInfo & POPT_ARGFLAG_ONEDASH) ? "-" : "--"),
-		opt->longName);
-    else if (opt->shortName != '\0') 
-	sprintf(left, "-%c", opt->shortName);
-    else if (opt->longName)
-	sprintf(left, "%s%s",
-		((opt->argInfo & POPT_ARGFLAG_ONEDASH) ? "-" : "--"),
-		opt->longName);
-    if (!*left) goto out;
-    if (argDescrip) {
-	char * le = left + strlen(left);
-
-	if (opt->argInfo & POPT_ARGFLAG_OPTIONAL)
-	    *le++ = '[';
-
-	/* Choose type of output */
-	/*@-branchstate@*/
-	if (opt->argInfo & POPT_ARGFLAG_SHOW_DEFAULT) {
-	    defs = singleOptionDefaultValue(lineLength, opt, translation_domain);
-	    if (defs) {
-		char * t = malloc((help ? strlen(help) : 0) +
-				strlen(defs) + sizeof(" "));
-		if (t) {
-		    char * te = t;
-		    *te = '\0';
-		    if (help) {
-			strcpy(te, help);	te += strlen(te);
-		    }
-		    *te++ = ' ';
-		    strcpy(te, defs);
-		    defs = _free(defs);
-		}
-		defs = t;
-	    }
+	if (verbose > 2) {
+		rprintf(FINFO, "[%s] add_rule(%s%.*s%s)%s\n",
+			who_am_i(), get_rule_prefix(mflags, pat, 0, NULL),
+			(int)pat_len, pat,
+			(mflags & MATCHFLG_DIRECTORY) ? "/" : "",
+			listp->debug_type);
 	}
-	/*@=branchstate@*/
 
-	if (opt->argDescrip == NULL) {
-	    switch (opt->argInfo & POPT_ARG_MASK) {
-	    case POPT_ARG_NONE:
-		break;
-	    case POPT_ARG_VAL:
-	    {	long aLong = opt->val;
-		int ops = (opt->argInfo & POPT_ARGFLAG_LOGICALOPS);
-		int negate = (opt->argInfo & POPT_ARGFLAG_NOT);
-
-		/* Don't bother displaying typical values */
-		if (!ops && (aLong == 0L || aLong == 1L || aLong == -1L))
-		    break;
-		*le++ = '[';
-		switch (ops) {
-		case POPT_ARGFLAG_OR:
-		    *le++ = '|';
-		    /*@innerbreak@*/ break;
-		case POPT_ARGFLAG_AND:
-		    *le++ = '&';
-		    /*@innerbreak@*/ break;
-		case POPT_ARGFLAG_XOR:
-		    *le++ = '^';
-		    /*@innerbreak@*/ break;
-		default:
-		    /*@innerbreak@*/ break;
+	/* This flag also indicates that we're reading a list that
+	 * needs to be filtered now, not post-filtered later. */
+	if (xflags & XFLG_ANCHORED2ABS) {
+		uint32 mf = mflags & (MATCHFLG_RECEIVER_SIDE|MATCHFLG_SENDER_SIDE);
+		if (am_sender) {
+			if (mf == MATCHFLG_RECEIVER_SIDE)
+				return;
+		} else {
+			if (mf == MATCHFLG_SENDER_SIDE)
+				return;
 		}
-		*le++ = '=';
-		if (negate) *le++ = '~';
-		/*@-formatconst@*/
-		sprintf(le, (ops ? "0x%lx" : "%ld"), aLong);
-		le += strlen(le);
-		/*@=formatconst@*/
-		*le++ = ']';
-	    }	break;
-	    case POPT_ARG_INT:
-	    case POPT_ARG_LONG:
-	    case POPT_ARG_FLOAT:
-	    case POPT_ARG_DOUBLE:
-	    case POPT_ARG_STRING:
-		*le++ = '=';
-		strcpy(le, argDescrip);		le += strlen(le);
-		break;
-	    default:
-		break;
-	    }
+	}
+
+	if (!(ret = new(struct filter_struct)))
+		out_of_memory("add_rule");
+	memset(ret, 0, sizeof ret[0]);
+
+	if (xflags & XFLG_ANCHORED2ABS && *pat == '/'
+	    && !(mflags & (MATCHFLG_ABS_PATH | MATCHFLG_MERGE_FILE))) {
+		mflags |= MATCHFLG_ABS_PATH;
+		ex_len = dirbuf_len - module_dirlen - 1;
+	} else
+		ex_len = 0;
+	if (!(ret->pattern = new_array(char, ex_len + pat_len + 1)))
+		out_of_memory("add_rule");
+	if (ex_len)
+		memcpy(ret->pattern, dirbuf + module_dirlen, ex_len);
+	strlcpy(ret->pattern + ex_len, pat, pat_len + 1);
+	pat_len += ex_len;
+
+	if (strpbrk(ret->pattern, "*[?")) {
+		mflags |= MATCHFLG_WILD;
+		if ((cp = strstr(ret->pattern, "**")) != NULL) {
+			mflags |= MATCHFLG_WILD2;
+			/* If the pattern starts with **, note that. */
+			if (cp == ret->pattern)
+				mflags |= MATCHFLG_WILD2_PREFIX;
+		}
+	}
+
+	if (pat_len > 1 && ret->pattern[pat_len-1] == '/') {
+		ret->pattern[pat_len-1] = 0;
+		mflags |= MATCHFLG_DIRECTORY;
+	}
+
+	if (mflags & MATCHFLG_PERDIR_MERGE) {
+		struct filter_list_struct *lp;
+		unsigned int len;
+		int i;
+
+		if ((cp = strrchr(ret->pattern, '/')) != NULL)
+			cp++;
+		else
+			cp = ret->pattern;
+
+		/* If the local merge file was already mentioned, don't
+		 * add it again. */
+		for (i = 0; i < mergelist_cnt; i++) {
+			struct filter_struct *ex = mergelist_parents[i];
+			const char *s = strrchr(ex->pattern, '/');
+			if (s)
+				s++;
+			else
+				s = ex->pattern;
+			len = strlen(s);
+			if (len == pat_len - (cp - ret->pattern)
+			    && memcmp(s, cp, len) == 0) {
+				free_filter(ret);
+				return;
+			}
+		}
+
+		if (!(lp = new_array(struct filter_list_struct, 1)))
+			out_of_memory("add_rule");
+		lp->head = lp->tail = NULL;
+		if (asprintf(&lp->debug_type, " [per-dir %s]", cp) < 0)
+			out_of_memory("add_rule");
+		ret->u.mergelist = lp;
+
+		if (mergelist_cnt == mergelist_size) {
+			mergelist_size += 5;
+			mergelist_parents = realloc_array(mergelist_parents,
+						struct filter_struct *,
+						mergelist_size);
+			if (!mergelist_parents)
+				out_of_memory("add_rule");
+		}
+		mergelist_parents[mergelist_cnt++] = ret;
 	} else {
-	    *le++ = '=';
-	    strcpy(le, argDescrip);		le += strlen(le);
+		for (cp = ret->pattern; (cp = strchr(cp, '/')) != NULL; cp++)
+			ret->u.slash_cnt++;
 	}
-	if (opt->argInfo & POPT_ARGFLAG_OPTIONAL)
-	    *le++ = ']';
-	*le = '\0';
-    }
 
-    if (help)
-	fprintf(fp,"  %-*s   ", maxLeftCol, left);
-    else {
-	fprintf(fp,"  %s\n", left); 
-	goto out;
-    }
+	ret->match_flags = mflags;
 
-    left = _free(left);
-    if (defs) {
-	help = defs; defs = NULL;
-    }
-
-    helpLength = strlen(help);
-    while (helpLength > lineLength) {
-	const unsigned char * ch;
-	char format[10];
-
-	ch = help + lineLength - 1;
-	while (ch > help && !isspace(*ch)) ch--;
-	if (ch == help) break;		/* give up */
-	while (ch > (help + 1) && isspace(*ch)) ch--;
-	ch++;
-
-	sprintf(format, "%%.%ds\n%%%ds", (int) (ch - help), indentLength);
-	/*@-formatconst@*/
-	fprintf(fp, format, help, " ");
-	/*@=formatconst@*/
-	help = ch;
-	while (isspace(*help) && *help) help++;
-	helpLength = strlen(help);
-    }
-
-    if (helpLength) fprintf(fp, "%s\n", help);
-
-out:
-    /*@-dependenttrans@*/
-    defs = _free(defs);
-    /*@=dependenttrans@*/
-    left = _free(left);
+	if (!listp->tail) {
+		ret->next = listp->head;
+		listp->head = listp->tail = ret;
+	} else {
+		ret->next = listp->tail->next;
+		listp->tail->next = ret;
+		listp->tail = ret;
+	}
 }

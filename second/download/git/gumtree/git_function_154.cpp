@@ -1,32 +1,47 @@
-static void wt_status_print_tracking(struct wt_status *s)
+static int log_ref_write(const char *refname, const unsigned char *old_sha1,
+			 const unsigned char *new_sha1, const char *msg)
 {
-	struct strbuf sb = STRBUF_INIT;
-	const char *cp, *ep;
-	struct branch *branch;
-	char comment_line_string[3];
-	int i;
+	int logfd, result, written, oflags = O_APPEND | O_WRONLY;
+	unsigned maxlen, len;
+	int msglen;
+	char log_file[PATH_MAX];
+	char *logrec;
+	const char *committer;
 
-	assert(s->branch && !s->is_initial);
-	if (!starts_with(s->branch, "refs/heads/"))
-		return;
-	branch = branch_get(s->branch + 11);
-	if (!format_tracking_info(branch, &sb))
-		return;
+	if (log_all_ref_updates < 0)
+		log_all_ref_updates = !is_bare_repository();
 
-	i = 0;
-	if (s->display_comment_prefix) {
-		comment_line_string[i++] = comment_line_char;
-		comment_line_string[i++] = ' ';
+	result = log_ref_setup(refname, log_file, sizeof(log_file));
+	if (result)
+		return result;
+
+	logfd = open(log_file, oflags);
+	if (logfd < 0)
+		return 0;
+	msglen = msg ? strlen(msg) : 0;
+	committer = git_committer_info(0);
+	maxlen = strlen(committer) + msglen + 100;
+	logrec = xmalloc(maxlen);
+	len = sprintf(logrec, "%s %s %s\n",
+		      sha1_to_hex(old_sha1),
+		      sha1_to_hex(new_sha1),
+		      committer);
+	if (msglen)
+		len += copy_msg(logrec + len - 1, msg) - 1;
+	written = len <= maxlen ? write_in_full(logfd, logrec, len) : -1;
+	free(logrec);
+	if (written != len) {
+		int save_errno = errno;
+		close(logfd);
+		error("Unable to append to %s", log_file);
+		errno = save_errno;
+		return -1;
 	}
-	comment_line_string[i] = '\0';
-
-	for (cp = sb.buf; (ep = strchr(cp, '\n')) != NULL; cp = ep + 1)
-		color_fprintf_ln(s->fp, color(WT_STATUS_HEADER, s),
-				 "%s%.*s", comment_line_string,
-				 (int)(ep - cp), cp);
-	if (s->display_comment_prefix)
-		color_fprintf_ln(s->fp, color(WT_STATUS_HEADER, s), "%c",
-				 comment_line_char);
-	else
-		fprintf_ln(s->fp, "");
+	if (close(logfd)) {
+		int save_errno = errno;
+		error("Unable to append to %s", log_file);
+		errno = save_errno;
+		return -1;
+	}
+	return 0;
 }

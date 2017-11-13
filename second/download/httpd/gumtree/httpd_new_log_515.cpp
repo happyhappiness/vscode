@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, 
-                          "Request header exceeds LimitRequestFieldSize: "
-                          "%.*s", field_name_len(field), field);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                             r->server,
+                             "proxy: server %s returned Transfer-Encoding and Content-Length",
+                             p_conn->name);

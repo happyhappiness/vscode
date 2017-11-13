@@ -1,1 +1,1 @@
-ap_rputs("</table>\n</p>\n", r);
+apr_file_printf(errfile, "password for user %s\n", user);

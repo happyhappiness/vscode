@@ -1,11 +1,11 @@
 fputs(
-"              doing file lists with FTP.\n"
+"              POST and PUT requests are rather invoked by using dedicated com-\n"
+"              mand line options.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              This  option  only  changes  the  actual  word  used in the HTTP\n"
+"              request, it does not alter the way curl behaves. So for  example\n"
+"              if  you  want  to make a proper HEAD request, using -X HEAD will\n"
+"              not suffice. You need to use the -I, --head option.\n"
 "\n"
-"       --xattr\n"
-"              When  saving  output  to a file, this option tells curl to store\n"
-"              certain file metadata in extened file attributes. Currently, the\n"
-"              URL is stored in the xdg.origin.url attribute and, for HTTP, the\n"
-"              content type is stored in the mime_type attribute. If  the  file\n"
+"              (FTP) Specifies a custom FTP command to use instead of LIST when\n"
 , stdout);

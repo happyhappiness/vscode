@@ -1,1 +1,1 @@
-die(_("Aborting."));
+die(_("unrecognized color: %%(color:%s)"), color_value);

@@ -1,47 +1,31 @@
-int git_default_config(const char *var, const char *value, void *dummy)
+static void get_info_refs(struct strbuf *hdr, char *arg)
 {
-	if (starts_with(var, "core."))
-		return git_default_core_config(var, value);
+	const char *service_name = get_parameter("service");
+	struct strbuf buf = STRBUF_INIT;
 
-	if (starts_with(var, "user."))
-		return git_ident_config(var, value, dummy);
+	hdr_nocache(hdr);
 
-	if (starts_with(var, "i18n."))
-		return git_default_i18n_config(var, value);
+	if (service_name) {
+		const char *argv[] = {NULL /* service name */,
+			"--stateless-rpc", "--advertise-refs",
+			".", NULL};
+		struct rpc_service *svc = select_service(hdr, service_name);
 
-	if (starts_with(var, "branch."))
-		return git_default_branch_config(var, value);
+		strbuf_addf(&buf, "application/x-git-%s-advertisement",
+			svc->name);
+		hdr_str(hdr, content_type, buf.buf);
+		end_headers(hdr);
 
-	if (starts_with(var, "push."))
-		return git_default_push_config(var, value);
+		packet_write(1, "# service=git-%s\n", svc->name);
+		packet_flush(1);
 
-	if (starts_with(var, "mailmap."))
-		return git_default_mailmap_config(var, value);
+		argv[0] = svc->name;
+		run_service(argv, 0);
 
-	if (starts_with(var, "advice."))
-		return git_default_advice_config(var, value);
-
-	if (!strcmp(var, "pager.color") || !strcmp(var, "color.pager")) {
-		pager_use_color = git_config_bool(var,value);
-		return 0;
+	} else {
+		select_getanyfile(hdr);
+		for_each_namespaced_ref(show_text_ref, &buf);
+		send_strbuf(hdr, "text/plain", &buf);
 	}
-
-	if (!strcmp(var, "pack.packsizelimit")) {
-		pack_size_limit_cfg = git_config_ulong(var, value);
-		return 0;
-	}
-
-	if (!strcmp(var, "pack.compression")) {
-		int level = git_config_int(var, value);
-		if (level == -1)
-			level = Z_DEFAULT_COMPRESSION;
-		else if (level < 0 || level > Z_BEST_COMPRESSION)
-			die(_("bad pack compression level %d"), level);
-		pack_compression_level = level;
-		pack_compression_seen = 1;
-		return 0;
-	}
-
-	/* Add other config variables here and to Documentation/config.txt. */
-	return 0;
+	strbuf_release(&buf);
 }

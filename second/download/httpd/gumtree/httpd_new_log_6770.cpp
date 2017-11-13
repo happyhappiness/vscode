@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02545)
-                         "%s: has determined UDS as %s",
-                         proxy_function, (*conn)->uds_path);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, f->c, APLOGNO(03046)
+                          "h2_session(%ld): error reading", f->c->id);

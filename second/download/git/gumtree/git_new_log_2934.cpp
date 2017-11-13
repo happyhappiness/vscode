@@ -1,1 +1,1 @@
-error_errno("unable to create file %s", path);
+error_errno("unable to unlink old '%s'", path.buf);

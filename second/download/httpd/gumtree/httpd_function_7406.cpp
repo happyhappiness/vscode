@@ -1,156 +1,82 @@
-static void *APR_THREAD_FUNC start_threads(apr_thread_t * thd, void *dummy)
+static int event_pre_config(apr_pool_t * pconf, apr_pool_t * plog,
+                            apr_pool_t * ptemp)
 {
-    thread_starter *ts = dummy;
-    apr_thread_t **threads = ts->threads;
-    apr_threadattr_t *thread_attr = ts->threadattr;
-    int child_num_arg = ts->child_num_arg;
-    int my_child_num = child_num_arg;
-    proc_info *my_info;
+    int no_detach, debug, foreground;
     apr_status_t rv;
-    int i;
-    int threads_created = 0;
-    int listener_started = 0;
-    int loops;
-    int prev_threads_created;
-    int max_recycled_pools = -1;
-    int good_methods[] = {APR_POLLSET_KQUEUE, APR_POLLSET_PORT, APR_POLLSET_EPOLL};
+    const char *userdata_key = "mpm_event_module";
 
-    /* We must create the fd queues before we start up the listener
-     * and worker threads. */
-    worker_queue = apr_pcalloc(pchild, sizeof(*worker_queue));
-    rv = ap_queue_init(worker_queue, threads_per_child, pchild);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
-                     "ap_queue_init() failed");
-        clean_child_exit(APEXIT_CHILDFATAL);
+    mpm_state = AP_MPMQ_STARTING;
+
+    debug = ap_exists_config_define("DEBUG");
+
+    if (debug) {
+        foreground = one_process = 1;
+        no_detach = 0;
+    }
+    else {
+        one_process = ap_exists_config_define("ONE_PROCESS");
+        no_detach = ap_exists_config_define("NO_DETACH");
+        foreground = ap_exists_config_define("FOREGROUND");
     }
 
-    if (ap_max_mem_free != APR_ALLOCATOR_MAX_FREE_UNLIMITED) {
-        /* If we want to conserve memory, let's not keep an unlimited number of
-         * pools & allocators.
-         * XXX: This should probably be a separate config directive
-         */
-        max_recycled_pools = threads_per_child * 3 / 4 ;
+    /* sigh, want this only the second time around */
+    retained = ap_retained_data_get(userdata_key);
+    if (!retained) {
+        retained = ap_retained_data_create(userdata_key, sizeof(*retained));
+        retained->max_daemons_limit = -1;
+        retained->idle_spawn_rate = 1;
     }
-    rv = ap_queue_info_create(&worker_queue_info, pchild,
-                              threads_per_child, max_recycled_pools);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
-                     "ap_queue_info_create() failed");
-        clean_child_exit(APEXIT_CHILDFATAL);
-    }
+    ++retained->module_loads;
+    if (retained->module_loads == 2) {
+        int i;
+        static apr_uint32_t foo = 0;
 
-    /* Create the timeout mutex and main pollset before the listener
-     * thread starts.
-     */
-    rv = apr_thread_mutex_create(&timeout_mutex, APR_THREAD_MUTEX_DEFAULT,
-                                 pchild);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
-                     "creation of the timeout mutex failed.");
-        clean_child_exit(APEXIT_CHILDFATAL);
-    }
-
-    /* Create the main pollset */
-    for (i = 0; i < sizeof(good_methods) / sizeof(void*); i++) {
-        rv = apr_pollset_create_ex(&event_pollset,
-                            threads_per_child*2, /* XXX don't we need more, to handle
-                                                * connections in K-A or lingering
-                                                * close?
-                                                */
-                            pchild, APR_POLLSET_THREADSAFE | APR_POLLSET_NOCOPY | APR_POLLSET_NODEFAULT,
-                            good_methods[i]);
-        if (rv == APR_SUCCESS) {
-            break;
+        apr_atomic_inc32(&foo);
+        apr_atomic_dec32(&foo);
+        apr_atomic_dec32(&foo);
+        i = apr_atomic_dec32(&foo);
+        if (i >= 0) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL, APLOGNO(02405)
+                         "atomics not working as expected");
+            return HTTP_INTERNAL_SERVER_ERROR;
         }
-    }
-    if (rv != APR_SUCCESS) {
-        rv = apr_pollset_create(&event_pollset,
-                               threads_per_child*2, /* XXX don't we need more, to handle
-                                                     * connections in K-A or lingering
-                                                     * close?
-                                                     */
-                               pchild, APR_POLLSET_THREADSAFE | APR_POLLSET_NOCOPY);
-    }
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
-                     "apr_pollset_create with Thread Safety failed.");
-        clean_child_exit(APEXIT_CHILDFATAL);
-    }
+        rv = apr_pollset_create(&event_pollset, 1, plog,
+                                APR_POLLSET_THREADSAFE | APR_POLLSET_NOCOPY);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL, APLOGNO(00495)
+                         "Couldn't create a Thread Safe Pollset. "
+                         "Is it supported on your platform?"
+                         "Also check system or user limits!");
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+        apr_pollset_destroy(event_pollset);
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02471)
-                 "start_threads: Using %s", apr_pollset_method_name(event_pollset));
-    worker_sockets = apr_pcalloc(pchild, threads_per_child
-                                 * sizeof(apr_socket_t *));
-
-    loops = prev_threads_created = 0;
-    while (1) {
-        /* threads_per_child does not include the listener thread */
-        for (i = 0; i < threads_per_child; i++) {
-            int status =
-                ap_scoreboard_image->servers[child_num_arg][i].status;
-
-            if (status != SERVER_GRACEFUL && status != SERVER_DEAD) {
-                continue;
-            }
-
-            my_info = (proc_info *) ap_malloc(sizeof(proc_info));
-            my_info->pid = my_child_num;
-            my_info->tid = i;
-            my_info->sd = 0;
-
-            /* We are creating threads right now */
-            ap_update_child_status_from_indexes(my_child_num, i,
-                                                SERVER_STARTING, NULL);
-            /* We let each thread update its own scoreboard entry.  This is
-             * done because it lets us deal with tid better.
-             */
-            rv = apr_thread_create(&threads[i], thread_attr,
-                                   worker_thread, my_info, pchild);
+        if (!one_process && !foreground) {
+            /* before we detach, setup crash handlers to log to errorlog */
+            ap_fatal_signal_setup(ap_server_conf, pconf);
+            rv = apr_proc_detach(no_detach ? APR_PROC_DETACH_FOREGROUND
+                                 : APR_PROC_DETACH_DAEMONIZE);
             if (rv != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
-                             "apr_thread_create: unable to create worker thread");
-                /* let the parent decide how bad this really is */
-                clean_child_exit(APEXIT_CHILDSICK);
+                ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL, APLOGNO(00496)
+                             "apr_proc_detach failed");
+                return HTTP_INTERNAL_SERVER_ERROR;
             }
-            threads_created++;
-        }
-
-        /* Start the listener only when there are workers available */
-        if (!listener_started && threads_created) {
-            create_listener_thread(ts);
-            listener_started = 1;
-        }
-
-
-        if (start_thread_may_exit || threads_created == threads_per_child) {
-            break;
-        }
-        /* wait for previous generation to clean up an entry */
-        apr_sleep(apr_time_from_sec(1));
-        ++loops;
-        if (loops % 120 == 0) { /* every couple of minutes */
-            if (prev_threads_created == threads_created) {
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                             "child %" APR_PID_T_FMT " isn't taking over "
-                             "slots very quickly (%d of %d)",
-                             ap_my_pid, threads_created,
-                             threads_per_child);
-            }
-            prev_threads_created = threads_created;
         }
     }
 
-    /* What state should this child_main process be listed as in the
-     * scoreboard...?
-     *  ap_update_child_status_from_indexes(my_child_num, i, SERVER_STARTING,
-     *                                      (request_rec *) NULL);
-     *
-     *  This state should be listed separately in the scoreboard, in some kind
-     *  of process_status, not mixed in with the worker threads' status.
-     *  "life_status" is almost right, but it's in the worker's structure, and
-     *  the name could be clearer.   gla
-     */
-    apr_thread_exit(thd, APR_SUCCESS);
-    return NULL;
+    parent_pid = ap_my_pid = getpid();
+
+    ap_listen_pre_config();
+    ap_daemons_to_start = DEFAULT_START_DAEMON;
+    min_spare_threads = DEFAULT_MIN_FREE_DAEMON * DEFAULT_THREADS_PER_CHILD;
+    max_spare_threads = DEFAULT_MAX_FREE_DAEMON * DEFAULT_THREADS_PER_CHILD;
+    server_limit = DEFAULT_SERVER_LIMIT;
+    thread_limit = DEFAULT_THREAD_LIMIT;
+    ap_daemons_limit = server_limit;
+    threads_per_child = DEFAULT_THREADS_PER_CHILD;
+    max_workers = ap_daemons_limit * threads_per_child;
+    had_healthy_child = 0;
+    ap_extended_status = 0;
+
+    return OK;
 }

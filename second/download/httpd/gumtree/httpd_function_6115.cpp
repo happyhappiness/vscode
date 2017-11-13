@@ -1,71 +1,49 @@
-static void fix_hostname(request_rec *r)
+apr_status_t h2_stream_readx(h2_stream *stream, 
+                             h2_io_data_cb *cb, void *ctx,
+                             apr_off_t *plen, int *peos)
 {
-    char *host, *scope_id;
-    char *dst;
-    apr_port_t port;
-    apr_status_t rv;
-    const char *c;
-
-    /* According to RFC 2616, Host header field CAN be blank. */
-    if (!*r->hostname) {
-        return;
+    apr_status_t status = APR_SUCCESS;
+    apr_table_t *trailers = NULL;
+    const char *src;
+    
+    H2_STREAM_OUT(APLOG_TRACE2, stream, "h2_stream readx_pre");
+    if (stream->rst_error) {
+        return APR_ECONNRESET;
     }
-
-    /* apr_parse_addr_port will interpret a bare integer as a port
-     * which is incorrect in this context.  So treat it separately.
-     */
-    for (c = r->hostname; apr_isdigit(*c); ++c);
-    if (!*c) {  /* pure integer */
-        return;
-    }
-
-    rv = apr_parse_addr_port(&host, &scope_id, &port, r->hostname, r->pool);
-    if (rv != APR_SUCCESS || scope_id) {
-        goto bad;
-    }
-
-    if (port) {
-        /* Don't throw the Host: header's port number away:
-           save it in parsed_uri -- ap_get_server_port() needs it! */
-        /* @@@ XXX there should be a better way to pass the port.
-         *         Like r->hostname, there should be a r->portno
-         */
-        r->parsed_uri.port = port;
-        r->parsed_uri.port_str = apr_itoa(r->pool, (int)port);
-    }
-
-    /* if the hostname is an IPv6 numeric address string, it was validated
-     * already; otherwise, further validation is needed
-     */
-    if (r->hostname[0] != '[') {
-        for (dst = host; *dst; dst++) {
-            if (apr_islower(*dst)) {
-                /* leave char unchanged */
-            }
-            else if (*dst == '.') {
-                if (*(dst + 1) == '.') {
-                    goto bad;
-                }
-            }
-            else if (apr_isupper(*dst)) {
-                *dst = apr_tolower(*dst);
-            }
-            else if (*dst == '/' || *dst == '\\') {
-                goto bad;
-            }
-        }
-        /* strip trailing gubbins */
-        if (dst > host && dst[-1] == '.') {
-            dst[-1] = '\0';
+    *peos = 0;
+    if (!APR_BRIGADE_EMPTY(stream->bbout)) {
+        apr_off_t origlen = *plen;
+        
+        src = "stream";
+        status = h2_util_bb_readx(stream->bbout, cb, ctx, plen, peos);
+        if (status == APR_SUCCESS && !*peos && !*plen) {
+            apr_brigade_cleanup(stream->bbout);
+            *plen = origlen;
+            return h2_stream_readx(stream, cb, ctx, plen, peos);
         }
     }
-    r->hostname = host;
-    return;
-
-bad:
-    r->status = HTTP_BAD_REQUEST;
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00550)
-                  "Client sent malformed Host header: %s",
-                  r->hostname);
-    return;
+    else {
+        src = "mplx";
+        status = h2_mplx_out_readx(stream->session->mplx, stream->id, 
+                                   cb, ctx, plen, peos, &trailers);
+    }
+    
+    if (trailers && stream->response) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, stream->session->c,
+                      "h2_stream(%ld-%d): readx, saving trailers",
+                      stream->session->id, stream->id);
+        h2_response_set_trailers(stream->response, trailers);
+    }
+    
+    if (status == APR_SUCCESS && !*peos && !*plen) {
+        status = APR_EAGAIN;
+    }
+    
+    H2_STREAM_OUT(APLOG_TRACE2, stream, "h2_stream readx_post");
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, stream->session->c,
+                  "h2_stream(%ld-%d): readx %s, len=%ld eos=%d",
+                  stream->session->id, stream->id, src, (long)*plen, *peos);
+    H2_STREAM_OUT(APLOG_TRACE2, stream, "h2_stream readx_post");
+    
+    return status;
 }

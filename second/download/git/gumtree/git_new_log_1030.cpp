@@ -1,1 +1,1 @@
-usage(usage_msg);
+die(_("--points-at option is only allowed in list mode"));

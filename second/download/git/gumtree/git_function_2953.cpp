@@ -1,36 +1,40 @@
-static void read_rr(struct string_list *rr)
+static int handle_file(const char *path, unsigned char *sha1, const char *output)
 {
-	struct strbuf buf = STRBUF_INIT;
-	FILE *in = fopen(git_path_merge_rr(), "r");
+	int hunk_no = 0;
+	struct rerere_io_file io;
+	int marker_size = ll_merge_marker_size(path);
 
-	if (!in)
-		return;
-	while (!strbuf_getwholeline(&buf, in, '\0')) {
-		char *path;
-		unsigned char sha1[20];
-		struct rerere_id *id;
-		int variant;
+	memset(&io, 0, sizeof(io));
+	io.io.getline = rerere_file_getline;
+	io.input = fopen(path, "r");
+	io.io.wrerror = 0;
+	if (!io.input)
+		return error("Could not open %s", path);
 
-		/* There has to be the hash, tab, path and then NUL */
-		if (buf.len < 42 || get_sha1_hex(buf.buf, sha1))
-			die("corrupt MERGE_RR");
-
-		if (buf.buf[40] != '.') {
-			variant = 0;
-			path = buf.buf + 40;
-		} else {
-			errno = 0;
-			variant = strtol(buf.buf + 41, &path, 10);
-			if (errno)
-				die("corrupt MERGE_RR");
+	if (output) {
+		io.io.output = fopen(output, "w");
+		if (!io.io.output) {
+			fclose(io.input);
+			return error("Could not write %s", output);
 		}
-		if (*(path++) != '\t')
-			die("corrupt MERGE_RR");
-		buf.buf[40] = '\0';
-		id = new_rerere_id_hex(buf.buf);
-		id->variant = variant;
-		string_list_insert(rr, path)->util = id;
 	}
-	strbuf_release(&buf);
-	fclose(in);
+
+	hunk_no = handle_path(sha1, (struct rerere_io *)&io, marker_size);
+
+	fclose(io.input);
+	if (io.io.wrerror)
+		error("There were errors while writing %s (%s)",
+		      path, strerror(io.io.wrerror));
+	if (io.io.output && fclose(io.io.output))
+		io.io.wrerror = error("Failed to flush %s: %s",
+				      path, strerror(errno));
+
+	if (hunk_no < 0) {
+		if (output)
+			unlink_or_warn(output);
+		return error("Could not parse conflict hunks in %s", path);
+	}
+	if (io.io.wrerror)
+		return -1;
+	return hunk_no;
 }

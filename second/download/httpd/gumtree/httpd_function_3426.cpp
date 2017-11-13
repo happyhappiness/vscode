@@ -1,194 +1,205 @@
-static int uldap_connection_init(request_rec *r,
-                                 util_ldap_connection_t *ldc)
+static int cache_handler(request_rec *r)
 {
-    int rc = 0, ldap_option = 0;
-    int version  = LDAP_VERSION3;
-    apr_ldap_err_t *result = NULL;
-#ifdef LDAP_OPT_NETWORK_TIMEOUT
-    struct timeval connectionTimeout = {10,0};    /* 10 second connection timeout */
-#endif
-    util_ldap_state_t *st =
-        (util_ldap_state_t *)ap_get_module_config(r->server->module_config,
-        &ldap_module);
+    apr_status_t rv;
+    cache_provider_list *providers;
+    cache_request_rec *cache;
+    apr_bucket_brigade *out;
+    ap_filter_t *next;
+    ap_filter_rec_t *cache_out_handle;
+    ap_filter_rec_t *cache_save_handle;
+    cache_server_conf *conf;
 
-    /* Since the host will include a port if the default port is not used,
-     * always specify the default ports for the port parameter.  This will
-     * allow a host string that contains multiple hosts the ability to mix
-     * some hosts with ports and some without. All hosts which do not
-     * specify a port will use the default port.
+    /* Delay initialization until we know we are handling a GET */
+    if (r->method_number != M_GET) {
+        return DECLINED;
+    }
+
+    conf = (cache_server_conf *) ap_get_module_config(r->server->module_config,
+                                                      &cache_module);
+
+    /* only run if the quick handler is disabled */
+    if (conf->quick) {
+        return DECLINED;
+    }
+
+    /*
+     * Which cache module (if any) should handle this request?
      */
-    apr_ldap_init(r->pool, &(ldc->ldap),
-                  ldc->host,
-                  APR_LDAP_SSL == ldc->secure ? LDAPS_PORT : LDAP_PORT,
-                  APR_LDAP_NONE,
-                  &(result));
-
-    if (NULL == result) {
-        /* something really bad happened */
-        ldc->bound = 0;
-        if (NULL == ldc->reason) {
-            ldc->reason = "LDAP: ldap initialization failed";
-        }
-        return(APR_EGENERAL);
+    if (!(providers = ap_cache_get_providers(r, conf, r->parsed_uri))) {
+        return DECLINED;
     }
 
-    if (result->rc) {
-        ldc->reason = result->reason;
-        ldc->bound = 0;
-        return result->rc;
+    /* make space for the per request config */
+    cache = (cache_request_rec *) ap_get_module_config(r->request_config,
+                                                       &cache_module);
+    if (!cache) {
+        cache = apr_pcalloc(r->pool, sizeof(cache_request_rec));
+        ap_set_module_config(r->request_config, &cache_module, cache);
     }
 
-    if (NULL == ldc->ldap)
-    {
-        ldc->bound = 0;
-        if (NULL == ldc->reason) {
-            ldc->reason = "LDAP: ldap initialization failed";
+    /* save away the possible providers */
+    cache->providers = providers;
+
+    /*
+     * Try to serve this request from the cache.
+     *
+     * If no existing cache file (DECLINED)
+     *   add cache_save filter
+     * If cached file (OK)
+     *   clear filter stack
+     *   add cache_out filter
+     *   return OK
+     */
+    rv = cache_select(r);
+    if (rv != OK) {
+        if (rv == DECLINED) {
+
+            /* try to obtain a cache lock at this point. if we succeed,
+             * we are the first to try and cache this url. if we fail,
+             * it means someone else is already trying to cache this
+             * url, and we should just let the request through to the
+             * backend without any attempt to cache. this stops
+             * duplicated simultaneous attempts to cache an entity.
+             */
+            rv = ap_cache_try_lock(conf, r, NULL);
+            if (APR_SUCCESS == rv) {
+
+                /*
+                 * Add cache_save filter to cache this request. Choose
+                 * the correct filter by checking if we are a subrequest
+                 * or not.
+                 */
+                if (r->main) {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                            r->server,
+                            "Adding CACHE_SAVE_SUBREQ filter for %s",
+                            r->uri);
+                    cache_save_handle = cache_save_subreq_filter_handle;
+                }
+                else {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                            r->server, "Adding CACHE_SAVE filter for %s",
+                            r->uri);
+                    cache_save_handle = cache_save_filter_handle;
+                }
+                ap_add_output_filter_handle(cache_save_handle,
+                        NULL, r, r->connection);
+
+                /*
+                 * Did the user indicate the precise location of the
+                 * CACHE_SAVE filter by inserting the CACHE filter as a
+                 * marker?
+                 *
+                 * If so, we get cunning and replace CACHE with the
+                 * CACHE_SAVE filter. This has the effect of inserting
+                 * the CACHE_SAVE filter at the precise location where
+                 * the admin wants to cache the content. All filters that
+                 * lie before and after the original location of the CACHE
+                 * filter will remain in place.
+                 */
+                if (cache_replace_filter(r->output_filters,
+                        cache_filter_handle, cache_save_handle)) {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                            r->server, "Replacing CACHE with CACHE_SAVE "
+                            "filter for %s", r->uri);
+                }
+
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
+                        "Adding CACHE_REMOVE_URL filter for %s",
+                        r->uri);
+
+                /* Add cache_remove_url filter to this request to remove a
+                 * stale cache entry if needed. Also put the current cache
+                 * request rec in the filter context, as the request that
+                 * is available later during running the filter may be
+                 * different due to an internal redirect.
+                 */
+                cache->remove_url_filter =
+                    ap_add_output_filter_handle(cache_remove_url_filter_handle,
+                            cache, r, r->connection);
+
+            }
+            else {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, rv,
+                             r->server, "Cache locked for url, not caching "
+                             "response: %s", r->uri);
+            }
         }
         else {
-            ldc->reason = result->reason;
+            /* error */
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                         "cache: error returned while checking for cached "
+                         "file by %s cache", cache->provider_name);
         }
-        return(result->rc);
+        return DECLINED;
     }
 
-    /* Now that we have an ldap struct, add it to the referral list for rebinds. */
-    rc = apr_ldap_rebind_add(ldc->pool, ldc->ldap, ldc->binddn, ldc->bindpw);
-    if (rc != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "LDAP: Unable to add rebind cross reference entry. Out of memory?");
-        uldap_connection_unbind(ldc);
-        ldc->reason = "LDAP: Unable to add rebind cross reference entry.";
-        return(rc);
+    rv = ap_meets_conditions(r);
+    if (rv != OK) {
+        return rv;
     }
 
-    /* always default to LDAP V3 */
-    ldap_set_option(ldc->ldap, LDAP_OPT_PROTOCOL_VERSION, &version);
+    /* Serve up the content */
 
-    /* set client certificates */
-    if (!apr_is_empty_array(ldc->client_certs)) {
-        apr_ldap_set_option(r->pool, ldc->ldap, APR_LDAP_OPT_TLS_CERT,
-                            ldc->client_certs, &(result));
-        if (LDAP_SUCCESS != result->rc) {
-            uldap_connection_unbind( ldc );
-            ldc->reason = result->reason;
-            return(result->rc);
-        }
-    }
-
-    /* switch on SSL/TLS */
-    if (APR_LDAP_NONE != ldc->secure) {
-        apr_ldap_set_option(r->pool, ldc->ldap,
-                            APR_LDAP_OPT_TLS, &ldc->secure, &(result));
-        if (LDAP_SUCCESS != result->rc) {
-            uldap_connection_unbind( ldc );
-            ldc->reason = result->reason;
-            return(result->rc);
-        }
-    }
-
-    /* Set the alias dereferencing option */
-    ldap_option = ldc->deref;
-    ldap_set_option(ldc->ldap, LDAP_OPT_DEREF, &ldap_option);
-
-    /* Set options for rebind and referrals. */
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "LDAP: Setting referrals to %s.",
-                 ((ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) ? "On" : "Off"));
-    apr_ldap_set_option(r->pool, ldc->ldap,
-                        APR_LDAP_OPT_REFERRALS,
-                        (void *)((ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) ?
-                                 LDAP_OPT_ON : LDAP_OPT_OFF),
-                        &(result));
-    if (result->rc != LDAP_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "Unable to set LDAP_OPT_REFERRALS option to %s: %d.",
-                     ((ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) ? "On" : "Off"),
-                     result->rc);
-        result->reason = "Unable to set LDAP_OPT_REFERRALS.";
-        ldc->reason = result->reason;
-        uldap_connection_unbind(ldc);
-        return(result->rc);
-    }
-
-    if ((ldc->ReferralHopLimit != AP_LDAP_HOPLIMIT_UNSET) && ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) {
-        /* Referral hop limit - only if referrals are enabled and a hop limit is explicitly requested */
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "Setting referral hop limit to %d.",
-                     ldc->ReferralHopLimit);
-        apr_ldap_set_option(r->pool, ldc->ldap,
-                            APR_LDAP_OPT_REFHOPLIMIT,
-                            (void *)&ldc->ReferralHopLimit,
-                            &(result));
-        if (result->rc != LDAP_SUCCESS) {
-          ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                       "Unable to set LDAP_OPT_REFHOPLIMIT option to %d: %d.",
-                       ldc->ReferralHopLimit,
-                       result->rc);
-          result->reason = "Unable to set LDAP_OPT_REFHOPLIMIT.";
-          ldc->reason = result->reason;
-          uldap_connection_unbind(ldc);
-          return(result->rc);
-        }
-    }
-
-/*XXX All of the #ifdef's need to be removed once apr-util 1.2 is released */
-#ifdef APR_LDAP_OPT_VERIFY_CERT
-    apr_ldap_set_option(r->pool, ldc->ldap, APR_LDAP_OPT_VERIFY_CERT,
-                        &(st->verify_svr_cert), &(result));
-#else
-#if defined(LDAPSSL_VERIFY_SERVER)
-    if (st->verify_svr_cert) {
-        result->rc = ldapssl_set_verify_mode(LDAPSSL_VERIFY_SERVER);
-    }
-    else {
-        result->rc = ldapssl_set_verify_mode(LDAPSSL_VERIFY_NONE);
-    }
-#elif defined(LDAP_OPT_X_TLS_REQUIRE_CERT)
-    /* This is not a per-connection setting so just pass NULL for the
-       Ldap connection handle */
-    if (st->verify_svr_cert) {
-        int i = LDAP_OPT_X_TLS_DEMAND;
-        result->rc = ldap_set_option(NULL, LDAP_OPT_X_TLS_REQUIRE_CERT, &i);
-    }
-    else {
-        int i = LDAP_OPT_X_TLS_NEVER;
-        result->rc = ldap_set_option(NULL, LDAP_OPT_X_TLS_REQUIRE_CERT, &i);
-    }
-#endif
-#endif
-
-#ifdef LDAP_OPT_NETWORK_TIMEOUT
-    if (st->connectionTimeout > 0) {
-        connectionTimeout.tv_sec = st->connectionTimeout;
-    }
-
-    if (st->connectionTimeout >= 0) {
-        rc = apr_ldap_set_option(r->pool, ldc->ldap, LDAP_OPT_NETWORK_TIMEOUT,
-                                 (void *)&connectionTimeout, &(result));
-        if (APR_SUCCESS != rc) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "LDAP: Could not set the connection timeout");
-        }
-    }
-#endif
-
-#ifdef LDAP_OPT_TIMEOUT
     /*
-     * LDAP_OPT_TIMEOUT is not portable, but it influences all synchronous ldap
-     * function calls and not just ldap_search_ext_s(), which accepts a timeout
-     * parameter.
-     * XXX: It would be possible to simulate LDAP_OPT_TIMEOUT by replacing all
-     * XXX: synchronous ldap function calls with asynchronous calls and using
-     * XXX: ldap_result() with a timeout.
+     * Add cache_out filter to serve this request. Choose
+     * the correct filter by checking if we are a subrequest
+     * or not.
      */
-    if (st->opTimeout) {
-        rc = apr_ldap_set_option(r->pool, ldc->ldap, LDAP_OPT_TIMEOUT,
-                                 st->opTimeout, &(result));
-        if (APR_SUCCESS != rc) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "LDAP: Could not set LDAP_OPT_TIMEOUT");
-        }
+    if (r->main) {
+        cache_out_handle = cache_out_subreq_filter_handle;
     }
-#endif
+    else {
+        cache_out_handle = cache_out_filter_handle;
+    }
+    ap_add_output_filter_handle(cache_out_handle, NULL, r, r->connection);
 
-    return(rc);
+    /*
+     * Did the user indicate the precise location of the CACHE_OUT filter by
+     * inserting the CACHE filter as a marker?
+     *
+     * If so, we get cunning and replace CACHE with the CACHE_OUT filters.
+     * This has the effect of inserting the CACHE_OUT filter at the precise
+     * location where the admin wants to cache the content. All filters that
+     * lie *after* the original location of the CACHE filter will remain in
+     * place.
+     */
+    if (cache_replace_filter(r->output_filters, cache_filter_handle, cache_out_handle)) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                r->server, "Replacing CACHE with CACHE_OUT filter for %s",
+                r->uri);
+    }
+
+    /*
+     * Remove all filters that are before the cache_out filter. This ensures
+     * that we kick off the filter stack with our cache_out filter being the
+     * first in the chain. This make sense because we want to restore things
+     * in the same manner as we saved them.
+     * There may be filters before our cache_out filter, because
+     *
+     * 1. We call ap_set_content_type during cache_select. This causes
+     *    Content-Type specific filters to be added.
+     * 2. We call the insert_filter hook. This causes filters e.g. like
+     *    the ones set with SetOutputFilter to be added.
+     */
+    next = r->output_filters;
+    while (next && (next->frec != cache_out_handle)) {
+        ap_remove_output_filter(next);
+        next = next->next;
+    }
+
+    /* kick off the filter stack */
+    out = apr_brigade_create(r->pool, r->connection->bucket_alloc);
+    rv = ap_pass_brigade(r->output_filters, out);
+    if (rv != APR_SUCCESS) {
+        if (rv != AP_FILTER_ERROR) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                         "cache: error returned while trying to return %s "
+                         "cached data",
+                         cache->provider_name);
+        }
+        return rv;
+    }
+
+    return OK;
 }

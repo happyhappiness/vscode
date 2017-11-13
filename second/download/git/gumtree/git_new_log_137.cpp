@@ -1,1 +1,1 @@
-die("remote-curl: fetch attempted without a local repo");
+die("cannot start proxy %s", git_proxy_command);

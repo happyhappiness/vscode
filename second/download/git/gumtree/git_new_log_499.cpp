@@ -1,1 +1,1 @@
-fprintf(stderr, " %c %-*s ", flag, summary_width, summary);
+die(_("LF would be replaced by CRLF in %s"), path);

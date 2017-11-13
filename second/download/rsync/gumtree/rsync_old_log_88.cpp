@@ -1,1 +1,1 @@
-fprintf(stderr,"excluding file %s\n",fname);
+out_of_memory("read check");

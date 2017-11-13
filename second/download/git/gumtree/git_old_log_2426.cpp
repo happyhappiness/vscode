@@ -1,1 +1,1 @@
-fprintf(stderr, "%.*s", l, b);
+error(_("switch 'points-at' requires an object"));

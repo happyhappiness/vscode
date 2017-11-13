@@ -1,4 +1,7 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
-                     s, "proxy: %s: an error occurred creating a "
-                     "new connection to %pI (%s)", proxy_function,
-                     backend_addr, conn->hostname);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                        MODNAME ": match: POINTER CLOBBERED! "
+                        "m=\"%c%c%c%c\"",
+                        (((unsigned long) m) >> 24) & 255,
+                        (((unsigned long) m) >> 16) & 255,
+                        (((unsigned long) m) >> 8) & 255,
+                        ((unsigned long) m) & 255);

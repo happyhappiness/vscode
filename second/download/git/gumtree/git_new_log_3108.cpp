@@ -1,2 +1,2 @@
-printf("missing %s %s\n", typename(obj->type),
+printf("unreachable %s %s\n", typename(obj->type),
 			describe_object(obj));

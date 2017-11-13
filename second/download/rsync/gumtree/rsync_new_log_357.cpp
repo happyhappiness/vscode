@@ -1,1 +1,1 @@
-fprintf(FINFO,"calling match_sums %s\n",fname);
+fprintf(FINFO,"deleting %s\n", buf);

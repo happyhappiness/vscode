@@ -1,34 +1,80 @@
-static int lb_hb_init(apr_pool_t *p, apr_pool_t *plog,
-                          apr_pool_t *ptemp, server_rec *s)
+static apr_status_t init_filter_instance(ap_filter_t *f)
 {
-    const char *userdata_key = "mod_lbmethod_heartbeat_init";
-    void *data;
-    apr_size_t size;
-    unsigned int num;
-    lb_hb_ctx_t *ctx = ap_get_module_config(s->module_config,
-                                            &lbmethod_heartbeat_module);
-    
-    apr_pool_userdata_get(&data, userdata_key, s->process->pool);
-    if (!data) {
-        /* first call do nothing */
-        apr_pool_userdata_set((const void *)1, userdata_key, apr_pool_cleanup_null, s->process->pool);
-        return OK;
+    ef_ctx_t *ctx;
+    ef_dir_t *dc;
+    apr_status_t rv;
+
+    f->ctx = ctx = apr_pcalloc(f->r->pool, sizeof(ef_ctx_t));
+    dc = ap_get_module_config(f->r->per_dir_config,
+                              &ext_filter_module);
+    ctx->dc = dc;
+    /* look for the user-defined filter */
+    ctx->filter = find_filter_def(f->r->server, f->frec->name);
+    if (!ctx->filter) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
+                      "couldn't find definition of filter '%s'",
+                      f->frec->name);
+        return APR_EINVAL;
     }
-    storage = ap_lookup_provider(AP_SLOTMEM_PROVIDER_GROUP, "shared", "0");
-    if (!storage) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, 0, s, "ap_lookup_provider %s failed", AP_SLOTMEM_PROVIDER_GROUP);
-        return OK;
+    ctx->p = f->r->pool;
+    if (ctx->filter->intype &&
+        ctx->filter->intype != INTYPE_ALL) {
+        const char *ctypes;
+
+        if (ctx->filter->mode == INPUT_FILTER) {
+            ctypes = apr_table_get(f->r->headers_in, "Content-Type");
+        }
+        else {
+            ctypes = f->r->content_type;
+        }
+
+        if (ctypes) {
+            const char *ctype = ap_getword(f->r->pool, &ctypes, ';');
+
+            if (strcasecmp(ctx->filter->intype, ctype)) {
+                /* wrong IMT for us; don't mess with the output */
+                ctx->noop = 1;
+            }
+        }
+        else {
+            ctx->noop = 1;
+        }
+    }
+    if (ctx->filter->enable_env &&
+        !apr_table_get(f->r->subprocess_env, ctx->filter->enable_env)) {
+        /* an environment variable that enables the filter isn't set; bail */
+        ctx->noop = 1;
+    }
+    if (ctx->filter->disable_env &&
+        apr_table_get(f->r->subprocess_env, ctx->filter->disable_env)) {
+        /* an environment variable that disables the filter is set; bail */
+        ctx->noop = 1;
+    }
+    if (!ctx->noop) {
+        rv = init_ext_filter_process(f);
+        if (rv != APR_SUCCESS) {
+            return rv;
+        }
+        if (ctx->filter->outtype &&
+            ctx->filter->outtype != OUTTYPE_UNCHANGED) {
+            ap_set_content_type(f->r, ctx->filter->outtype);
+        }
+        if (ctx->filter->preserves_content_length != 1) {
+            /* nasty, but needed to avoid confusing the browser
+             */
+            apr_table_unset(f->r->headers_out, "Content-Length");
+        }
     }
 
-    /* Try to use a slotmem created by mod_heartmonitor */
-    storage->attach(&hm_serversmem, "mod_heartmonitor", &size, &num, p);
-    if (!hm_serversmem) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, 0, s, "No slotmem from mod_heartmonitor");
-    } else
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, 0, s, "Using slotmem from mod_heartmonitor");
+    if (dc->debug >= DBGLVL_SHOWOPTIONS) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, f->r,
+                      "%sfiltering `%s' of type `%s' through `%s', cfg %s",
+                      ctx->noop ? "NOT " : "",
+                      f->r->uri ? f->r->uri : f->r->filename,
+                      f->r->content_type ? f->r->content_type : "(unspecified)",
+                      ctx->filter->command,
+                      get_cfg_string(dc, ctx->filter, f->r->pool));
+    }
 
-    if (hm_serversmem)
-        ctx->path = "(slotmem)";
-
-    return OK;
+    return APR_SUCCESS;
 }

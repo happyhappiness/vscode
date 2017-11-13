@@ -1,18 +1,41 @@
-apr_status_t h2_request_add_trailer(h2_request *req, apr_pool_t *pool,
-                                    const char *name, size_t nlen,
-                                    const char *value, size_t vlen)
+apr_status_t ap_init_ebcdic(apr_pool_t *pool)
 {
-    if (!req->trailers) {
-        ap_log_perror(APLOG_MARK, APLOG_DEBUG, APR_EINVAL, pool,
-                      "h2_request(%d): unanounced trailers",
-                      req->id);
-        return APR_EINVAL;
+    apr_status_t rv;
+
+    rv = apr_xlate_open(&ap_hdrs_to_ascii, "ISO-8859-1", APR_DEFAULT_CHARSET, pool);
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+                     "apr_xlate_open() failed");
+        return rv;
     }
-    if (nlen == 0 || name[0] == ':') {
-        ap_log_perror(APLOG_MARK, APLOG_DEBUG, APR_EINVAL, pool,
-                      "h2_request(%d): pseudo header in trailer",
-                      req->id);
-        return APR_EINVAL;
+
+    rv = apr_xlate_open(&ap_hdrs_from_ascii, APR_DEFAULT_CHARSET, "ISO-8859-1", pool);
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+                     "apr_xlate_open() failed");
+        return rv;
     }
-    return add_h1_trailer(req, pool, name, nlen, value, vlen);
+
+    rv = apr_MD5InitEBCDIC(ap_hdrs_to_ascii);
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+                     "apr_MD5InitEBCDIC() failed");
+        return rv;
+    }
+
+    rv = apr_base64init_ebcdic(ap_hdrs_to_ascii, ap_hdrs_from_ascii);
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+                     "apr_base64init_ebcdic() failed");
+        return rv;
+    }
+
+    rv = apr_SHA1InitEBCDIC(ap_hdrs_to_ascii);
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+                     "apr_SHA1InitEBCDIC() failed");
+        return rv;
+    }
+
+    return APR_SUCCESS;
 }

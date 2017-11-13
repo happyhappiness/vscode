@@ -1,65 +1,198 @@
-static authz_status filegroup_check_authorization(request_rec *r,
-                                              const char *require_args)
+int main(int argc, const char * const argv[])
 {
-    authz_groupfile_config_rec *conf = ap_get_module_config(r->per_dir_config,
-            &authz_groupfile_module);
-    char *user = r->user;
-    apr_table_t *grpstatus = NULL;
+    apr_file_t * outfile;
+    apr_file_t * infile;
+    apr_getopt_t * o;
+    apr_pool_t * pool;
+    apr_pool_t *pline;
     apr_status_t status;
-    const char *filegroup = NULL;
+    const char * arg;
+    char * stats = NULL;
+    char * inbuffer;
+    char * outbuffer;
+    char line[LINE_BUF_SIZE];
+    int doublelookups = 0;
 
-    if (!user) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-            "access to %s failed, reason: no authenticated user", r->uri);
-        return AUTHZ_DENIED;
+    if (apr_app_initialize(&argc, &argv, NULL) != APR_SUCCESS) {
+        return 1;
+    }
+    atexit(apr_terminate);
+
+    if (argc) {
+        shortname = apr_filepath_name_get(argv[0]);
     }
 
-    /* If there is no group file - then we are not
-     * configured. So decline.
-     */
-    if (!(conf->groupfile)) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                        "No group file was specified in the configuration");
-        return AUTHZ_DENIED;
+    if (apr_pool_create(&pool, NULL) != APR_SUCCESS) {
+        return 1;
     }
+    apr_file_open_stderr(&errfile, pool);
+    apr_getopt_init(&o, pool, argc, argv);
 
-    status = groups_for_user(r->pool, user, conf->groupfile,
-                             &grpstatus);
-    if (status != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                      "Could not open group file: %s",
-                      conf->groupfile);
-        return AUTHZ_DENIED;
-    }
-
-    if (apr_table_elts(grpstatus)->nelts == 0) {
-        /* no groups available, so exit immediately */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                        "Authorization of user %s to access %s failed, reason: "
-                        "user doesn't appear in group file (%s).",
-                        r->user, r->uri, conf->groupfile);
-        return AUTHZ_DENIED;
-    }
-
-    filegroup = authz_owner_get_file_group(r);
-
-    if (filegroup) {
-        if (apr_table_get(grpstatus, filegroup)) {
-            return AUTHZ_GRANTED;
+    while (1) {
+        char opt;
+        status = apr_getopt(o, "s:c", &opt, &arg);
+        if (status == APR_EOF) {
+            break;
         }
-    }
-    else {
-        /* No need to emit a error log entry because the call
-        to authz_owner_get_file_group already did it
-        for us.
-        */
-        return AUTHZ_DENIED;
+        else if (status != APR_SUCCESS) {
+            usage();
+        }
+        else {
+            switch (opt) {
+            case 'c':
+                if (doublelookups) {
+                    usage();
+                }
+                doublelookups = 1;
+                break;
+            case 's':
+                if (stats) {
+                    usage();
+                }
+                stats = apr_pstrdup(pool, arg);
+                break;
+            } /* switch */
+        } /* else */
+    } /* while */
+
+    apr_file_open_stdout(&outfile, pool);
+    apr_file_open_stdin(&infile, pool);
+
+    /* Allocate two new 10k file buffers */
+    if ((outbuffer = apr_palloc(pool, WRITE_BUF_SIZE)) == NULL ||
+        (inbuffer = apr_palloc(pool, READ_BUF_SIZE)) == NULL) {
+        return 1;
     }
 
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                  "Authorization of user %s to access %s failed, reason: "
-                  "user is not part of the 'require'ed file group.",
-                  r->user, r->uri);
+    /* Set the buffers */
+    apr_file_buffer_set(infile, inbuffer, READ_BUF_SIZE);
+    apr_file_buffer_set(outfile, outbuffer, WRITE_BUF_SIZE);
 
-    return AUTHZ_DENIED;
+    cache = apr_hash_make(pool);
+    if(apr_pool_create(&pline, pool) != APR_SUCCESS){
+        return 1;
+    }
+
+    while (apr_file_gets(line, sizeof(line), infile) == APR_SUCCESS) {
+        char *hostname;
+        char *space;
+        apr_sockaddr_t *ip;
+        apr_sockaddr_t *ipdouble;
+        char dummy[] = " " APR_EOL_STR;
+
+        if (line[0] == '\0') {
+            continue;
+        }
+
+        /* Count our log entries */
+        entries++;
+
+        /* Check if this could even be an IP address */
+        if (!apr_isxdigit(line[0]) && line[0] != ':') {
+                withname++;
+            apr_file_puts(line, outfile);
+            continue;
+        }
+
+        /* Terminate the line at the next space */
+        if ((space = strchr(line, ' ')) != NULL) {
+            *space = '\0';
+        }
+        else {
+            space = dummy;
+        }
+
+        /* See if we have it in our cache */
+        hostname = (char *) apr_hash_get(cache, line, APR_HASH_KEY_STRING);
+        if (hostname) {
+            apr_file_printf(outfile, "%s %s", hostname, space + 1);
+            cachehits++;
+            continue;
+        }
+
+        /* Parse the IP address */
+        status = apr_sockaddr_info_get(&ip, line, APR_UNSPEC, 0, 0, pline);
+        if (status != APR_SUCCESS) {
+            /* Not an IP address */
+            withname++;
+            *space = ' ';
+            apr_file_puts(line, outfile);
+            continue;
+        }
+
+        /* This does not make much sense, but historically "resolves" means
+         * "parsed as an IP address". It does not mean we actually resolved
+         * the IP address into a hostname.
+         */
+        resolves++;
+
+        /* From here on our we cache each result, even if it was not
+         * succesful
+         */
+        cachesize++;
+
+        /* Try and perform a reverse lookup */
+        status = apr_getnameinfo(&hostname, ip, 0) != APR_SUCCESS;
+        if (status || hostname == NULL) {
+            /* Could not perform a reverse lookup */
+            *space = ' ';
+            apr_file_puts(line, outfile);
+            noreverse++;
+
+            /* Add to cache */
+            *space = '\0';
+            apr_hash_set(cache, line, APR_HASH_KEY_STRING,
+                         apr_pstrdup(apr_hash_pool_get(cache), line));
+            continue;
+        }
+
+        /* Perform a double lookup */
+        if (doublelookups) {
+            /* Do a forward lookup on our hostname, and see if that matches our
+             * original IP address.
+             */
+            status = apr_sockaddr_info_get(&ipdouble, hostname, ip->family, 0,
+                                           0, pline);
+            if (status == APR_SUCCESS ||
+                memcmp(ipdouble->ipaddr_ptr, ip->ipaddr_ptr, ip->ipaddr_len)) {
+                /* Double-lookup failed  */
+                *space = ' ';
+                apr_file_puts(line, outfile);
+                doublefailed++;
+
+                /* Add to cache */
+                *space = '\0';
+                apr_hash_set(cache, line, APR_HASH_KEY_STRING,
+                             apr_pstrdup(apr_hash_pool_get(cache), line));
+                continue;
+            }
+        }
+
+        /* Outout the resolved name */
+        apr_file_printf(outfile, "%s %s", hostname, space + 1);
+
+        /* Store it in the cache */
+        apr_hash_set(cache, line, APR_HASH_KEY_STRING,
+                     apr_pstrdup(apr_hash_pool_get(cache), hostname));
+
+        apr_pool_clear(pline);
+    }
+
+    /* Flush any remaining output */
+    apr_file_flush(outfile);
+
+    if (stats) {
+        apr_file_t *statsfile;
+        if (apr_file_open(&statsfile, stats,
+                       APR_FOPEN_WRITE | APR_FOPEN_CREATE | APR_FOPEN_TRUNCATE,
+                          APR_OS_DEFAULT, pool) != APR_SUCCESS) {
+            apr_file_printf(errfile, "%s: Could not open %s for writing.",
+                            shortname, stats);
+            return 1;
+        }
+        print_statistics(statsfile);
+        apr_file_close(statsfile);
+    }
+
+    return 0;
 }

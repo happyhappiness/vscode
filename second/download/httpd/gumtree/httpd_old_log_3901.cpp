@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "proxy: FD: Unable to find configured flush "
-                          "provider '%s'", flush_method);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+                             "Cannot get media parameter.");

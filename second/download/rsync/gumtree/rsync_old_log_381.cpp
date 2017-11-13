@@ -1,1 +1,1 @@
-fprintf(FINFO,"add_exclude(%s)\n",pattern);
+fprintf(FERROR,"recv_files phase=%d\n",phase);

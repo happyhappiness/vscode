@@ -1,1 +1,1 @@
-die("cache entry out of order");
+fprintf(stderr, "Executing: %s\n", command_line);

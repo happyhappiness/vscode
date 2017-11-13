@@ -1,17 +1,38 @@
-static void util_ldap_child_init(apr_pool_t *p, server_rec *s)
+static void dumpit(ap_filter_t *f, apr_bucket *b)
 {
-    apr_status_t sts;
-    util_ldap_state_t *st = ap_get_module_config(s->module_config,
-                                                 &ldap_module);
+    conn_rec *c = f->c;
 
-    if (!st->util_ldap_cache_lock) return;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, c->base_server,
+        "mod_dumpio:  %s (%s-%s): %" APR_SIZE_T_FMT " bytes",
+                f->frec->name,
+                (APR_BUCKET_IS_METADATA(b)) ? "metadata" : "data",
+                b->type->name,
+                b->length) ;
 
-    sts = apr_global_mutex_child_init(&st->util_ldap_cache_lock,
-              apr_global_mutex_lockfile(st->util_ldap_cache_lock), p);
-    if (sts != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, sts, s,
-                     "Failed to initialise global mutex %s in child process %"
-                     APR_PID_T_FMT ".",
-                     ldap_cache_mutex_type, getpid());
+    if (!(APR_BUCKET_IS_METADATA(b))) {
+        const char *buf;
+        apr_size_t nbytes;
+        char *obuf;
+        if (apr_bucket_read(b, &buf, &nbytes, APR_BLOCK_READ) == APR_SUCCESS) {
+            if (nbytes) {
+                obuf = malloc(nbytes+1);    /* use pool? */
+                memcpy(obuf, buf, nbytes);
+                obuf[nbytes] = '\0';
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, c->base_server,
+                     "mod_dumpio:  %s (%s-%s): %s",
+                     f->frec->name,
+                     (APR_BUCKET_IS_METADATA(b)) ? "metadata" : "data",
+                     b->type->name,
+                     obuf);
+                free(obuf);
+            }
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, c->base_server,
+                 "mod_dumpio:  %s (%s-%s): %s",
+                 f->frec->name,
+                 (APR_BUCKET_IS_METADATA(b)) ? "metadata" : "data",
+                 b->type->name,
+                 "error reading data");
+        }
     }
 }

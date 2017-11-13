@@ -1,54 +1,101 @@
-static int process_diff_filepair(struct rev_info *rev,
-				 struct diff_filepair *pair,
-				 struct line_log_data *range,
-				 struct diff_ranges **diff_out)
+int ref_transaction_commit(struct ref_transaction *transaction,
+			   struct strbuf *err)
 {
-	struct line_log_data *rg = range;
-	struct range_set tmp;
-	struct diff_ranges diff;
-	mmfile_t file_parent, file_target;
+	int ret = 0, delnum = 0, i;
+	const char **delnames;
+	int n = transaction->nr;
+	struct ref_update **updates = transaction->updates;
 
-	assert(pair->two->path);
-	while (rg) {
-		assert(rg->path);
-		if (!strcmp(rg->path, pair->two->path))
-			break;
-		rg = rg->next;
+	assert(err);
+
+	if (transaction->state != REF_TRANSACTION_OPEN)
+		die("BUG: commit called for transaction that is not open");
+
+	if (!n) {
+		transaction->state = REF_TRANSACTION_CLOSED;
+		return 0;
 	}
 
-	if (!rg)
-		return 0;
-	if (rg->ranges.nr == 0)
-		return 0;
+	/* Allocate work space */
+	delnames = xmalloc(sizeof(*delnames) * n);
 
-	assert(pair->two->sha1_valid);
-	diff_populate_filespec(pair->two, 0);
-	file_target.ptr = pair->two->data;
-	file_target.size = pair->two->size;
-
-	if (pair->one->sha1_valid) {
-		diff_populate_filespec(pair->one, 0);
-		file_parent.ptr = pair->one->data;
-		file_parent.size = pair->one->size;
-	} else {
-		file_parent.ptr = "";
-		file_parent.size = 0;
+	/* Copy, sort, and reject duplicate refs */
+	qsort(updates, n, sizeof(*updates), ref_update_compare);
+	if (ref_update_reject_duplicates(updates, n, err)) {
+		ret = TRANSACTION_GENERIC_ERROR;
+		goto cleanup;
 	}
 
-	diff_ranges_init(&diff);
-	if (collect_diff(&file_parent, &file_target, &diff))
-		die("unable to generate diff for %s", pair->one->path);
+	/* Acquire all locks while verifying old values */
+	for (i = 0; i < n; i++) {
+		struct ref_update *update = updates[i];
+		int flags = update->flags;
 
-	/* NEEDSWORK should apply some heuristics to prevent mismatches */
-	free(rg->path);
-	rg->path = xstrdup(pair->one->path);
+		if (is_null_sha1(update->new_sha1))
+			flags |= REF_DELETING;
+		update->lock = lock_ref_sha1_basic(update->refname,
+						   (update->have_old ?
+						    update->old_sha1 :
+						    NULL),
+						   NULL,
+						   flags,
+						   &update->type);
+		if (!update->lock) {
+			ret = (errno == ENOTDIR)
+				? TRANSACTION_NAME_CONFLICT
+				: TRANSACTION_GENERIC_ERROR;
+			strbuf_addf(err, "Cannot lock the ref '%s'.",
+				    update->refname);
+			goto cleanup;
+		}
+	}
 
-	range_set_init(&tmp, 0);
-	range_set_map_across_diff(&tmp, &rg->ranges, &diff, diff_out);
-	range_set_release(&rg->ranges);
-	range_set_move(&rg->ranges, &tmp);
+	/* Perform updates first so live commits remain referenced */
+	for (i = 0; i < n; i++) {
+		struct ref_update *update = updates[i];
 
-	diff_ranges_release(&diff);
+		if (!is_null_sha1(update->new_sha1)) {
+			if (write_ref_sha1(update->lock, update->new_sha1,
+					   update->msg)) {
+				update->lock = NULL; /* freed by write_ref_sha1 */
+				strbuf_addf(err, "Cannot update the ref '%s'.",
+					    update->refname);
+				ret = TRANSACTION_GENERIC_ERROR;
+				goto cleanup;
+			}
+			update->lock = NULL; /* freed by write_ref_sha1 */
+		}
+	}
 
-	return ((*diff_out)->parent.nr > 0);
+	/* Perform deletes now that updates are safely completed */
+	for (i = 0; i < n; i++) {
+		struct ref_update *update = updates[i];
+
+		if (update->lock) {
+			if (delete_ref_loose(update->lock, update->type, err)) {
+				ret = TRANSACTION_GENERIC_ERROR;
+				goto cleanup;
+			}
+
+			if (!(update->flags & REF_ISPRUNING))
+				delnames[delnum++] = update->lock->ref_name;
+		}
+	}
+
+	if (repack_without_refs(delnames, delnum, err)) {
+		ret = TRANSACTION_GENERIC_ERROR;
+		goto cleanup;
+	}
+	for (i = 0; i < delnum; i++)
+		unlink_or_warn(git_path("logs/%s", delnames[i]));
+	clear_loose_ref_cache(&ref_cache);
+
+cleanup:
+	transaction->state = REF_TRANSACTION_CLOSED;
+
+	for (i = 0; i < n; i++)
+		if (updates[i]->lock)
+			unlock_ref(updates[i]->lock);
+	free(delnames);
+	return ret;
 }

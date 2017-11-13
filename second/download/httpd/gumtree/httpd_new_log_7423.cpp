@@ -1,1 +1,1 @@
-fprintf(stderr, "    -l              Accept variable document length (use this for dynamic pages)\n");
+fprintf(stderr, "Error truncating the file %s\n", status->current.name);

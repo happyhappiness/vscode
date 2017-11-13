@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, APR_FROM_OS_ERROR(rc), ap_server_conf, APLOGNO(00189)
-                     "unable to create shutdown semaphore, exiting");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, APLOGNO(01831)
+                "apr_crypto_block_encrypt_finish failed");

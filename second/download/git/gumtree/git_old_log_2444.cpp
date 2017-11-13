@@ -1,1 +1,2 @@
-die("Option --exec can only be used together with --remote");
+die("cannot read commit object %s",
+			    sha1_to_hex(commit->object.sha1));

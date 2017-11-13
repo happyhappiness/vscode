@@ -1,5 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02647)
-                            "Inflated content length of %" APR_OFF_T_FMT
-                            " is larger than the configured limit"
-                            " of %" APR_OFF_T_FMT, 
-                            ctx->inflate_total, inflate_limit);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, session->c,
+                      APLOGNO(02937) 
+                      "h2_stream(%ld-%d): data_cb, stream not found",
+                      session->id, (int)stream_id);

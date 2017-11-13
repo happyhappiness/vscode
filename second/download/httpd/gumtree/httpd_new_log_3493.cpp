@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01489)
-                              "request_rec->dispatching %s -> int", name);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, s, APLOGNO(00793)
+                     "scache_mc: error deleting key '%s' ",
+                     buf);

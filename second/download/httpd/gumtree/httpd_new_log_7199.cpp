@@ -1,1 +1,1 @@
-fprintf(stderr, "                    Default is 30 seconds\n");
+fprintf(stderr, "                    This implies -n 50000\n");

@@ -1,11 +1,11 @@
 fputs(
-"              mand with an asterisk (*) to make curl continue even if the com-\n"
-"              mand fails as by default curl will stop at first failure.\n"
+"              Use  the  specified  HTTP  1.0  proxy. If the port number is not\n"
+"              specified, it is assumed at port 1080.\n"
 "\n"
-"              SFTP  is a binary protocol. Unlike for FTP, curl interprets SFTP\n"
-"              quote commands itself before sending them to the  server.   File\n"
-"              names may be quoted shell-style to embed spaces or special char-\n"
-"              acters.  Following is the list of all supported SFTP quote  com-\n"
-"              mands:\n"
+"              The only difference between this and the HTTP proxy option  (-x,\n"
+"              --proxy), is that attempts to use CONNECT through the proxy will\n"
+"              specify an HTTP 1.0 protocol instead of the default HTTP 1.1.\n"
 "\n"
+"       --pubkey <key>\n"
+"              (SSH) Public key file name. Allows you to  provide  your  public\n"
 , stdout);

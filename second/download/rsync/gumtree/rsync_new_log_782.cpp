@@ -1,1 +1,1 @@
-out_of_memory("check_alt_basis_dirs");
+out_of_memory("add_rule");

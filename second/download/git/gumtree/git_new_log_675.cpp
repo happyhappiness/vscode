@@ -1,2 +1,2 @@
-error(_("could not update HEAD to %s"),
-					head_ref.buf);
+print_ref_status(type, quickref.buf, ref, ref->peer_ref, msg,
+				 porcelain, summary_width);

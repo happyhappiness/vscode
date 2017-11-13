@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unknown parameter "
-                          "\"%s\" to tag exec in %s", tag, file);
+ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, plog,
+                         "No Listen directive found for upgradeable listener %s:%d", slu->addr, slu->port);

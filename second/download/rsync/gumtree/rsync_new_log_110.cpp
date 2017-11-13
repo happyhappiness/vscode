@@ -1,1 +1,1 @@
-fprintf(FERROR,"%s ",args[i]);
+fprintf(FERROR,"add_exclude(%s)\n",pattern);

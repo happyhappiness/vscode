@@ -1,2 +1,1 @@
-error("chmod on %s failed: %s",
-			    get_lock_file_path(lock), strerror(errno));
+fprintf(cmitmsg, "Message-Id: %s\n", message_id);

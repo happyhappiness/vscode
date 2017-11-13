@@ -1,1 +1,1 @@
-die("BUG: want to close pack marked 'do-not-close'");
+warning("Illegal crlf_action %d\n", (int)crlf_action);

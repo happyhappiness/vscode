@@ -1,9 +1,12 @@
 fputs(
-"              (HTTP) Sends the \"Referrer Page\" information to the HTTP server.\n"
-"              This can also be set with the -H, --header flag of course.  When\n"
-"              used with -L, --location you  can  append  \";auto\"  to  the  -e,\n"
-"              --referer  URL  to  make curl automatically set the previous URL\n"
-"              when it follows a Location: header. The \";auto\"  string  can  be\n"
-"              used alone, even if you don't set an initial -e, --referer.\n"
+"              acters.   Following is the list of all supported SFTP quote com-\n"
+"              mands:\n"
 "\n"
+"              chgrp group file\n"
+"                     The chgrp command sets the group ID of the file named  by\n"
+"                     the  file  operand to the group ID specified by the group\n"
+"                     operand. The group operand is a decimal integer group ID.\n"
+"\n"
+"              chmod mode file\n"
+"                     The chmod command modifies the  file  mode  bits  of  the\n"
 , stdout);

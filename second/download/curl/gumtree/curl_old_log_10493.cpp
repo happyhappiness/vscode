@@ -1,9 +1,12 @@
 fputs(
-"              authentication is used, curl only sends its credentials  to  the\n"
-"              initial  host.  If a redirect takes curl to a different host, it\n"
-"              won't be able to intercept the user+password. See  also  --loca-\n"
-"              tion-trusted  on how to change this. You can limit the amount of\n"
-"              redirects to follow by using the --max-redirs option.\n"
+"              tries   the  following  candidates  in  order:  '~/.ssh/id_rsa',\n"
+"              '~/.ssh/id_dsa', './id_rsa', './id_dsa'.\n"
 "\n"
-"              When curl follows a redirect and the request is not a plain  GET\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --key-type <type>\n"
+"              (SSL) Private key file type. Specify which type your --key  pro-\n"
+"              vided  private  key  is. DER, PEM, and ENG are supported. If not\n"
+"              specified, PEM is assumed.\n"
+"\n"
 , stdout);

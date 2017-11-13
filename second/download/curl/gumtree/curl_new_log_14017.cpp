@@ -1,10 +1,12 @@
 fputs(
-"              fields  of the 'start-stop' range syntax. If a non-digit charac-\n"
-"              ter is given in the range, the server's response will be unspec-\n"
-"              ified, depending on the server's configuration.\n"
+"                     operand. The group operand is a decimal integer group ID.\n"
 "\n"
-"              You  should also be aware that many HTTP/1.1 servers do not have\n"
-"              this feature enabled, so that when you attempt to get  a  range,\n"
-"              you'll instead get the whole document.\n"
+"              chmod mode file\n"
+"                     The  chmod  command  modifies  the  file mode bits of the\n"
+"                     specified file. The mode operand is an octal integer mode\n"
+"                     number.\n"
 "\n"
+"              chown user file\n"
+"                     The chown command sets the owner of the file named by the\n"
+"                     file operand to the user ID specified by the  user  oper-\n"
 , stdout);

@@ -1,2 +1,2 @@
-die("git upload-pack: not our ref %s",
-			    oid_to_hex(&oid_buf));
+die(_("could not start 'git status' in submodule '%s'"),
+				path);

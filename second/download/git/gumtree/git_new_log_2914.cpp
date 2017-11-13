@@ -1,1 +1,1 @@
-error_errno("opening %s", config_filename);
+error_errno("unable to mmap '%s'", config_filename);

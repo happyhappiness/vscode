@@ -1,1 +1,2 @@
-ap_run_mpm_note_child_killed(childnum);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, 
+                  "upgrading connection to TLS");

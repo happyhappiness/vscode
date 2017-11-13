@@ -1,10 +1,10 @@
 fputs(
-"              there is no file part in the specified URL, Curl will append the\n"
-"              local file name. NOTE that you must use a trailing / on the last\n"
-"              directory to really prove to Curl that there is no file name  or\n"
-"              curl will think that your last directory name is the remote file\n"
-"              name to use. That will most likely cause the upload operation to\n"
-"              fail.  If this is used on a HTTP(S) server, the PUT command will\n"
-"              be used.\n"
+"              in the SSL3 and TLS1.0 protocols known as BEAST.  If this option\n"
+"              isn't  used,  the  SSL layer may use work-arounds known to cause\n"
+"              interoperability problems with some older  SSL  implementations.\n"
+"              WARNING: this option loosens the SSL security, and by using this\n"
+"              flag you ask for exactly that.  (Added in 7.25.0)\n"
 "\n"
+"       --socks4 <host[:port]>\n"
+"              Use the specified SOCKS4 proxy. If the port number is not speci-\n"
 , stdout);

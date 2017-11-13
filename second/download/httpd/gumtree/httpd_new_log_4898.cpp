@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, APLOGNO(00062) "sigaction(SIGBUS)");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01954)
+                     "stapling_cb: renewing cached response");

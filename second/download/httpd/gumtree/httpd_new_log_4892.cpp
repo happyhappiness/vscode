@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf, APLOGNO(00054)
-                     "get socket to connect to listener");
+ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s, APLOGNO(01948)
+                     "Failed to acquire OCSP stapling lock");

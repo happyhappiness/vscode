@@ -1,2 +1,1 @@
-die(_("You have not concluded your merge (MERGE_HEAD exists).\n"
-				  "Please, commit your changes before you can merge."));
+die("cannot open '%s' for reading", git_path_merge_head());

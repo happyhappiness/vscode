@@ -1,11 +1,11 @@
 fputs(
-"              When used with -s it makes curl show  an  error  message  if  it\n"
-"              fails.\n"
+"              you   disable  this  exponential  backoff  algorithm.  See  also\n"
+"              --retry-max-time to limit the total time  allowed  for  retries.\n"
+"              (Added in 7.12.3)\n"
 "\n"
-"       --ssl  (FTP,  POP3,  IMAP, SMTP) Try to use SSL/TLS for the connection.\n"
-"              Reverts to a non-secure connection if the server doesn't support\n"
-"              SSL/TLS.   See also --ftp-ssl-control and --ssl-reqd for differ-\n"
-"              ent levels of encryption required. (Added in 7.20.0)\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              This option was formerly known as --ftp-ssl (Added  in  7.11.0).\n"
+"       --retry-delay <seconds>\n"
+"              Make  curl  sleep  this  amount of time before each retry when a\n"
+"              transfer has failed with  a  transient  error  (it  changes  the\n"
 , stdout);

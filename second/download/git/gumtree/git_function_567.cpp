@@ -1,10 +1,27 @@
-static void write_filename_info(struct origin *suspect)
+struct ref *fetch_pack(struct fetch_pack_args *args,
+		       int fd[], struct child_process *conn,
+		       const struct ref *ref,
+		       const char *dest,
+		       struct ref **sought, int nr_sought,
+		       struct sha1_array *shallow,
+		       char **pack_lockfile)
 {
-	if (suspect->previous) {
-		struct origin *prev = suspect->previous;
-		printf("previous %s ", oid_to_hex(&prev->commit->object.oid));
-		write_name_quoted(prev->path, stdout, '\n');
+	struct ref *ref_cpy;
+	struct shallow_info si;
+
+	fetch_pack_setup();
+	if (nr_sought)
+		nr_sought = remove_duplicates_in_refs(sought, nr_sought);
+
+	if (!ref) {
+		packet_flush(fd[1]);
+		die("no matching remote head");
 	}
-	printf("filename ");
-	write_name_quoted(suspect->path, stdout, '\n');
+	prepare_shallow_info(&si, shallow);
+	ref_cpy = do_fetch_pack(args, fd, ref, sought, nr_sought,
+				&si, pack_lockfile);
+	reprepare_packed_git();
+	update_shallow(args, sought, nr_sought, &si);
+	clear_shallow_info(&si);
+	return ref_cpy;
 }

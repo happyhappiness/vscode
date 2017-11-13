@@ -1,2 +1,1 @@
-error("unknown core.untrackedCache value '%s'; "
-		      "using 'keep' default value", v);
+die("BUG: cannot create anonymous strftime date_mode struct");

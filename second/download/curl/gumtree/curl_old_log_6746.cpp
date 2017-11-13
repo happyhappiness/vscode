@@ -1,12 +1,9 @@
 fputs(
-"              If this option is used multiple times, the last occurrence  sets\n"
-"              the amount.\n"
-"       --key <key>\n"
-"              (SSL/SSH) Private key file name. Allows you to provide your pri-\n"
-"              vate key in this separate file.\n"
+"              This  option  sets  the  time  a connection needs to remain idle\n"
+"              before sending keepalive probes and the time between  individual\n"
+"              keepalive probes. It is currently effective on operating systems\n"
+"              offering  the  TCP_KEEPIDLE  and  TCP_KEEPINTVL  socket  options\n"
+"              (meaning  Linux, recent AIX, HP-UX and more). This option has no\n"
+"              effect if --no-keepalive is used. (Added in 7.18.0)\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --key-type <type>\n"
-"              (SSL) Private key file type. Specify which type your --key  pro-\n"
 , stdout);

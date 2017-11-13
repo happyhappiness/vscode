@@ -1,9 +1,10 @@
 fputs(
-"              match   local.com,  local.com:80,  and  www.local.com,  but  not\n"
-"              www.notlocal.com.  (Added in 7.19.4).\n"
+"       --netrc-file\n"
+"              This  option  is similar to --netrc, except that you provide the\n"
+"              path (absolute or relative) to the netrc file that  Curl  should\n"
+"              use.   You  can  only  specify one netrc file per invocation. If\n"
+"              several --netrc-file options are provided,  only  the  last  one\n"
+"              will be used.  (Added in 7.21.5)\n"
 "\n"
-"       --connect-to <host:port:connect-to-host:connect-to-port>\n"
-"              For a request to the given \"host:port\" pair,  connect  to  \"con-\n"
-"              nect-to-host:connect-to-port\"  instead.   This  is  suitable  to\n"
-"              direct the request at a specific  server,  e.g.  at  a  specific\n"
+"              This  option  overrides  any use of --netrc as they are mutually\n"
 , stdout);

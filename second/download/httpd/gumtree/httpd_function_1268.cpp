@@ -1,40 +1,121 @@
-static int send_listeners_to_child(apr_pool_t *p, DWORD dwProcessId,
-                                   apr_file_t *child_in)
+static const char *mod_auth_ldap_parse_url(cmd_parms *cmd,
+                                    void *config,
+                                    const char *url,
+                                    const char *mode)
 {
-    apr_status_t rv;
-    int lcnt = 0;
-    ap_listen_rec *lr;
-    LPWSAPROTOCOL_INFO  lpWSAProtocolInfo;
-    apr_size_t BytesWritten;
+    int rc;
+    apr_ldap_url_desc_t *urld;
+    apr_ldap_err_t *result;
 
-    /* Run the chain of open sockets. For each socket, duplicate it
-     * for the target process then send the WSAPROTOCOL_INFO
-     * (returned by dup socket) to the child.
-     */
-    for (lr = ap_listeners; lr; lr = lr->next, ++lcnt) {
-        apr_os_sock_t nsd;
-        lpWSAProtocolInfo = apr_pcalloc(p, sizeof(WSAPROTOCOL_INFO));
-        apr_os_sock_get(&nsd,lr->sd);
-        ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, ap_server_conf,
-                     "Parent: Duplicating socket %d and sending it to child process %d",
-                     nsd, dwProcessId);
-        if (WSADuplicateSocket(nsd, dwProcessId,
-                               lpWSAProtocolInfo) == SOCKET_ERROR) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), ap_server_conf,
-                         "Parent: WSADuplicateSocket failed for socket %d. Check the FAQ.", lr->sd );
-            return -1;
+    authn_ldap_config_t *sec = config;
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                 cmd->server, "[%" APR_PID_T_FMT "] auth_ldap url parse: `%s'", getpid(), url);
+
+    rc = apr_ldap_url_parse(cmd->pool, url, &(urld), &(result));
+    if (rc != APR_SUCCESS) {
+        return result->reason;
+    }
+    sec->url = apr_pstrdup(cmd->pool, url);
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                 cmd->server, "[%" APR_PID_T_FMT "] auth_ldap url parse: Host: %s", getpid(), urld->lud_host);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                 cmd->server, "[%" APR_PID_T_FMT "] auth_ldap url parse: Port: %d", getpid(), urld->lud_port);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                 cmd->server, "[%" APR_PID_T_FMT "] auth_ldap url parse: DN: %s", getpid(), urld->lud_dn);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                 cmd->server, "[%" APR_PID_T_FMT "] auth_ldap url parse: attrib: %s", getpid(), urld->lud_attrs? urld->lud_attrs[0] : "(null)");
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                 cmd->server, "[%" APR_PID_T_FMT "] auth_ldap url parse: scope: %s", getpid(),
+                 (urld->lud_scope == LDAP_SCOPE_SUBTREE? "subtree" :
+                  urld->lud_scope == LDAP_SCOPE_BASE? "base" :
+                  urld->lud_scope == LDAP_SCOPE_ONELEVEL? "onelevel" : "unknown"));
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                 cmd->server, "[%" APR_PID_T_FMT "] auth_ldap url parse: filter: %s", getpid(), urld->lud_filter);
+
+    /* Set all the values, or at least some sane defaults */
+    if (sec->host) {
+        char *p = apr_palloc(cmd->pool, strlen(sec->host) + strlen(urld->lud_host) + 2);
+        strcpy(p, urld->lud_host);
+        strcat(p, " ");
+        strcat(p, sec->host);
+        sec->host = p;
+    }
+    else {
+        sec->host = urld->lud_host? apr_pstrdup(cmd->pool, urld->lud_host) : "localhost";
+    }
+    sec->basedn = urld->lud_dn? apr_pstrdup(cmd->pool, urld->lud_dn) : "";
+    if (urld->lud_attrs && urld->lud_attrs[0]) {
+        int i = 1;
+        while (urld->lud_attrs[i]) {
+            i++;
         }
+        sec->attributes = apr_pcalloc(cmd->pool, sizeof(char *) * (i+1));
+        i = 0;
+        while (urld->lud_attrs[i]) {
+            sec->attributes[i] = apr_pstrdup(cmd->pool, urld->lud_attrs[i]);
+            i++;
+        }
+        sec->attribute = sec->attributes[0];
+    }
+    else {
+        sec->attribute = "uid";
+    }
 
-        if ((rv = apr_file_write_full(child_in, lpWSAProtocolInfo,
-                                      sizeof(WSAPROTOCOL_INFO), &BytesWritten))
-                != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                         "Parent: Unable to write duplicated socket %d to the child.", lr->sd );
-            return -1;
+    sec->scope = urld->lud_scope == LDAP_SCOPE_ONELEVEL ?
+        LDAP_SCOPE_ONELEVEL : LDAP_SCOPE_SUBTREE;
+
+    if (urld->lud_filter) {
+        if (urld->lud_filter[0] == '(') {
+            /*
+             * Get rid of the surrounding parens; later on when generating the
+             * filter, they'll be put back.
+             */
+            sec->filter = apr_pstrdup(cmd->pool, urld->lud_filter+1);
+            sec->filter[strlen(sec->filter)-1] = '\0';
+        }
+        else {
+            sec->filter = apr_pstrdup(cmd->pool, urld->lud_filter);
+        }
+    }
+    else {
+        sec->filter = "objectclass=*";
+    }
+
+    if (mode) {
+        if (0 == strcasecmp("NONE", mode)) {
+            sec->secure = APR_LDAP_NONE;
+        }
+        else if (0 == strcasecmp("SSL", mode)) {
+            sec->secure = APR_LDAP_SSL;
+        }
+        else if (0 == strcasecmp("TLS", mode) || 0 == strcasecmp("STARTTLS", mode)) {
+            sec->secure = APR_LDAP_STARTTLS;
+        }
+        else {
+            return "Invalid LDAP connection mode setting: must be one of NONE, "
+                   "SSL, or TLS/STARTTLS";
         }
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                 "Parent: Sent %d listeners to child %d", lcnt, dwProcessId);
-    return 0;
+      /* "ldaps" indicates secure ldap connections desired
+      */
+    if (strncasecmp(url, "ldaps", 5) == 0)
+    {
+        sec->secure = APR_LDAP_SSL;
+        sec->port = urld->lud_port? urld->lud_port : LDAPS_PORT;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                     "LDAP: auth_ldap using SSL connections");
+    }
+    else
+    {
+        sec->port = urld->lud_port? urld->lud_port : LDAP_PORT;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                     "LDAP: auth_ldap not using SSL connections");
+    }
+
+    sec->have_ldap_url = 1;
+
+    return NULL;
 }

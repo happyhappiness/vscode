@@ -1,1 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, "filling buffer");
+apr_psprintf(r->pool, "%x:%lx:%x", getpid(), time(NULL),
+                          apr_atomic_inc32(&next_id));

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, rv, c->base_server, APLOGNO(01611)
-                             "ProtocolEcho: Failure reading from %s",
-                             c->client_ip);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01755)
+                      "Could not open dbm (type %s) hash file: %s",
+                      conf->dbmtype, conf->pwfile);

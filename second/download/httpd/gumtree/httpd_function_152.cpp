@@ -1,121 +1,73 @@
-static const char *mod_auth_ldap_parse_url(cmd_parms *cmd, 
-                                    void *config,
-                                    const char *url)
+static void dav_send_multistatus(request_rec *r, int status,
+                                 dav_response *first,
+                                 apr_array_header_t *namespaces)
 {
-    int result;
-    apr_ldap_url_desc_t *urld;
+    /* Set the correct status and Content-Type */
+    r->status = status;
+    ap_set_content_type(r, DAV_XML_CONTENT_TYPE);
 
-    mod_auth_ldap_config_t *sec = config;
+    /* Send the headers and actual multistatus response now... */
+    ap_rputs(DAV_XML_HEADER DEBUG_CR
+             "<D:multistatus xmlns:D=\"DAV:\"", r);
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0,
-	         cmd->server, "[%d] auth_ldap url parse: `%s'", 
-	         getpid(), url);
+    if (namespaces != NULL) {
+       int i;
 
-    result = apr_ldap_url_parse(url, &(urld));
-    if (result != LDAP_SUCCESS) {
-        switch (result) {
-        case LDAP_URL_ERR_NOTLDAP:
-            return "LDAP URL does not begin with ldap://";
-        case LDAP_URL_ERR_NODN:
-            return "LDAP URL does not have a DN";
-        case LDAP_URL_ERR_BADSCOPE:
-            return "LDAP URL has an invalid scope";
-        case LDAP_URL_ERR_MEM:
-            return "Out of memory parsing LDAP URL";
-        default:
-            return "Could not parse LDAP URL";
-        }
-    }
-    sec->url = apr_pstrdup(cmd->pool, url);
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0,
-	         cmd->server, "[%d] auth_ldap url parse: Host: %s", getpid(), urld->lud_host);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0,
-	         cmd->server, "[%d] auth_ldap url parse: Port: %d", getpid(), urld->lud_port);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0,
-	         cmd->server, "[%d] auth_ldap url parse: DN: %s", getpid(), urld->lud_dn);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0,
-	         cmd->server, "[%d] auth_ldap url parse: attrib: %s", getpid(), urld->lud_attrs? urld->lud_attrs[0] : "(null)");
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0,
-	         cmd->server, "[%d] auth_ldap url parse: scope: %s", getpid(), 
-	         (urld->lud_scope == LDAP_SCOPE_SUBTREE? "subtree" : 
-		 urld->lud_scope == LDAP_SCOPE_BASE? "base" : 
-		 urld->lud_scope == LDAP_SCOPE_ONELEVEL? "onelevel" : "unknown"));
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0,
-	         cmd->server, "[%d] auth_ldap url parse: filter: %s", getpid(), urld->lud_filter);
-
-    /* Set all the values, or at least some sane defaults */
-    if (sec->host) {
-        char *p = apr_palloc(cmd->pool, strlen(sec->host) + strlen(urld->lud_host) + 2);
-        strcpy(p, urld->lud_host);
-        strcat(p, " ");
-        strcat(p, sec->host);
-        sec->host = p;
-    }
-    else {
-        sec->host = urld->lud_host? apr_pstrdup(cmd->pool, urld->lud_host) : "localhost";
-    }
-    sec->basedn = urld->lud_dn? apr_pstrdup(cmd->pool, urld->lud_dn) : "";
-    if (urld->lud_attrs && urld->lud_attrs[0]) {
-        int i = 1;
-        while (urld->lud_attrs[i]) {
-            i++;
-        }
-        sec->attributes = apr_pcalloc(cmd->pool, sizeof(char *) * (i+1));
-        i = 0;
-        while (urld->lud_attrs[i]) {
-            sec->attributes[i] = apr_pstrdup(cmd->pool, urld->lud_attrs[i]);
-            i++;
-        }
-        sec->attribute = sec->attributes[0];
-    }
-    else {
-        sec->attribute = "uid";
+       for (i = namespaces->nelts; i--; ) {
+           ap_rprintf(r, " xmlns:ns%d=\"%s\"", i,
+                      APR_XML_GET_URI_ITEM(namespaces, i));
+       }
     }
 
-    sec->scope = urld->lud_scope == LDAP_SCOPE_ONELEVEL ?
-        LDAP_SCOPE_ONELEVEL : LDAP_SCOPE_SUBTREE;
+    /* ap_rputc('>', r); */
+    ap_rputs(">" DEBUG_CR, r);
 
-    if (urld->lud_filter) {
-        if (urld->lud_filter[0] == '(') {
-            /* 
-	     * Get rid of the surrounding parens; later on when generating the
-	     * filter, they'll be put back.
-             */
-            sec->filter = apr_pstrdup(cmd->pool, urld->lud_filter+1);
-            sec->filter[strlen(sec->filter)-1] = '\0';
+    for (; first != NULL; first = first->next) {
+        apr_text *t;
+
+        if (first->propresult.xmlns == NULL) {
+            ap_rputs("<D:response>", r);
         }
         else {
-            sec->filter = apr_pstrdup(cmd->pool, urld->lud_filter);
+            ap_rputs("<D:response", r);
+            for (t = first->propresult.xmlns; t; t = t->next) {
+                ap_rputs(t->text, r);
+            }
+            ap_rputc('>', r);
         }
-    }
-    else {
-        sec->filter = "objectclass=*";
-    }
-    if (strncmp(url, "ldaps", 5) == 0) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0,
-		     cmd->server, "[%d] auth_ldap parse url: requesting secure LDAP", getpid());
-#ifdef APU_HAS_LDAP_STARTTLS
-        sec->port = urld->lud_port? urld->lud_port : LDAPS_PORT;
-        sec->starttls = 1;
-#else
-#ifdef APU_HAS_LDAP_NETSCAPE_SSL
-        sec->port = urld->lud_port? urld->lud_port : LDAPS_PORT;
-        sec->netscapessl = 1;
-#else
-        return "Secure LDAP (ldaps://) not supported. Rebuild APR-Util";
-#endif
-#endif
-    }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0,
-		     cmd->server, "[%d] auth_ldap parse url: not requesting secure LDAP", getpid());
-        sec->netscapessl = 0;
-        sec->starttls = 0;
-        sec->port = urld->lud_port? urld->lud_port : LDAP_PORT;
+
+        ap_rputs(DEBUG_CR "<D:href>", r);
+        ap_rputs(dav_xml_escape_uri(r->pool, first->href), r);
+        ap_rputs("</D:href>" DEBUG_CR, r);
+
+        if (first->propresult.propstats == NULL) {
+            /* use the Status-Line text from Apache.  Note, this will
+             * default to 500 Internal Server Error if first->status
+             * is not a known (or valid) status code.
+             */
+            ap_rprintf(r,
+                       "<D:status>HTTP/1.1 %s</D:status>" DEBUG_CR,
+                       ap_get_status_line(first->status));
+        }
+        else {
+            /* assume this includes <propstat> and is quoted properly */
+            for (t = first->propresult.propstats; t; t = t->next) {
+                ap_rputs(t->text, r);
+            }
+        }
+
+        if (first->desc != NULL) {
+            /*
+             * We supply the description, so we know it doesn't have to
+             * have any escaping/encoding applied to it.
+             */
+            ap_rputs("<D:responsedescription>", r);
+            ap_rputs(first->desc, r);
+            ap_rputs("</D:responsedescription>" DEBUG_CR, r);
+        }
+
+        ap_rputs("</D:response>" DEBUG_CR, r);
     }
 
-    sec->have_ldap_url = 1;
-    apr_ldap_free_urldesc(urld);
-    return NULL;
+    ap_rputs("</D:multistatus>" DEBUG_CR, r);
 }

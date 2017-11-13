@@ -1,18 +1,54 @@
-static apr_status_t log_script_err(request_rec *r, apr_file_t *script_err)
+static char *authz_owner_get_file_group(request_rec *r)
 {
-    char argsbuffer[HUGE_STRING_LEN];
-    char *newline;
-    apr_status_t rv;
+    char *reason = NULL;
 
-    while ((rv = apr_file_gets(argsbuffer, HUGE_STRING_LEN,
-                               script_err)) == APR_SUCCESS) {
-        newline = strchr(argsbuffer, '\n');
-        if (newline) {
-            *newline = '\0';
-        }
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "%s", argsbuffer);
+    /* file-group only figures out the file's group and lets
+    * other modules do the actual authorization (against a group file/db).
+    * Thus, these modules have to hook themselves after
+    * mod_authz_owner and of course recognize 'file-group', too.
+    */
+#if !APR_HAS_USER
+    return NULL;
+#else  /* APR_HAS_USER */
+    char *group = NULL;
+    apr_finfo_t finfo;
+    apr_status_t status = 0;
+
+    if (!r->filename) {
+        reason = "no filename available";
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");
+        return NULL;
     }
 
-    return rv;
+    status = apr_stat(&finfo, r->filename, APR_FINFO_GROUP, r->pool);
+    if (status != APR_SUCCESS) {
+        reason = apr_pstrcat(r->pool, "could not stat file ",
+                                r->filename, NULL);
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");
+        return NULL;
+    }
+
+    if (!(finfo.valid & APR_FINFO_GROUP)) {
+        reason = "no file group information available";
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");
+        return NULL;
+    }
+
+    status = apr_gid_name_get(&group, finfo.group, r->pool);
+    if (status != APR_SUCCESS || !group) {
+        reason = "could not get name of file group";
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");
+        return NULL;
+    }
+
+    return group;
+#endif /* APR_HAS_USER */
 }

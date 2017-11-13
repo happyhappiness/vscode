@@ -1,1 +1,2 @@
-BUG("setup_git_env called without repository");
+die("BUG: confusing delta dfs state in first pass: %d",
+			    cur->dfs_state);

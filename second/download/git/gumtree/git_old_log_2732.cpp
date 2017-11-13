@@ -1,1 +1,1 @@
-error("unable to create directory for %s", git_HEAD);
+error("refname too long: %s", refs_heads_master);

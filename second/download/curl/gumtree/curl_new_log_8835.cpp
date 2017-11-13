@@ -1,11 +1,11 @@
 fputs(
-"              first will append data as described in -d, --data.\n"
+"              ing  data  from  a  file  named 'foobar' would thus be done with\n"
+"              --data @foobar. When --data is told to read  from  a  file  like\n"
+"              that, carriage returns and newlines will be stripped out.\n"
 "\n"
-"       --data-urlencode <data>\n"
-"              (HTTP) This posts data, similar to the other --data options with\n"
-"              the exception that this performs URL-encoding. (Added in 7.18.0)\n"
-"              To be CGI-compliant, the <data> part should begin  with  a  name\n"
-"              followed  by a separator and a content specification. The <data>\n"
-"              part can be passed to curl using one of the following syntaxes:\n"
+"       -D, --dump-header <file>\n"
+"              Write the protocol headers to the specified file.\n"
 "\n"
+"              This  option  is handy to use when you want to store the headers\n"
+"              that an HTTP site sends to you. Cookies from the  headers  could\n"
 , stdout);

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00493)
-                     AP_SIG_GRACEFUL_STRING
-                     " received.  Doing graceful restart");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00933)
+                         "%s: too soon to retry worker for (%s)",
+                         proxy_function, worker->s->hostname);

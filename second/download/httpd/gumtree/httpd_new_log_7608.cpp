@@ -1,9 +1,6 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, base_server,
-                         "Init: SSL server IP/port conflict: "
-                         "%s (%s:%d) vs. %s (%s:%d)",
-                         ssl_util_vhostid(p, s),
-                         (s->defn_name ? s->defn_name : "unknown"),
-                         s->defn_line_number,
-                         ssl_util_vhostid(p, ps),
-                         (ps->defn_name ? ps->defn_name : "unknown"),
-                         ps->defn_line_number);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, base_server, APLOGNO(01917)
+                     "Init: Name-based SSL virtual hosts require "
+                     "an OpenSSL version with support for TLS extensions "
+                     "(RFC 6066 - Server Name Indication / SNI), "
+                     "but the currently used library version (%s) is "
+                     "lacking this feature", SSLeay_version(SSLEAY_VERSION));

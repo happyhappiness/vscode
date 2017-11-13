@@ -1,1 +1,1 @@
-die_errno("could not read file '%s'", filename);
+warning("object %s: %s", sha1_to_hex(obj->sha1), message);

@@ -1,1 +1,1 @@
-ap_rputs(ap_proxy_parse_wstatus(r->pool, worker), r);
+ap_add_output_filter("H1_TO_H2", task, NULL, c);

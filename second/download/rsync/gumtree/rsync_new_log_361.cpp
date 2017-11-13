@@ -1,1 +1,2 @@
-fprintf(FINFO,"generate_files phase=%d\n",phase);
+fprintf(FINFO,"count=%d n=%d rem=%d\n",
+	    s->count,s->n,s->remainder);

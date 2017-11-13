@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01903)
-                "Failed to configure CA certificate chain!");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01008)
+               "ajp_handle_cping_cpong: ajp_marshal_into_msgb failed");

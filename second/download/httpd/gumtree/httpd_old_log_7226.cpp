@@ -1,1 +1,1 @@
-fprintf(stderr, "   -T   DBM Type (SDBM|GDBM|DB|default).\n");
+fprintf(stderr, "   -l   Display usernames from database on stdout.\n");

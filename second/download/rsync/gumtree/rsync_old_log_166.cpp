@@ -1,1 +1,1 @@
-fprintf(stderr,"data recv %d at %d\n",i,(int)offset);
+fprintf(stderr,"built hash table\n");

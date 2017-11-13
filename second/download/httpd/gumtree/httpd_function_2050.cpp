@@ -1,235 +1,233 @@
-static int worker_check_config(apr_pool_t *p, apr_pool_t *plog,
-                               apr_pool_t *ptemp, server_rec *s)
+static int ssl_io_filter_connect(ssl_filter_ctx_t *filter_ctx)
 {
-    static int restart_num = 0;
-    int startup = 0;
+    conn_rec *c         = (conn_rec *)SSL_get_app_data(filter_ctx->pssl);
+    SSLConnRec *sslconn = myConnConfig(c);
+    SSLSrvConfigRec *sc;
+    X509 *cert;
+    int n;
+    int ssl_err;
+    long verify_result;
+    server_rec *server;
 
-    /* the reverse of pre_config, we want this only the first time around */
-    if (restart_num++ == 0) {
-        startup = 1;
+    if (SSL_is_init_finished(filter_ctx->pssl)) {
+        return APR_SUCCESS;
     }
 
-    if (server_limit > MAX_SERVER_LIMIT) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ServerLimit of %d exceeds compile-time "
-                         "limit of", server_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d servers, decreasing to %d.",
-                         MAX_SERVER_LIMIT, MAX_SERVER_LIMIT);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ServerLimit of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         server_limit, MAX_SERVER_LIMIT);
+    server = sslconn->server;
+    if (sslconn->is_proxy) {
+#ifndef OPENSSL_NO_TLSEXT
+        apr_ipsubnet_t *ip;
+#endif
+        const char *hostname_note = apr_table_get(c->notes,
+                                                  "proxy-request-hostname");
+        sc = mySrvConfig(server);
+
+#ifndef OPENSSL_NO_TLSEXT
+        /*
+         * Enable SNI for backend requests. Make sure we don't do it for
+         * pure SSLv3 connections, and also prevent IP addresses
+         * from being included in the SNI extension. (OpenSSL would simply
+         * pass them on, but RFC 6066 is quite clear on this: "Literal
+         * IPv4 and IPv6 addresses are not permitted".)
+         * We can omit the check for SSL_PROTOCOL_SSLV2 as there is
+         * no way for OpenSSL to screw up things in this case (it's
+         * impossible to include extensions in a pure SSLv2 ClientHello,
+         * protocol-wise).
+         */
+        if (hostname_note &&
+#ifndef OPENSSL_NO_SSL3
+            sc->proxy->protocol != SSL_PROTOCOL_SSLV3 &&
+#endif
+            apr_ipsubnet_create(&ip, hostname_note, NULL,
+                                c->pool) != APR_SUCCESS) {
+            if (SSL_set_tlsext_host_name(filter_ctx->pssl, hostname_note)) {
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                              "SNI extension for SSL Proxy request set to '%s'",
+                              hostname_note);
+            } else {
+                ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, c,
+                              "Failed to set SNI extension for SSL Proxy "
+                              "request to '%s'", hostname_note);
+                ssl_log_ssl_error(APLOG_MARK, APLOG_WARNING, server);
+            }
         }
-        server_limit = MAX_SERVER_LIMIT;
-    }
-    else if (server_limit < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ServerLimit of %d not allowed, "
-                         "increasing to 1.", server_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ServerLimit of %d not allowed, increasing to 1",
-                         server_limit);
+#endif
+
+        if ((n = SSL_connect(filter_ctx->pssl)) <= 0) {
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                          "SSL Proxy connect failed");
+            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, server);
+            /* ensure that the SSL structures etc are freed, etc: */
+            ssl_filter_io_shutdown(filter_ctx, c, 1);
+            apr_table_set(c->notes, "SSL_connect_rv", "err");
+            return HTTP_BAD_GATEWAY;
         }
-        server_limit = 1;
+
+        if (sc->proxy_ssl_check_peer_expire == SSL_ENABLED_TRUE) {
+            cert = SSL_get_peer_certificate(filter_ctx->pssl);
+            if (!cert
+                || (X509_cmp_current_time(
+                     X509_get_notBefore(cert)) >= 0)
+                || (X509_cmp_current_time(
+                     X509_get_notAfter(cert)) <= 0)) {
+                ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                              "SSL Proxy: Peer certificate is expired");
+                if (cert) {
+                    X509_free(cert);
+                }
+                /* ensure that the SSL structures etc are freed, etc: */
+                ssl_filter_io_shutdown(filter_ctx, c, 1);
+                apr_table_set(c->notes, "SSL_connect_rv", "err");
+                return HTTP_BAD_GATEWAY;
+            }
+            X509_free(cert);
+        }
+        if ((sc->proxy_ssl_check_peer_cn == SSL_ENABLED_TRUE)
+            && hostname_note) {
+            const char *hostname;
+
+            hostname = ssl_var_lookup(NULL, server, c, NULL,
+                                      "SSL_CLIENT_S_DN_CN");
+            apr_table_unset(c->notes, "proxy-request-hostname");
+            if (strcasecmp(hostname, hostname_note)) {
+                ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                              "SSL Proxy: Peer certificate CN mismatch:"
+                              " Certificate CN: %s Requested hostname: %s",
+                              hostname, hostname_note);
+                /* ensure that the SSL structures etc are freed, etc: */
+                ssl_filter_io_shutdown(filter_ctx, c, 1);
+                apr_table_set(c->notes, "SSL_connect_rv", "err");
+                return HTTP_BAD_GATEWAY;
+            }
+        }
+
+        apr_table_set(c->notes, "SSL_connect_rv", "ok");
+        return APR_SUCCESS;
     }
 
-    /* you cannot change ServerLimit across a restart; ignore
-     * any such attempts
+    if ((n = SSL_accept(filter_ctx->pssl)) <= 0) {
+        bio_filter_in_ctx_t *inctx = (bio_filter_in_ctx_t *)
+                                     (filter_ctx->pbioRead->ptr);
+        bio_filter_out_ctx_t *outctx = (bio_filter_out_ctx_t *)
+                                       (filter_ctx->pbioWrite->ptr);
+        apr_status_t rc = inctx->rc ? inctx->rc : outctx->rc ;
+        ssl_err = SSL_get_error(filter_ctx->pssl, n);
+
+        if (ssl_err == SSL_ERROR_ZERO_RETURN) {
+            /*
+             * The case where the connection was closed before any data
+             * was transferred. That's not a real error and can occur
+             * sporadically with some clients.
+             */
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c,
+                         "SSL handshake stopped: connection was closed");
+        }
+        else if (ssl_err == SSL_ERROR_WANT_READ) {
+            /*
+             * This is in addition to what was present earlier. It is
+             * borrowed from openssl_state_machine.c [mod_tls].
+             * TBD.
+             */
+            outctx->rc = APR_EAGAIN;
+            return SSL_ERROR_WANT_READ;
+        }
+        else if (ERR_GET_LIB(ERR_peek_error()) == ERR_LIB_SSL &&
+                 ERR_GET_REASON(ERR_peek_error()) == SSL_R_HTTP_REQUEST) {
+            /*
+             * The case where OpenSSL has recognized a HTTP request:
+             * This means the client speaks plain HTTP on our HTTPS port.
+             * ssl_io_filter_error will disable the ssl filters when it
+             * sees this status code.
+             */
+            return HTTP_BAD_REQUEST;
+        }
+        else if (ssl_err == SSL_ERROR_SYSCALL) {
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c,
+                          "SSL handshake interrupted by system "
+                          "[Hint: Stop button pressed in browser?!]");
+        }
+        else /* if (ssl_err == SSL_ERROR_SSL) */ {
+            /*
+             * Log SSL errors and any unexpected conditions.
+             */
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c,
+                          "SSL library error %d in handshake "
+                          "(server %s)", ssl_err,
+                          ssl_util_vhostid(c->pool, server));
+            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, server);
+
+        }
+        if (inctx->rc == APR_SUCCESS) {
+            inctx->rc = APR_EGENERAL;
+        }
+
+        return ssl_filter_io_shutdown(filter_ctx, c, 1);
+    }
+    sc = mySrvConfig(sslconn->server);
+
+    /*
+     * Check for failed client authentication
      */
-    if (!retained->first_server_limit) {
-        retained->first_server_limit = server_limit;
-    }
-    else if (server_limit != retained->first_server_limit) {
-        /* don't need a startup console version here */
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                     "changing ServerLimit to %d from original value of %d "
-                     "not allowed during restart",
-                     server_limit, retained->first_server_limit);
-        server_limit = retained->first_server_limit;
+    verify_result = SSL_get_verify_result(filter_ctx->pssl);
+
+    if ((verify_result != X509_V_OK) ||
+        sslconn->verify_error)
+    {
+        if (ssl_verify_error_is_optional(verify_result) &&
+            (sc->server->auth.verify_mode == SSL_CVERIFY_OPTIONAL_NO_CA))
+        {
+            /* leaving this log message as an error for the moment,
+             * according to the mod_ssl docs:
+             * "level optional_no_ca is actually against the idea
+             *  of authentication (but can be used to establish
+             * SSL test pages, etc.)"
+             * optional_no_ca doesn't appear to work as advertised
+             * in 1.x
+             */
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                          "SSL client authentication failed, "
+                          "accepting certificate based on "
+                          "\"SSLVerifyClient optional_no_ca\" "
+                          "configuration");
+            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, server);
+        }
+        else {
+            const char *error = sslconn->verify_error ?
+                sslconn->verify_error :
+                X509_verify_cert_error_string(verify_result);
+
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                         "SSL client authentication failed: %s",
+                         error ? error : "unknown");
+            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, server);
+
+            return ssl_filter_io_shutdown(filter_ctx, c, 1);
+        }
     }
 
-    if (thread_limit > MAX_THREAD_LIMIT) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ThreadLimit of %d exceeds compile-time "
-                         "limit of", thread_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d threads, decreasing to %d.",
-                         MAX_THREAD_LIMIT, MAX_THREAD_LIMIT);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ThreadLimit of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         thread_limit, MAX_THREAD_LIMIT);
-        }
-        thread_limit = MAX_THREAD_LIMIT;
-    }
-    else if (thread_limit < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ThreadLimit of %d not allowed, "
-                         "increasing to 1.", thread_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ThreadLimit of %d not allowed, increasing to 1",
-                         thread_limit);
-        }
-        thread_limit = 1;
-    }
-
-    /* you cannot change ThreadLimit across a restart; ignore
-     * any such attempts
+    /*
+     * Remember the peer certificate's DN
      */
-    if (!retained->first_thread_limit) {
-        retained->first_thread_limit = thread_limit;
-    }
-    else if (thread_limit != retained->first_thread_limit) {
-        /* don't need a startup console version here */
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                     "changing ThreadLimit to %d from original value of %d "
-                     "not allowed during restart",
-                     thread_limit, retained->first_thread_limit);
-        thread_limit = retained->first_thread_limit;
-    }
-
-    if (threads_per_child > thread_limit) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
-                         "of", threads_per_child);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d threads, decreasing to %d.",
-                         thread_limit, thread_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " To increase, please see the ThreadLimit "
-                         "directive.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ThreadsPerChild of %d exceeds ThreadLimit "
-                         "of %d, decreasing to match",
-                         threads_per_child, thread_limit);
+    if ((cert = SSL_get_peer_certificate(filter_ctx->pssl))) {
+        if (sslconn->client_cert) {
+            X509_free(sslconn->client_cert);
         }
-        threads_per_child = thread_limit;
-    }
-    else if (threads_per_child < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ThreadsPerChild of %d not allowed, "
-                         "increasing to 1.", threads_per_child);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ThreadsPerChild of %d not allowed, increasing to 1",
-                         threads_per_child);
-        }
-        threads_per_child = 1;
+        sslconn->client_cert = cert;
+        sslconn->client_dn = NULL;
     }
 
-    if (max_clients < threads_per_child) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MaxClients of %d is less than "
-                         "ThreadsPerChild of", max_clients);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d, increasing to %d.  MaxClients must be at "
-                         "least as large",
-                         threads_per_child, threads_per_child);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " as the number of threads in a single server.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MaxClients of %d is less than ThreadsPerChild "
-                         "of %d, increasing to match",
-                         max_clients, threads_per_child);
-        }
-        max_clients = threads_per_child;
-    }
-
-    ap_daemons_limit = max_clients / threads_per_child;
-
-    if (max_clients % threads_per_child) {
-        int tmp_max_clients = ap_daemons_limit * threads_per_child;
-
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MaxClients of %d is not an integer "
-                         "multiple of", max_clients);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " ThreadsPerChild of %d, decreasing to nearest "
-                         "multiple %d,", threads_per_child,
-                         tmp_max_clients);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " for a maximum of %d servers.",
-                         ap_daemons_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MaxClients of %d is not an integer multiple of "
-                         "ThreadsPerChild of %d, decreasing to nearest "
-                         "multiple %d", max_clients, threads_per_child,
-                         tmp_max_clients);
-        }
-        max_clients = tmp_max_clients;
-    }
-
-    if (ap_daemons_limit > server_limit) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MaxClients of %d would require %d "
-                         "servers and ", max_clients, ap_daemons_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " would exceed ServerLimit of %d, decreasing to %d.",
-                         server_limit, server_limit * threads_per_child);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " To increase, please see the ServerLimit "
-                         "directive.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MaxClients of %d would require %d servers and "
-                         "exceed ServerLimit of %d, decreasing to %d",
-                         max_clients, ap_daemons_limit, server_limit,
-                         server_limit * threads_per_child);
-        }
-        ap_daemons_limit = server_limit;
-    }
-
-    /* ap_daemons_to_start > ap_daemons_limit checked in worker_run() */
-    if (ap_daemons_to_start < 0) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: StartServers of %d not allowed, "
-                         "increasing to 1.", ap_daemons_to_start);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "StartServers of %d not allowed, increasing to 1",
-                         ap_daemons_to_start);
-        }
-        ap_daemons_to_start = 1;
-    }
-
-    if (min_spare_threads < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MinSpareThreads of %d not allowed, "
-                         "increasing to 1", min_spare_threads);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " to avoid almost certain server failure.");
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " Please read the documentation.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MinSpareThreads of %d not allowed, increasing to 1",
-                         min_spare_threads);
-        }
-        min_spare_threads = 1;
-    }
-
-    /* max_spare_threads < min_spare_threads + threads_per_child
-     * checked in worker_run()
+    /*
+     * Make really sure that when a peer certificate
+     * is required we really got one... (be paranoid)
      */
+    if ((sc->server->auth.verify_mode == SSL_CVERIFY_REQUIRE) &&
+        !sslconn->client_cert)
+    {
+        ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                      "No acceptable peer certificate available");
 
-    return OK;
+        return ssl_filter_io_shutdown(filter_ctx, c, 1);
+    }
+
+    return APR_SUCCESS;
 }

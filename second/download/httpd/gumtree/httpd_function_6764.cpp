@@ -1,50 +1,36 @@
-static apr_status_t connection_cleanup(void *theconn)
+apr_status_t h2_conn_io_write(h2_conn_io *io, const char *data, size_t length)
 {
-    proxy_conn_rec *conn = (proxy_conn_rec *)theconn;
-    proxy_worker *worker = conn->worker;
-
-    /*
-     * If the connection pool is NULL the worker
-     * cleanup has been run. Just return.
-     */
-    if (!worker->cp) {
-        return APR_SUCCESS;
+    apr_status_t status = APR_SUCCESS;
+    apr_size_t remain;
+    
+    if (io->buffer_output) {
+        while (length > 0) {
+            remain = assure_scratch_space(io);
+            if (remain >= length) {
+#if LOG_SCRATCH
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, io->c, APLOGNO(03389)
+                              "h2_conn_io(%ld): write_to_scratch(%ld)", 
+                              io->c->id, (long)length); 
+#endif
+                memcpy(io->scratch + io->slen, data, length);
+                io->slen += length;
+                length = 0;
+            }
+            else {
+#if LOG_SCRATCH
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, io->c, APLOGNO(03390)
+                              "h2_conn_io(%ld): write_to_scratch(%ld)", 
+                              io->c->id, (long)remain); 
+#endif
+                memcpy(io->scratch + io->slen, data, remain);
+                io->slen += remain;
+                data += remain;
+                length -= remain;
+            }
+        }
     }
-
-    if (conn->r) {
-        apr_pool_destroy(conn->r->pool);
-        conn->r = NULL;
+    else {
+        status = apr_brigade_write(io->output, NULL, NULL, data, length);
     }
-
-    /* Sanity check: Did we already return the pooled connection? */
-    if (conn->inreslist) {
-        ap_log_perror(APLOG_MARK, APLOG_ERR, 0, conn->pool, APLOGNO(00923)
-                      "Pooled connection 0x%pp for worker %s has been"
-                      " already returned to the connection pool.", conn,
-                      worker->s->name);
-        return APR_SUCCESS;
-    }
-
-    /* determine if the connection need to be closed */
-    if (conn->close || !worker->s->is_address_reusable || worker->s->disablereuse) {
-        apr_pool_t *p = conn->pool;
-        apr_pool_clear(p);
-        conn = apr_pcalloc(p, sizeof(proxy_conn_rec));
-        conn->pool = p;
-        conn->worker = worker;
-        apr_pool_create(&(conn->scpool), p);
-        apr_pool_tag(conn->scpool, "proxy_conn_scpool");
-    }
-
-    if (worker->s->hmax && worker->cp->res) {
-        conn->inreslist = 1;
-        apr_reslist_release(worker->cp->res, (void *)conn);
-    }
-    else
-    {
-        worker->cp->conn = conn;
-    }
-
-    /* Always return the SUCCESS */
-    return APR_SUCCESS;
+    return status;
 }

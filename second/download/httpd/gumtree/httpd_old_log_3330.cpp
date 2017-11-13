@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, 0, main_server,
-                         "CGI request received from wrong server instance; "
-                         "see ScriptSock directive");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Failed to fork secure child process!");

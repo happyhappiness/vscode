@@ -1,3 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_DEBUG, APR_EINVAL, pool,
-                      "h2_request(%d): pseudo header in trailer",
-                      req->id);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf, APLOGNO(00418)
+                 "Parent: Created child process %d", new_child.pid);

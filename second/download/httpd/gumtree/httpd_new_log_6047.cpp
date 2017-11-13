@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                          "h2_slave_in(%s): getline: %s",
-                          task->id, buffer);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, response->http_status, r,
+                          APLOGNO(03061) 
+                          "h2_response(%ld-%d): renegotiate forbidden, cause: %s",
+                          (long)r->connection->id, stream_id, cause);

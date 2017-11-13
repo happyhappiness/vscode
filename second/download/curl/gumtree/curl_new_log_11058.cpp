@@ -1,11 +1,10 @@
 fputs(
-"              Since 7.21.7, this option is superfluous since you can specify a\n"
-"              socks5 proxy with -x, --proxy using a socks5:// protocol prefix.\n"
-"              If this option is used several times, the last one will be used.\n"
-"              (This option was  previously  wrongly  documented  and  used  as\n"
-"              --socks without the number appended.)\n"
+"              7.15.5).  That option name can still be used but will be removed\n"
+"              in a future version.\n"
 "\n"
-"              This  option (as well as --socks4) does not work with IPV6, FTPS\n"
-"              or LDAP.\n"
-"\n"
+"       --ssl-allow-beast\n"
+"              (SSL) This option tells curl to not work around a security  flaw\n"
+"              in the SSL3 and TLS1.0 protocols known as BEAST.  If this option\n"
+"              isn't used, the SSL layer may use  workarounds  known  to  cause\n"
+"              interoperability  problems  with some older SSL implementations.\n"
 , stdout);

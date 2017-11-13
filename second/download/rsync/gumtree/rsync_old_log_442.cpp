@@ -1,1 +1,2 @@
-fprintf(f,"-u, --update             update only (don't overwrite newer files)\n");
+fprintf(FINFO,"%s => %s\n",
+			f_name(&hlink_list[i]),f_name(&hlink_list[i-1]));

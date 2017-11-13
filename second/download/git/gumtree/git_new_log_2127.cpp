@@ -1,2 +1,2 @@
-die(_("bad numeric config value '%s' for '%s' in %s %s: %s"),
-		    value, name, cf->origin_type, cf->name, reason);
+error("chmod on %s failed: %s",
+			    get_lock_file_path(lock), strerror(errno));

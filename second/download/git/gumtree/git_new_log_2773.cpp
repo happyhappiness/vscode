@@ -1,1 +1,1 @@
-die("git-over-rsync is no longer supported");
+die_errno(_("could not read SQUASH_MSG"));

@@ -1,10 +1,4 @@
-ap_rputs("\n\n<table rules=\"all\" cellpadding=\"1%\">\n"
-                     "<tr><th rowspan=\"2\">Slot</th>"
-                         "<th rowspan=\"2\">PID</th>"
-                         "<th rowspan=\"2\">Stopping</th>"
-                         "<th colspan=\"2\">Connections</th>\n"
-                         "<th colspan=\"2\">Threads</th>"
-                         "<th colspan=\"3\">Async connections</th></tr>\n"
-                     "<tr><th>total</th><th>accepting</th>"
-                         "<th>busy</th><th>idle</th>"
-                         "<th>writing</th><th>keep-alive</th><th>closing</th></tr>\n", r);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(03179)
+                              "ServerSupportFunction "
+                              "HSE_REQ_SEND_RESPONSE_HEADER_EX "
+                              "ap_pass_brigade failed: %s", r->filename);

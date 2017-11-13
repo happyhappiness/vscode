@@ -1,1 +1,1 @@
-fprintf(stderr,"send_files(%d,%s)\n",i,fname);
+fprintf(stderr,"recv_generator failed to open %s\n",fname);

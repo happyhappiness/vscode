@@ -1,23 +1,48 @@
-static apr_status_t session_crypto_encode(request_rec * r, session_rec * z)
+static int spot_cookie(request_rec *r)
 {
+    cookie_dir_rec *dcfg = ap_get_module_config(r->per_dir_config,
+                                                &usertrack_module);
+    const char *cookie_header;
+    ap_regmatch_t regm[NUM_SUBS];
 
-    char *encoded = NULL;
-    apr_status_t res;
-    const apr_crypto_t *f = NULL;
-    session_crypto_dir_conf *dconf = ap_get_module_config(r->per_dir_config,
-            &session_crypto_module);
-
-    if (dconf->passphrases_set && z->encoded && *z->encoded) {
-        apr_pool_userdata_get((void **)&f, CRYPTO_KEY, r->server->process->pconf);
-        res = encrypt_string(r, f, dconf, z->encoded, &encoded);
-        if (res != OK) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, res, r, APLOGNO(01841)
-                    "encrypt session failed");
-            return res;
-        }
-        z->encoded = encoded;
+    /* Do not run in subrequests */
+    if (!dcfg->enabled || r->main) {
+        return DECLINED;
     }
 
-    return OK;
+    if ((cookie_header = apr_table_get(r->headers_in, "Cookie"))) {
+        if (!ap_regexec(dcfg->regexp, cookie_header, NUM_SUBS, regm, 0)) {
+            char *cookieval = NULL;
+            int err = 0;
+            /* Our regexp,
+             * ^cookie_name=([^;]+)|;[ \t]+cookie_name=([^;]+)
+             * only allows for $1 or $2 to be available. ($0 is always
+             * filled with the entire matched expression, not just
+             * the part in parentheses.) So just check for either one
+             * and assign to cookieval if present. */
+            if (regm[1].rm_so != -1) {
+                cookieval = ap_pregsub(r->pool, "$1", cookie_header,
+                                       NUM_SUBS, regm);
+                if (cookieval == NULL)
+                    err = 1;
+            }
+            if (regm[2].rm_so != -1) {
+                cookieval = ap_pregsub(r->pool, "$2", cookie_header,
+                                       NUM_SUBS, regm);
+                if (cookieval == NULL)
+                    err = 1;
+            }
+            if (err) {
+                ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01499)
+                              "Failed to extract cookie value (out of mem?)");
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
+            /* Set the cookie in a note, for logging */
+            apr_table_setn(r->notes, "cookie", cookieval);
 
+            return DECLINED;    /* There's already a cookie, no new one */
+        }
+    }
+    make_cookie(r);
+    return OK;                  /* We set our cookie */
 }

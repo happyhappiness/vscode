@@ -1,2 +1,1 @@
-warning("skipping invalid relative alternate: %s/%s",
-				src_repo, line.buf);
+strbuf_addf(err, str, updates[i]->refname);

@@ -1,12 +1,9 @@
 fputs(
-"              login  options  please  see  RFC  2384,  RFC 5092 and IETF draft\n"
-"              draft-earhart-url-smtp-00.txt (Added in 7.31.0).\n"
+"              with this option: \"-u :\" or by specfying the  login  options  on\n"
+"              their own, for example \"-u ;auth=NTLM\".\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -U, --proxy-user <user:password>\n"
-"              Specify the user name and password to use for proxy  authentica-\n"
-"              tion.\n"
-"\n"
-"              If  you  use an SSPI-enabled curl binary and do NTLM authentica-\n"
+"              You  can use the optional login options part to specify protocol\n"
+"              specific options that may  be  used  during  authentication.  At\n"
+"              present  only  IMAP, POP3 and SMTP support login options as part\n"
+"              of the user login information. For more  information  about  the\n"
 , stdout);

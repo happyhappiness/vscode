@@ -1,12 +1,9 @@
 fputs(
-"              and  tries  to  get  the  modification  date (mtime) from <file>\n"
-"              instead. See the curl_getdate(3) man pages for  date  expression\n"
-"              details.\n"
-"\n"
-"              Start the date expression with a dash (-) to make it request for\n"
-"              a document that is older than the given date/time, default is  a\n"
-"              document that is newer than the specified date/time.\n"
-"\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
+"       -z/--time-cond <date expression>|<file>\n"
+"              (HTTP/FTP)  Request a file that has been modified later than the\n"
+"              given time and date, or one that has been modified  before  that\n"
+"              time.  The <date expression> can be all sorts of date strings or\n"
+"              if it doesn't match any internal ones, it is taken as a filename\n"
 , stdout);

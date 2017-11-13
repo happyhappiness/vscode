@@ -1,2 +1,1 @@
-rprintf(FINFO,"%s => %s\n",
-			f_name(&hlink_list[i]),f_name(&hlink_list[i-1]));
+fprintf(FERROR,"ERROR: buffer overflow in %s\n",str);

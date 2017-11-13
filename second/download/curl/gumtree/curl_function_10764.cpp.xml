@@ -2404,8 +2404,8 @@
  <expr_stmt><expr><call><name pos:line="2403" pos:column="2">fputs<pos:position pos:line="2403" pos:column="7"/></name><argument_list pos:line="2403" pos:column="7">(
 <argument><expr><literal type="string" pos:line="2404" pos:column="1">"              When  using  Kerberos  V5 with a Windows based server you should\n"<pos:position pos:line="2404" pos:column="83"/></literal>
 <literal type="string" pos:line="2405" pos:column="1">"              include the Windows domain name in the user name, in  order  for\n"<pos:position pos:line="2405" pos:column="83"/></literal>
-<literal type="string" pos:line="2406" pos:column="1">"              the  server  to  successfully  obtain  a Kerberos Ticket. If you\n"<pos:position pos:line="2406" pos:column="83"/></literal>
-<literal type="string" pos:line="2407" pos:column="1">"              don't then the initial authentication handshake may fail.\n"<pos:position pos:line="2407" pos:column="76"/></literal>
+<literal type="string" pos:line="2406" pos:column="1">"              the server to succesfully obtain a Kerberos Ticket. If you don't\n"<pos:position pos:line="2406" pos:column="83"/></literal>
+<literal type="string" pos:line="2407" pos:column="1">"              then the initial authentication handshake may fail.\n"<pos:position pos:line="2407" pos:column="70"/></literal>
 <literal type="string" pos:line="2408" pos:column="1">"\n"<pos:position pos:line="2408" pos:column="5"/></literal>
 <literal type="string" pos:line="2409" pos:column="1">"              When using NTLM, the user name can be specified  simply  as  the\n"<pos:position pos:line="2409" pos:column="83"/></literal>
 <literal type="string" pos:line="2410" pos:column="1">"              user  name,  without the domain, if there is a single domain and\n"<pos:position pos:line="2410" pos:column="83"/></literal></expr></argument>

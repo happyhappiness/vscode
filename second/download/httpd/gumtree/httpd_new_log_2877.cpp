@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL, APLOGNO(02166)
-                         "Can't chroot to %s", ap_unixd_config.chroot_dir);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "ssl_scache_shmcb_store (0x%02x -> subcache %d)",
+                 SHMCB_MASK_DBG(header, id));

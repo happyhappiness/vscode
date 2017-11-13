@@ -1,32 +1,32 @@
-void ssl_init_Engine(server_rec *s, apr_pool_t *p)
+apr_status_t ajp_ilink_send(apr_socket_t *sock, ajp_msg_t *msg)
 {
-    SSLModConfigRec *mc = myModConfig(s);
-    ENGINE *e;
+    char         *buf;
+    apr_status_t status;
+    apr_size_t   length;
 
-    if (mc->szCryptoDevice) {
-        if (!(e = ENGINE_by_id(mc->szCryptoDevice))) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                         "Init: Failed to load Crypto Device API `%s'",
-                         mc->szCryptoDevice);
-            ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
-            ssl_die();
-        }
-
-        if (strEQ(mc->szCryptoDevice, "chil")) {
-            ENGINE_ctrl(e, ENGINE_CTRL_CHIL_SET_FORKCHECK, 1, 0, 0);
-        }
-
-        if (!ENGINE_set_default(e, ENGINE_METHOD_ALL)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                         "Init: Failed to enable Crypto Device API `%s'",
-                         mc->szCryptoDevice);
-            ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
-            ssl_die();
-        }
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, 
-                     "Init: loaded Crypto Device API `%s'", 
-                     mc->szCryptoDevice);
-
-        ENGINE_free(e);
+    if (sock == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                      "ajp_ilink_send(): NULL socket provided");
+        return AJP_EINVAL;
     }
+
+    ajp_msg_end(msg);
+
+    length = msg->len;
+    buf    = (char *)msg->buf;
+
+    do {
+        apr_size_t written = length;
+
+        status = apr_socket_send(sock, buf, &written);
+        if (status != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, status, NULL,
+                          "ajp_ilink_send(): send failed");
+            return status;
+        }
+        length -= written;
+        buf    += written;
+    } while (length);
+
+    return APR_SUCCESS;
 }

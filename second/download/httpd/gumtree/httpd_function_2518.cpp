@@ -1,110 +1,78 @@
-static authz_status ldapdn_check_authorization(request_rec *r,
-                                             const char *require_args)
+static void cgethost (struct in_addr ipnum, char *string, int check)
 {
-    int result = 0;
-    authn_ldap_request_t *req =
-        (authn_ldap_request_t *)ap_get_module_config(r->request_config, &authnz_ldap_module);
-    authn_ldap_config_t *sec =
-        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
+    struct nsrec **current, *new;
+    struct hostent *hostdata;
+    char *name;
 
-    util_ldap_connection_t *ldc = NULL;
+    current = &nscache[((ipnum.s_addr + (ipnum.s_addr >> 8) +
+                         (ipnum.s_addr >> 16) + (ipnum.s_addr >> 24)) % BUCKETS)];
 
-    const char *t;
+    while (*current != NULL && ipnum.s_addr != (*current)->ipnum.s_addr)
+        current = &(*current)->next;
 
-    char filtbuf[FILTER_LENGTH];
-    const char *dn = NULL;
-
-    if (!sec->have_ldap_url) {
-        return AUTHZ_DENIED;
-    }
-
-    if (sec->host) {
-        ldc = get_connection_for_authz(r, LDAP_SEARCH); /* _comparedn is a searche */
-        apr_pool_cleanup_register(r->pool, ldc,
-                                  authnz_ldap_cleanup_connection_close,
-                                  apr_pool_cleanup_null);
-    }
-    else {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authorize: no sec->host - weird...?", getpid());
-        return AUTHZ_DENIED;
-    }
-
-    /*
-     * If we have been authenticated by some other module than mod_auth_ldap,
-     * the req structure needed for authorization needs to be created
-     * and populated with the userid and DN of the account in LDAP
-     */
-
-    /* Check that we have a userid to start with */
-    if (!r->user) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-            "access to %s failed, reason: no authenticated user", r->uri);
-        return AUTHZ_DENIED;
-    }
-
-    if (!strlen(r->user)) {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-            "ldap authorize: Userid is blank, AuthType=%s",
-            r->ap_auth_type);
-    }
-
-    if(!req) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-            "ldap authorize: Creating LDAP req structure");
-
-        /* Build the username filter */
-        authn_ldap_build_filter(filtbuf, r, r->user, NULL, sec);
-
-        /* Search for the user DN */
-        result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
-             sec->scope, sec->attributes, filtbuf, &dn, &(req->vals));
-
-        /* Search failed, log error and return failure */
-        if(result != LDAP_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                "auth_ldap authorise: User DN not found, %s", ldc->reason);
-            return AUTHZ_DENIED;
+    if (*current == NULL) {
+        cachesize++;
+        new = (struct nsrec *) malloc(sizeof(struct nsrec));
+        if (new == NULL) {
+            perror("malloc");
+            fprintf(stderr, "Insufficient memory\n");
+            exit(1);
         }
+        *current = new;
+        new->next = NULL;
 
-        req = (authn_ldap_request_t *)apr_pcalloc(r->pool,
-            sizeof(authn_ldap_request_t));
-        ap_set_module_config(r->request_config, &authnz_ldap_module, req);
-        req->dn = apr_pstrdup(r->pool, dn);
-        req->user = r->user;
-    }
+        new->ipnum = ipnum;
 
-    t = require_args;
-
-    if (req->dn == NULL || strlen(req->dn) == 0) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authorize: "
-                      "require dn: user's DN has not been defined; failing authorization",
-                      getpid());
-        return AUTHZ_DENIED;
-    }
-
-    result = util_ldap_cache_comparedn(r, ldc, sec->url, req->dn, t, sec->compare_dn_on_server);
-    switch(result) {
-        case LDAP_COMPARE_TRUE: {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "[%" APR_PID_T_FMT "] auth_ldap authorize: "
-                          "require dn: authorization successful", getpid());
-            set_request_vars(r, LDAP_AUTHZ);
-            return AUTHZ_GRANTED;
+        hostdata = gethostbyaddr((const char *) &ipnum, sizeof(struct in_addr),
+                                 AF_INET);
+        if (hostdata == NULL) {
+            if (h_errno > MAX_ERR)
+                errors[UNKNOWN_ERR]++;
+            else
+                errors[h_errno]++;
+            new->noname = h_errno;
+            name = strdup(inet_ntoa(ipnum));
         }
-        default: {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "[%" APR_PID_T_FMT "] auth_ldap authorize: "
-                          "require dn \"%s\": LDAP error [%s][%s]",
-                          getpid(), t, ldc->reason, ldap_err2string(result));
+        else {
+            new->noname = 0;
+            name = strdup(hostdata->h_name);
+            if (check) {
+                if (name == NULL) {
+                    perror("strdup");
+                    fprintf(stderr, "Insufficient memory\n");
+                    exit(1);
+                }
+                hostdata = gethostbyname(name);
+                if (hostdata != NULL) {
+                    char **hptr;
+
+                    for (hptr = hostdata->h_addr_list; *hptr != NULL; hptr++)
+                        if (((struct in_addr *) (*hptr))->s_addr == ipnum.s_addr)
+                            break;
+                    if (*hptr == NULL)
+                        hostdata = NULL;
+                }
+                if (hostdata == NULL) {
+                    fprintf(stderr, "Bad host: %s != %s\n", name,
+                            inet_ntoa(ipnum));
+                    new->noname = NO_REVERSE;
+                    free(name);
+                    name = strdup(inet_ntoa(ipnum));
+                    errors[NO_REVERSE]++;
+                }
+            }
+        }
+        new->hostname = name;
+        if (new->hostname == NULL) {
+            perror("strdup");
+            fprintf(stderr, "Insufficient memory\n");
+            exit(1);
         }
     }
+    else
+        cachehits++;
 
-
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "[%" APR_PID_T_FMT "] auth_ldap authorize dn: authorization denied for user %s to %s",
-                  getpid(), r->user, r->uri);
-
-    return AUTHZ_DENIED;
+    /* size of string == MAXDNAME +1 */
+    strncpy(string, (*current)->hostname, MAXDNAME);
+    string[MAXDNAME] = '\0';
 }

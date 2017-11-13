@@ -1,1 +1,1 @@
-error_errno(_("Cannot open patch file %s"), filename.buf);
+die("object not found: %s", oid_to_hex(&oid));

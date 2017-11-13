@@ -1,27 +1,26 @@
-static int show_reference(const char *refname, const unsigned char *sha1,
-			  int flag, void *cb_data)
+static void prune_dir(int i, DIR *dir, struct strbuf *pathname, int opts)
 {
-	struct show_data *data = cb_data;
+	struct dirent *de;
+	char hex[40];
+	int top_len = pathname->len;
 
-	if (!wildmatch(data->pattern, refname, 0, NULL)) {
-		if (data->format == REPLACE_FORMAT_SHORT)
-			printf("%s\n", refname);
-		else if (data->format == REPLACE_FORMAT_MEDIUM)
-			printf("%s -> %s\n", refname, sha1_to_hex(sha1));
-		else { /* data->format == REPLACE_FORMAT_LONG */
-			unsigned char object[20];
-			enum object_type obj_type, repl_type;
+	sprintf(hex, "%02x", i);
+	while ((de = readdir(dir)) != NULL) {
+		unsigned char sha1[20];
+		if (strlen(de->d_name) != 38)
+			continue;
+		memcpy(hex + 2, de->d_name, 38);
+		if (get_sha1_hex(hex, sha1))
+			continue;
+		if (!has_sha1_pack(sha1))
+			continue;
 
-			if (get_sha1(refname, object))
-				return error("Failed to resolve '%s' as a valid ref.", refname);
-
-			obj_type = sha1_object_info(object, NULL);
-			repl_type = sha1_object_info(sha1, NULL);
-
-			printf("%s (%s) -> %s (%s)\n", refname, typename(obj_type),
-			       sha1_to_hex(sha1), typename(repl_type));
-		}
+		strbuf_add(pathname, de->d_name, 38);
+		if (opts & PRUNE_PACKED_DRY_RUN)
+			printf("rm -f %s\n", pathname->buf);
+		else
+			unlink_or_warn(pathname->buf);
+		display_progress(progress, i + 1);
+		strbuf_setlen(pathname, top_len);
 	}
-
-	return 0;
 }

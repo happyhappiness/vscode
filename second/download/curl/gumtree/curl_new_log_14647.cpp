@@ -1,9 +1,11 @@
 fputs(
-"              before sending keepalive probes and the time between  individual\n"
-"              keepalive probes. It is currently effective on operating systems\n"
-"              offering  the  TCP_KEEPIDLE  and  TCP_KEEPINTVL  socket  options\n"
-"              (meaning  Linux, recent AIX, HP-UX and more). This option has no\n"
-"              effect if --no-keepalive is used.\n"
+"              This option can be used  multiple  times  to  add/replace/remove\n"
+"              multiple headers.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"       -h, --help\n"
+"              Usage  help.  This lists all current command line options with a\n"
+"              short description.\n"
+"       --hostpubmd5 <md5>\n"
+"              (SFTP SCP) Pass a string containing 32 hexadecimal  digits.  The\n"
+"              string  should  be the 128 bit MD5 checksum of the remote host's\n"
 , stdout);

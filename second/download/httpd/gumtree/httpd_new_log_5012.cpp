@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02671)
-                          "ServerSupportFunction "
-                          "HSE_REQ_DONE_WITH_SESSION is not supported: %s",
-                          r->filename);
+ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                     0, NULL, APLOGNO(00015) "Unable to open logs");

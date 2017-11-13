@@ -1,1 +1,3 @@
-die("object %s tried to add buffer twice!", oid_to_hex(&object->oid));
+error_buf(err,
+					 _("push refspecs for '%s' do not include '%s'"),
+					 remote->name, branch->name);

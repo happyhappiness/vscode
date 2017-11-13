@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, status, ap_server_conf,
-                         "apr_socket_accept: (client socket)");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "proxy: FD: Unable to find configured flush "
+                          "provider '%s'", flush_method);

@@ -1,10 +1,10 @@
 fputs(
-"              mode  to  allow  reading  server  output  while  stdin  is being\n"
-"              uploaded.\n"
+"              given  time  and date, or one that has been modified before that\n"
+"              time. The <date expression> can be all sorts of date strings  or\n"
+"              if it doesn't match any internal ones, it is taken as a filename\n"
+"              and tries to get  the  modification  date  (mtime)  from  <file>\n"
+"              instead.  See  the curl_getdate(3) man pages for date expression\n"
+"              details.\n"
 "\n"
-"              You can specify one -T, --upload-file for each URL on  the  com-\n"
-"              mand  line.  Each -T, --upload-file + URL pair specifies what to\n"
-"              upload and to where. curl also supports \"globbing\"  of  the  -T,\n"
-"              --upload-file  argument,  meaning  that  you can upload multiple\n"
-"              files to a single URL by using the same URL globbing style  sup-\n"
+"              Start the date expression with a dash (-) to make it request for\n"
 , stdout);

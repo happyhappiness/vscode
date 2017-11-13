@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
-                         "Couldn't start ErrorLog process '%s'.",
-                         s->error_fname + 1);
+ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, r->server,
+                         "proxy: start body send");

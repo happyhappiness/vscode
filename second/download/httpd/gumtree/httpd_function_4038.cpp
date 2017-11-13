@@ -1,23 +1,70 @@
-static int ap_proxy_retry_worker(const char *proxy_function, proxy_worker *worker,
-        server_rec *s)
+static apr_status_t rfc1413_connect(apr_socket_t **newsock, conn_rec *conn,
+                                    server_rec *srv, apr_time_t timeout)
 {
-    if (worker->s->status & PROXY_WORKER_IN_ERROR) {
-        if (apr_time_now() > worker->s->error_time + worker->s->retry) {
-            ++worker->s->retries;
-            worker->s->status &= ~PROXY_WORKER_IN_ERROR;
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00932)
-                         "%s: worker for (%s) has been marked for retry",
-                         proxy_function, worker->s->hostname);
-            return OK;
-        }
-        else {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00933)
-                         "%s: too soon to retry worker for (%s)",
-                         proxy_function, worker->s->hostname);
-            return DECLINED;
-        }
+    apr_status_t rv;
+    apr_sockaddr_t *localsa, *destsa;
+
+    if ((rv = apr_sockaddr_info_get(&localsa, conn->local_ip, APR_UNSPEC,
+                              0, /* ephemeral port */
+                              0, conn->pool)) != APR_SUCCESS) {
+        /* This should not fail since we have a numeric address string
+         * as the host. */
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, srv,
+                     "rfc1413: apr_sockaddr_info_get(%s) failed",
+                     conn->local_ip);
+        return rv;
     }
-    else {
-        return OK;
+
+    if ((rv = apr_sockaddr_info_get(&destsa, conn->remote_ip,
+                              localsa->family, /* has to match */
+                              RFC1413_PORT, 0, conn->pool)) != APR_SUCCESS) {
+        /* This should not fail since we have a numeric address string
+         * as the host. */
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, srv,
+                     "rfc1413: apr_sockaddr_info_get(%s) failed",
+                     conn->remote_ip);
+        return rv;
     }
+
+    if ((rv = apr_socket_create(newsock,
+                                localsa->family, /* has to match */
+                                SOCK_STREAM, 0, conn->pool)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, srv,
+                     "rfc1413: error creating query socket");
+        return rv;
+    }
+
+    if ((rv = apr_socket_timeout_set(*newsock, timeout)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, srv,
+                     "rfc1413: error setting query socket timeout");
+        apr_socket_close(*newsock);
+        return rv;
+    }
+
+/*
+ * Bind the local and remote ends of the query socket to the same
+ * IP addresses as the connection under investigation. We go
+ * through all this trouble because the local or remote system
+ * might have more than one network address. The RFC1413 etc.
+ * client sends only port numbers; the server takes the IP
+ * addresses from the query socket.
+ */
+
+    if ((rv = apr_socket_bind(*newsock, localsa)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, srv,
+                     "rfc1413: Error binding query socket to local port");
+        apr_socket_close(*newsock);
+        return rv;
+    }
+
+/*
+ * errors from connect usually imply the remote machine doesn't support
+ * the service; don't log such an error
+ */
+    if ((rv = apr_socket_connect(*newsock, destsa)) != APR_SUCCESS) {
+        apr_socket_close(*newsock);
+        return rv;
+    }
+
+    return APR_SUCCESS;
 }

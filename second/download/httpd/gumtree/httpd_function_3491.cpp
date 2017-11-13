@@ -1,67 +1,35 @@
-static int req_dispatch(lua_State *L)
+static apr_status_t socache_mc_retrieve(ap_socache_instance_t *ctx, server_rec *s, 
+                                        const unsigned char *id, unsigned int idlen,
+                                        unsigned char *dest, unsigned int *destlen,
+                                        apr_pool_t *p)
 {
-    apr_hash_t *dispatch;
-    req_fun_t *rft;
-    request_rec *r = ap_lua_check_request_rec(L, 1);
-    const char *name = luaL_checkstring(L, 2);
-    lua_pop(L, 2);
+    apr_size_t data_len;
+    char buf[MC_KEY_LEN], *data;
+    apr_status_t rv;
 
-    lua_getfield(L, LUA_REGISTRYINDEX, "Apache2.Request.dispatch");
-    dispatch = lua_touserdata(L, 1);
-    lua_pop(L, 1);
-
-    rft = apr_hash_get(dispatch, name, APR_HASH_KEY_STRING);
-    if (rft) {
-        switch (rft->type) {
-        case APL_REQ_FUNTYPE_TABLE:{
-                apr_table_t *rs;
-                req_field_apr_table_f func = (req_field_apr_table_f)rft->fun;
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "request_rec->dispatching %s -> apr table",
-                              name);
-                rs = (*func)(r);
-                ap_lua_push_apr_table(L, rs);          
-                return 1;
-            }
-
-        case APL_REQ_FUNTYPE_LUACFUN:{
-                lua_CFunction func = (lua_CFunction)rft->fun;
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "request_rec->dispatching %s -> lua_CFunction",
-                              name);
-                lua_pushcfunction(L, func);
-                return 1;
-            }
-        case APL_REQ_FUNTYPE_STRING:{
-                req_field_string_f func = (req_field_string_f)rft->fun;
-                char *rs;
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "request_rec->dispatching %s -> string", name);
-                rs = (*func) (r);
-                lua_pushstring(L, rs);
-                return 1;
-            }
-        case APL_REQ_FUNTYPE_INT:{
-                req_field_int_f func = (req_field_int_f)rft->fun;
-                int rs;
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "request_rec->dispatching %s -> int", name);
-                rs = (*func) (r);
-                lua_pushnumber(L, rs);
-                return 1;
-            }
-        case APL_REQ_FUNTYPE_BOOLEAN:{
-                req_field_int_f func = (req_field_int_f)rft->fun;
-                int rs;
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "request_rec->dispatching %s -> boolean", name);
-                rs = (*func) (r);
-                lua_pushboolean(L, rs);
-                return 1;
-            }
-        }
+    if (socache_mc_id2key(ctx, id, idlen, buf, sizeof buf)) {
+        return APR_EINVAL;
     }
 
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "nothing for %s", name);
-    return 0;
+    /* ### this could do with a subpool, but _getp looks like it will
+     * eat memory like it's going out of fashion anyway. */
+
+    rv = apr_memcache_getp(ctx->mc, p, buf, &data, &data_len, NULL);
+    if (rv) {
+        if (rv != APR_NOTFOUND) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                         "scache_mc: 'retrieve' FAIL");
+        }
+        return rv;
+    }
+    else if (data_len > *destlen) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                     "scache_mc: 'retrieve' OVERFLOW");
+        return APR_ENOMEM;
+    }    
+
+    memcpy(dest, data, data_len);
+    *destlen = data_len;
+
+    return APR_SUCCESS;
 }

@@ -1,1 +1,1 @@
-die(_("refusing to merge unrelated histories"));
+warning("No LOGIN_OPTIONS support in this cURL version");

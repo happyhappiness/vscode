@@ -1,1 +1,1 @@
-die("strange hostname '%s' blocked", ssh_host);
+die("unable to generate word diff");

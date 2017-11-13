@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r, APLOGNO(00133)
-                          "default_handler: ap_pass_brigade returned %i",
-                          status);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01053)
+                              "failed to accept data connection");

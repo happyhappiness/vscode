@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02299)
-                     "Init: Failed to generate temporary "
-                     "%d bit EC parameters", bits);
+ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, p, APLOGNO(02820)
+                              "ListenCoresBucketsRatio ignored without "
+                              "SO_REUSEPORT and _SC_NPROCESSORS_ONLN "
+                              "support: using a single listeners bucket");

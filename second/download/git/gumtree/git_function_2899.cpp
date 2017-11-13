@@ -1,10 +1,11 @@
-static int resolve_relative_path(int argc, const char **argv, const char *prefix)
+static int verify_tag(const char *name, const char *ref,
+				const unsigned char *sha1)
 {
-	struct strbuf sb = STRBUF_INIT;
-	if (argc != 3)
-		die("submodule--helper relative_path takes exactly 2 arguments, got %d", argc);
+	const char *argv_verify_tag[] = {"verify-tag",
+					"-v", "SHA1_HEX", NULL};
+	argv_verify_tag[2] = sha1_to_hex(sha1);
 
-	printf("%s", relative_path(argv[1], argv[2], &sb));
-	strbuf_release(&sb);
+	if (run_command_v_opt(argv_verify_tag, RUN_GIT_CMD))
+		return error(_("could not verify the tag '%s'"), name);
 	return 0;
 }

@@ -1,1 +1,2 @@
-die(_("git apply: bad git-diff - expected /dev/null on line %d"), linenr);
+die(_("patch fragment without header at line %d: %.*s"),
+			    linenr, (int)len-1, line);

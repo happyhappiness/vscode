@@ -1,9 +1,10 @@
 fputs(
-"              Continue/Resume a previous file transfer at  the  given  offset.\n"
-"              The  given  offset  is  the  exact  number of bytes that will be\n"
-"              skipped, counting from the beginning of the source  file  before\n"
-"              it is transferred to the destination.  If used with uploads, the\n"
-"              FTP server command SIZE will not be used by curl.\n"
+"              (FTP/SFTP) When used in an upload, this will tell curl to append\n"
+"              to  the  target  file  instead  of  overwriting  it. If the file\n"
+"              doesn't exist, it will be  created.   Note  that  this  flag  is\n"
+"              ignored by some SSH servers (including OpenSSH).\n"
 "\n"
-"              Use \"-C -\" to tell curl to automatically find out  where/how  to\n"
+"       -A, --user-agent <agent string>\n"
+"              (HTTP) Specify the User-Agent string to send to the HTTP server.\n"
+"              Some  badly  done  CGIs  fail  if  this  field  isn't   set   to\n"
 , stdout);

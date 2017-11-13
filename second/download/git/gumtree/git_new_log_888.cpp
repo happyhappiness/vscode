@@ -1,1 +1,1 @@
-!ref_resolves_to_object(iter->refname, iter->oid, iter->flags);
+error("unable to unpack header of %s", path);

@@ -1,1 +1,1 @@
-die(_("Failed to execute internal merge"));
+die ("Invalid search pattern: %s", prefix);

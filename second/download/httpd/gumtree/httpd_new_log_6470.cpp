@@ -1,2 +1,3 @@
-ap_rvputs(r, "          <httpd:error_time>", date,
-                              "</httpd:error_time>\n", NULL);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, c,
+                      APLOGNO(02941) "h2_task(%ld-%d): create stream task", 
+                      c->id, req->id);

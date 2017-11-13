@@ -1,1 +1,1 @@
-memset(format, 0, sizeof(*format));
+die("No path in gitfile: %s", path);

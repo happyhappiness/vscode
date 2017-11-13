@@ -136,22 +136,49 @@ def analyze_old_new(is_rebuild = False):
         total_record += 1
         # call srcml to get check and variable info
         function = record[my_constant.ANALYZE_FUNCTION]
-        function_loc = record[my_constant.ANALYZE_FUNCTION_LOC]
+        function_loc = int(record[my_constant.ANALYZE_FUNCTION_LOC])
         srcml = SrcmlApi()
         srcml.set_function_file(function)
         check = []
         variable = []
-        if srcml.set_log_loc(int(function_loc)):
+        if srcml.set_log_loc(function_loc):
             if srcml.set_control_dependence():
                 check = srcml.get_control_info()
-            variable = srcml.get_log_info()
+                variable = srcml.get_log_info()
         # do not keep empty check(not diagnosis log)
         if check == []:
             continue
         # depended statement locations
         ddg_codes = set()
         ddg_locs = set()
-        old_new_llvm_writer.writerow(record + [json.dumps(check), json.dumps(variable), ddg_codes, ddg_locs])
+        old_loc = record[my_constant.FETCH_LOG_OLD_LOC]
+        new_loc = record[my_constant.FETCH_LOG_NEW_LOC]
+        is_new_hunk = None
+        # insert log, in new hunk
+        if old_loc == '-1':
+            is_new_hunk = True
+            hunk_loc = int(record[my_constant.FETCH_HUNK_NEW_HUNK_LOC])
+        # delete log, in old hunk
+        elif new_loc == '-1':
+            is_new_hunk = False
+            hunk_loc = int(record[my_constant.FETCH_HUNK_OLD_HUNK_LOC])
+        else:
+            old_new_llvm_writer.writerow(record + [json.dumps(check), json.dumps(variable), ddg_codes, ddg_locs])
+            total_log += 1
+            continue
+        # filter by no check dependence is insert or delete for insert or delete log
+        ddg_locs = srcml.get_control_depenedence_loc()
+        constant = hunk_loc - function_loc
+        # function loactions -> hunk locations
+        ddg_hunk_locs = set()
+        for ddg_loc in ddg_locs:
+            ddg_hunk_locs.add(constant + ddg_loc)
+        # use gumtree to justify whether check of hunk is edited or not
+        gumtree.set_old_new_file(record[my_constant.FETCH_HUNK_OLD_HUNK_FILE], record[my_constant.FETCH_HUNK_NEW_HUNK_FILE])
+        gumtree.set_ddg_flag(is_new_hunk)
+        if gumtree.get_ddg_edited_type(ddg_hunk_locs):
+            record[my_constant.FETCH_LOG_ACTION_TYPE] = my_constant.LOG_DDG_MODIFY
+        old_new_llvm_writer.writerow(record + [json.dumps(check), json.dumps(variable), ddg_codes, ddg_hunk_locs])
         total_log += 1
 
     # close file

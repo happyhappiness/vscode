@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, s,
-                     "%s: fam %d socket created to connect to %s",
-                     proxy_function, backend_addr->family, worker->s->hostname);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, serv, APLOGNO(01525)
+                MODNAME ": parse line=%d m=%x next=%x cont=%d desc=%s",
+                lineno, m, m->next, m->cont_level, m->desc);

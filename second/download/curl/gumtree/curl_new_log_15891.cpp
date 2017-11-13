@@ -1,11 +1,11 @@
 fputs(
-"              -c, --cookie-jar in the same command line is common.\n"
+"              This option can be used many times to add many connect rules.\n"
 "\n"
-"       --create-dirs\n"
-"              When used in conjunction with the -o, --output option, curl will\n"
-"              create  the  necessary local directory hierarchy as needed. This\n"
-"              option creates the dirs mentioned with the -o, --output  option,\n"
-"              nothing  else.  If  the --output file name uses no dir or if the\n"
-"              dirs it mentions already exist, no dir will be created.\n"
+"              See also --resolve and -H, --header. Added in 7.49.0.\n"
 "\n"
+"       -C, --continue-at <offset>\n"
+"              Continue/Resume  a  previous  file transfer at the given offset.\n"
+"              The given offset is the exact  number  of  bytes  that  will  be\n"
+"              skipped,  counting  from the beginning of the source file before\n"
+"              it is transferred to the destination.  If used with uploads, the\n"
 , stdout);

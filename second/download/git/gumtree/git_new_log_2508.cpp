@@ -1,1 +1,0 @@
-fprintf(file, "%s%s\n", pathname, S_ISDIR(mode) ? "/" : "");

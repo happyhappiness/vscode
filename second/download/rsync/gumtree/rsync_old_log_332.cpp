@@ -1,1 +1,1 @@
-fprintf(FERROR,"skipping non-regular file %s\n",fname);
+fprintf(FERROR,"receiver read %d\n",read_total());

@@ -1,1 +1,2 @@
-die("protocol error: expected shallow sha-1, got '%s'", arg);
+warning("%s %s: missing <newvalue>, treating as zero",
+				command, refname);

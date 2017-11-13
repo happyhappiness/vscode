@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00660)
-                          "apr_global_mutex_unlock(rewrite_mapr_lock_acquire) "
-                          "failed");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02068)
+                     "Failed to create listening socket.");

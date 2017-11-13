@@ -1,20 +1,23 @@
-static int read_and_refresh_cache(struct replay_opts *opts)
+static void append_one_rev(const char *av)
 {
-	static struct lock_file index_lock;
-	int index_fd = hold_locked_index(&index_lock, 0);
-	if (read_index_preload(&the_index, NULL) < 0) {
-		rollback_lock_file(&index_lock);
-		return error(_("git %s: failed to read the index"),
-			_(action_name(opts)));
+	struct object_id revkey;
+	if (!get_sha1(av, revkey.hash)) {
+		append_ref(av, &revkey, 0);
+		return;
 	}
-	refresh_index(&the_index, REFRESH_QUIET|REFRESH_UNMERGED, NULL, NULL, NULL);
-	if (the_index.cache_changed && index_fd >= 0) {
-		if (write_locked_index(&the_index, &index_lock, COMMIT_LOCK)) {
-			rollback_lock_file(&index_lock);
-			return error(_("git %s: failed to refresh the index"),
-				_(action_name(opts)));
-		}
+	if (strchr(av, '*') || strchr(av, '?') || strchr(av, '[')) {
+		/* glob style match */
+		int saved_matches = ref_name_cnt;
+
+		match_ref_pattern = av;
+		match_ref_slash = count_slash(av);
+		for_each_ref(append_matching_ref, NULL);
+		if (saved_matches == ref_name_cnt &&
+		    ref_name_cnt < MAX_REVS)
+			error("no matching refs with %s", av);
+		if (saved_matches + 1 < ref_name_cnt)
+			sort_ref_range(saved_matches, ref_name_cnt);
+		return;
 	}
-	rollback_lock_file(&index_lock);
-	return 0;
+	die("bad sha1 reference %s", av);
 }

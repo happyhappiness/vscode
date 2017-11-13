@@ -1,60 +1,21 @@
-int mutt_save_confirm (const char *s, struct stat *st)
+static void 
+usage (const char *av0)
 {
-  char tmp[_POSIX_PATH_MAX];
-  int ret = 1;
-  int magic = 0;
+  fprintf (stderr, "dotlock [Mutt %s (%s)]\n", VERSION, ReleaseDate);
+  fprintf (stderr, "usage: %s [-t|-f|-u|-d] [-p] [-r <retries>] file\n",
+	  av0);
 
-  magic = mx_get_magic (s);
-
-#ifdef USE_POP
-  if (magic == M_POP)
-  {
-    mutt_error _("Can't save message to POP mailbox.");
-    return 0;
-  }
+  fputs ("\noptions:"
+	"\n  -t\t\ttry"
+	"\n  -f\t\tforce"
+	"\n  -u\t\tunlock"
+	"\n  -d\t\tunlink"
+	"\n  -p\t\tprivileged"
+#ifndef USE_SETGID
+	" (ignored)"
 #endif
-
-  if (stat (s, st) != -1)
-  {
-    if (magic == -1)
-    {
-      mutt_error (_("%s is not a mailbox!"), s);
-      return 0;
-    }
-
-    if (option (OPTCONFIRMAPPEND))
-    {
-      snprintf (tmp, sizeof (tmp), _("Append messages to %s?"), s);
-      if (mutt_yesorno (tmp, 1) < 1)
-	ret = 0;
-    }
-  }
-  else
-  {
-#ifdef USE_IMAP
-    if (magic != M_IMAP)
-#endif /* execute the block unconditionally if we don't use imap */
-    {
-      st->st_mtime = 0;
-      st->st_atime = 0;
-
-      if (errno == ENOENT)
-      {
-	if (option (OPTCONFIRMCREATE))
-	{
-	  snprintf (tmp, sizeof (tmp), _("Create %s?"), s);
-	  if (mutt_yesorno (tmp, 1) < 1)
-	    ret = 0;
-	}
-      }
-      else
-      {
-	mutt_perror (s);
-	return 0;
-      }
-    }
-  }
-
-  CLEARLINE (LINES-1);
-  return (ret);
+	"\n  -r <retries>\tRetry locking"
+	"\n", stderr);
+  
+  exit (DL_EX_ERROR);
 }

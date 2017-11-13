@@ -1,29 +1,50 @@
-int copy_file(const char *dst, const char *src, int mode)
+int create_bundle(struct bundle_header *header, const char *path,
+		  int argc, const char **argv)
 {
-	int fdi, fdo, status;
+	static struct lock_file lock;
+	int bundle_fd = -1;
+	int bundle_to_stdout;
+	int ref_count = 0;
+	struct rev_info revs;
 
-	mode = (mode & 0111) ? 0777 : 0666;
-	if ((fdi = open(src, O_RDONLY)) < 0)
-		return fdi;
-	if ((fdo = open(dst, O_WRONLY | O_CREAT | O_EXCL, mode)) < 0) {
-		close(fdi);
-		return fdo;
-	}
-	status = copy_fd(fdi, fdo);
-	switch (status) {
-	case COPY_READ_ERROR:
-		error("copy-fd: read returned %s", strerror(errno));
-		break;
-	case COPY_WRITE_ERROR:
-		error("copy-fd: write returned %s", strerror(errno));
-		break;
-	}
-	close(fdi);
-	if (close(fdo) != 0)
-		return error("%s: close error: %s", dst, strerror(errno));
+	bundle_to_stdout = !strcmp(path, "-");
+	if (bundle_to_stdout)
+		bundle_fd = 1;
+	else
+		bundle_fd = hold_lock_file_for_update(&lock, path,
+						      LOCK_DIE_ON_ERROR);
 
-	if (!status && adjust_shared_perm(dst))
+	/* write signature */
+	write_or_die(bundle_fd, bundle_signature, strlen(bundle_signature));
+
+	/* init revs to list objects for pack-objects later */
+	save_commit_buffer = 0;
+	init_revisions(&revs, NULL);
+
+	/* write prerequisites */
+	if (compute_and_write_prerequisites(bundle_fd, &revs, argc, argv))
 		return -1;
 
-	return status;
+	argc = setup_revisions(argc, argv, &revs, NULL);
+
+	if (argc > 1)
+		return error(_("unrecognized argument: %s"), argv[1]);
+
+	object_array_remove_duplicates(&revs.pending);
+
+	ref_count = write_bundle_refs(bundle_fd, &revs);
+	if (!ref_count)
+		die(_("Refusing to create empty bundle."));
+	else if (ref_count < 0)
+		return -1;
+
+	/* write pack */
+	if (write_pack_data(bundle_fd, &lock, &revs))
+		return -1;
+
+	if (!bundle_to_stdout) {
+		if (commit_lock_file(&lock))
+			die_errno(_("cannot create '%s'"), path);
+	}
+	return 0;
 }

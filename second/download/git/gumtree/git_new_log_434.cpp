@@ -1,1 +1,1 @@
-die("BUG: reference backend %s is unknown", be_name);
+die(_("failed to resolve '%s' as a valid ref."), object_ref);

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, APR_EBADPATH, cmd->server,
-                     "mod_file_cache: invalid file path "
-                     "%s, skipping", filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+            "access to %s failed, reason: no authenticated user", r->uri);

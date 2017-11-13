@@ -1,1 +1,1 @@
-fprintf(stderr, "Unexpected end of command stream\n");
+die("protocol error: expected shallow sha-1, got '%s'", buffer + 8);

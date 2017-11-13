@@ -1,2 +1,1 @@
-warning("Unknown delegation method '%s': using default",
-				curl_deleg);
+die("ls-files --recurse-submodules unsupported mode");

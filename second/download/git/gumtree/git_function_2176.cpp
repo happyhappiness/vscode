@@ -1,56 +1,37 @@
-static int pp_collect_finished(struct parallel_processes *pp)
+int delete_refs(struct string_list *refnames)
 {
-	int i, code;
-	int n = pp->max_processes;
-	int result = 0;
+	struct strbuf err = STRBUF_INIT;
+	int i, result = 0;
 
-	while (pp->nr_processes > 0) {
-		for (i = 0; i < pp->max_processes; i++)
-			if (pp->children[i].state == GIT_CP_WAIT_CLEANUP)
-				break;
-		if (i == pp->max_processes)
-			break;
+	if (!refnames->nr)
+		return 0;
 
-		code = finish_command(&pp->children[i].process);
+	result = repack_without_refs(refnames, &err);
+	if (result) {
+		/*
+		 * If we failed to rewrite the packed-refs file, then
+		 * it is unsafe to try to remove loose refs, because
+		 * doing so might expose an obsolete packed value for
+		 * a reference that might even point at an object that
+		 * has been garbage collected.
+		 */
+		if (refnames->nr == 1)
+			error(_("could not delete reference %s: %s"),
+			      refnames->items[0].string, err.buf);
+		else
+			error(_("could not delete references: %s"), err.buf);
 
-		code = pp->task_finished(code,
-					 &pp->children[i].err, pp->data,
-					 &pp->children[i].data);
-
-		if (code)
-			result = code;
-		if (code < 0)
-			break;
-
-		pp->nr_processes--;
-		pp->children[i].state = GIT_CP_FREE;
-		pp->pfd[i].fd = -1;
-		child_process_init(&pp->children[i].process);
-
-		if (i != pp->output_owner) {
-			strbuf_addbuf(&pp->buffered_output, &pp->children[i].err);
-			strbuf_reset(&pp->children[i].err);
-		} else {
-			fputs(pp->children[i].err.buf, stderr);
-			strbuf_reset(&pp->children[i].err);
-
-			/* Output all other finished child processes */
-			fputs(pp->buffered_output.buf, stderr);
-			strbuf_reset(&pp->buffered_output);
-
-			/*
-			 * Pick next process to output live.
-			 * NEEDSWORK:
-			 * For now we pick it randomly by doing a round
-			 * robin. Later we may want to pick the one with
-			 * the most output or the longest or shortest
-			 * running process time.
-			 */
-			for (i = 0; i < n; i++)
-				if (pp->children[(pp->output_owner + i) % n].state == GIT_CP_WORKING)
-					break;
-			pp->output_owner = (pp->output_owner + i) % n;
-		}
+		goto out;
 	}
+
+	for (i = 0; i < refnames->nr; i++) {
+		const char *refname = refnames->items[i].string;
+
+		if (delete_ref(refname, NULL, 0))
+			result |= error(_("could not remove reference %s"), refname);
+	}
+
+out:
+	strbuf_release(&err);
 	return result;
 }

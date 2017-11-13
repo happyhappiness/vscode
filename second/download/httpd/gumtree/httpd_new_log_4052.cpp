@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00949)
-                     "send_http_connect: response from the forward proxy: %s",
-                     buffer);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01517)
+                MODNAME ": apprentice read %d lines, %d rules, %d errors",
+                lineno, rule, errs);

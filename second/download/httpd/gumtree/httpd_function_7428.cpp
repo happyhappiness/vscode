@@ -1,213 +1,148 @@
-int main (int argc, const char * const argv[])
+static authz_status ldapuser_check_authorization(request_rec *r,
+                                                 const char *require_args,
+                                                 const void *parsed_require_args)
 {
-    char buf[BUFSIZE];
-    apr_size_t nRead, nWrite;
-    apr_file_t *f_stdin;
-    apr_file_t *f_stdout;
-    apr_getopt_t *opt;
-    apr_status_t rv;
-    char c;
-    const char *opt_arg;
+    int result = 0;
+    authn_ldap_request_t *req =
+        (authn_ldap_request_t *)ap_get_module_config(r->request_config, &authnz_ldap_module);
+    authn_ldap_config_t *sec =
+        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
+
+    util_ldap_connection_t *ldc = NULL;
+
     const char *err = NULL;
-#if APR_FILES_AS_SOCKETS
-    apr_pollfd_t pollfd = { 0 };
-    apr_status_t pollret = APR_SUCCESS;
-    int polltimeout;
-#endif
+    const ap_expr_info_t *expr = parsed_require_args;
+    const char *require;
 
-    apr_app_initialize(&argc, &argv, NULL);
-    atexit(apr_terminate);
+    const char *t;
+    char *w;
 
-    memset(&config, 0, sizeof config);
-    memset(&status, 0, sizeof status);
-    status.rotateReason = ROTATE_NONE;
+    char filtbuf[FILTER_LENGTH];
+    const char *dn = NULL;
 
-    apr_pool_create(&status.pool, NULL);
-    apr_getopt_init(&opt, status.pool, argc, argv);
-#if APR_FILES_AS_SOCKETS
-    while ((rv = apr_getopt(opt, "lL:p:ftvecn:", &c, &opt_arg)) == APR_SUCCESS) {
-#else
-    while ((rv = apr_getopt(opt, "lL:p:ftven:", &c, &opt_arg)) == APR_SUCCESS) {
-#endif
-        switch (c) {
-        case 'l':
-            config.use_localtime = 1;
-            break;
-        case 'L':
-            config.linkfile = opt_arg;
-            break;
-        case 'p':
-            config.postrotate_prog = opt_arg;
-            break;
-        case 'f':
-            config.force_open = 1;
-            break;
-        case 't':
-            config.truncate = 1;
-            break;
-        case 'v':
-            config.verbose = 1;
-            break;
-        case 'e':
-            config.echo = 1;
-            break;
-#if APR_FILES_AS_SOCKETS
-        case 'c':
-            config.create_empty = 1;
-            break;
-#endif
-        case 'n':
-            config.num_files = atoi(opt_arg);
-            status.fileNum = -1;
-            break;
-        }
+    if (!r->user) {
+        return AUTHZ_DENIED_NO_USER;
     }
 
-    if (rv != APR_EOF) {
-        usage(argv[0], NULL /* specific error message already issued */ );
+    if (!sec->have_ldap_url) {
+        return AUTHZ_DENIED;
+    }
+
+    if (sec->host) {
+        ldc = get_connection_for_authz(r, LDAP_COMPARE);
+        apr_pool_cleanup_register(r->pool, ldc,
+                                  authnz_ldap_cleanup_connection_close,
+                                  apr_pool_cleanup_null);
+    }
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01698)
+                      "auth_ldap authorize: no sec->host - weird...?");
+        return AUTHZ_DENIED;
     }
 
     /*
-     * After the initial flags we need 2 to 4 arguments,
-     * the file name, either the rotation interval time or size
-     * or both of them, and optionally the UTC offset.
+     * If we have been authenticated by some other module than mod_authnz_ldap,
+     * the req structure needed for authorization needs to be created
+     * and populated with the userid and DN of the account in LDAP
      */
-    if ((argc - opt->ind < 2) || (argc - opt->ind > 4) ) {
-        usage(argv[0], "Incorrect number of arguments");
+
+
+    if (!strlen(r->user)) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01699)
+            "ldap authorize: Userid is blank, AuthType=%s",
+            r->ap_auth_type);
     }
 
-    config.szLogRoot = argv[opt->ind++];
+    if(!req) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01700)
+            "ldap authorize: Creating LDAP req structure");
 
-    /* Read in the remaining flags, namely time, size and UTC offset. */
-    for(; opt->ind < argc; opt->ind++) {
-        if ((err = get_time_or_size(&config, argv[opt->ind],
-                                    opt->ind < argc - 1 ? 0 : 1)) != NULL) {
-            usage(argv[0], err);
+        req = (authn_ldap_request_t *)apr_pcalloc(r->pool,
+            sizeof(authn_ldap_request_t));
+
+        /* Build the username filter */
+        authn_ldap_build_filter(filtbuf, r, r->user, NULL, sec);
+
+        /* Search for the user DN */
+        result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
+             sec->scope, sec->attributes, filtbuf, &dn, &(req->vals));
+
+        /* Search failed, log error and return failure */
+        if(result != LDAP_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01701)
+                "auth_ldap authorise: User DN not found, %s", ldc->reason);
+            return AUTHZ_DENIED;
         }
+
+        ap_set_module_config(r->request_config, &authnz_ldap_module, req);
+        req->dn = apr_pstrdup(r->pool, dn);
+        req->user = r->user;
+
     }
 
-    config.use_strftime = (strchr(config.szLogRoot, '%') != NULL);
-
-    if (config.use_strftime && config.num_files > 0) { 
-        fprintf(stderr, "Cannot use -n with %% in filename\n");
-        exit(1);
+    if (req->dn == NULL || strlen(req->dn) == 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01702)
+                      "auth_ldap authorize: require user: user's DN has not "
+                      "been defined; failing authorization");
+        return AUTHZ_DENIED;
     }
 
-    if (status.fileNum == -1 && config.num_files < 1) { 
-        fprintf(stderr, "Invalid -n argument\n");
-        exit(1);
-    }
-
-    if (apr_file_open_stdin(&f_stdin, status.pool) != APR_SUCCESS) {
-        fprintf(stderr, "Unable to open stdin\n");
-        exit(1);
-    }
-
-    if (apr_file_open_stdout(&f_stdout, status.pool) != APR_SUCCESS) {
-        fprintf(stderr, "Unable to open stdout\n");
-        exit(1);
+    require = ap_expr_str_exec(r, expr, &err);
+    if (err) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02585)
+                      "auth_ldap authorize: require user: Can't evaluate expression: %s",
+                      err);
+        return AUTHZ_DENIED;
     }
 
     /*
-     * Write out result of config parsing if verbose is set.
+     * First do a whole-line compare, in case it's something like
+     *   require user Babs Jensen
      */
-    if (config.verbose) {
-        dumpConfig(&config);
+    result = util_ldap_cache_compare(r, ldc, sec->url, req->dn, sec->attribute, require);
+    switch(result) {
+        case LDAP_COMPARE_TRUE: {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01703)
+                          "auth_ldap authorize: require user: authorization "
+                          "successful");
+            set_request_vars(r, LDAP_AUTHZ);
+            return AUTHZ_GRANTED;
+        }
+        default: {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01704)
+                          "auth_ldap authorize: require user: "
+                          "authorization failed [%s][%s]",
+                          ldc->reason, ldap_err2string(result));
+        }
     }
-
-#if APR_FILES_AS_SOCKETS
-    if (config.create_empty && config.tRotation) {
-        pollfd.p = status.pool;
-        pollfd.desc_type = APR_POLL_FILE;
-        pollfd.reqevents = APR_POLLIN;
-        pollfd.desc.f = f_stdin;
-    }
-#endif
 
     /*
-     * Immediately open the logfile as we start, if we were forced
-     * to do so via '-f'.
+     * Now break apart the line and compare each word on it
      */
-    if (config.force_open) {
-        doRotate(&config, &status);
-    }
-
-    for (;;) {
-        nRead = sizeof(buf);
-#if APR_FILES_AS_SOCKETS
-        if (config.create_empty && config.tRotation) {
-            polltimeout = status.tLogEnd ? status.tLogEnd - get_now(&config) : config.tRotation;
-            if (polltimeout <= 0) {
-                pollret = APR_TIMEUP;
+    t = require;
+    while ((w = ap_getword_conf(r->pool, &t)) && w[0]) {
+        result = util_ldap_cache_compare(r, ldc, sec->url, req->dn, sec->attribute, w);
+        switch(result) {
+            case LDAP_COMPARE_TRUE: {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01705)
+                              "auth_ldap authorize: "
+                              "require user: authorization successful");
+                set_request_vars(r, LDAP_AUTHZ);
+                return AUTHZ_GRANTED;
             }
-            else {
-                pollret = apr_poll(&pollfd, 1, &pollret, apr_time_from_sec(polltimeout));
-            }
-        }
-        if (pollret == APR_SUCCESS) {
-            rv = apr_file_read(f_stdin, buf, &nRead);
-            if (APR_STATUS_IS_EOF(rv)) {
-                break;
-            }
-            else if (rv != APR_SUCCESS) {
-                exit(3);
-            }
-        }
-        else if (pollret == APR_TIMEUP) {
-            *buf = 0;
-            nRead = 0;
-        }
-        else {
-            fprintf(stderr, "Unable to poll stdin\n");
-            exit(5);
-        }
-#else /* APR_FILES_AS_SOCKETS */
-        rv = apr_file_read(f_stdin, buf, &nRead);
-        if (APR_STATUS_IS_EOF(rv)) {
-            break;
-        }
-        else if (rv != APR_SUCCESS) {
-            exit(3);
-        }
-#endif /* APR_FILES_AS_SOCKETS */
-        checkRotate(&config, &status);
-        if (status.rotateReason != ROTATE_NONE) {
-            doRotate(&config, &status);
-        }
-
-        nWrite = nRead;
-        rv = apr_file_write_full(status.current.fd, buf, nWrite, &nWrite);
-        if (nWrite != nRead) {
-            char strerrbuf[120];
-            apr_off_t cur_offset;
-
-            cur_offset = 0;
-            if (apr_file_seek(status.current.fd, APR_CUR, &cur_offset) != APR_SUCCESS) {
-                cur_offset = -1;
-            }
-            apr_strerror(rv, strerrbuf, sizeof strerrbuf);
-            status.nMessCount++;
-            apr_snprintf(status.errbuf, sizeof status.errbuf,
-                         "Error %d writing to log file at offset %" APR_OFF_T_FMT ". "
-                         "%10d messages lost (%s)\n",
-                         rv, cur_offset, status.nMessCount, strerrbuf);
-            nWrite = strlen(status.errbuf);
-            apr_file_trunc(status.current.fd, 0);
-            if (apr_file_write_full(status.current.fd, status.errbuf, nWrite, NULL) != APR_SUCCESS) {
-                fprintf(stderr, "Error writing to the file %s\n", status.current.name);
-                exit(2);
-            }
-        }
-        else {
-            status.nMessCount++;
-        }
-        if (config.echo) {
-            if (apr_file_write_full(f_stdout, buf, nRead, &nWrite)) {
-                fprintf(stderr, "Unable to write to stdout\n");
-                exit(4);
+            default: {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01706)
+                              "auth_ldap authorize: "
+                              "require user: authorization failed [%s][%s]",
+                              ldc->reason, ldap_err2string(result));
             }
         }
     }
 
-    return 0; /* reached only at stdin EOF. */
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01707)
+                  "auth_ldap authorize user: authorization denied for "
+                  "user %s to %s",
+                  r->user, r->uri);
+
+    return AUTHZ_DENIED;
 }

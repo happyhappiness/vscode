@@ -1,10 +1,10 @@
 fputs(
-"              URL decoded by libcurl. This allows you to pass in special char-\n"
-"              acters such as @ by using %40 or pass in a colon with %3a.\n"
+"              url_effective  The URL that was fetched last. This is most mean-\n"
+"                             ingful if you've told curl  to  follow  location:\n"
+"                             headers.\n"
 "\n"
-"              The  proxy host can be specified the exact same way as the proxy\n"
-"              environment variables, including the protocol  prefix  (http://)\n"
-"              and the embedded user + password.\n"
-"\n"
-"              From  7.21.7,  the  proxy  string may be specified with a proto-\n"
+"              filename_effective\n"
+"                             The  ultimate  filename  that curl writes out to.\n"
+"                             This is only meaningful if curl is told to  write\n"
+"                             to  a  file  with  the  --remote-name or --output\n"
 , stdout);

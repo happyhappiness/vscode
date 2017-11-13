@@ -1,49 +1,17 @@
-static void check_aliased_update(struct command *cmd, struct string_list *list)
+static void flush_one_pair(struct diff_filepair *p, struct diff_options *opt)
 {
-	struct strbuf buf = STRBUF_INIT;
-	const char *dst_name;
-	struct string_list_item *item;
-	struct command *dst_cmd;
-	unsigned char sha1[GIT_SHA1_RAWSZ];
-	int flag;
+	int fmt = opt->output_format;
 
-	strbuf_addf(&buf, "%s%s", get_git_namespace(), cmd->ref_name);
-	dst_name = resolve_ref_unsafe(buf.buf, 0, sha1, &flag);
-	strbuf_release(&buf);
-
-	if (!(flag & REF_ISSYMREF))
-		return;
-
-	if (!dst_name) {
-		rp_error("refusing update to broken symref '%s'", cmd->ref_name);
-		cmd->skip_update = 1;
-		cmd->error_string = "broken symref";
-		return;
+	if (fmt & DIFF_FORMAT_CHECKDIFF)
+		diff_flush_checkdiff(p, opt);
+	else if (fmt & (DIFF_FORMAT_RAW | DIFF_FORMAT_NAME_STATUS))
+		diff_flush_raw(p, opt);
+	else if (fmt & DIFF_FORMAT_NAME) {
+		const char *name_a, *name_b;
+		name_a = p->two->path;
+		name_b = NULL;
+		strip_prefix(opt->prefix_length, &name_a, &name_b);
+		fprintf(opt->file, "%s", diff_line_prefix(opt));
+		write_name_quoted(name_a, opt->file, opt->line_termination);
 	}
-	dst_name = strip_namespace(dst_name);
-
-	if ((item = string_list_lookup(list, dst_name)) == NULL)
-		return;
-
-	cmd->skip_update = 1;
-
-	dst_cmd = (struct command *) item->util;
-
-	if (!hashcmp(cmd->old_sha1, dst_cmd->old_sha1) &&
-	    !hashcmp(cmd->new_sha1, dst_cmd->new_sha1))
-		return;
-
-	dst_cmd->skip_update = 1;
-
-	rp_error("refusing inconsistent update between symref '%s' (%s..%s) and"
-		 " its target '%s' (%s..%s)",
-		 cmd->ref_name,
-		 find_unique_abbrev(cmd->old_sha1, DEFAULT_ABBREV),
-		 find_unique_abbrev(cmd->new_sha1, DEFAULT_ABBREV),
-		 dst_cmd->ref_name,
-		 find_unique_abbrev(dst_cmd->old_sha1, DEFAULT_ABBREV),
-		 find_unique_abbrev(dst_cmd->new_sha1, DEFAULT_ABBREV));
-
-	cmd->error_string = dst_cmd->error_string =
-		"inconsistent aliased update";
 }

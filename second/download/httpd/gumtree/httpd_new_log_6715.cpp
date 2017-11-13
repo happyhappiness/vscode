@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ap_server_conf, APLOGNO(02538)
-                         "Child: Parent process exited abruptly. Child process "
-                         "is ending");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03446)
+                          "HTTP Request Line; Missing URI");

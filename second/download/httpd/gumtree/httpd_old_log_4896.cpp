@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "Remove it before continuing if it is corrupted.");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "stapling_cb: retrieved cached certificate data");

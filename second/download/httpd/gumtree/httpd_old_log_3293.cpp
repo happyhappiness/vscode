@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "apr_brigade_partition() failed on kept_body at %" APR_OFF_T_FMT, ctx->offset);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "access to %s failed, reason: ip address list does not meet "
+                  "'require'ments for user '%s' to be allowed access",
+                  r->uri, r->user);

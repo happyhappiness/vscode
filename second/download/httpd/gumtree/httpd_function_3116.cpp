@@ -1,22 +1,51 @@
-static int dav_get_overwrite(request_rec *r)
+static client_entry *add_client(unsigned long key, client_entry *info,
+                                server_rec *s)
 {
-    const char *overwrite = apr_table_get(r->headers_in, "Overwrite");
+    int bucket;
+    client_entry *entry;
 
-    if (overwrite == NULL) {
-        return 1; /* default is "T" */
+
+    if (!key || !client_shm) {
+        return NULL;
     }
 
-    if ((*overwrite == 'F' || *overwrite == 'f') && overwrite[1] == '\0') {
-        return 0;
+    bucket = key % client_list->tbl_len;
+
+    apr_global_mutex_lock(client_lock);
+
+    /* try to allocate a new entry */
+
+    entry = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(client_entry)));
+    if (!entry) {
+        long num_removed = gc();
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                     "Digest: gc'd %ld client entries. Total new clients: "
+                     "%ld; Total removed clients: %ld; Total renewed clients: "
+                     "%ld", num_removed,
+                     client_list->num_created - client_list->num_renewed,
+                     client_list->num_removed, client_list->num_renewed);
+        entry = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(client_entry)));
+        if (!entry) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                         "unable to allocate new auth_digest client");
+            apr_global_mutex_unlock(client_lock);
+            return NULL;       /* give up */
+        }
     }
 
-    if ((*overwrite == 'T' || *overwrite == 't') && overwrite[1] == '\0') {
-        return 1;
-    }
+    /* now add the entry */
 
-    /* The caller will return an HTTP_BAD_REQUEST. This will augment the
-     * default message that Apache provides. */
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                  "An invalid Overwrite header was specified.");
-    return -1;
+    memcpy(entry, info, sizeof(client_entry));
+    entry->key  = key;
+    entry->next = client_list->table[bucket];
+    client_list->table[bucket] = entry;
+    client_list->num_created++;
+    client_list->num_entries++;
+
+    apr_global_mutex_unlock(client_lock);
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "allocated new client %lu", key);
+
+    return entry;
 }

@@ -1,2 +1,2 @@
-die("BUG: ref_store for submodule '%s' initialized twice",
-			    submodule);
+error(_("missing notes on source object %s. Cannot "
+			       "copy."), sha1_to_hex(from_obj));

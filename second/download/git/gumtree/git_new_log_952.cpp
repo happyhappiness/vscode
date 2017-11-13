@@ -1,1 +1,1 @@
-child_die(CHILD_ERR_ERRNO);
+die(_("invalid date format: %s"), date_str);

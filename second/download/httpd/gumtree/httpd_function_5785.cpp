@@ -1,107 +1,148 @@
-apr_status_t h2_mplx_release_and_join(h2_mplx *m, apr_thread_cond_t *wait)
+apr_status_t h2_session_process(h2_session *session)
 {
-    apr_status_t status;
-    int acquired;
-
-    h2_workers_unregister(m->workers, m);
+    apr_status_t status = APR_SUCCESS;
+    int rv = 0;
+    apr_interval_time_t wait_micros = 0;
+    static const int MAX_WAIT_MICROS = 200 * 1000;
     
-    if ((status = enter_mutex(m, &acquired)) == APR_SUCCESS) {
-        int i, wait_secs = 5;
-
-        if (!h2_ihash_empty(m->streams) && APLOGctrace1(m->c)) {
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
-                          "h2_mplx(%ld): release_join with %d streams open, "
-                          "%d streams resume, %d streams ready, %d tasks", 
-                          m->id, (int)h2_ihash_count(m->streams),
-                          (int)h2_ihash_count(m->sresume), 
-                          (int)h2_ihash_count(m->sready), 
-                          (int)h2_ihash_count(m->tasks));
-            h2_ihash_iter(m->streams, report_stream_iter, m);
-        }
-        
-        /* disable WINDOW_UPDATE callbacks */
-        h2_mplx_set_consumed_cb(m, NULL, NULL);
-        
-        if (!h2_ihash_empty(m->shold)) {
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
-                          "h2_mplx(%ld): start release_join with %d streams in hold", 
-                          m->id, (int)h2_ihash_count(m->shold));
-        }
-        if (!h2_ihash_empty(m->spurge)) {
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
-                          "h2_mplx(%ld): start release_join with %d streams to purge", 
-                          m->id, (int)h2_ihash_count(m->spurge));
-        }
-        
-        h2_iq_clear(m->q);
-        apr_thread_cond_broadcast(m->task_thawed);
-        while (!h2_ihash_iter(m->streams, stream_done_iter, m)) {
-            /* iterate until all streams have been removed */
-        }
-        AP_DEBUG_ASSERT(h2_ihash_empty(m->streams));
+    /* Start talking to the client. Apart from protocol meta data,
+     * we mainly will see new http/2 streams opened by the client, which
+     * basically are http requests we need to dispatch.
+     *
+     * There will be bursts of new streams, to be served concurrently,
+     * followed by long pauses of no activity.
+     *
+     * Since the purpose of http/2 is to allow siumultaneous streams, we
+     * need to dispatch the handling of each stream into a separate worker
+     * thread, keeping this thread open for sending responses back as
+     * soon as they arrive.
+     * At the same time, we need to continue reading new frames from
+     * our client, which may be meta (WINDOWS_UPDATEs, PING, SETTINGS) or
+     * new streams.
+     *
+     * As long as we have streams open in this session, we cannot really rest
+     * since there are two conditions to wait on: 1. new data from the client,
+     * 2. new data from the open streams to send back.
+     *
+     * Only when we have no more streams open, can we do a blocking read
+     * on our connection.
+     *
+     * TODO: implement graceful GO_AWAY after configurable idle time
+     */
     
-        if (!h2_ihash_empty(m->shold)) {
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
-                          "h2_mplx(%ld): 2. release_join with %d streams in hold", 
-                          m->id, (int)h2_ihash_count(m->shold));
+    ap_update_child_status_from_conn(session->c->sbh, SERVER_BUSY_READ, 
+                                     session->c);
+
+    if (APLOGctrace2(session->c)) {
+        ap_filter_t *filter = session->c->input_filters;
+        while (filter) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                          "h2_conn(%ld), has connection filter %s",
+                          session->id, filter->frec->name);
+            filter = filter->next;
         }
-        if (!h2_ihash_empty(m->spurge)) {
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
-                          "h2_mplx(%ld): 2. release_join with %d streams to purge", 
-                          m->id, (int)h2_ihash_count(m->spurge));
-        }
+    }
+    
+    status = h2_session_start(session, &rv);
+    
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
+                  "h2_session(%ld): starting on %s:%d", session->id,
+                  session->c->base_server->defn_name,
+                  session->c->local_addr->port);
+    if (status != APR_SUCCESS) {
+        h2_session_abort(session, status, rv);
+        h2_session_destroy(session);
+        return status;
+    }
+    
+    while (!h2_session_is_done(session)) {
+        int have_written = 0;
+        int have_read = 0;
+        int got_streams;
         
-        /* If we still have busy workers, we cannot release our memory
-         * pool yet, as tasks have references to us.
-         * Any operation on the task slave connection will from now on
-         * be errored ECONNRESET/ABORTED, so processing them should fail 
-         * and workers *should* return in a timely fashion.
-         */
-        for (i = 0; m->workers_busy > 0; ++i) {
-            h2_ihash_iter(m->tasks, task_abort_connection, m);
-            
-            m->join_wait = wait;
-            status = apr_thread_cond_timedwait(wait, m->lock, apr_time_from_sec(wait_secs));
-            
-            if (APR_STATUS_IS_TIMEUP(status)) {
-                if (i > 0) {
-                    /* Oh, oh. Still we wait for assigned  workers to report that 
-                     * they are done. Unless we have a bug, a worker seems to be hanging. 
-                     * If we exit now, all will be deallocated and the worker, once 
-                     * it does return, will walk all over freed memory...
-                     */
-                    ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, APLOGNO(03198)
-                                  "h2_mplx(%ld): release, waiting for %d seconds now for "
-                                  "%d h2_workers to return, have still %d tasks outstanding", 
-                                  m->id, i*wait_secs, m->workers_busy,
-                                  (int)h2_ihash_count(m->tasks));
-                    if (i == 1) {
-                        h2_ihash_iter(m->tasks, task_print, m);
-                    }
-                }
-                h2_mplx_abort(m);
-                apr_thread_cond_broadcast(m->task_thawed);
+        status = h2_session_write(session, wait_micros);
+        if (status == APR_SUCCESS) {
+            have_written = 1;
+            wait_micros = 0;
+        }
+        else if (status == APR_EAGAIN) {
+            /* nop */
+        }
+        else if (status == APR_TIMEUP) {
+            wait_micros *= 2;
+            if (wait_micros > MAX_WAIT_MICROS) {
+                wait_micros = MAX_WAIT_MICROS;
             }
         }
-        
-        AP_DEBUG_ASSERT(h2_ihash_empty(m->shold));
-        if (!h2_ihash_empty(m->spurge)) {
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
-                          "h2_mplx(%ld): 3. release_join %d streams to purge", 
-                          m->id, (int)h2_ihash_count(m->spurge));
-            purge_streams(m);
+        else {
+            ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, session->c,
+                          "h2_session(%ld): writing, terminating",
+                          session->id);
+            h2_session_abort(session, status, 0);
+            break;
         }
-        AP_DEBUG_ASSERT(h2_ihash_empty(m->spurge));
         
-        if (!h2_ihash_empty(m->tasks)) {
-            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, APLOGNO(03056)
-                          "h2_mplx(%ld): release_join -> destroy, "
-                          "%d tasks still present", 
-                          m->id, (int)h2_ihash_count(m->tasks));
+        /* We would like to do blocking reads as often as possible as they
+         * are more efficient in regard to server resources.
+         * We can do them under the following circumstances:
+         * - we have no open streams and therefore have nothing to write
+         * - we have just started the session and are waiting for the first
+         *   two frames to come in. There will always be at least 2 frames as
+         *   * h2 will send SETTINGS and SETTINGS-ACK
+         *   * h2c will count the header settings as one frame and we
+         *     submit our settings and need the ACK.
+         */
+        got_streams = !h2_stream_set_is_empty(session->streams);
+        status = h2_session_read(session, 
+                                 (!got_streams 
+                                  || session->frames_received <= 1)?
+                                 APR_BLOCK_READ : APR_NONBLOCK_READ);
+        switch (status) {
+            case APR_SUCCESS:       /* successful read, reset our idle timers */
+                have_read = 1;
+                wait_micros = 0;
+                break;
+            case APR_EAGAIN:              /* non-blocking read, nothing there */
+                break;
+            case APR_EBADF:               /* connection is not there any more */
+            case APR_EOF:
+            case APR_ECONNABORTED:
+            case APR_ECONNRESET:
+            case APR_TIMEUP:                       /* blocked read, timed out */
+                ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, session->c,
+                              "h2_session(%ld): reading",
+                              session->id);
+                h2_session_abort(session, status, 0);
+                break;
+            default:
+                ap_log_cerror( APLOG_MARK, APLOG_INFO, status, session->c,
+                              APLOGNO(02950) 
+                              "h2_session(%ld): error reading, terminating",
+                              session->id);
+                h2_session_abort(session, status, 0);
+                break;
         }
-        leave_mutex(m, acquired);
-        h2_mplx_destroy(m);
-        /* all gone */
+        
+        if (!have_read && !have_written
+            && !h2_stream_set_is_empty(session->streams)) {
+            /* Nothing to read or write, we have streams, but
+             * the have no data yet ready to be delivered. Slowly
+             * back off to give others a chance to do their work.
+             */
+            if (wait_micros == 0) {
+                wait_micros = 10;
+            }
+        }
     }
-    return status;
+    
+    ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, session->c,
+                  "h2_session(%ld): done", session->id);
+    
+    ap_update_child_status_from_conn(session->c->sbh, SERVER_CLOSING, 
+                                     session->c);
+
+    h2_session_close(session);
+    h2_session_destroy(session);
+    
+    return DONE;
 }

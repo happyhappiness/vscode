@@ -1,2 +1,1 @@
-fprintf(FINFO,"parent=%d child=%d sender=%d recurse=%d\n",
-	      (int)getpid(),pid,sender,recurse);
+fprintf(FERROR,"skipping non-regular file %s\n",fname);

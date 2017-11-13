@@ -1,1 +1,1 @@
-error("lstat(%s): %s", ce->name, strerror(errno));
+error(_("branch '%s' does not point at a commit"), refname);

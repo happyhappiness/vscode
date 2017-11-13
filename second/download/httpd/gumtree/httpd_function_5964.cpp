@@ -1,27 +1,78 @@
-static void make_chunk(h2_task *task, apr_bucket_brigade *bb, 
-                       apr_bucket *first, apr_off_t chunk_len, 
-                       apr_bucket *tail)
+static apr_status_t handle_exec(include_ctx_t *ctx, ap_filter_t *f,
+                                apr_bucket_brigade *bb)
 {
-    /* Surround the buckets [first, tail[ with new buckets carrying the
-     * HTTP/1.1 chunked encoding format. If tail is NULL, the chunk extends
-     * to the end of the brigade. */
-    char buffer[128];
-    apr_bucket *c;
-    int len;
-    
-    len = apr_snprintf(buffer, H2_ALEN(buffer), 
-                       "%"APR_UINT64_T_HEX_FMT"\r\n", (apr_uint64_t)chunk_len);
-    c = apr_bucket_heap_create(buffer, len, NULL, bb->bucket_alloc);
-    APR_BUCKET_INSERT_BEFORE(first, c);
-    c = apr_bucket_heap_create("\r\n", 2, NULL, bb->bucket_alloc);
-    if (tail) {
-        APR_BUCKET_INSERT_BEFORE(tail, c);
+    char *tag = NULL;
+    char *tag_val = NULL;
+    request_rec *r = f->r;
+    char *file = r->filename;
+    char parsed_string[MAX_STRING_LEN];
+
+    if (!ctx->argc) {
+        ap_log_rerror(APLOG_MARK,
+                      (ctx->flags & SSI_FLAG_PRINTING)
+                          ? APLOG_ERR : APLOG_WARNING,
+                      0, r, "missing argument for exec element in %s",
+                      r->filename);
     }
-    else {
-        APR_BRIGADE_INSERT_TAIL(bb, c);
+
+    if (!(ctx->flags & SSI_FLAG_PRINTING)) {
+        return APR_SUCCESS;
     }
-    task->input.chunked_total += chunk_len;
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, task->c,
-                  "h2_task(%s): added chunk %ld, total %ld", 
-                  task->id, (long)chunk_len, (long)task->input.chunked_total);
+
+    if (!ctx->argc) {
+        SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+        return APR_SUCCESS;
+    }
+
+    if (ctx->flags & SSI_FLAG_NO_EXEC) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01228) "exec used but not allowed "
+                      "in %s", r->filename);
+        SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+        return APR_SUCCESS;
+    }
+
+    while (1) {
+        cgi_pfn_gtv(ctx, &tag, &tag_val, SSI_VALUE_DECODED);
+        if (!tag || !tag_val) {
+            break;
+        }
+
+        if (!strcmp(tag, "cmd")) {
+            apr_status_t rv;
+
+            cgi_pfn_ps(ctx, tag_val, parsed_string, sizeof(parsed_string),
+                       SSI_EXPAND_LEAVE_NAME);
+
+            rv = include_cmd(ctx, f, bb, parsed_string);
+            if (rv != APR_SUCCESS) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01229) "execution failure "
+                              "for parameter \"%s\" to tag exec in file %s",
+                              tag, r->filename);
+                SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+                break;
+            }
+        }
+        else if (!strcmp(tag, "cgi")) {
+            apr_status_t rv;
+
+            cgi_pfn_ps(ctx, tag_val, parsed_string, sizeof(parsed_string),
+                       SSI_EXPAND_DROP_NAME);
+
+            rv = include_cgi(ctx, f, bb, parsed_string);
+            if (rv != APR_SUCCESS) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01230) "invalid CGI ref "
+                              "\"%s\" in %s", tag_val, file);
+                SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+                break;
+            }
+        }
+        else {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01231) "unknown parameter "
+                          "\"%s\" to tag exec in %s", tag, file);
+            SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+            break;
+        }
+    }
+
+    return APR_SUCCESS;
 }

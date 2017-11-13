@@ -1,10 +1,10 @@
 fputs(
-"              # curl -H \"X-First-Name: Joe\" http://example.com/\n"
+"              ing. Use this in preference to --form if there's any possibility\n"
+"              that  the  string  value may accidentally trigger the '@' or '<'\n"
+"              features of --form.\n"
 "\n"
-"              WARNING:  headers  set  with  this  option  will  be  set in all\n"
-"              requests - even after redirects are  followed,  like  when  told\n"
-"              with  -L,  --location. This can lead to the header being sent to\n"
-"              other hosts than the original host, so sensitive headers  should\n"
-"              be used with caution combined with following redirects.\n"
-"\n"
+"       -g, --globoff\n"
+"              This option switches off the \"URL globbing parser\". When you set\n"
+"              this  option, you can specify URLs that contain the letters {}[]\n"
+"              without having them being interpreted by curl itself. Note  that\n"
 , stdout);

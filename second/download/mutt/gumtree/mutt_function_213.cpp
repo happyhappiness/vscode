@@ -1,253 +1,126 @@
-static void print_key_info (gpgme_key_t key, FILE *fp)
+static int verify_one (BODY *sigbdy, STATE *s,
+                       const char *tempfile, int is_smime)
 {
-  int idx;
-  const char *s = NULL, *s2 = NULL;
-  time_t tt = 0;
-  struct tm *tm;
-  char shortbuf[SHORT_STRING];
-  unsigned long aval = 0;
-  const char *delim;
-  int is_pgp = 0;
-  int i;
-  gpgme_user_id_t uid = NULL;
+  int badsig = -1;
+  int anywarn = 0;
+  int err;
+  gpgme_ctx_t ctx;
+  gpgme_data_t signature, message;
 
-  is_pgp = key->protocol == GPGME_PROTOCOL_OpenPGP;
+  signature = file_to_data_object (s->fpin, sigbdy->offset, sigbdy->length);
+  if (!signature)
+    return -1;
 
-  for (idx = 0, uid = key->uids; uid; idx++, uid = uid->next)
+  /* We need to tell gpgme about the encoding because the backend can't
+     auto-detect plain base-64 encoding which is used by S/MIME. */
+  if (is_smime)
+    gpgme_data_set_encoding (signature, GPGME_DATA_ENCODING_BASE64);
+
+  err = gpgme_data_new_from_file (&message, tempfile, 1);
+  if (err) 
     {
-      if (uid->revoked)
-        continue;
-
-      s = uid->uid;
-      /* L10N:
-         Fill dots to make the DOTFILL entries the same length.
-         In English, msgid "Fingerprint: " is the longest entry for this menu.
-         Your language may vary. */
-      fputs (idx ? _(" aka ......: ") :_("Name ......: "), fp);
-      if (uid->invalid)
-        {
-          fputs (_("[Invalid]"), fp);
-          putc (' ', fp);
-        }
-      if (is_pgp)
-        print_utf8 (fp, s, strlen(s));
-      else
-        parse_and_print_user_id (fp, s);
-      putc ('\n', fp);
+      gpgme_data_release (signature);
+      mutt_error (_("error allocating data object: %s\n"), gpgme_strerror (err));
+      return -1;
     }
+  ctx = create_gpgme_context (is_smime);
 
-  if (key->subkeys && (key->subkeys->timestamp > 0))
-    {
-      tt = key->subkeys->timestamp;
+  /* Note: We don't need a current time output because GPGME avoids
+     such an attack by separating the meta information from the
+     data. */
+  state_attach_puts (_("[-- Begin signature information --]\n"), s);
 
-      tm = localtime (&tt);
-#ifdef HAVE_LANGINFO_D_T_FMT
-      strftime (shortbuf, sizeof shortbuf, nl_langinfo (D_T_FMT), tm);
-#else
-      strftime (shortbuf, sizeof shortbuf, "%c", tm);
-#endif
-      /* L10N: DOTFILL */
-      fprintf (fp, _("Valid From : %s\n"), shortbuf);
-    }
-  
-  if (key->subkeys && (key->subkeys->expires > 0))
+  err = gpgme_op_verify (ctx, signature, message, NULL);
+  gpgme_data_release (message);
+  gpgme_data_release (signature);
+
+  mutt_need_hard_redraw ();
+  if (err)
     {
-      tt = key->subkeys->expires;
+      char buf[200];
       
-      tm = localtime (&tt);
-#ifdef HAVE_LANGINFO_D_T_FMT
-      strftime (shortbuf, sizeof shortbuf, nl_langinfo (D_T_FMT), tm);
-#else
-      strftime (shortbuf, sizeof shortbuf, "%c", tm);
-#endif
-      /* L10N: DOTFILL */
-      fprintf (fp, _("Valid To ..: %s\n"), shortbuf);
+      snprintf (buf, sizeof(buf)-1, 
+                _("Error: verification failed: %s\n"),
+                gpgme_strerror (err));
+      state_attach_puts (buf, s);
     }
-
-  if (key->subkeys)
-    s = gpgme_pubkey_algo_name (key->subkeys->pubkey_algo);
   else
-    s = "?";
+    { /* Verification succeeded, see what the result is. */
+      int res, idx;
+      int anybad = 0;
 
-  s2 = is_pgp ? "PGP" : "X.509";
-
-  if (key->subkeys)
-    aval = key->subkeys->length;
-
-  /* L10N: DOTFILL */
-  fprintf (fp, _("Key Type ..: %s, %lu bit %s\n"), s2, aval, s);
-
-  /* L10N: DOTFILL */
-  fprintf (fp, _("Key Usage .: "));
-  delim = "";
-
-  if (key_check_cap (key, KEY_CAP_CAN_ENCRYPT))
-    {
-      fprintf (fp, "%s%s", delim, _("encryption"));
-      delim = _(", ");
-    }
-  if (key_check_cap (key, KEY_CAP_CAN_SIGN))
-    {
-      fprintf (fp, "%s%s", delim, _("signing"));
-      delim = _(", ");
-    }
-  if (key_check_cap (key, KEY_CAP_CAN_CERTIFY))
-    {
-      fprintf (fp, "%s%s", delim, _("certification"));
-      delim = _(", ");
-    }
-  putc ('\n', fp);
-
-  if (key->subkeys)
-    {
-      s = key->subkeys->fpr;
-      /* L10N: DOTFILL */
-      fputs (_("Fingerprint: "), fp);
-      if (is_pgp && strlen (s) == 40)
-        {
-          for (i=0; *s && s[1] && s[2] && s[3] && s[4]; s += 4, i++)
-            {
-              putc (*s, fp);
-              putc (s[1], fp);
-              putc (s[2], fp);
-              putc (s[3], fp);
-              putc (is_pgp? ' ':':', fp);
-              if (is_pgp && i == 4)
-                putc (' ', fp);
-            }
-        }
-      else
-        {
-          for (i=0; *s && s[1] && s[2]; s += 2, i++)
-            {
-              putc (*s, fp);
-              putc (s[1], fp);
-              putc (is_pgp? ' ':':', fp);
-              if (is_pgp && i == 7)
-                putc (' ', fp);
-            }
-        }
-      fprintf (fp, "%s\n", s);
-    }
-
-  if (key->issuer_serial)
-    {
-      s = key->issuer_serial;
-      if (s)
-        /* L10N: DOTFILL */
-	fprintf (fp, _("Serial-No .: 0x%s\n"), s);
-    }
-
-  if (key->issuer_name)
-    {
-      s = key->issuer_name;
-      if (s)
+      if (signature_key)
 	{
-          /* L10N: DOTFILL */
-	  fprintf (fp, _("Issued By .: "));
-	  parse_and_print_user_id (fp, s);
-	  putc ('\n', fp);
+	  gpgme_key_unref (signature_key);
+	  signature_key = NULL;
 	}
-    }
 
-  /* For PGP we list all subkeys. */
-  if (is_pgp)
-    {
-      gpgme_subkey_t subkey = NULL;
-
-      for (idx = 1, subkey = key->subkeys; subkey;
-           idx++, subkey = subkey->next)
+      for(idx=0; (res = show_one_sig_status (ctx, idx, s)) != -1; idx++)
         {
-	  s = subkey->keyid;
-	  
-          putc ('\n', fp);
-          if ( strlen (s) == 16)
-            s += 8; /* display only the short keyID */
-          /* L10N: DOTFILL */
-          fprintf (fp, _("Subkey ....: 0x%s"), s);
-	  if (subkey->revoked)
-            {
-              putc (' ', fp);
-              fputs (_("[Revoked]"), fp);
-            }
-	  if (subkey->invalid)
-            {
-              putc (' ', fp);
-              fputs (_("[Invalid]"), fp);
-            }
-	  if (subkey->expired)
-            {
-              putc (' ', fp);
-              fputs (_("[Expired]"), fp);
-            }
-	  if (subkey->disabled)
-            {
-              putc (' ', fp);
-              fputs (_("[Disabled]"), fp);
-            }
-          putc ('\n', fp);
-
-	  if (subkey->timestamp > 0)
-	    {
-	      tt = subkey->timestamp;
-
-              tm = localtime (&tt);
-#ifdef HAVE_LANGINFO_D_T_FMT
-              strftime (shortbuf, sizeof shortbuf, nl_langinfo (D_T_FMT), tm);
-#else
-              strftime (shortbuf, sizeof shortbuf, "%c", tm);
-#endif
-              /* L10N: DOTFILL */
-              fprintf (fp, _("Valid From : %s\n"), shortbuf);
-            }
-
-	  if (subkey->expires > 0)
-	    {
-	      tt = subkey->expires;
-
-              tm = localtime (&tt);
-#ifdef HAVE_LANGINFO_D_T_FMT
-              strftime (shortbuf, sizeof shortbuf, nl_langinfo (D_T_FMT), tm);
-#else
-              strftime (shortbuf, sizeof shortbuf, "%c", tm);
-#endif
-              /* L10N: DOTFILL */
-              fprintf (fp, _("Valid To ..: %s\n"), shortbuf);
-            }
-
-	  if (subkey)
-	    s = gpgme_pubkey_algo_name (subkey->pubkey_algo);
-	  else
-            s = "?";
-
-	  if (subkey)
-	    aval = subkey->length;
-	  else
-	    aval = 0;
-
-          /* L10N: DOTFILL */
-          fprintf (fp, _("Key Type ..: %s, %lu bit %s\n"), "PGP", aval, s);
-
-          /* L10N: DOTFILL */
-          fprintf (fp, _("Key Usage .: "));
-          delim = "";
-
-	  if (subkey->can_encrypt)
-            {
-              fprintf (fp, "%s%s", delim, _("encryption"));
-              delim = _(", ");
-            }
-          if (subkey->can_sign)
-            {
-              fprintf (fp, "%s%s", delim, _("signing"));
-              delim = _(", ");
-            }
-          if (subkey->can_certify)
-            {
-              fprintf (fp, "%s%s", delim, _("certification"));
-              delim = _(", ");
-            }
-          putc ('\n', fp);
+          if (res == 1)
+            anybad = 1;
+          else if (res == 2)
+            anywarn = 2;
         }
+      if (!anybad)
+        badsig = 0;
     }
+
+  if (!badsig)
+    {
+      gpgme_verify_result_t result;
+      gpgme_sig_notation_t notation;
+      gpgme_signature_t signature;
+      int non_pka_notations;
+
+      result = gpgme_op_verify_result (ctx);
+      if (result)
+      {
+	for (signature = result->signatures; signature;
+             signature = signature->next)
+	{
+	  non_pka_notations = 0;
+	  for (notation = signature->notations; notation;
+	       notation = notation->next)
+	    if (! is_pka_notation (notation))
+	      non_pka_notations++;
+
+	  if (non_pka_notations)
+	  {
+	    char buf[SHORT_STRING];
+	    snprintf (buf, sizeof (buf),
+		      _("*** Begin Notation (signature by: %s) ***\n"),
+		      signature->fpr);
+	    state_attach_puts (buf, s);
+	    for (notation = signature->notations; notation;
+                 notation = notation->next)
+	    {
+	      if (is_pka_notation (notation))
+		continue;
+
+	      if (notation->name)
+	      {
+		state_attach_puts (notation->name, s);
+		state_attach_puts ("=", s);
+	      }
+	      if (notation->value)
+	      {
+		state_attach_puts (notation->value, s);
+		if (!(*notation->value
+                      && (notation->value[strlen (notation->value)-1]=='\n')))
+		  state_attach_puts ("\n", s);
+	      }
+	    }
+	    state_attach_puts (_("*** End Notation ***\n"), s);
+	  }
+	}
+      }
+    }
+
+  gpgme_release (ctx);
+  
+  state_attach_puts (_("[-- End signature information --]\n\n"), s);
+  dprint (1, (debugfile, "verify_one: returning %d.\n", badsig));
+  
+  return badsig? 1: anywarn? 2 : 0;
 }

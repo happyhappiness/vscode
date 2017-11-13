@@ -1,78 +1,37 @@
-apr_status_t h2_response_output_filter(ap_filter_t *f, apr_bucket_brigade *bb)
+static void wd_child_init_hook(apr_pool_t *p, server_rec *s)
 {
-    h2_task *task = f->ctx;
-    h2_from_h1 *from_h1 = task->output.from_h1;
-    request_rec *r = f->r;
-    apr_bucket *b;
-    ap_bucket_error *eb = NULL;
+    apr_status_t rv = OK;
+    const apr_array_header_t *wl;
 
-    AP_DEBUG_ASSERT(from_h1 != NULL);
-    
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                  "h2_from_h1(%d): output_filter called", from_h1->stream_id);
-    
-    if (r->header_only && from_h1->response) {
-        /* throw away any data after we have compiled the response */
-        apr_brigade_cleanup(bb);
-        return OK;
-    }
-    
-    for (b = APR_BRIGADE_FIRST(bb);
-         b != APR_BRIGADE_SENTINEL(bb);
-         b = APR_BUCKET_NEXT(b))
-    {
-        if (AP_BUCKET_IS_ERROR(b) && !eb) {
-            eb = b->data;
-            continue;
-        }
-        /*
-         * If we see an EOC bucket it is a signal that we should get out
-         * of the way doing nothing.
+    if (!wd_server_conf->child_workers) {
+        /* We don't have anything configured, bail out.
          */
-        if (AP_BUCKET_IS_EOC(b)) {
-            ap_remove_output_filter(f);
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, f->c,
-                          "h2_from_h1(%d): eoc bucket passed", 
-                          from_h1->stream_id);
-            return ap_pass_brigade(f->next, bb);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, s, APLOGNO(02980)
+                     "Watchdog: nothing configured?");
+        return;
+    }
+    if ((wl = ap_list_provider_names(p, AP_WATCHDOG_PGROUP,
+                                        AP_WATCHDOG_CVERSION))) {
+        const ap_list_provider_names_t *wn;
+        int i;
+        wn = (ap_list_provider_names_t *)wl->elts;
+        for (i = 0; i < wl->nelts; i++) {
+            ap_watchdog_t *w = ap_lookup_provider(AP_WATCHDOG_PGROUP,
+                                                  wn[i].provider_name,
+                                                  AP_WATCHDOG_CVERSION);
+            if (w && w->active) {
+                /* We have some callbacks registered.
+                 * Kick of the watchdog
+                 */
+                if ((rv = wd_startup(w, wd_server_conf->pool)) != APR_SUCCESS) {
+                    ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(01573)
+                                 "Watchdog: Failed to create worker thread.");
+                    /* No point to continue */
+                    return;
+                }
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, s, APLOGNO(02981)
+                             "Watchdog: Created worker thread (%s).", wn[i].provider_name);
+            }
         }
     }
-    
-    if (eb) {
-        int st = eb->status;
-        apr_brigade_cleanup(bb);
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c, APLOGNO(03047)
-                      "h2_from_h1(%d): err bucket status=%d", 
-                      from_h1->stream_id, st);
-        ap_die(st, r);
-        return AP_FILTER_ERROR;
-    }
-    
-    from_h1->response = create_response(from_h1, r);
-    if (from_h1->response == NULL) {
-        ap_log_cerror(APLOG_MARK, APLOG_NOTICE, 0, f->c, APLOGNO(03048)
-                      "h2_from_h1(%d): unable to create response", 
-                      from_h1->stream_id);
-        return APR_ENOMEM;
-    }
-    
-    if (r->header_only) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                      "h2_from_h1(%d): header_only, cleanup output brigade", 
-                      from_h1->stream_id);
-        apr_brigade_cleanup(bb);
-        return OK;
-    }
-    
-    r->sent_bodyct = 1;         /* Whatever follows is real body stuff... */
-    
-    ap_remove_output_filter(f);
-    if (APLOGctrace1(f->c)) {
-        apr_off_t len = 0;
-        apr_brigade_length(bb, 0, &len);
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                      "h2_from_h1(%d): removed header filter, passing brigade "
-                      "len=%ld", from_h1->stream_id, (long)len);
-    }
-    return ap_pass_brigade(f->next, bb);
 }

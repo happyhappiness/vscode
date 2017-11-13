@@ -1,242 +1,192 @@
-static apr_status_t ajp_marshal_into_msgb(ajp_msg_t *msg,
-                                          request_rec *r,
-                                          apr_uri_t *uri)
+static int dav_method_bind(request_rec *r)
 {
-    int method;
-    apr_uint32_t i, num_headers = 0;
-    apr_byte_t is_ssl;
-    char *remote_host;
-    const char *session_route, *envvar;
-    const apr_array_header_t *arr = apr_table_elts(r->subprocess_env);
-    const apr_table_entry_t *elts = (const apr_table_entry_t *)arr->elts;
+    dav_resource *resource;
+    dav_resource *binding;
+    dav_auto_version_info av_info;
+    const dav_hooks_binding *binding_hooks = DAV_GET_HOOKS_BINDING(r);
+    const char *dest;
+    dav_error *err;
+    dav_error *err2;
+    dav_response *multi_response = NULL;
+    dav_lookup_result lookup;
+    int overwrite;
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "Into ajp_marshal_into_msgb");
+    /* If no bindings provider, decline the request */
+    if (binding_hooks == NULL)
+        return DECLINED;
 
-    if ((method = sc_for_req_method_by_id(r)) == UNKNOWN_METHOD) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-               "ajp_marshal_into_msgb - No such method %s",
-               r->method);
-        return AJP_EBAD_METHOD;
+    /* Ask repository module to resolve the resource */
+    err = dav_get_resource(r, 0 /* label_allowed */, 0 /* use_checked_in */,
+                           &resource);
+    if (err != NULL)
+        return dav_handle_err(r, err, NULL);
+
+    if (!resource->exists) {
+        /* Apache will supply a default error for this. */
+        return HTTP_NOT_FOUND;
     }
 
-    is_ssl = (apr_byte_t) ap_proxy_conn_is_https(r->connection);
-
-    if (r->headers_in && apr_table_elts(r->headers_in)) {
-        const apr_array_header_t *t = apr_table_elts(r->headers_in);
-        num_headers = t->nelts;
+    /* get the destination URI */
+    dest = apr_table_get(r->headers_in, "Destination");
+    if (dest == NULL) {
+        /* This supplies additional information for the default message. */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "The request is missing a Destination header.");
+        return HTTP_BAD_REQUEST;
     }
 
-    remote_host = (char *)ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_HOST, NULL);
-
-    ajp_msg_reset(msg);
-
-    if (ajp_msg_append_uint8(msg, CMD_AJP13_FORWARD_REQUEST)     ||
-        ajp_msg_append_uint8(msg, (apr_byte_t) method)           ||
-        ajp_msg_append_string(msg, r->protocol)                  ||
-        ajp_msg_append_string(msg, uri->path)                    ||
-        ajp_msg_append_string(msg, r->connection->remote_ip)     ||
-        ajp_msg_append_string(msg, remote_host)                  ||
-        ajp_msg_append_string(msg, ap_get_server_name(r))        ||
-        ajp_msg_append_uint16(msg, (apr_uint16_t)r->connection->local_addr->port) ||
-        ajp_msg_append_uint8(msg, is_ssl)                        ||
-        ajp_msg_append_uint16(msg, (apr_uint16_t) num_headers)) {
-
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-               "ajp_marshal_into_msgb: "
-               "Error appending the message begining");
-        return APR_EGENERAL;
-    }
-
-    for (i = 0 ; i < num_headers ; i++) {
-        int sc;
-        const apr_array_header_t *t = apr_table_elts(r->headers_in);
-        const apr_table_entry_t *elts = (apr_table_entry_t *)t->elts;
-
-        if ((sc = sc_for_req_header(elts[i].key)) != UNKNOWN_METHOD) {
-            if (ajp_msg_append_uint16(msg, (apr_uint16_t)sc)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                       "ajp_marshal_into_msgb: "
-                       "Error appending the header name");
-                return AJP_EOVERFLOW;
-            }
+    lookup = dav_lookup_uri(dest, r, 0 /* must_be_absolute */);
+    if (lookup.rnew == NULL) {
+        if (lookup.err.status == HTTP_BAD_REQUEST) {
+            /* This supplies additional information for the default message. */
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "%s", lookup.err.desc);
+            return HTTP_BAD_REQUEST;
         }
-        else {
-            if (ajp_msg_append_string(msg, elts[i].key)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                       "ajp_marshal_into_msgb: "
-                       "Error appending the header name");
-                return AJP_EOVERFLOW;
-            }
+        else if (lookup.err.status == HTTP_BAD_GATEWAY) {
+            /* ### Bindings protocol draft 02 says to return 507
+             * ### (Cross Server Binding Forbidden); Apache already defines 507
+             * ### as HTTP_INSUFFICIENT_STORAGE. So, for now, we'll return
+             * ### HTTP_FORBIDDEN
+             */
+             return dav_error_response(r, HTTP_FORBIDDEN,
+                                       "Cross server bindings are not "
+                                       "allowed by this server.");
         }
 
-        if (ajp_msg_append_string(msg, elts[i].val)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                   "ajp_marshal_into_msgb: "
-                   "Error appending the header value");
-            return AJP_EOVERFLOW;
-        }
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                   "ajp_marshal_into_msgb: Header[%d] [%s] = [%s]",
-                   i, elts[i].key, elts[i].val);
+        /* ### this assumes that dav_lookup_uri() only generates a status
+         * ### that Apache can provide a status line for!! */
+
+        return dav_error_response(r, lookup.err.status, lookup.err.desc);
+    }
+    if (lookup.rnew->status != HTTP_OK) {
+        /* ### how best to report this... */
+        return dav_error_response(r, lookup.rnew->status,
+                                  "Destination URI had an error.");
     }
 
-/* XXXX need to figure out how to do this
-    if (s->secret) {
-        if (ajp_msg_append_uint8(msg, SC_A_SECRET) ||
-            ajp_msg_append_string(msg, s->secret)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                   "Error ajp_marshal_into_msgb - "
-                   "Error appending secret");
-            return APR_EGENERAL;
-        }
-    }
- */
+    /* resolve binding resource */
+    err = dav_get_resource(lookup.rnew, 0 /* label_allowed */,
+                           0 /* use_checked_in */, &binding);
+    if (err != NULL)
+        return dav_handle_err(r, err, NULL);
 
-    if (r->user) {
-        if (ajp_msg_append_uint8(msg, SC_A_REMOTE_USER) ||
-            ajp_msg_append_string(msg, r->user)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                   "ajp_marshal_into_msgb: "
-                   "Error appending the remote user");
-            return AJP_EOVERFLOW;
-        }
+    /* are the two resources handled by the same repository? */
+    if (resource->hooks != binding->hooks) {
+        /* ### this message exposes some backend config, but screw it... */
+        return dav_error_response(r, HTTP_BAD_GATEWAY,
+                                  "Destination URI is handled by a "
+                                  "different repository than the source URI. "
+                                  "BIND between repositories is not possible.");
     }
-    if (r->ap_auth_type) {
-        if (ajp_msg_append_uint8(msg, SC_A_AUTH_TYPE) ||
-            ajp_msg_append_string(msg, r->ap_auth_type)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                   "ajp_marshal_into_msgb: "
-                   "Error appending the auth type");
-            return AJP_EOVERFLOW;
-        }
+
+    /* get and parse the overwrite header value */
+    if ((overwrite = dav_get_overwrite(r)) < 0) {
+        /* dav_get_overwrite() supplies additional information for the
+         * default message. */
+        return HTTP_BAD_REQUEST;
     }
-    /* XXXX  ebcdic (args converted?) */
-    if (uri->query) {
-        if (ajp_msg_append_uint8(msg, SC_A_QUERY_STRING) ||
-            ajp_msg_append_string(msg, uri->query)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                   "ajp_marshal_into_msgb: "
-                   "Error appending the query string");
-            return AJP_EOVERFLOW;
-        }
+
+    /* quick failure test: if dest exists and overwrite is false. */
+    if (binding->exists && !overwrite) {
+        return dav_error_response(r, HTTP_PRECONDITION_FAILED,
+                                  "Destination is not empty and "
+                                  "Overwrite is not \"T\"");
     }
-    if ((session_route = apr_table_get(r->notes, "session-route"))) {
-        if (ajp_msg_append_uint8(msg, SC_A_JVM_ROUTE) ||
-            ajp_msg_append_string(msg, session_route)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                   "ajp_marshal_into_msgb: "
-                   "Error appending the jvm route");
-            return AJP_EOVERFLOW;
-        }
+
+    /* are the source and destination the same? */
+    if ((*resource->hooks->is_same_resource)(resource, binding)) {
+        return dav_error_response(r, HTTP_FORBIDDEN,
+                                  "Source and Destination URIs are the same.");
     }
-/* XXX: Is the subprocess_env a right place?
- * <Location /examples>
- *   ProxyPass ajp://remote:8009/servlets-examples
- *   SetEnv SSL_SESSION_ID CUSTOM_SSL_SESSION_ID
- * </Location>
- */
+
     /*
-     * Only lookup SSL variables if we are currently running HTTPS.
-     * Furthermore ensure that only variables get set in the AJP message
-     * that are not NULL and not empty.
+     * Check If-Headers and existing locks for destination. Note that we
+     * use depth==infinity since the target (hierarchy) will be deleted
+     * before the move/copy is completed.
+     *
+     * Note that we are overwriting the target, which implies a DELETE, so
+     * we are subject to the error/response rules as a DELETE. Namely, we
+     * will return a 424 error if any of the validations fail.
+     * (see dav_method_delete() for more information)
      */
-    if (is_ssl) {
-        if ((envvar = ap_proxy_ssl_val(r->pool, r->server, r->connection, r,
-                                       AJP13_SSL_CLIENT_CERT_INDICATOR))
-            && envvar[0]) {
-            if (ajp_msg_append_uint8(msg, SC_A_SSL_CERT)
-                || ajp_msg_append_string(msg, envvar)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "ajp_marshal_into_msgb: "
-                             "Error appending the SSL certificates");
-                return AJP_EOVERFLOW;
-            }
-        }
-
-        if ((envvar = ap_proxy_ssl_val(r->pool, r->server, r->connection, r,
-                                       AJP13_SSL_CIPHER_INDICATOR))
-            && envvar[0]) {
-            if (ajp_msg_append_uint8(msg, SC_A_SSL_CIPHER)
-                || ajp_msg_append_string(msg, envvar)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "ajp_marshal_into_msgb: "
-                             "Error appending the SSL ciphers");
-                return AJP_EOVERFLOW;
-            }
-        }
-
-        if ((envvar = ap_proxy_ssl_val(r->pool, r->server, r->connection, r,
-                                       AJP13_SSL_SESSION_INDICATOR))
-            && envvar[0]) {
-            if (ajp_msg_append_uint8(msg, SC_A_SSL_SESSION)
-                || ajp_msg_append_string(msg, envvar)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "ajp_marshal_into_msgb: "
-                             "Error appending the SSL session");
-                return AJP_EOVERFLOW;
-            }
-        }
-
-        /* ssl_key_size is required by Servlet 2.3 API */
-        if ((envvar = ap_proxy_ssl_val(r->pool, r->server, r->connection, r,
-                                       AJP13_SSL_KEY_SIZE_INDICATOR))
-            && envvar[0]) {
-
-            if (ajp_msg_append_uint8(msg, SC_A_SSL_KEY_SIZE)
-                || ajp_msg_append_uint16(msg, (unsigned short) atoi(envvar))) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "Error ajp_marshal_into_msgb - "
-                             "Error appending the SSL key size");
-                return APR_EGENERAL;
-            }
-        }
+    if ((err = dav_validate_request(lookup.rnew, binding, DAV_INFINITY, NULL,
+                                    &multi_response,
+                                    DAV_VALIDATE_PARENT
+                                    | DAV_VALIDATE_USE_424, NULL)) != NULL) {
+        err = dav_push_error(r->pool, err->status, 0,
+                             apr_psprintf(r->pool,
+                                          "Could not BIND %s due to a "
+                                          "failed precondition on the "
+                                          "destination (e.g. locks).",
+                                          ap_escape_html(r->pool, r->uri)),
+                             err);
+        return dav_handle_err(r, err, multi_response);
     }
-    /* Forward the remote port information, which was forgotten
-     * from the builtin data of the AJP 13 protocol.
-     * Since the servlet spec allows to retrieve it via getRemotePort(),
-     * we provide the port to the Tomcat connector as a request
-     * attribute. Modern Tomcat versions know how to retrieve
-     * the remote port from this attribute.
+
+    /* guard against creating circular bindings */
+    if (resource->collection
+        && (*resource->hooks->is_parent_resource)(resource, binding)) {
+        return dav_error_response(r, HTTP_FORBIDDEN,
+                                  "Source collection contains the Destination.");
+    }
+    if (resource->collection
+        && (*resource->hooks->is_parent_resource)(binding, resource)) {
+        /* The destination must exist (since it contains the source), and
+         * a condition above implies Overwrite==T. Obviously, we cannot
+         * delete the Destination before the BIND, as that would
+         * delete the Source.
+         */
+
+        return dav_error_response(r, HTTP_FORBIDDEN,
+                                  "Destination collection contains the Source and "
+                                  "Overwrite has been specified.");
+    }
+
+    /* prepare the destination collection for modification */
+    if ((err = dav_auto_checkout(r, binding, 1 /* parent_only */,
+                                 &av_info)) != NULL) {
+        /* could not make destination writable */
+        return dav_handle_err(r, err, NULL);
+    }
+
+    /* If target exists, remove it first (we know Ovewrite must be TRUE).
+     * Then try to bind to the resource.
      */
-    {
-        const char *key = SC_A_REQ_REMOTE_PORT;
-        char *val = apr_itoa(r->pool, r->connection->remote_addr->port);
-        if (ajp_msg_append_uint8(msg, SC_A_REQ_ATTRIBUTE) ||
-            ajp_msg_append_string(msg, key)   ||
-            ajp_msg_append_string(msg, val)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                    "ajp_marshal_into_msgb: "
-                    "Error appending attribute %s=%s",
-                    key, val);
-            return AJP_EOVERFLOW;
-        }
-    }
-    /* Use the environment vars prefixed with AJP_
-     * and pass it to the header striping that prefix.
-     */
-    for (i = 0; i < (apr_uint32_t)arr->nelts; i++) {
-        if (!strncmp(elts[i].key, "AJP_", 4)) {
-            if (ajp_msg_append_uint8(msg, SC_A_REQ_ATTRIBUTE) ||
-                ajp_msg_append_string(msg, elts[i].key + 4)   ||
-                ajp_msg_append_string(msg, elts[i].val)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                        "ajp_marshal_into_msgb: "
-                        "Error appending attribute %s=%s",
-                        elts[i].key, elts[i].val);
-                return AJP_EOVERFLOW;
-            }
-        }
+    if (binding->exists)
+        err = (*resource->hooks->remove_resource)(binding, &multi_response);
+
+    if (err == NULL) {
+        err = (*binding_hooks->bind_resource)(resource, binding);
     }
 
-    if (ajp_msg_append_uint8(msg, SC_A_ARE_DONE)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-               "ajp_marshal_into_msgb: "
-               "Error appending the message end");
-        return AJP_EOVERFLOW;
+    /* restore parent collection states */
+    err2 = dav_auto_checkin(r, NULL,
+                            err != NULL /* undo if error */,
+                            0 /* unlock */, &av_info);
+
+    /* check for error from remove/bind operations */
+    if (err != NULL) {
+        err = dav_push_error(r->pool, err->status, 0,
+                             apr_psprintf(r->pool,
+                                          "Could not BIND %s.",
+                                          ap_escape_html(r->pool, r->uri)),
+                             err);
+        return dav_handle_err(r, err, multi_response);
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-            "ajp_marshal_into_msgb: Done");
-    return APR_SUCCESS;
+    /* check for errors from reverting writability */
+    if (err2 != NULL) {
+        /* just log a warning */
+        err = dav_push_error(r->pool, err2->status, 0,
+                             "The BIND was successful, but there was a "
+                             "problem automatically checking in the "
+                             "source parent collection.",
+                             err2);
+        dav_log_err(r, err, APLOG_WARNING);
+    }
+
+    /* return an appropriate response (HTTP_CREATED) */
+    /* ### spec doesn't say what happens when destination was replaced */
+    return dav_created(r, lookup.rnew->uri, "Binding", 0);
 }

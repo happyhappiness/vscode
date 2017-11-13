@@ -1,2 +1,2 @@
-error("Object %s not a tree",
-			     sha1_to_hex(item->object.sha1));
+die("unable to generate diff (%s)",
+		    sha1_to_hex(parent->commit->object.sha1));

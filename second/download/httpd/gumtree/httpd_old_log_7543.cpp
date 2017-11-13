@@ -1,1 +1,1 @@
-printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1528965 $");
+fprintf(stderr, "ab: Could not allocate POST data buffer\n");

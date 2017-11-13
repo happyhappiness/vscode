@@ -1,1 +1,0 @@
-fprintf(stderr,"protocol version mismatch\n");

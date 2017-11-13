@@ -1,1 +1,2 @@
-apr_file_printf(errfile, "%s: -n and -D options conflict\n", argv[0]);
+ap_log_error(APLOG_MARK, APLOG_ERR, ret, ap_server_conf,
+                             "apr_poll: (listen)");

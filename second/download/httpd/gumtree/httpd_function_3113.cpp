@@ -1,32 +1,37 @@
-static void *dav_merge_dir_config(apr_pool_t *p, void *base, void *overrides)
+static client_entry *get_client(unsigned long key, const request_rec *r)
 {
-    dav_dir_conf *parent = base;
-    dav_dir_conf *child = overrides;
-    dav_dir_conf *newconf = (dav_dir_conf *)apr_pcalloc(p, sizeof(*newconf));
+    int bucket;
+    client_entry *entry, *prev = NULL;
 
-    /* DBG3("dav_merge_dir_config: new=%08lx  base=%08lx  overrides=%08lx",
-       (long)newconf, (long)base, (long)overrides); */
 
-    newconf->provider_name = DAV_INHERIT_VALUE(parent, child, provider_name);
-    newconf->provider = DAV_INHERIT_VALUE(parent, child, provider);
-    if (parent->provider_name != NULL) {
-        if (child->provider_name == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
-                         "\"DAV Off\" cannot be used to turn off a subtree "
-                         "of a DAV-enabled location.");
-        }
-        else if (strcasecmp(child->provider_name,
-                            parent->provider_name) != 0) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
-                         "A subtree cannot specify a different DAV provider "
-                         "than its parent.");
-        }
+    if (!key || !client_shm)  return NULL;
+
+    bucket = key % client_list->tbl_len;
+    entry  = client_list->table[bucket];
+
+    apr_global_mutex_lock(client_lock);
+
+    while (entry && key != entry->key) {
+        prev  = entry;
+        entry = entry->next;
     }
 
-    newconf->locktimeout = DAV_INHERIT_VALUE(parent, child, locktimeout);
-    newconf->dir = DAV_INHERIT_VALUE(parent, child, dir);
-    newconf->allow_depthinfinity = DAV_INHERIT_VALUE(parent, child,
-                                                     allow_depthinfinity);
+    if (entry && prev) {                /* move entry to front of list */
+        prev->next  = entry->next;
+        entry->next = client_list->table[bucket];
+        client_list->table[bucket] = entry;
+    }
 
-    return newconf;
+    apr_global_mutex_unlock(client_lock);
+
+    if (entry) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "get_client(): client %lu found", key);
+    }
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "get_client(): client %lu not found", key);
+    }
+
+    return entry;
 }

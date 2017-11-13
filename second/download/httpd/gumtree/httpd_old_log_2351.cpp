@@ -1,3 +1,3 @@
-printf("Time taken for tests:   %ld.%03ld seconds\n",
-           (long) apr_time_sec(timetakenusec),
-           (long) apr_time_usec(timetakenusec));
+ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
+                         "Couldn't set permissions on cross-process lock; "
+                         "check User and Group directives");

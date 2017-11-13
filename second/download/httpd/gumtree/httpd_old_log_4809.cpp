@@ -1,2 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
-                     "sigaction(SIGTERM)");
+ap_log_error(APLOG_MARK, APLOG_INFO,
+                                         0, pServ,
+                                         "%s reusing existing "
+                                         "%s private key on restart",
+                                         cpVHostID, ssl_asn1_keystr(i));

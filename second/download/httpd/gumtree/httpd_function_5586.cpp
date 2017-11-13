@@ -1,133 +1,173 @@
-static apr_status_t get_mplx_next(h2_worker *worker, h2_mplx **pm, 
-                                  h2_task **ptask, void *ctx)
+static apr_status_t
+rate_limit_filter(ap_filter_t *f, apr_bucket_brigade *input_bb)
 {
-    apr_status_t status;
-    h2_mplx *m = NULL;
-    h2_task *task = NULL;
-    apr_time_t max_wait, start_wait;
-    int has_more = 0;
-    h2_workers *workers = (h2_workers *)ctx;
-    
-    if (*pm && ptask != NULL) {
-        /* We have a h2_mplx instance and the worker wants the next task. 
-         * Try to get one from the given mplx. */
-        *ptask = h2_mplx_pop_task(*pm, worker, &has_more);
-        if (*ptask) {
-            return APR_SUCCESS;
+    apr_status_t rv = APR_SUCCESS;
+    rl_ctx_t *ctx = f->ctx;
+    apr_bucket *fb;
+    int do_sleep = 0;
+    apr_bucket_alloc_t *ba = f->r->connection->bucket_alloc;
+    apr_bucket_brigade *bb = input_bb;
+
+    if (f->c->aborted) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r, APLOGNO(01454) "rl: conn aborted");
+        apr_brigade_cleanup(bb);
+        return APR_ECONNABORTED;
+    }
+
+    if (ctx == NULL) {
+
+        const char *rl = NULL;
+        int ratelimit;
+
+        /* no subrequests. */
+        if (f->r->main != NULL) {
+            ap_remove_output_filter(f);
+            return ap_pass_brigade(f->next, bb);
         }
-    }
-    
-    if (*pm) {
-        /* Got a mplx handed in, but did not get or want a task from it. 
-         * Release it, as the workers reference will be wiped.
-         */
-        h2_mplx_release(*pm);
-        *pm = NULL;
-    }
-    
-    if (!ptask) {
-        /* the worker does not want a next task, we're done.
-         */
-        return APR_SUCCESS;
-    }
-    
-    max_wait = apr_time_from_sec(apr_atomic_read32(&workers->max_idle_secs));
-    start_wait = apr_time_now();
-    
-    status = apr_thread_mutex_lock(workers->lock);
-    if (status == APR_SUCCESS) {
-        ++workers->idle_worker_count;
-        ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
-                     "h2_worker(%d): looking for work", h2_worker_get_id(worker));
+
+        rl = apr_table_get(f->r->subprocess_env, "rate-limit");
+
+        if (rl == NULL) {
+            ap_remove_output_filter(f);
+            return ap_pass_brigade(f->next, bb);
+        }
         
-        while (!task && !h2_worker_is_aborted(worker) && !workers->aborted) {
-            
-            /* Get the next h2_mplx to process that has a task to hand out.
-             * If it does, place it at the end of the queu and return the
-             * task to the worker.
-             * If it (currently) has no tasks, remove it so that it needs
-             * to register again for scheduling.
-             * If we run out of h2_mplx in the queue, we need to wait for
-             * new mplx to arrive. Depending on how many workers do exist,
-             * we do a timed wait or block indefinitely.
-             */
-            m = NULL;
-            while (!task && !H2_MPLX_LIST_EMPTY(&workers->mplxs)) {
-                m = H2_MPLX_LIST_FIRST(&workers->mplxs);
-                H2_MPLX_REMOVE(m);
-                
-                task = h2_mplx_pop_task(m, worker, &has_more);
-                if (task) {
-                    if (has_more) {
-                        H2_MPLX_LIST_INSERT_TAIL(&workers->mplxs, m);
-                    }
-                    else {
-                        has_more = !H2_MPLX_LIST_EMPTY(&workers->mplxs);
-                    }
+        /* rl is in kilo bytes / second  */
+        ratelimit = atoi(rl) * 1024;
+        if (ratelimit <= 0) {
+            /* remove ourselves */
+            ap_remove_output_filter(f);
+            return ap_pass_brigade(f->next, bb);
+        }
+
+        /* first run, init stuff */
+        ctx = apr_palloc(f->r->pool, sizeof(rl_ctx_t));
+        f->ctx = ctx;
+        ctx->state = RATE_LIMIT;
+        ctx->speed = ratelimit;
+
+        /* calculate how many bytes / interval we want to send */
+        /* speed is bytes / second, so, how many  (speed / 1000 % interval) */
+        ctx->chunk_size = (ctx->speed / (1000 / RATE_INTERVAL_MS));
+        ctx->tmpbb = apr_brigade_create(f->r->pool, ba);
+        ctx->holdingbb = apr_brigade_create(f->r->pool, ba);
+    }
+
+    while (ctx->state != RATE_ERROR &&
+           (!APR_BRIGADE_EMPTY(bb) || !APR_BRIGADE_EMPTY(ctx->holdingbb))) {
+        apr_bucket *e;
+
+        if (!APR_BRIGADE_EMPTY(ctx->holdingbb)) {
+            APR_BRIGADE_CONCAT(bb, ctx->holdingbb);
+            apr_brigade_cleanup(ctx->holdingbb);
+        }
+
+        while (ctx->state == RATE_FULLSPEED && !APR_BRIGADE_EMPTY(bb)) {
+            /* Find where we 'stop' going full speed. */
+            for (e = APR_BRIGADE_FIRST(bb);
+                 e != APR_BRIGADE_SENTINEL(bb); e = APR_BUCKET_NEXT(e)) {
+                if (AP_RL_BUCKET_IS_END(e)) {
+                    apr_bucket *f;
+                    f = APR_RING_LAST(&bb->list);
+                    APR_RING_UNSPLICE(e, f, link);
+                    APR_RING_SPLICE_TAIL(&ctx->holdingbb->list, e, f,
+                                         apr_bucket, link);
+                    ctx->state = RATE_LIMIT;
                     break;
                 }
             }
-            
-            if (!task) {
-                /* Need to wait for either a new mplx to arrive.
-                 */
-                cleanup_zombies(workers, 0);
-                
-                if (workers->worker_count > workers->min_size) {
-                    apr_time_t now = apr_time_now();
-                    if (now >= (start_wait + max_wait)) {
-                        /* waited long enough without getting a task. */
-                        if (workers->worker_count > workers->min_size) {
-                            ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, 
-                                         workers->s,
-                                         "h2_workers: aborting idle worker");
-                            h2_worker_abort(worker);
-                            break;
-                        }
-                    }
-                    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
-                                 "h2_worker(%d): waiting signal, "
-                                 "worker_count=%d", worker->id, 
-                                 (int)workers->worker_count);
-                    apr_thread_cond_timedwait(workers->mplx_added,
-                                              workers->lock, max_wait);
+
+            if (f->c->aborted) {
+                apr_brigade_cleanup(bb);
+                ctx->state = RATE_ERROR;
+                break;
+            }
+
+            fb = apr_bucket_flush_create(ba);
+            APR_BRIGADE_INSERT_TAIL(bb, fb);
+            rv = ap_pass_brigade(f->next, bb);
+
+            if (rv != APR_SUCCESS) {
+                ctx->state = RATE_ERROR;
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, APLOGNO(01455)
+                              "rl: full speed brigade pass failed.");
+            }
+        }
+
+        while (ctx->state == RATE_LIMIT && !APR_BRIGADE_EMPTY(bb)) {
+            for (e = APR_BRIGADE_FIRST(bb);
+                 e != APR_BRIGADE_SENTINEL(bb); e = APR_BUCKET_NEXT(e)) {
+                if (AP_RL_BUCKET_IS_START(e)) {
+                    apr_bucket *f;
+                    f = APR_RING_LAST(&bb->list);
+                    APR_RING_UNSPLICE(e, f, link);
+                    APR_RING_SPLICE_TAIL(&ctx->holdingbb->list, e, f,
+                                         apr_bucket, link);
+                    ctx->state = RATE_FULLSPEED;
+                    break;
+                }
+            }
+
+            while (!APR_BRIGADE_EMPTY(bb)) {
+                apr_bucket *stop_point;
+                apr_off_t len = 0;
+
+                if (f->c->aborted) {
+                    apr_brigade_cleanup(bb);
+                    ctx->state = RATE_ERROR;
+                    break;
+                }
+
+                if (do_sleep) {
+                    apr_sleep(RATE_INTERVAL_MS * 1000);
                 }
                 else {
-                    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
-                                 "h2_worker(%d): waiting signal (eternal), "
-                                 "worker_count=%d", worker->id, 
-                                 (int)workers->worker_count);
-                    apr_thread_cond_wait(workers->mplx_added, workers->lock);
+                    do_sleep = 1;
+                }
+
+                apr_brigade_length(bb, 1, &len);
+
+                rv = apr_brigade_partition(bb, ctx->chunk_size, &stop_point);
+                if (rv != APR_SUCCESS && rv != APR_INCOMPLETE) {
+                    ctx->state = RATE_ERROR;
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, APLOGNO(01456)
+                                  "rl: partition failed.");
+                    break;
+                }
+
+                if (stop_point != APR_BRIGADE_SENTINEL(bb)) {
+                    apr_bucket *f;
+                    apr_bucket *e = APR_BUCKET_PREV(stop_point);
+                    f = APR_RING_FIRST(&bb->list);
+                    APR_RING_UNSPLICE(f, e, link);
+                    APR_RING_SPLICE_HEAD(&ctx->tmpbb->list, f, e, apr_bucket,
+                                         link);
+                }
+                else {
+                    APR_BRIGADE_CONCAT(ctx->tmpbb, bb);
+                }
+
+                fb = apr_bucket_flush_create(ba);
+
+                APR_BRIGADE_INSERT_TAIL(ctx->tmpbb, fb);
+
+#if 0
+                brigade_dump(f->r, ctx->tmpbb);
+                brigade_dump(f->r, bb);
+#endif
+
+                rv = ap_pass_brigade(f->next, ctx->tmpbb);
+                apr_brigade_cleanup(ctx->tmpbb);
+
+                if (rv != APR_SUCCESS) {
+                    ctx->state = RATE_ERROR;
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r, APLOGNO(01457)
+                                  "rl: brigade pass failed.");
+                    break;
                 }
             }
         }
-        
-        /* Here, we either have gotten task and mplx for the worker or
-         * needed to give up with more than enough workers.
-         */
-        if (task) {
-            ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
-                         "h2_worker(%d): start task(%s)",
-                         h2_worker_get_id(worker), task->id);
-            /* Since we hand out a reference to the worker, we increase
-             * its ref count.
-             */
-            h2_mplx_reference(m);
-            *pm = m;
-            *ptask = task;
-            
-            if (has_more && workers->idle_worker_count > 1) {
-                apr_thread_cond_signal(workers->mplx_added);
-            }
-            status = APR_SUCCESS;
-        }
-        else {
-            status = APR_EOF;
-        }
-        
-        --workers->idle_worker_count;
-        apr_thread_mutex_unlock(workers->lock);
     }
-    
-    return status;
+
+    return rv;
 }

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00656)
-                      "mod_rewrite: can't open DBM RewriteMap %s", file);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00856)
+                             "shmcb_subcache_iterate discarding expired entry");

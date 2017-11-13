@@ -1,3 +1,4 @@
-ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
-                                          "h2_session(%ld): keepalive, %f sec left",
-                                          session->id, (session->idle_until - now) / 1000000.0f);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
+                      APLOGNO(02923) 
+                      "h2_session: stream(%ld-%d): error handling frame",
+                      session->id, (int)frame->hd.stream_id);

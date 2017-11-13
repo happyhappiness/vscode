@@ -1,9 +1,11 @@
 fputs(
-"              Specify  a  URL  to  fetch. This option is mostly handy when you\n"
-"              want to specify URL(s) in a config file.\n"
+"              If a download is slower than this given speed (in bytes per sec-\n"
+"              ond)  for  speed-time seconds it gets aborted. speed-time is set\n"
+"              with -y and is 30 if not set.\n"
 "\n"
-"              If the given URL is missing a scheme name (such as \"http://\"  or\n"
-"              \"ftp://\"  etc) then curl will make a guess based on the host. If\n"
-"              the outermost sub-domain name matches  DICT,  FTP,  IMAP,  LDAP,\n"
-"              POP3  or  SMTP  then  that protocol will be used, otherwise HTTP\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -z, --time-cond <date expression>|<file>\n"
+"              (HTTP/FTP) Request a file that has been modified later than  the\n"
+"              given  time  and date, or one that has been modified before that\n"
 , stdout);

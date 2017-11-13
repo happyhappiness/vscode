@@ -1,103 +1,62 @@
-static winnt_conn_ctx_t *mpm_get_completion_context(void)
+static int ssl_server_import_key(server_rec *s,
+                                 modssl_ctx_t *mctx,
+                                 const char *id,
+                                 int idx)
 {
-    apr_status_t rv;
-    winnt_conn_ctx_t *context = NULL;
+    SSLModConfigRec *mc = myModConfig(s);
+    ssl_asn1_t *asn1;
+    MODSSL_D2I_PrivateKey_CONST unsigned char *ptr;
+    const char *type = ssl_asn1_keystr(idx);
+    int pkey_type;
+    EVP_PKEY *pkey;
 
-    while (1) {
-        /* Grab a context off the queue */
-        apr_thread_mutex_lock(qlock);
-        if (qhead) {
-            context = qhead;
-            qhead = qhead->next;
-            if (!qhead)
-                qtail = NULL;
-        } else {
-            ResetEvent(qwait_event);
-        }
-        apr_thread_mutex_unlock(qlock);
+#ifndef OPENSSL_NO_EC
+    if (idx == SSL_AIDX_ECC)
+      pkey_type = EVP_PKEY_EC;
+    else
+#endif /* SSL_LIBRARY_VERSION */
+    pkey_type = (idx == SSL_AIDX_RSA) ? EVP_PKEY_RSA : EVP_PKEY_DSA;
 
-        if (!context) {
-            /* We failed to grab a context off the queue, consider allocating
-             * a new one out of the child pool. There may be up to
-             * (ap_threads_per_child + num_listeners) contexts in the system
-             * at once.
-             */
-            if (num_completion_contexts >= max_num_completion_contexts) {
-                /* All workers are busy, need to wait for one */
-                static int reported = 0;
-                if (!reported) {
-                    ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ap_server_conf,
-                                 "Server ran out of threads to serve "
-                                 "requests. Consider raising the "
-                                 "ThreadsPerChild setting");
-                    reported = 1;
-                }
+    if (!(asn1 = ssl_asn1_table_get(mc->tPrivateKey, id))) {
+        return FALSE;
+    }
 
-                /* Wait for a worker to free a context. Once per second, give
-                 * the caller a chance to check for shutdown. If the wait
-                 * succeeds, get the context off the queue. It must be
-                 * available, since there's only one consumer.
-                 */
-                rv = WaitForSingleObject(qwait_event, 1000);
-                if (rv == WAIT_OBJECT_0)
-                    continue;
-                else /* Hopefully, WAIT_TIMEOUT */
-                    return NULL;
-            } else {
-                /* Allocate another context.
-                 * Note: Multiple failures in the next two steps will cause
-                 * the pchild pool to 'leak' storage. I don't think this
-                 * is worth fixing...
-                 */
-                apr_allocator_t *allocator;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "Configuring %s server private key", type);
 
-                apr_thread_mutex_lock(child_lock);
-                context = (winnt_conn_ctx_t *)apr_pcalloc(pchild,
-                                                     sizeof(winnt_conn_ctx_t));
+    ptr = asn1->cpData;
+    if (!(pkey = d2i_PrivateKey(pkey_type, NULL, &ptr, asn1->nData)))
+    {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                "Unable to import %s server private key", type);
+        ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
+        ssl_die();
+    }
 
+    if (SSL_CTX_use_PrivateKey(mctx->ssl_ctx, pkey) <= 0) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                "Unable to configure %s server private key", type);
+        ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
+        ssl_die();
+    }
 
-                context->overlapped.hEvent = CreateEvent(NULL, TRUE,
-                                                         FALSE, NULL);
-                if (context->overlapped.hEvent == NULL) {
-                    /* Hopefully this is a temporary condition ... */
-                    ap_log_error(APLOG_MARK, APLOG_WARNING, apr_get_os_error(),
-                                 ap_server_conf,
-                                 "mpm_get_completion_context: "
-                                 "CreateEvent failed.");
+    /*
+     * XXX: wonder if this is still needed, this is old todo doc.
+     * (see http://www.psy.uq.edu.au/~ftp/Crypto/ssleay/TODO.html)
+     */
+    if ((pkey_type == EVP_PKEY_DSA) && mctx->pks->certs[idx]) {
+        EVP_PKEY *pubkey = X509_get_pubkey(mctx->pks->certs[idx]);
 
-                    apr_thread_mutex_unlock(child_lock);
-                    return NULL;
-                }
-
-                /* Create the transaction pool */
-                apr_allocator_create(&allocator);
-                apr_allocator_max_free_set(allocator, ap_max_mem_free);
-                rv = apr_pool_create_ex(&context->ptrans, pchild, NULL, 
-                                        allocator);
-                if (rv != APR_SUCCESS) {
-                    ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf,
-                                 "mpm_get_completion_context: Failed "
-                                 "to create the transaction pool.");
-                    CloseHandle(context->overlapped.hEvent);
-
-                    apr_thread_mutex_unlock(child_lock);
-                    return NULL;
-                }
-                apr_allocator_owner_set(allocator, context->ptrans);
-                apr_pool_tag(context->ptrans, "transaction");
-
-                context->accept_socket = INVALID_SOCKET;
-                context->ba = apr_bucket_alloc_create(context->ptrans);
-                apr_atomic_inc32(&num_completion_contexts);
-
-                apr_thread_mutex_unlock(child_lock);
-                break;
-            }
-        } else {
-            /* Got a context from the queue */
-            break;
+        if (pubkey && EVP_PKEY_missing_parameters(pubkey)) {
+            EVP_PKEY_copy_parameters(pubkey, pkey);
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                    "Copying DSA parameters from private key to certificate");
+            ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
+            EVP_PKEY_free(pubkey);
         }
     }
 
-    return context;
+    mctx->pks->keys[idx] = pkey;
+
+    return TRUE;
 }

@@ -1,1 +1,1 @@
-die(_("invalid date format: %s"), date_str);
+fprintf(stderr, "fatal: %s\n\n", msg);

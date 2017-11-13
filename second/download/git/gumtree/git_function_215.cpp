@@ -1,29 +1,25 @@
-static void print_object_or_die(struct batch_options *opt, struct expand_data *data)
+static struct child_process *git_proxy_connect(int fd[2], char *host)
 {
-	const unsigned char *sha1 = data->sha1;
+	const char *port = STR(DEFAULT_GIT_PORT);
+	struct child_process *proxy;
 
-	assert(data->info.typep);
+	get_host_and_port(&host, &port);
 
-	if (data->type == OBJ_BLOB) {
-		if (opt->buffer_output)
-			fflush(stdout);
-		if (stream_blob_to_fd(1, sha1, NULL, 0) < 0)
-			die("unable to stream %s to stdout", sha1_to_hex(sha1));
-	}
-	else {
-		enum object_type type;
-		unsigned long size;
-		void *contents;
+	if (looks_like_command_line_option(host))
+		die("strange hostname '%s' blocked", host);
+	if (looks_like_command_line_option(port))
+		die("strange port '%s' blocked", port);
 
-		contents = read_sha1_file(sha1, &type, &size);
-		if (!contents)
-			die("object %s disappeared", sha1_to_hex(sha1));
-		if (type != data->type)
-			die("object %s changed type!?", sha1_to_hex(sha1));
-		if (data->info.sizep && size != data->size)
-			die("object %s changed size!?", sha1_to_hex(sha1));
-
-		batch_write(opt, contents, size);
-		free(contents);
-	}
+	proxy = xmalloc(sizeof(*proxy));
+	child_process_init(proxy);
+	argv_array_push(&proxy->args, git_proxy_command);
+	argv_array_push(&proxy->args, host);
+	argv_array_push(&proxy->args, port);
+	proxy->in = -1;
+	proxy->out = -1;
+	if (start_command(proxy))
+		die("cannot start proxy %s", git_proxy_command);
+	fd[0] = proxy->out; /* read from proxy stdout */
+	fd[1] = proxy->in;  /* write to proxy stdin */
+	return proxy;
 }

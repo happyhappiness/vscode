@@ -1,30 +1,19 @@
-static char* process_tags(header_entry *hdr, request_rec *r)
+static apr_status_t ap_headers_output_filter(ap_filter_t *f,
+                                             apr_bucket_brigade *in)
 {
-    int i;
-    const char *s;
-    char *str = NULL;
-    format_tag *tag = NULL;
+    headers_conf *dirconf = ap_get_module_config(f->r->per_dir_config,
+                                                 &headers_module);
 
-    if (hdr->expr_out) { 
-        const char *err;
-        const char *val;
-        val = ap_expr_str_exec(r, hdr->expr_out, &err);
-        if (err) { 
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02557)
-                          "Can't evaluate value expression: %s", err);
-            return "";
-        }
-        return apr_pstrdup(r->pool, val);
-    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->r->server, APLOGNO(01502)
+                 "headers: ap_headers_output_filter()");
 
-    tag = (format_tag*) hdr->ta->elts;
+    /* do the fixup */
+    do_headers_fixup(f->r, f->r->err_headers_out, dirconf->fixup_err, 0);
+    do_headers_fixup(f->r, f->r->headers_out, dirconf->fixup_out, 0);
 
-    for (i = 0; i < hdr->ta->nelts; i++) {
-        s = tag[i].func(r, tag[i].arg);
-        if (str == NULL)
-            str = apr_pstrdup(r->pool, s);
-        else
-            str = apr_pstrcat(r->pool, str, s, NULL);
-    }
-    return str ? str : "";
+    /* remove ourselves from the filter chain */
+    ap_remove_output_filter(f);
+
+    /* send the data up the stack */
+    return ap_pass_brigade(f->next,in);
 }

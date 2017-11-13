@@ -1,1 +1,1 @@
-fprintf(FINFO,"waiting on %d\n",pid);
+fprintf(f,"-u, --update             update only (don't overwrite newer files)\n");

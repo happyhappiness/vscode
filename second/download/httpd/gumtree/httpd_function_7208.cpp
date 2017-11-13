@@ -1,51 +1,36 @@
-static apr_status_t htdbm_make(htdbm_t *htdbm)
+static void htdbm_usage(void)
 {
-    char cpw[MAX_STRING_LEN];
-    char salt[9];
-#if (!(defined(WIN32) || defined(NETWARE)))
-    char *cbuf;
-#endif
 
-    switch (htdbm->alg) {
-        case ALG_APSHA:
-            /* XXX cpw >= 28 + strlen(sha1) chars - fixed len SHA */
-            apr_sha1_base64(htdbm->userpass,strlen(htdbm->userpass),cpw);
-        break;
+#if (!(defined(WIN32) || defined(NETWARE)))
+#define CRYPT_OPTION "d"
+#else
+#define CRYPT_OPTION ""
+#endif
+    fprintf(stderr, "htdbm -- program for manipulating DBM password databases.\n\n");
+    fprintf(stderr, "Usage: htdbm    [-cm"CRYPT_OPTION"pstvx] [-TDBTYPE] database username\n");
+    fprintf(stderr, "                -b[cm"CRYPT_OPTION"ptsv] [-TDBTYPE] database username password\n");
+    fprintf(stderr, "                -n[m"CRYPT_OPTION"pst]   username\n");
+    fprintf(stderr, "                -nb[m"CRYPT_OPTION"pst]  username password\n");
+    fprintf(stderr, "                -v[m"CRYPT_OPTION"ps]    [-TDBTYPE] database username\n");
+    fprintf(stderr, "                -vb[m"CRYPT_OPTION"ps]   [-TDBTYPE] database username password\n");
+    fprintf(stderr, "                -x[m"CRYPT_OPTION"ps]    [-TDBTYPE] database username\n");
+    fprintf(stderr, "                -l                       [-TDBTYPE] database\n");
+    fprintf(stderr, "Options:\n");
+    fprintf(stderr, "   -b   Use the password from the command line rather "
+                    "than prompting for it.\n");
+    fprintf(stderr, "   -c   Create a new database.\n");
+    fprintf(stderr, "   -n   Don't update database; display results on stdout.\n");
+    fprintf(stderr, "   -m   Force MD5 encryption of the password (default).\n");
+#if (!(defined(WIN32) || defined(NETWARE)))
+    fprintf(stderr, "   -d   Force CRYPT encryption of the password (now deprecated).\n");
+#endif
+    fprintf(stderr, "   -p   Do not encrypt the password (plaintext).\n");
+    fprintf(stderr, "   -s   Force SHA encryption of the password.\n");
+    fprintf(stderr, "   -T   DBM Type (SDBM|GDBM|DB|default).\n");
+    fprintf(stderr, "   -l   Display usernames from database on stdout.\n");
+    fprintf(stderr, "   -t   The last param is username comment.\n");
+    fprintf(stderr, "   -v   Verify the username/password.\n");
+    fprintf(stderr, "   -x   Remove the username record from database.\n");
+    exit(ERR_SYNTAX);
 
-        case ALG_APMD5:
-            (void) srand((int) time((time_t *) NULL));
-            to64(&salt[0], rand(), 8);
-            salt[8] = '\0';
-            apr_md5_encode((const char *)htdbm->userpass, (const char *)salt,
-                            cpw, sizeof(cpw));
-        break;
-        case ALG_PLAIN:
-            /* XXX this len limitation is not in sync with any HTTPd len. */
-            apr_cpystrn(cpw,htdbm->userpass,sizeof(cpw));
-#if (!(defined(WIN32) || defined(NETWARE)))
-            fprintf(stderr, "Warning: Plain text passwords aren't supported by the "
-                    "server on this platform!\n");
-#endif
-        break;
-#if (!(defined(WIN32) || defined(NETWARE)))
-        case ALG_CRYPT:
-            (void) srand((int) time((time_t *) NULL));
-            to64(&salt[0], rand(), 8);
-            salt[8] = '\0';
-            cbuf = crypt(htdbm->userpass, salt);
-            if (cbuf == NULL) {
-                char errbuf[128];
-                
-                fprintf(stderr, "crypt() failed: %s\n", 
-                        apr_strerror(errno, errbuf, sizeof errbuf));
-                exit(ERR_PWMISMATCH);
-            }
-            apr_cpystrn(cpw, cbuf, sizeof(cpw) - 1);
-            fprintf(stderr, "CRYPT is now deprecated, use MD5 instead!\n");
-#endif
-        default:
-        break;
-    }
-    htdbm->userpass = apr_pstrdup(htdbm->pool, cpw);
-    return APR_SUCCESS;
 }

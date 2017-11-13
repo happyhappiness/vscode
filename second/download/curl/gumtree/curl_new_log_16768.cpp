@@ -1,0 +1,17 @@
+puts(
+"     30   FTP PORT failed. The PORT command failed.\n"
+"\n"
+"     31   FTP couldn't use REST. The REST command failed.\n"
+"\n"
+"     32   FTP  couldn't  use  SIZE.  The SIZE command failed. The\n"
+"          command is an extension to the original  FTP  spec  RFC\n"
+"          959.\n"
+"\n"
+"     33   HTTP range error. The range \"command\" didn't work.\n"
+"\n"
+"     34   HTTP   post  error.  Internal  post-request  generation\n"
+"          error.\n"
+"\n"
+"     35   SSL connect error. The SSL handshaking failed.\n"
+"\n"
+);

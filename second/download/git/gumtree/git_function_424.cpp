@@ -1,43 +1,55 @@
-static int merge_one_change(struct notes_merge_options *o,
-			    struct notes_merge_pair *p, struct notes_tree *t)
+static int notes_copy_from_stdin(int force, const char *rewrite_cmd)
 {
-	/*
-	 * Return 0 if change is successfully resolved (stored in notes_tree).
-	 * Return 1 is change results in a conflict (NOT stored in notes_tree,
-	 * but instead written to NOTES_MERGE_WORKTREE with conflict markers).
-	 */
-	switch (o->strategy) {
-	case NOTES_MERGE_RESOLVE_MANUAL:
-		return merge_one_change_manual(o, p, t);
-	case NOTES_MERGE_RESOLVE_OURS:
-		if (o->verbosity >= 2)
-			printf("Using local notes for %s\n",
-						sha1_to_hex(p->obj));
-		/* nothing to do */
-		return 0;
-	case NOTES_MERGE_RESOLVE_THEIRS:
-		if (o->verbosity >= 2)
-			printf("Using remote notes for %s\n",
-						sha1_to_hex(p->obj));
-		if (add_note(t, p->obj, p->remote, combine_notes_overwrite))
-			die("BUG: combine_notes_overwrite failed");
-		return 0;
-	case NOTES_MERGE_RESOLVE_UNION:
-		if (o->verbosity >= 2)
-			printf("Concatenating local and remote notes for %s\n",
-							sha1_to_hex(p->obj));
-		if (add_note(t, p->obj, p->remote, combine_notes_concatenate))
-			die("failed to concatenate notes "
-			    "(combine_notes_concatenate)");
-		return 0;
-	case NOTES_MERGE_RESOLVE_CAT_SORT_UNIQ:
-		if (o->verbosity >= 2)
-			printf("Concatenating unique lines in local and remote "
-				"notes for %s\n", sha1_to_hex(p->obj));
-		if (add_note(t, p->obj, p->remote, combine_notes_cat_sort_uniq))
-			die("failed to concatenate notes "
-			    "(combine_notes_cat_sort_uniq)");
-		return 0;
+	struct strbuf buf = STRBUF_INIT;
+	struct notes_rewrite_cfg *c = NULL;
+	struct notes_tree *t = NULL;
+	int ret = 0;
+	const char *msg = "Notes added by 'git notes copy'";
+
+	if (rewrite_cmd) {
+		c = init_copy_notes_for_rewrite(rewrite_cmd);
+		if (!c)
+			return 0;
+	} else {
+		init_notes(NULL, NULL, NULL, NOTES_INIT_WRITABLE);
+		t = &default_notes_tree;
 	}
-	die("Unknown strategy (%i).", o->strategy);
+
+	while (strbuf_getline_lf(&buf, stdin) != EOF) {
+		unsigned char from_obj[20], to_obj[20];
+		struct strbuf **split;
+		int err;
+
+		split = strbuf_split(&buf, ' ');
+		if (!split[0] || !split[1])
+			die(_("Malformed input line: '%s'."), buf.buf);
+		strbuf_rtrim(split[0]);
+		strbuf_rtrim(split[1]);
+		if (get_sha1(split[0]->buf, from_obj))
+			die(_("Failed to resolve '%s' as a valid ref."), split[0]->buf);
+		if (get_sha1(split[1]->buf, to_obj))
+			die(_("Failed to resolve '%s' as a valid ref."), split[1]->buf);
+
+		if (rewrite_cmd)
+			err = copy_note_for_rewrite(c, from_obj, to_obj);
+		else
+			err = copy_note(t, from_obj, to_obj, force,
+					combine_notes_overwrite);
+
+		if (err) {
+			error(_("Failed to copy notes from '%s' to '%s'"),
+			      split[0]->buf, split[1]->buf);
+			ret = 1;
+		}
+
+		strbuf_list_free(split);
+	}
+
+	if (!rewrite_cmd) {
+		commit_notes(t, msg);
+		free_notes(t);
+	} else {
+		finish_copy_notes_for_rewrite(c, msg);
+	}
+	return ret;
 }

@@ -1,1 +1,2 @@
-strbuf_addf(&buf, "%s/", get_object_directory());
+printf(" %s", diff_aligned_abbrev(&p->parent[i].oid,
+							  opt->abbrev));

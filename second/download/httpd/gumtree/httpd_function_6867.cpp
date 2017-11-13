@@ -1,55 +1,46 @@
-static int lua_handler(request_rec *r)
+static apr_status_t on_stream_resume(void *ctx, h2_stream *stream)
 {
-    int rc = OK;
-    if (strcmp(r->handler, "lua-script")) {
-        return DECLINED;
+    h2_session *session = ctx;
+    apr_status_t status = APR_EAGAIN;
+    int rv;
+    apr_off_t len = 0;
+    int eos = 0;
+    h2_headers *headers;
+    
+    ap_assert(stream);
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
+                  "h2_stream(%ld-%d): on_resume", session->id, stream->id);
+        
+send_headers:
+    headers = NULL;
+    status = h2_stream_out_prepare(stream, &len, &eos, &headers);
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, session->c, 
+                  "h2_stream(%ld-%d): prepared len=%ld, eos=%d", 
+                  session->id, stream->id, (long)len, eos);
+    if (headers) {
+        status = on_stream_headers(session, stream, headers, len, eos);
+        if (status != APR_SUCCESS || stream->rst_error) {
+            return status;
+        }
+        goto send_headers;
     }
-    /* Decline the request if the script does not exist (or is a directory),
-     * rather than just returning internal server error */
-    if (
-            (r->finfo.filetype == APR_NOFILE)
-            || (r->finfo.filetype & APR_DIR)
-        ) {
-        return DECLINED;
+    else if (status != APR_EAGAIN) {
+        if (!stream->has_response) {
+            int err = H2_STREAM_RST(stream, H2_ERR_PROTOCOL_ERROR);
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03466)
+                          "h2_stream(%ld-%d): no response, RST_STREAM, err=%d",
+                          session->id, stream->id, err);
+            nghttp2_submit_rst_stream(session->ngh2, NGHTTP2_FLAG_NONE,
+                                      stream->id, err);
+            return APR_SUCCESS;
+        } 
+        rv = nghttp2_session_resume_data(session->ngh2, stream->id);
+        session->have_written = 1;
+        ap_log_cerror(APLOG_MARK, nghttp2_is_fatal(rv)?
+                      APLOG_ERR : APLOG_DEBUG, 0, session->c,
+                      APLOGNO(02936) 
+                      "h2_stream(%ld-%d): resuming %s",
+                      session->id, stream->id, rv? nghttp2_strerror(rv) : "");
     }
-    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, APLOGNO(01472)
-                  "handling [%s] in mod_lua", r->filename);
-
-    /* XXX: This seems wrong because it may generate wrong headers for HEAD requests */
-    if (!r->header_only) {
-        lua_State *L;
-        apr_pool_t *pool;
-        const ap_lua_dir_cfg *cfg = ap_get_module_config(r->per_dir_config,
-                                                         &lua_module);
-        ap_lua_vm_spec *spec = create_vm_spec(&pool, r, cfg, NULL, NULL, NULL,
-                                              0, "handle", "request handler");
-
-        L = ap_lua_get_lua_state(pool, spec, r);
-        if (!L) {
-            /* TODO annotate spec with failure reason */
-            r->status = HTTP_INTERNAL_SERVER_ERROR;
-            ap_rputs("Unable to compile VM, see logs", r);
-            ap_lua_release_state(L, spec, r);
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
-        ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r, APLOGNO(01474) "got a vm!");
-        lua_getglobal(L, "handle");
-        if (!lua_isfunction(L, -1)) {
-            ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01475)
-                          "lua: Unable to find function %s in %s",
-                          "handle",
-                          spec->file);
-            ap_lua_release_state(L, spec, r);
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
-        ap_lua_run_lua_request(L, r);
-        if (lua_pcall(L, 1, 1, 0)) {
-            report_lua_error(L, r);
-        }
-        if (lua_isnumber(L, -1)) {
-            rc = lua_tointeger(L, -1);
-        }
-        ap_lua_release_state(L, spec, r);
-    }
-    return rc;
+    return status;
 }

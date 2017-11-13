@@ -1,1 +1,1 @@
-die("No path in gitfile: %s", path);
+warning("%s unexpectedly said: '%s'", data->name, buf->buf);

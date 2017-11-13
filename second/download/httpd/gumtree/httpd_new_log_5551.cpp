@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03086)
-                          "upgrade without HTTP2-Settings declined");
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02672)
+                           "ServerSupportFunction HSE_REQ_GET_SSPI_INFO "
+                           "is not supported: %s", r->filename);

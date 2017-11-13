@@ -1,1 +1,1 @@
-error("corrupt loose object '%s'", sha1_to_hex(expected_sha1));
+die(_("too-short tree file"));

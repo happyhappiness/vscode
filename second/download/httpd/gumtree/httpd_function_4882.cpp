@@ -1,64 +1,112 @@
-void ap_core_child_status(server_rec *s, pid_t pid,
-                          ap_generation_t gen, int slot,
-                          mpm_child_status status)
+static BOOL stapling_renew_response(server_rec *s, modssl_ctx_t *mctx, SSL *ssl,
+                                    certinfo *cinf, OCSP_RESPONSE **prsp,
+                                    apr_pool_t *pool)
 {
-    mpm_gen_info_t *cur;
-    const char *status_msg = "unknown status";
+    conn_rec *conn      = (conn_rec *)SSL_get_app_data(ssl);
+    apr_pool_t *vpool;
+    OCSP_REQUEST *req = NULL;
+    OCSP_CERTID *id = NULL;
+    STACK_OF(X509_EXTENSION) *exts;
+    int i;
+    BOOL ok = FALSE;
+    BOOL rv = TRUE;
+    const char *ocspuri;
+    apr_uri_t uri;
 
-    if (!gen_head_init) { /* where to run this? */
-        gen_head_init = 1;
-        geninfo = apr_pcalloc(s->process->pool, sizeof *geninfo);
-        unused_geninfo = apr_pcalloc(s->process->pool, sizeof *unused_geninfo);
-        APR_RING_INIT(geninfo, mpm_gen_info_t, link);
-        APR_RING_INIT(unused_geninfo, mpm_gen_info_t, link);
+    *prsp = NULL;
+    /* Build up OCSP query from server certificate info */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "stapling_renew_response: querying responder");
+
+    req = OCSP_REQUEST_new();
+    if (!req)
+        goto err;
+    id = OCSP_CERTID_dup(cinf->cid);
+    if (!id)
+        goto err;
+    if (!OCSP_request_add0_id(req, id))
+        goto err;
+    id = NULL;
+    /* Add any extensions to the request */
+    SSL_get_tlsext_status_exts(ssl, &exts);
+    for (i = 0; i < sk_X509_EXTENSION_num(exts); i++) {
+        X509_EXTENSION *ext = sk_X509_EXTENSION_value(exts, i);
+        if (!OCSP_REQUEST_add_ext(req, ext, -1))
+            goto err;
     }
 
-    cur = APR_RING_FIRST(geninfo);
-    while (cur != APR_RING_SENTINEL(geninfo, mpm_gen_info_t, link) &&
-           cur->gen != gen) {
-        cur = APR_RING_NEXT(cur, link);
+    if (mctx->stapling_force_url)
+        ocspuri = mctx->stapling_force_url;
+    else
+        ocspuri = cinf->uri;
+
+    /* Create a temporary pool to constrain memory use */
+    apr_pool_create(&vpool, conn->pool);
+
+    ok = apr_uri_parse(vpool, ocspuri, &uri);
+    if (ok != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "stapling_renew_response: Error parsing uri %s",
+                      ocspuri);
+        rv = FALSE;
+        goto done;
+    } 
+    else if (strcmp(uri.scheme, "http")) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "stapling_renew_response: Unsupported uri %s", ocspuri);
+        rv = FALSE;
+        goto done;
     }
 
-    switch(status) {
-    case MPM_CHILD_STARTED:
-        status_msg = "started";
-        if (cur == APR_RING_SENTINEL(geninfo, mpm_gen_info_t, link)) {
-            /* first child for this generation */
-            if (!APR_RING_EMPTY(unused_geninfo, mpm_gen_info_t, link)) {
-                cur = APR_RING_FIRST(unused_geninfo);
-                APR_RING_REMOVE(cur, link);
-                cur->active = cur->done = 0;
-            }
-            else {
-                cur = apr_pcalloc(s->process->pool, sizeof *cur);
-            }
-            cur->gen = gen;
-            APR_RING_ELEM_INIT(cur, link);
-            APR_RING_INSERT_HEAD(geninfo, cur, mpm_gen_info_t, link);
-        }
-        ap_random_parent_after_fork();
-        ++cur->active;
-        break;
-    case MPM_CHILD_EXITED:
-        status_msg = "exited";
-        if (cur == APR_RING_SENTINEL(geninfo, mpm_gen_info_t, link)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00546)
-                         "no record of generation %d of exiting child %" APR_PID_T_FMT,
-                         gen, pid);
+    if (!uri.port) {
+        uri.port = apr_uri_port_of_scheme(uri.scheme);
+    }
+
+    *prsp = modssl_dispatch_ocsp_request(&uri, mctx->stapling_responder_timeout,
+                                         req, conn, vpool);
+
+    apr_pool_destroy(vpool);
+
+    if (!*prsp) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "stapling_renew_response: responder error");
+        if (mctx->stapling_fake_trylater) {
+            *prsp = OCSP_response_create(OCSP_RESPONSE_STATUS_TRYLATER, NULL);
         }
         else {
-            --cur->active;
-            if (!cur->active && cur->done) { /* no children, server has stopped/restarted */
-                end_gen(cur);
-            }
+            goto done;
         }
-        break;
-    case MPM_CHILD_LOST_SLOT:
-        status_msg = "lost slot";
-        /* we don't track by slot, so it doesn't matter */
-        break;
+    } 
+    else {
+        int response_status = OCSP_response_status(*prsp);
+
+        if (response_status == OCSP_RESPONSE_STATUS_SUCCESSFUL) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                        "stapling_renew_response: query response received");
+            stapling_check_response(s, mctx, cinf, *prsp, &ok);
+            if (ok == FALSE) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                             "stapling_renew_response: error in retreived response!");
+            }
+        } 
+        else {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "stapling_renew_response: responder error %s",
+                         OCSP_response_status_str(response_status));
+        }
     }
-    ap_log_error(APLOG_MARK, APLOG_TRACE4, 0, s,
-                 "mpm child %" APR_PID_T_FMT " (gen %d/slot %d) %s",
-                 pid, gen, slot, status_msg);
+    if (stapling_cache_response(s, mctx, *prsp, cinf, ok, pool) == FALSE) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "stapling_renew_response: error caching response!");
+    }
+
+done:
+    if (id)
+        OCSP_CERTID_free(id);
+    if (req)
+        OCSP_REQUEST_free(req);
+    return rv;
+err:
+    rv = FALSE;
+    goto done;
 }

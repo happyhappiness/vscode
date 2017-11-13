@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "authz_dbd/redirect for %s of %s [%s]",
-                          action, r->user, message?message:noerror);
+printf("Time taken for tests:   %ld.%03ld seconds\n",
+           (long) apr_time_sec(timetakenusec),
+           (long) apr_time_usec(timetakenusec));

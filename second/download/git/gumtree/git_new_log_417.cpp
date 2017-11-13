@@ -1,1 +1,1 @@
-printf("Auto-merging notes for %s\n", oid_to_hex(&p->obj));
+printf(_("Merging %s with %s\n"), o.branch1, o.branch2);

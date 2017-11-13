@@ -1,1 +1,1 @@
-fprintf(FINFO,"skipping directory %s\n",fname);
+fprintf(FERROR,"backup filename too long\n");

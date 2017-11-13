@@ -1,23 +1,21 @@
-void read_gitfile_error_die(int error_code, const char *path, const char *dir)
+static int strbuf_set_helper_option(struct helper_data *data,
+				    struct strbuf *buf)
 {
-	switch (error_code) {
-	case READ_GITFILE_ERR_STAT_FAILED:
-	case READ_GITFILE_ERR_NOT_A_FILE:
-		/* non-fatal; follow return path */
-		break;
-	case READ_GITFILE_ERR_OPEN_FAILED:
-		die_errno("Error opening '%s'", path);
-	case READ_GITFILE_ERR_TOO_LARGE:
-		die("Too large to be a .git file: '%s'", path);
-	case READ_GITFILE_ERR_READ_FAILED:
-		die("Error reading %s", path);
-	case READ_GITFILE_ERR_INVALID_FORMAT:
-		die("Invalid gitfile format: %s", path);
-	case READ_GITFILE_ERR_NO_PATH:
-		die("No path in gitfile: %s", path);
-	case READ_GITFILE_ERR_NOT_A_REPO:
-		die("Not a git repository: %s", dir);
-	default:
-		die("BUG: unknown error code");
+	int ret;
+
+	sendline(data, buf);
+	if (recvline(data, buf))
+		exit(128);
+
+	if (!strcmp(buf->buf, "ok"))
+		ret = 0;
+	else if (starts_with(buf->buf, "error"))
+		ret = -1;
+	else if (!strcmp(buf->buf, "unsupported"))
+		ret = 1;
+	else {
+		warning("%s unexpectedly said: '%s'", data->name, buf->buf);
+		ret = 1;
 	}
+	return ret;
 }

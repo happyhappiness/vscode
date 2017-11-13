@@ -1,1 +1,1 @@
-die_errno("unable to read object %s", oid_to_hex(oid));
+die("protocol error: got both push certificate and unsigned commands");

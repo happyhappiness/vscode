@@ -1,1 +1,2 @@
-error_errno(_("'%s': short read"), filename);
+printf("broken link from %7s %s\n",
+			   typename(parent->type), oid_to_hex(&parent->oid));

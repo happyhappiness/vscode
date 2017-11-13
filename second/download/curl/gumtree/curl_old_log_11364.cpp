@@ -1,11 +1,10 @@
 fputs(
-"              transfer. It means that curl might use higher transfer speeds in\n"
-"              short bursts, but over time it uses no more than the given rate.\n"
-"              If  you  also use the -Y, --speed-limit option, that option will\n"
-"              take precedence and might cripple the rate-limiting slightly, to\n"
-"              help keeping the speed-limit logic working.\n"
+"              Note: When combined with -X, --request  <command>,  this  option\n"
+"              can be used to send an UIDL command instead, so the user may use\n"
+"              the email's unique identifier rather than  it's  message  id  to\n"
+"              make the request. (Added in 7.21.5)\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --local-port <num>[-num]\n"
+"       -L, --location\n"
+"              (HTTP/HTTPS)  If  the server reports that the requested page has\n"
+"              moved to a different location (indicated with a Location: header\n"
 , stdout);

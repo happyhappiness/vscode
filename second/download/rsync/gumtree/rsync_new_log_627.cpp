@@ -1,1 +1,2 @@
-out_of_memory("flist_expand");
+rprintf(FERROR,"open %s: %s\n",
+			dest,strerror(errno));

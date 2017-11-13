@@ -1,1 +1,1 @@
-apr_file_printf(errfile, "Unable to generate random bytes: %pm" NL, &rv);
+apr_file_puts(l, f);

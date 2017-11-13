@@ -1,1 +1,1 @@
-die("invalid ref format: %s", argv[start]);
+die("Bad type of menu_stuff when print menu");

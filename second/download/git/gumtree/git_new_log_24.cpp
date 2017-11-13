@@ -1,1 +1,0 @@
-warning(_("source repository is shallow, ignoring --local"));

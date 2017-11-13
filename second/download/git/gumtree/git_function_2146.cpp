@@ -1,9 +1,9 @@
-static void objectname_atom_parser(struct used_atom *atom, const char *arg)
+int fsck_error_function(struct object *obj, int msg_type, const char *message)
 {
-	if (!arg)
-		atom->u.objectname = O_FULL;
-	else if (!strcmp(arg, "short"))
-		atom->u.objectname = O_SHORT;
-	else
-		die(_("unrecognized %%(objectname) argument: %s"), arg);
+	if (msg_type == FSCK_WARN) {
+		warning("object %s: %s", sha1_to_hex(obj->sha1), message);
+		return 0;
+	}
+	error("object %s: %s", sha1_to_hex(obj->sha1), message);
+	return 1;
 }

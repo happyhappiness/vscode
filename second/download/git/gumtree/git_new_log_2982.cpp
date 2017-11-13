@@ -1,1 +1,1 @@
-error_errno("file write error");
+error_errno("unable to create temporary file");

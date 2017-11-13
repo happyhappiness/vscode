@@ -1,198 +1,71 @@
-int main(int argc, const char * const argv[])
+static const char *set_loglevel(cmd_parms *cmd, void *config_, const char *arg_)
 {
-    apr_file_t * outfile;
-    apr_file_t * infile;
-    apr_getopt_t * o;
-    apr_pool_t * pool;
-    apr_pool_t *pline;
-    apr_status_t status;
-    const char * arg;
-    char * stats = NULL;
-    char * inbuffer;
-    char * outbuffer;
-    char line[LINE_BUF_SIZE];
-    int doublelookups = 0;
+    char *level_str;
+    int level;
+    module *module;
+    char *arg = apr_pstrdup(cmd->temp_pool, arg_);
+    struct ap_logconf *log;
+    const char *err;
 
-    if (apr_app_initialize(&argc, &argv, NULL) != APR_SUCCESS) {
-        return 1;
+    /* XXX: what check is necessary here? */
+#if 0
+    const char *err = ap_check_cmd_context(cmd, NOT_IN_DIR_LOC_FILE);
+    if (err != NULL) {
+        return err;
     }
-    atexit(apr_terminate);
+#endif
 
-    if (argc) {
-        shortname = apr_filepath_name_get(argv[0]);
-    }
-
-    if (apr_pool_create(&pool, NULL) != APR_SUCCESS) {
-        return 1;
-    }
-    apr_file_open_stderr(&errfile, pool);
-    apr_getopt_init(&o, pool, argc, argv);
-
-    while (1) {
-        char opt;
-        status = apr_getopt(o, "s:c", &opt, &arg);
-        if (status == APR_EOF) {
-            break;
+    if (cmd->path) {
+        core_dir_config *dconf = config_;
+        if (!dconf->log) {
+            dconf->log = ap_new_log_config(cmd->pool, NULL);
         }
-        else if (status != APR_SUCCESS) {
-            usage();
-        }
-        else {
-            switch (opt) {
-            case 'c':
-                if (doublelookups) {
-                    usage();
-                }
-                doublelookups = 1;
-                break;
-            case 's':
-                if (stats) {
-                    usage();
-                }
-                stats = apr_pstrdup(pool, arg);
-                break;
-            } /* switch */
-        } /* else */
-    } /* while */
-
-    apr_file_open_stdout(&outfile, pool);
-    apr_file_open_stdin(&infile, pool);
-
-    /* Allocate two new 10k file buffers */
-    if ((outbuffer = apr_palloc(pool, WRITE_BUF_SIZE)) == NULL ||
-        (inbuffer = apr_palloc(pool, READ_BUF_SIZE)) == NULL) {
-        return 1;
+        log = dconf->log;
+    }
+    else {
+        log = &cmd->server->log;
     }
 
-    /* Set the buffers */
-    apr_file_buffer_set(infile, inbuffer, READ_BUF_SIZE);
-    apr_file_buffer_set(outfile, outbuffer, WRITE_BUF_SIZE);
+    if (arg == NULL)
+        return "LogLevel requires level keyword or module loglevel specifier";
 
-    cache = apr_hash_make(pool);
-    if(apr_pool_create(&pline, pool) != APR_SUCCESS){
-        return 1;
+    level_str = ap_strchr(arg, ':');
+
+    if (level_str == NULL) {
+        err = ap_parse_log_level(arg, &log->level);
+        if (err != NULL)
+            return err;
+        ap_reset_module_loglevels(log, APLOG_NO_MODULE);
+        ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, cmd->server,
+                     "Setting LogLevel for all modules to %s", arg);
+        return NULL;
     }
 
-    while (apr_file_gets(line, sizeof(line), infile) == APR_SUCCESS) {
-        char *hostname;
-        char *space;
-        apr_sockaddr_t *ip;
-        apr_sockaddr_t *ipdouble;
-        char dummy[] = " " APR_EOL_STR;
-
-        if (line[0] == '\0') {
-            continue;
-        }
-
-        /* Count our log entries */
-        entries++;
-
-        /* Check if this could even be an IP address */
-        if (!apr_isxdigit(line[0]) && line[0] != ':') {
-                withname++;
-            apr_file_puts(line, outfile);
-            continue;
-        }
-
-        /* Terminate the line at the next space */
-        if ((space = strchr(line, ' ')) != NULL) {
-            *space = '\0';
-        }
-        else {
-            space = dummy;
-        }
-
-        /* See if we have it in our cache */
-        hostname = (char *) apr_hash_get(cache, line, APR_HASH_KEY_STRING);
-        if (hostname) {
-            apr_file_printf(outfile, "%s %s", hostname, space + 1);
-            cachehits++;
-            continue;
-        }
-
-        /* Parse the IP address */
-        status = apr_sockaddr_info_get(&ip, line, APR_UNSPEC, 0, 0, pline);
-        if (status != APR_SUCCESS) {
-            /* Not an IP address */
-            withname++;
-            *space = ' ';
-            apr_file_puts(line, outfile);
-            continue;
-        }
-
-        /* This does not make much sense, but historically "resolves" means
-         * "parsed as an IP address". It does not mean we actually resolved
-         * the IP address into a hostname.
-         */
-        resolves++;
-
-        /* From here on our we cache each result, even if it was not
-         * succesful
-         */
-        cachesize++;
-
-        /* Try and perform a reverse lookup */
-        status = apr_getnameinfo(&hostname, ip, 0) != APR_SUCCESS;
-        if (status || hostname == NULL) {
-            /* Could not perform a reverse lookup */
-            *space = ' ';
-            apr_file_puts(line, outfile);
-            noreverse++;
-
-            /* Add to cache */
-            *space = '\0';
-            apr_hash_set(cache, line, APR_HASH_KEY_STRING,
-                         apr_pstrdup(apr_hash_pool_get(cache), line));
-            continue;
-        }
-
-        /* Perform a double lookup */
-        if (doublelookups) {
-            /* Do a forward lookup on our hostname, and see if that matches our
-             * original IP address.
-             */
-            status = apr_sockaddr_info_get(&ipdouble, hostname, ip->family, 0,
-                                           0, pline);
-            if (status == APR_SUCCESS ||
-                memcmp(ipdouble->ipaddr_ptr, ip->ipaddr_ptr, ip->ipaddr_len)) {
-                /* Double-lookup failed  */
-                *space = ' ';
-                apr_file_puts(line, outfile);
-                doublefailed++;
-
-                /* Add to cache */
-                *space = '\0';
-                apr_hash_set(cache, line, APR_HASH_KEY_STRING,
-                             apr_pstrdup(apr_hash_pool_get(cache), line));
-                continue;
-            }
-        }
-
-        /* Outout the resolved name */
-        apr_file_printf(outfile, "%s %s", hostname, space + 1);
-
-        /* Store it in the cache */
-        apr_hash_set(cache, line, APR_HASH_KEY_STRING,
-                     apr_pstrdup(apr_hash_pool_get(cache), hostname));
-
-        apr_pool_clear(pline);
+    *level_str++ = '\0';
+    if (!*level_str) {
+        return apr_psprintf(cmd->temp_pool, "Module specifier '%s' must be "
+                            "followed by a log level keyword", arg);
     }
 
-    /* Flush any remaining output */
-    apr_file_flush(outfile);
+    err = ap_parse_log_level(level_str, &level);
+    if (err != NULL)
+        return apr_psprintf(cmd->temp_pool, "%s:%s: %s", arg, level_str, err);
 
-    if (stats) {
-        apr_file_t *statsfile;
-        if (apr_file_open(&statsfile, stats,
-                       APR_FOPEN_WRITE | APR_FOPEN_CREATE | APR_FOPEN_TRUNCATE,
-                          APR_OS_DEFAULT, pool) != APR_SUCCESS) {
-            apr_file_printf(errfile, "%s: Could not open %s for writing.",
-                            shortname, stats);
-            return 1;
-        }
-        print_statistics(statsfile);
-        apr_file_close(statsfile);
+    if ((module = find_module(cmd->server, arg)) == NULL) {
+        char *name = apr_psprintf(cmd->temp_pool, "%s_module", arg);
+        ap_log_error(APLOG_MARK, APLOG_TRACE6, 0, cmd->server,
+                     "Cannot find module '%s', trying '%s'", arg, name);
+        module = find_module(cmd->server, name);
     }
 
-    return 0;
+    if (module == NULL) {
+        return apr_psprintf(cmd->temp_pool, "Cannot find module %s", arg);
+    }
+
+    ap_set_module_loglevel(cmd->pool, log, module->module_index, level);
+    ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, cmd->server,
+                 "Setting LogLevel for module %s to %s", module->name,
+                 level_str);
+
+    return NULL;
 }

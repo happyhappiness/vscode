@@ -1,1 +1,1 @@
-die(_("Failed to find exact merge base"));
+die(_("base commit should be the ancestor of revision list"));

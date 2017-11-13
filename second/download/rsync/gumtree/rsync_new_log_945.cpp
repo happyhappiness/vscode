@@ -1,2 +1,1 @@
-fprintf(header,
-        "const uch ZLIB_INTERNAL _length_code[MAX_MATCH-MIN_MATCH+1]= {\n");
+fprintf(stderr, "%s" "Continuing without compression.\n\n", err_buf);

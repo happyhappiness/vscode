@@ -1,4 +1,5 @@
-ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, c,
-                      H2_SSSN_LOG(APLOGNO(03199), session, 
-                      "connection disappeared without proper "
-                      "goodbye, clients will be confused, should not happen"));
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                         ref ? APLOGNO(03226) "Spelling fix: %s: %d candidates from %s"
+                             : APLOGNO(03227) "Spelling fix: %s: %d candidates%s",
+                         r->uri, candidates->nelts,
+                         (ref ? ref : ""));

@@ -1,11 +1,10 @@
 fputs(
-"              tion that prevents the password from being sent over the wire in\n"
-"              clear  text.  Use this in combination with the normal -u, --user\n"
-"              option to set user name and password. See also --ntlm, --negoti-\n"
-"              ate and --anyauth for related options.\n"
+"                     This  will  make  curl  load  data  from  the  given file\n"
+"                     (including any newlines), URL-encode that data  and  pass\n"
+"                     it  on  in  the  POST.  The  name part gets an equal sign\n"
+"                     appended, resulting in name=urlencoded-file-content. Note\n"
+"                     that the name is expected to be URL-encoded already.\n"
 "\n"
-"              If  this option is used several times, the following occurrences\n"
-"              make no difference.\n"
-"\n"
-"       --disable-eprt\n"
+"       --digest\n"
+"              (HTTP) Enables HTTP Digest authentication. This is a authentica-\n"
 , stdout);

@@ -1,10 +1,10 @@
 fputs(
-"              Use -s, --silent to make curl quiet.\n"
+"              this option. The password can, still.\n"
 "\n"
-"       -w, --write-out <format>\n"
-"              Defines what to display on stdout after a completed and success-\n"
-"              ful operation. The format is a string  that  may  contain  plain\n"
-"              text mixed with any number of variables. The string can be spec-\n"
-"              ified as \"string\", to get read from a particular file you  spec-\n"
-"              ify  it  \"@filename\"  and  to  tell curl to read the format from\n"
+"              When using Kerberos V5 with a Windows based  server  you  should\n"
+"              include  the  Windows domain name in the user name, in order for\n"
+"              the server to succesfully obtain a Kerberos Ticket. If you don't\n"
+"              then the initial authentication handshake may fail.\n"
+"\n"
+"              When  using  NTLM,  the user name can be specified simply as the\n"
 , stdout);

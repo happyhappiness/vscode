@@ -1,1 +1,1 @@
-rprintf(FINFO,"send_files starting\n");
+rprintf(FERROR,"recv_generator failed to open %s\n",fname);

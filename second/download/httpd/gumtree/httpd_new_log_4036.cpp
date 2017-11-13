@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00929)
-                         "can not create connection pool");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, srv, APLOGNO(01493)
+                     "rfc1413: apr_sockaddr_info_get(%s) failed",
+                     conn->client_ip);

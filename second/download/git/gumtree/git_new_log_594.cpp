@@ -1,1 +1,1 @@
-strbuf_reset(resolved);
+die_errno("packet write with format failed");

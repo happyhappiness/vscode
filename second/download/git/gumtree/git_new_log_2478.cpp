@@ -1,1 +1,0 @@
-error(_("failed to read %s"), name);

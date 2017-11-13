@@ -1,58 +1,70 @@
-static int run_apply(const struct am_state *state, const char *index_file)
+static void prepare_packed_git_one(char *objdir, int local)
 {
-	struct argv_array apply_paths = ARGV_ARRAY_INIT;
-	struct argv_array apply_opts = ARGV_ARRAY_INIT;
-	struct apply_state apply_state;
-	int res, opts_left;
-	static struct lock_file lock_file;
-	int force_apply = 0;
-	int options = 0;
+	/* Ensure that this buffer is large enough so that we can
+	   append "/pack/" without clobbering the stack even if
+	   strlen(objdir) were PATH_MAX.  */
+	char path[PATH_MAX + 1 + 4 + 1 + 1];
+	int len;
+	DIR *dir;
+	struct dirent *de;
+	struct string_list garbage = STRING_LIST_INIT_DUP;
 
-	if (init_apply_state(&apply_state, NULL, &lock_file))
-		die("BUG: init_apply_state() failed");
-
-	argv_array_push(&apply_opts, "apply");
-	argv_array_pushv(&apply_opts, state->git_apply_opts.argv);
-
-	opts_left = apply_parse_options(apply_opts.argc, apply_opts.argv,
-					&apply_state, &force_apply, &options,
-					NULL);
-
-	if (opts_left != 0)
-		die("unknown option passed through to git apply");
-
-	if (index_file) {
-		apply_state.index_file = index_file;
-		apply_state.cached = 1;
-	} else
-		apply_state.check_index = 1;
-
-	/*
-	 * If we are allowed to fall back on 3-way merge, don't give false
-	 * errors during the initial attempt.
-	 */
-	if (state->threeway && !index_file)
-		apply_state.apply_verbosity = verbosity_silent;
-
-	if (check_apply_state(&apply_state, force_apply))
-		die("BUG: check_apply_state() failed");
-
-	argv_array_push(&apply_paths, am_path(state, "patch"));
-
-	res = apply_all_patches(&apply_state, apply_paths.argc, apply_paths.argv, options);
-
-	argv_array_clear(&apply_paths);
-	argv_array_clear(&apply_opts);
-	clear_apply_state(&apply_state);
-
-	if (res)
-		return res;
-
-	if (index_file) {
-		/* Reload index as apply_all_patches() will have modified it. */
-		discard_cache();
-		read_cache_from(index_file);
+	sprintf(path, "%s/pack", objdir);
+	len = strlen(path);
+	dir = opendir(path);
+	if (!dir) {
+		if (errno != ENOENT)
+			error("unable to open object pack directory: %s: %s",
+			      path, strerror(errno));
+		return;
 	}
+	path[len++] = '/';
+	while ((de = readdir(dir)) != NULL) {
+		int namelen = strlen(de->d_name);
+		struct packed_git *p;
 
-	return 0;
+		if (len + namelen + 1 > sizeof(path)) {
+			if (report_garbage) {
+				struct strbuf sb = STRBUF_INIT;
+				strbuf_addf(&sb, "%.*s/%s", len - 1, path, de->d_name);
+				report_garbage("path too long", sb.buf);
+				strbuf_release(&sb);
+			}
+			continue;
+		}
+
+		if (is_dot_or_dotdot(de->d_name))
+			continue;
+
+		strcpy(path + len, de->d_name);
+
+		if (has_extension(de->d_name, ".idx")) {
+			/* Don't reopen a pack we already have. */
+			for (p = packed_git; p; p = p->next) {
+				if (!memcmp(path, p->pack_name, len + namelen - 4))
+					break;
+			}
+			if (p == NULL &&
+			    /*
+			     * See if it really is a valid .idx file with
+			     * corresponding .pack file that we can map.
+			     */
+			    (p = add_packed_git(path, len + namelen, local)) != NULL)
+				install_packed_git(p);
+		}
+
+		if (!report_garbage)
+			continue;
+
+		if (has_extension(de->d_name, ".idx") ||
+		    has_extension(de->d_name, ".pack") ||
+		    has_extension(de->d_name, ".bitmap") ||
+		    has_extension(de->d_name, ".keep"))
+			string_list_append(&garbage, path);
+		else
+			report_garbage("garbage found", path);
+	}
+	closedir(dir);
+	report_pack_garbage(&garbage);
+	string_list_clear(&garbage, 0);
 }

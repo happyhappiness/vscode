@@ -1,1 +1,1 @@
-die_errno(_("could not open '%s' for reading and writing"), path);
+die("BUG: run_command with a pipe can cause deadlock");

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " would exceed ServerLimit of %d, decreasing to %d.",
-                         server_limit, server_limit * threads_per_child);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02209)
+                     "CA certificate: %s",
+                     SSL_X509_NAME_to_string(ptemp, name, 0));

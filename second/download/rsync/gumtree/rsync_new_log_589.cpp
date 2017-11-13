@@ -1,2 +1,1 @@
-rprintf(FERROR,"open %s: %s\n",
-			source,strerror(errno));
+rprintf(FINFO,"redoing %s(%d)\n",fname,i);

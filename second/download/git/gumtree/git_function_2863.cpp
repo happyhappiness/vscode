@@ -1,20 +1,36 @@
-static void print_bases(struct base_tree_info *bases)
+static int populate_maildir_list(struct string_list *list, const char *path)
 {
-	int i;
+	DIR *dir;
+	struct dirent *dent;
+	char *name = NULL;
+	char *subs[] = { "cur", "new", NULL };
+	char **sub;
+	int ret = -1;
 
-	/* Only do this once, either for the cover or for the first one */
-	if (is_null_oid(&bases->base_commit))
-		return;
+	for (sub = subs; *sub; ++sub) {
+		free(name);
+		name = xstrfmt("%s/%s", path, *sub);
+		if ((dir = opendir(name)) == NULL) {
+			if (errno == ENOENT)
+				continue;
+			error("cannot opendir %s (%s)", name, strerror(errno));
+			goto out;
+		}
 
-	/* Show the base commit */
-	printf("base-commit: %s\n", oid_to_hex(&bases->base_commit));
+		while ((dent = readdir(dir)) != NULL) {
+			if (dent->d_name[0] == '.')
+				continue;
+			free(name);
+			name = xstrfmt("%s/%s", *sub, dent->d_name);
+			string_list_insert(list, name);
+		}
 
-	/* Show the prerequisite patches */
-	for (i = bases->nr_patch_id - 1; i >= 0; i--)
-		printf("prerequisite-patch-id: %s\n", oid_to_hex(&bases->patch_id[i]));
+		closedir(dir);
+	}
 
-	free(bases->patch_id);
-	bases->nr_patch_id = 0;
-	bases->alloc_patch_id = 0;
-	oidclr(&bases->base_commit);
+	ret = 0;
+
+out:
+	free(name);
+	return ret;
 }

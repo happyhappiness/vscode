@@ -1,1 +1,2 @@
-error("Unable to append to %s", log_file);
+die("unable to generate diff (%s)",
+		    sha1_to_hex(parent->commit->object.sha1));

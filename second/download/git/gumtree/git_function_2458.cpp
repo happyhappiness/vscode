@@ -1,25 +1,30 @@
-static void check_merge_bases(int no_checkout)
+static int fsck_walk_tree(struct tree *tree, void *data, struct fsck_options *options)
 {
-	struct commit_list *result;
-	int rev_nr;
-	struct commit **rev = get_bad_and_good_commits(&rev_nr);
+	struct tree_desc desc;
+	struct name_entry entry;
+	int res = 0;
 
-	result = get_merge_bases_many(rev[0], rev_nr - 1, rev + 1);
+	if (parse_tree(tree))
+		return -1;
 
-	for (; result; result = result->next) {
-		const unsigned char *mb = result->item->object.oid.hash;
-		if (!hashcmp(mb, current_bad_oid->hash)) {
-			handle_bad_merge_base();
-		} else if (0 <= sha1_array_lookup(&good_revs, mb)) {
+	init_tree_desc(&desc, tree->buffer, tree->size);
+	while (tree_entry(&desc, &entry)) {
+		int result;
+
+		if (S_ISGITLINK(entry.mode))
 			continue;
-		} else if (0 <= sha1_array_lookup(&skipped_revs, mb)) {
-			handle_skipped_merge_base(mb);
-		} else {
-			printf("Bisecting: a merge base must be tested\n");
-			exit(bisect_checkout(mb, no_checkout));
+		if (S_ISDIR(entry.mode))
+			result = options->walk(&lookup_tree(entry.sha1)->object, OBJ_TREE, data, options);
+		else if (S_ISREG(entry.mode) || S_ISLNK(entry.mode))
+			result = options->walk(&lookup_blob(entry.sha1)->object, OBJ_BLOB, data, options);
+		else {
+			result = error("in tree %s: entry %s has bad mode %.6o",
+					sha1_to_hex(tree->object.sha1), entry.path, entry.mode);
 		}
+		if (result < 0)
+			return result;
+		if (!res)
+			res = result;
 	}
-
-	free(rev);
-	free_commit_list(result);
+	return res;
 }

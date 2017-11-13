@@ -1,5 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
-                          "h2_session:  stream(%ld-%d): WINDOW_UPDATE "
-                          "incr=%d", 
-                          session->id, (int)frame->hd.stream_id,
-                          frame->window_update.window_size_increment);
+ap_log_error(APLOG_MARK,APLOG_WARNING, rv, NULL, APLOGNO(00435)
+                             "No installed ConfigArgs for the service "
+                             "\"%s\", using Apache defaults.", service_name);

@@ -1,1 +1,1 @@
-die(_("editing patch failed"));
+die("curl_multi_init failed");

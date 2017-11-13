@@ -1,35 +1,39 @@
-void setup_protocol(int f_out,int f_in)
+static char *get_local_name(struct file_list *flist,char *name)
 {
-  if (am_server) {
-    remote_version = read_int(f_in);
-    write_int(f_out,PROTOCOL_VERSION);
-    write_flush(f_out);
-  } else {
-    write_int(f_out,PROTOCOL_VERSION);
-    write_flush(f_out);
-    remote_version = read_int(f_in);
-  }
+  struct stat st;
 
-  if (remote_version < MIN_PROTOCOL_VERSION ||
-      remote_version > MAX_PROTOCOL_VERSION) {
-    fprintf(FERROR,"protocol version mismatch - is your shell clean?\n");
-    exit_cleanup(1);
-  }	
-
-  if (remote_version == 10) {
-    send_file_entry = send_file_entry_v10;
-    receive_file_entry = receive_file_entry_v10;
-  } else {
-    send_file_entry = send_file_entry_v11;
-    receive_file_entry = receive_file_entry_v11;
-  }
-
-  if (remote_version >= 12) {
-    if (am_server) {
-      checksum_seed = time(NULL);
-      write_int(f_out,checksum_seed);
-    } else {
-      checksum_seed = read_int(f_in);
+  if (stat(name,&st) == 0) {
+    if (S_ISDIR(st.st_mode)) {
+      if (chdir(name) != 0) {
+	fprintf(stderr,"chdir %s : %s\n",name,strerror(errno));
+	exit(1);
+      }
+      return NULL;
     }
+    if (flist->count > 1) {
+      fprintf(stderr,"ERROR: destination must be a directory when copying more than 1 file\n");
+      exit(1);
+    }
+    return name;
   }
+
+  if (flist->count == 1)
+    return name;
+
+  if (!name) 
+    return NULL;
+
+  if (mkdir(name,0777) != 0) {
+    fprintf(stderr,"mkdir %s : %s\n",name,strerror(errno));
+    exit(1);
+  } else {
+    fprintf(am_server?stderr:stdout,"created directory %s\n",name);
+  }
+
+  if (chdir(name) != 0) {
+    fprintf(stderr,"chdir %s : %s\n",name,strerror(errno));
+    exit(1);
+  }
+
+  return NULL;
 }

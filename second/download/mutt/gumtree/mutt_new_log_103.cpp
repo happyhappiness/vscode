@@ -1,1 +1,1 @@
-printf ("fpr:::::::::%s:\n", p->fingerprint);
+state_attach_puts (_("KeyID "), s);

@@ -1,39 +1,64 @@
-static int do_exec(const char *command_line)
+struct commit_list *get_shallow_commits_by_rev_list(int ac, const char **av,
+						    int shallow_flag,
+						    int not_shallow_flag)
 {
-	const char *child_argv[] = { NULL, NULL };
-	int dirty, status;
+	struct commit_list *result = NULL, *p;
+	struct commit_list *not_shallow_list = NULL;
+	struct rev_info revs;
+	int both_flags = shallow_flag | not_shallow_flag;
 
-	fprintf(stderr, "Executing: %s\n", command_line);
-	child_argv[0] = command_line;
-	status = run_command_v_opt(child_argv, RUN_USING_SHELL);
+	/*
+	 * SHALLOW (excluded) and NOT_SHALLOW (included) should not be
+	 * set at this point. But better be safe than sorry.
+	 */
+	clear_object_flags(both_flags);
 
-	/* force re-reading of the cache */
-	if (discard_cache() < 0 || read_cache() < 0)
-		return error(_("could not read index"));
+	is_repository_shallow(); /* make sure shallows are read */
 
-	dirty = require_clean_work_tree("rebase", NULL, 1, 1);
+	init_revisions(&revs, NULL);
+	save_commit_buffer = 0;
+	setup_revisions(ac, av, &revs, NULL);
 
-	if (status) {
-		warning(_("execution failed: %s\n%s"
-			  "You can fix the problem, and then run\n"
-			  "\n"
-			  "  git rebase --continue\n"
-			  "\n"),
-			command_line,
-			dirty ? N_("and made changes to the index and/or the "
-				"working tree\n") : "");
-		if (status == 127)
-			/* command not found */
-			status = 1;
-	} else if (dirty) {
-		warning(_("execution succeeded: %s\nbut "
-			  "left changes to the index and/or the working tree\n"
-			  "Commit or stash your changes, and then run\n"
-			  "\n"
-			  "  git rebase --continue\n"
-			  "\n"), command_line);
-		status = 1;
+	if (prepare_revision_walk(&revs))
+		die("revision walk setup failed");
+	traverse_commit_list(&revs, show_commit, NULL, &not_shallow_list);
+
+	/* Mark all reachable commits as NOT_SHALLOW */
+	for (p = not_shallow_list; p; p = p->next)
+		p->item->object.flags |= not_shallow_flag;
+
+	/*
+	 * mark border commits SHALLOW + NOT_SHALLOW.
+	 * We cannot clear NOT_SHALLOW right now. Imagine border
+	 * commit A is processed first, then commit B, whose parent is
+	 * A, later. If NOT_SHALLOW on A is cleared at step 1, B
+	 * itself is considered border at step 2, which is incorrect.
+	 */
+	for (p = not_shallow_list; p; p = p->next) {
+		struct commit *c = p->item;
+		struct commit_list *parent;
+
+		if (parse_commit(c))
+			die("unable to parse commit %s",
+			    oid_to_hex(&c->object.oid));
+
+		for (parent = c->parents; parent; parent = parent->next)
+			if (!(parent->item->object.flags & not_shallow_flag)) {
+				c->object.flags |= shallow_flag;
+				commit_list_insert(c, &result);
+				break;
+			}
 	}
+	free_commit_list(not_shallow_list);
 
-	return status;
+	/*
+	 * Now we can clean up NOT_SHALLOW on border commits. Having
+	 * both flags set can confuse the caller.
+	 */
+	for (p = result; p; p = p->next) {
+		struct object *o = &p->item->object;
+		if ((o->flags & both_flags) == both_flags)
+			o->flags &= ~not_shallow_flag;
+	}
+	return result;
 }

@@ -1,10 +1,11 @@
 fputs(
-"              ing for hours due to slow networks or links going  down.   Since\n"
-"              7.32.0, this option accepts decimal values, but the actual time-\n"
-"              out will decrease in accuracy as the specified timeout increases\n"
-"              in decimal precision.  See also the --connect-timeout option.\n"
+"              You  can  tell  curl to not change the non-GET request method to\n"
+"              GET after a 30x response by  using  the  dedicated  options  for\n"
+"              that: --post301, --post302 and -post303.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"       --libcurl <file>\n"
+"              Append  this  option  to any ordinary curl command line, and you\n"
+"              will get a libcurl-using C source code written to the file  that\n"
+"              does the equivalent of what your command-line operation does!\n"
 "\n"
-"       --login-options <options>\n"
 , stdout);

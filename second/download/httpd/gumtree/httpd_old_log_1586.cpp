@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Zlib error %d flushing zlib output buffer (%s)",
-                              zRC, ctx->stream.msg);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                 "Init: Generating temporary EC parameters (256 bits)");

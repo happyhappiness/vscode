@@ -1,1 +1,2 @@
-err(o, msg, path, _(": perhaps a D/F conflict?"));
+die("size_t overflow: %"PRIuMAX" * %"PRIuMAX,
+		    (uintmax_t)a, (uintmax_t)b);

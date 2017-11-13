@@ -1,181 +1,120 @@
-static apr_ssize_t send_response_header(isapi_cid *cid,
-                                        const char *stat,
-                                        const char *head,
-                                        apr_size_t statlen,
-                                        apr_size_t headlen)
+static void usage(process_rec *process)
 {
-    int head_present = 1;
-    int termarg;
-    int res;
-    int old_status;
-    const char *termch;
-    apr_size_t ate = 0;
+    const char *bin = process->argv[0];
+    int pad_len = strlen(bin);
 
-    if (!head || headlen == 0 || !*head) {
-        head = stat;
-        stat = NULL;
-        headlen = statlen;
-        statlen = 0;
-        head_present = 0; /* Don't eat the header */
-    }
+#ifdef SHARED_CORE
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL ,
+                 "Usage: %s [-R directory] [-D name] [-d directory] [-f file]",
+                 bin);
+#else
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "Usage: %s [-D name] [-d directory] [-f file]", bin);
+#endif
 
-    if (!stat || statlen == 0 || !*stat) {
-        if (head && headlen && *head && ((stat = memchr(head, '\r', headlen))
-                                      || (stat = memchr(head, '\n', headlen))
-                                      || (stat = memchr(head, '\0', headlen))
-                                      || (stat = head + headlen))) {
-            statlen = stat - head;
-            if (memchr(head, ':', statlen)) {
-                stat = "Status: 200 OK";
-                statlen = strlen(stat);
-            }
-            else {
-                const char *flip = head;
-                head = stat;
-                stat = flip;
-                headlen -= statlen;
-                ate += statlen;
-                if (*head == '\r' && headlen)
-                    ++head, --headlen, ++ate;
-                if (*head == '\n' && headlen)
-                    ++head, --headlen, ++ate;
-            }
-        }
-    }
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %*s [-C \"directive\"] [-c \"directive\"]", pad_len, " ");
 
-    if (stat && (statlen > 0) && *stat) {
-        char *newstat;
-        if (!apr_isdigit(*stat)) {
-            const char *stattok = stat;
-            int toklen = statlen;
-            while (toklen && *stattok && !apr_isspace(*stattok)) {
-                ++stattok; --toklen;
-            }
-            while (toklen && apr_isspace(*stattok)) {
-                ++stattok; --toklen;
-            }
-            /* Now decide if we follow the xxx message
-             * or the http/x.x xxx message format
-             */
-            if (toklen && apr_isdigit(*stattok)) {
-                statlen = toklen;
-                stat = stattok;
-            }
-        }
-        newstat = apr_palloc(cid->r->pool, statlen + 9);
-        strcpy(newstat, "Status: ");
-        apr_cpystrn(newstat + 8, stat, statlen + 1);
-        stat = newstat;
-        statlen += 8;
-    }
+#ifdef WIN32
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %*s [-w] [-k start|restart|stop|shutdown]", pad_len, " ");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %*s [-k install|config|uninstall] [-n service_name]",
+                 pad_len, " ");
+#endif
+#ifdef AP_MPM_WANT_SIGNAL_SERVER
+#ifdef AP_MPM_WANT_SET_GRACEFUL_SHUTDOWN
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %*s [-k start|restart|graceful|graceful-stop|stop]",
+                 pad_len, " ");
+#else
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %*s [-k start|restart|graceful|stop]", pad_len, " ");
+#endif /* AP_MPM_WANT_SET_GRACEFUL_SHUTDOWN */
+#endif
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %*s [-v] [-V] [-h] [-l] [-L] [-t] [-T] [-S]",
+                 pad_len, " ");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "Options:");
 
-    if (!head || headlen == 0 || !*head) {
-        head = "\r\n";
-        headlen = 2;
-    }
-    else
-    {
-        if (head[headlen - 1] && head[headlen]) {
-            /* Whoops... not NULL terminated */
-            head = apr_pstrndup(cid->r->pool, head, headlen);
-        }
-    }
+#ifdef SHARED_CORE
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -R directory       : specify an alternate location for "
+                 "shared object files");
+#endif
 
-    /* Seems IIS does not enforce the requirement for \r\n termination
-     * on HSE_REQ_SEND_RESPONSE_HEADER, but we won't panic...
-     * ap_scan_script_header_err_strs handles this aspect for us.
-     *
-     * Parse them out, or die trying
-     */
-    old_status = cid->r->status;
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -D name            : define a name for use in "
+                 "<IfDefine name> directives");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -d directory       : specify an alternate initial "
+                 "ServerRoot");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -f file            : specify an alternate ServerConfigFile");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -C \"directive\"     : process directive before reading "
+                 "config files");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -c \"directive\"     : process directive after reading "
+                 "config files");
 
-    if (stat) {
-        res = ap_scan_script_header_err_strs(cid->r, NULL, &termch, &termarg,
-                stat, head, NULL);
-    }
-    else {
-        res = ap_scan_script_header_err_strs(cid->r, NULL, &termch, &termarg,
-                head, NULL);
-    }
+#ifdef NETWARE
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -n name            : set screen name");
+#endif
+#ifdef WIN32
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -n name            : set service name and use its "
+                 "ServerConfigFile");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k start           : tell Apache to start");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k restart         : tell running Apache to do a graceful "
+                 "restart");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k stop|shutdown   : tell running Apache to shutdown");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k install         : install an Apache service");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k config          : change startup Options of an Apache "
+                 "service");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k uninstall       : uninstall an Apache service");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -w                 : hold open the console window on error");
+#endif
 
-    /* Set our status. */
-    if (res) {
-        /* This is an immediate error result from the parser
-         */
-        cid->r->status = res;
-        cid->r->status_line = ap_get_status_line(cid->r->status);
-        cid->ecb->dwHttpStatusCode = cid->r->status;
-    }
-    else if (cid->r->status) {
-        /* We have a status in r->status, so let's just use it.
-         * This is likely to be the Status: parsed above, and
-         * may also be a delayed error result from the parser.
-         * If it was filled in, status_line should also have
-         * been filled in.
-         */
-        cid->ecb->dwHttpStatusCode = cid->r->status;
-    }
-    else if (cid->ecb->dwHttpStatusCode
-              && cid->ecb->dwHttpStatusCode != HTTP_OK) {
-        /* Now we fall back on dwHttpStatusCode if it appears
-         * ap_scan_script_header fell back on the default code.
-         * Any other results set dwHttpStatusCode to the decoded
-         * status value.
-         */
-        cid->r->status = cid->ecb->dwHttpStatusCode;
-        cid->r->status_line = ap_get_status_line(cid->r->status);
-    }
-    else if (old_status) {
-        /* Well... either there is no dwHttpStatusCode or it's HTTP_OK.
-         * In any case, we don't have a good status to return yet...
-         * Perhaps the one we came in with will be better. Let's use it,
-         * if we were given one (note this is a pendantic case, it would
-         * normally be covered above unless the scan script code unset
-         * the r->status). Should there be a check here as to whether
-         * we are setting a valid response code?
-         */
-        cid->r->status = old_status;
-        cid->r->status_line = ap_get_status_line(cid->r->status);
-        cid->ecb->dwHttpStatusCode = cid->r->status;
-    }
-    else {
-        /* None of dwHttpStatusCode, the parser's r->status nor the 
-         * old value of r->status were helpful, and nothing was decoded
-         * from Status: string passed to us.  Let's just say HTTP_OK 
-         * and get the data out, this was the isapi dev's oversight.
-         */
-        cid->r->status = HTTP_OK;
-        cid->r->status_line = ap_get_status_line(cid->r->status);
-        cid->ecb->dwHttpStatusCode = cid->r->status;
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, cid->r,
-                "ISAPI: Could not determine HTTP response code; using %d",
-                cid->r->status);
-    }
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -e level           : show startup errors of level "
+                 "(see LogLevel)");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -E file            : log startup errors to file");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -v                 : show version number");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -V                 : show compile settings");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -h                 : list available command line options "
+                 "(this page)");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -l                 : list compiled in modules");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -L                 : list available configuration "
+                 "directives");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t -D DUMP_VHOSTS  : show parsed settings (currently only "
+                 "vhost settings)");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -S                 : a synonym for -t -D DUMP_VHOSTS");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t -D DUMP_MODULES : show all loaded modules ");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -M                 : a synonym for -t -D DUMP_MODULES");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t                 : run syntax check for config files");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                "  -T                 : start without DocumentRoot(s) check");
 
-    if (cid->r->status == HTTP_INTERNAL_SERVER_ERROR) {
-        return -1;
-    }
-
-    /* If only Status was passed, we consumed nothing
-     */
-    if (!head_present)
-        return 0;
-
-    cid->headers_set = 1;
-
-    /* If all went well, tell the caller we consumed the headers complete
-     */
-    if (!termch)
-        return(ate + headlen);
-
-    /* Any data left must be sent directly by the caller, all we
-     * give back is the size of the headers we consumed (which only
-     * happens if the parser got to the head arg, which varies based
-     * on whether we passed stat+head to scan, or only head.
-     */
-    if (termch && (termarg == (stat ? 1 : 0))
-               && head_present && head + headlen > termch) {
-        return ate + termch - head;
-    }
-    return ate;
+    destroy_and_exit_process(process, 1);
 }

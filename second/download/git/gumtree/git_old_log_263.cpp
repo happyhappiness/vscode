@@ -1,1 +1,2 @@
-die(_("Failed to resolve '%s' as a valid ref."), split[0]->buf);
+error(_("while searching for:\n%.*s"),
+			      (int)(old - oldlines), oldlines);

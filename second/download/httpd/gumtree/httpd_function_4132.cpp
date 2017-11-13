@@ -1,29 +1,36 @@
-static int ssl_tmp_key_init_rsa(server_rec *s,
-                                int bits, int idx)
+apr_status_t ajp_read_header(apr_socket_t *sock,
+                             request_rec  *r,
+                             apr_size_t buffsize,
+                             ajp_msg_t **msg)
 {
-    SSLModConfigRec *mc = myModConfig(s);
+    apr_byte_t result;
+    apr_status_t rc;
 
-#ifdef HAVE_FIPS
-
-    if (FIPS_mode() && bits < 1024) {
-        mc->pTmpKeys[idx] = NULL;
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "Init: Skipping generating temporary "
-                     "%d bit RSA private key in FIPS mode", bits);
-        return OK;
+    if (*msg) {
+        rc = ajp_msg_reuse(*msg);
+        if (rc != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                   "ajp_read_header: ajp_msg_reuse failed");
+            return rc;
+        }
     }
-
-#endif
-
-    if (!(mc->pTmpKeys[idx] =
-          RSA_generate_key(bits, RSA_F4, NULL, NULL)))
-    {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "Init: Failed to generate temporary "
-                     "%d bit RSA private key", bits);
-        ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
-        return !OK;
+    else {
+        rc = ajp_msg_create(r->pool, buffsize, msg);
+        if (rc != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                   "ajp_read_header: ajp_msg_create failed");
+            return rc;
+        }
     }
-
-    return OK;
+    ajp_msg_reset(*msg);
+    rc = ajp_ilink_receive(sock, *msg);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_read_header: ajp_ilink_receive failed");
+        return rc;
+    }
+    rc = ajp_msg_peek_uint8(*msg, &result);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+               "ajp_read_header: ajp_ilink_received %02x", result);
+    return APR_SUCCESS;
 }

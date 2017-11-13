@@ -1,16 +1,19 @@
-static int add_one_ref(const char *path, const struct object_id *oid,
-		       int flag, void *cb_data)
+static void reject_invalid_nonce(const char *nonce, int len)
 {
-	struct rev_info *revs = (struct rev_info *)cb_data;
-	struct object *object;
+	int i = 0;
 
-	if ((flag & REF_ISSYMREF) && (flag & REF_ISBROKEN)) {
-		warning("symbolic ref is dangling: %s", path);
-		return 0;
+	if (NONCE_LEN_LIMIT <= len)
+		die("the receiving end asked to sign an invalid nonce <%.*s>",
+		    len, nonce);
+
+	for (i = 0; i < len; i++) {
+		int ch = nonce[i] & 0xFF;
+		if (isalnum(ch) ||
+		    ch == '-' || ch == '.' ||
+		    ch == '/' || ch == '+' ||
+		    ch == '=' || ch == '_')
+			continue;
+		die("the receiving end asked to sign an invalid nonce <%.*s>",
+		    len, nonce);
 	}
-
-	object = parse_object_or_die(oid->hash, path);
-	add_pending_object(revs, object, "");
-
-	return 0;
 }

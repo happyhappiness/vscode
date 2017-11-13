@@ -1,23 +1,48 @@
-void read_gitfile_error_die(int error_code, const char *path, const char *dir)
+static int set_helper_option(struct transport *transport,
+			  const char *name, const char *value)
 {
-	switch (error_code) {
-	case READ_GITFILE_ERR_STAT_FAILED:
-	case READ_GITFILE_ERR_NOT_A_FILE:
-		/* non-fatal; follow return path */
-		break;
-	case READ_GITFILE_ERR_OPEN_FAILED:
-		die_errno("Error opening '%s'", path);
-	case READ_GITFILE_ERR_TOO_LARGE:
-		die("Too large to be a .git file: '%s'", path);
-	case READ_GITFILE_ERR_READ_FAILED:
-		die("Error reading %s", path);
-	case READ_GITFILE_ERR_INVALID_FORMAT:
-		die("Invalid gitfile format: %s", path);
-	case READ_GITFILE_ERR_NO_PATH:
-		die("No path in gitfile: %s", path);
-	case READ_GITFILE_ERR_NOT_A_REPO:
-		die("Not a git repository: %s", dir);
-	default:
-		die("BUG: unknown error code");
+	struct helper_data *data = transport->data;
+	struct strbuf buf = STRBUF_INIT;
+	int i, ret, is_bool = 0;
+
+	get_helper(transport);
+
+	if (!data->option)
+		return 1;
+
+	for (i = 0; i < ARRAY_SIZE(unsupported_options); i++) {
+		if (!strcmp(name, unsupported_options[i]))
+			return 1;
 	}
+
+	for (i = 0; i < ARRAY_SIZE(boolean_options); i++) {
+		if (!strcmp(name, boolean_options[i])) {
+			is_bool = 1;
+			break;
+		}
+	}
+
+	strbuf_addf(&buf, "option %s ", name);
+	if (is_bool)
+		strbuf_addstr(&buf, value ? "true" : "false");
+	else
+		quote_c_style(value, &buf, NULL, 0);
+	strbuf_addch(&buf, '\n');
+
+	sendline(data, &buf);
+	if (recvline(data, &buf))
+		exit(128);
+
+	if (!strcmp(buf.buf, "ok"))
+		ret = 0;
+	else if (starts_with(buf.buf, "error")) {
+		ret = -1;
+	} else if (!strcmp(buf.buf, "unsupported"))
+		ret = 1;
+	else {
+		warning("%s unexpectedly said: '%s'", data->name, buf.buf);
+		ret = 1;
+	}
+	strbuf_release(&buf);
+	return ret;
 }

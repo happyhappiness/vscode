@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "%s", inet_ntoa(This->mask));
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                        "invalid directory name in map file: %s", r->uri);

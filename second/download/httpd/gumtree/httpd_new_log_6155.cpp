@@ -1,6 +1,6 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, /* NO APLOGNO */
-                      H2_STRM_MSG(stream, "->03198: %s %s %s"
-                      "[started=%d/done=%d/frozen=%d]"), 
-                      task->request->method, task->request->authority, 
-                      task->request->path, task->worker_started, 
-                      task->worker_done, task->frozen);
+ap_log_perror(APLOG_MARK, LOG_LEVEL, 0, to->p, APLOGNO(03208)
+                              "h2_util_move: %s, passed setaside bucket %ld-%ld "
+                              "from=%lx(p=%lx) to=%lx(p=%lx)",
+                              msg, (long)b->start, (long)b->length, 
+                              (long)from, (long)from->p, 
+                              (long)to, (long)to->p);

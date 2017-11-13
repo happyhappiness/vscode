@@ -1,0 +1,1 @@
+fprintf(stderr, "failed to open log file\n");

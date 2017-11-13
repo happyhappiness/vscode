@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01319)
-                     "LDAP: SSL support available" );
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00813)
+                 "DBM socache expiry: "
+                 "old: %d, new: %d, removed: %d",
+                 elts, elts-deleted, deleted);

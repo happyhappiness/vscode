@@ -1,216 +1,199 @@
-static apr_size_t find_argument(ssi_ctx_t *ctx, const char *data,
-                                apr_size_t len, char ***store,
-                                apr_size_t **store_len)
+static int util_ldap_post_config(apr_pool_t *p, apr_pool_t *plog, 
+                                 apr_pool_t *ptemp, server_rec *s)
 {
-    const char *p = data;
-    const char *ep = data + len;
+    int rc = LDAP_SUCCESS;
+    apr_status_t result;
+    char buf[MAX_STRING_LEN];
 
-    switch (ctx->state) {
-    case PARSE_ARG:
-        /*
-         * create argument structure and append it to the current list
-         */
-        ctx->current_arg = apr_palloc(ctx->dpool,
-                                      sizeof(*ctx->current_arg));
-        ctx->current_arg->next = NULL;
+    util_ldap_state_t *st =
+        (util_ldap_state_t *)ap_get_module_config(s->module_config, &ldap_module);
 
-        ++(ctx->argc);
-        if (!ctx->argv) {
-            ctx->argv = ctx->current_arg;
+#if APR_HAS_SHARED_MEMORY
+    server_rec *s_vhost;
+    util_ldap_state_t *st_vhost;
+    
+    /* initializing cache if file is here and we already don't have shm addr*/
+    if (st->cache_file && !st->cache_shm) {
+#endif
+        result = util_ldap_cache_init(p, st);
+        apr_strerror(result, buf, sizeof(buf));
+        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s,
+                     "LDAP cache init: %s", buf);
+
+#if APR_HAS_SHARED_MEMORY
+        /* merge config in all vhost */
+        s_vhost = s->next;
+        while (s_vhost) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s, 
+                         "LDAP merging Shared Cache conf: shm=0x%x rmm=0x%x for VHOST: %s",
+                         st->cache_shm, st->cache_rmm, s_vhost->server_hostname);
+
+            st_vhost = (util_ldap_state_t *)ap_get_module_config(s_vhost->module_config, &ldap_module);
+            st_vhost->cache_shm = st->cache_shm;
+            st_vhost->cache_rmm = st->cache_rmm;
+            st_vhost->cache_file = st->cache_file;
+            s_vhost = s_vhost->next;
         }
-        else {
-            ssi_arg_item_t *newarg = ctx->argv;
-
-            while (newarg->next) {
-                newarg = newarg->next;
-            }
-            newarg->next = ctx->current_arg;
-        }
-
-        /* check whether it's a valid one. If it begins with a quote, we
-         * can safely assume, someone forgot the name of the argument
-         */
-        switch (*p) {
-        case '"': case '\'': case '`':
-            *store = NULL;
-
-            ctx->state = PARSE_ARG_VAL;
-            ctx->quote = *p++;
-            ctx->current_arg->name = NULL;
-            ctx->current_arg->name_len = 0;
-            ctx->error = 1;
-
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, "missing argument "
-                          "name for value to tag %s in %s",
-                          apr_pstrmemdup(ctx->r->pool, ctx->directive,
-                                         ctx->ctx->directive_length),
-                                         ctx->r->filename);
-
-            return (p - data);
-
-        default:
-            ctx->state = PARSE_ARG_NAME;
-        }
-        /* continue immediately with next state */
-
-    case PARSE_ARG_NAME:
-        while (p < ep && !apr_isspace(*p) && *p != '=') {
-            ++p;
-        }
-
-        if (p < ep) {
-            ctx->state = PARSE_ARG_POSTNAME;
-            *store = &ctx->current_arg->name;
-            *store_len = &ctx->current_arg->name_len;
-            return (p - data);
-        }
-        break;
-
-    case PARSE_ARG_POSTNAME:
-        ctx->current_arg->name = apr_pstrmemdup(ctx->dpool,
-                                                ctx->current_arg->name,
-                                                ctx->current_arg->name_len);
-        if (!ctx->current_arg->name_len) {
-            ctx->error = 1;
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, "missing argument "
-                          "name for value to tag %s in %s",
-                          apr_pstrmemdup(ctx->r->pool, ctx->directive,
-                                         ctx->ctx->directive_length),
-                                         ctx->r->filename);
-        }
-        else {
-            char *sp = ctx->current_arg->name;
-
-            /* normalize the name */
-            while (*sp) {
-                *sp = apr_tolower(*sp);
-                ++sp;
-            }
-        }
-
-        ctx->state = PARSE_ARG_EQ;
-        /* continue with next state immediately */
-
-    case PARSE_ARG_EQ:
-        *store = NULL;
-
-        while (p < ep && apr_isspace(*p)) {
-            ++p;
-        }
-
-        if (p < ep) {
-            if (*p == '=') {
-                ctx->state = PARSE_ARG_PREVAL;
-                ++p;
-            }
-            else { /* no value */
-                ctx->current_arg->value = NULL;
-                ctx->state = PARSE_PRE_ARG;
-            }
-
-            return (p - data);
-        }
-        break;
-
-    case PARSE_ARG_PREVAL:
-        *store = NULL;
-
-        while (p < ep && apr_isspace(*p)) {
-            ++p;
-        }
-
-        /* buffer doesn't consist of whitespaces only */
-        if (p < ep) {
-            ctx->state = PARSE_ARG_VAL;
-            switch (*p) {
-            case '"': case '\'': case '`':
-                ctx->quote = *p++;
-                break;
-            default:
-                ctx->quote = '\0';
-                break;
-            }
-
-            return (p - data);
-        }
-        break;
-
-    case PARSE_ARG_VAL_ESC:
-        if (*p == ctx->quote) {
-            ++p;
-        }
-        ctx->state = PARSE_ARG_VAL;
-        /* continue with next state immediately */
-
-    case PARSE_ARG_VAL:
-        for (; p < ep; ++p) {
-            if (ctx->quote && *p == '\\') {
-                ++p;
-                if (p == ep) {
-                    ctx->state = PARSE_ARG_VAL_ESC;
-                    break;
-                }
-
-                if (*p != ctx->quote) {
-                    --p;
-                }
-            }
-            else if (ctx->quote && *p == ctx->quote) {
-                ++p;
-                *store = &ctx->current_arg->value;
-                *store_len = &ctx->current_arg->value_len;
-                ctx->state = PARSE_ARG_POSTVAL;
-                break;
-            }
-            else if (!ctx->quote && apr_isspace(*p)) {
-                ++p;
-                *store = &ctx->current_arg->value;
-                *store_len = &ctx->current_arg->value_len;
-                ctx->state = PARSE_ARG_POSTVAL;
-                break;
-            }
-        }
-
-        return (p - data);
-
-    case PARSE_ARG_POSTVAL:
-        /*
-         * The value is still the raw input string. Finally clean it up.
-         */
-        --(ctx->current_arg->value_len);
-
-        /* strip quote escaping \ from the string */
-        if (ctx->quote) {
-            apr_size_t shift = 0;
-            char *sp;
-
-            sp = ctx->current_arg->value;
-            ep = ctx->current_arg->value + ctx->current_arg->value_len;
-            while (sp < ep && *sp != '\\') {
-                ++sp;
-            }
-            for (; sp < ep; ++sp) {
-                if (*sp == '\\' && sp[1] == ctx->quote) {
-                    ++sp;
-                    ++shift;
-                }
-                if (shift) {
-                    *(sp-shift) = *sp;
-                }
-            }
-
-            ctx->current_arg->value_len -= shift;
-        }
-
-        ctx->current_arg->value[ctx->current_arg->value_len] = '\0';
-        ctx->state = PARSE_PRE_ARG;
-
-        return 0;
-
-    default:
-        /* get a rid of a gcc warning about unhandled enumerations */
-        break;
     }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0 , s, "LDAP cache: Unable to init Shared Cache: no file");
+    }
+#endif
+    
+    /* log the LDAP SDK used 
+     */
+    #if APR_HAS_NETSCAPE_LDAPSDK 
+    
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+             "LDAP: Built with Netscape LDAP SDK" );
 
-    return len; /* partial match of something */
+    #elif APR_HAS_NOVELL_LDAPSDK
+
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+             "LDAP: Built with Novell LDAP SDK" );
+
+    #elif APR_HAS_OPENLDAP_LDAPSDK
+
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+             "LDAP: Built with OpenLDAP LDAP SDK" );
+
+    #elif APR_HAS_MICROSOFT_LDAPSDK
+    
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+             "LDAP: Built with Microsoft LDAP SDK" );
+    #else
+    
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+             "LDAP: Built with unknown LDAP SDK" );
+
+    #endif /* APR_HAS_NETSCAPE_LDAPSDK */
+
+
+
+    apr_pool_cleanup_register(p, s, util_ldap_cleanup_module,
+                              util_ldap_cleanup_module); 
+
+    /* initialize SSL support if requested
+    */
+    if (st->cert_auth_file)
+    {
+        #if APR_HAS_LDAP_SSL /* compiled with ssl support */
+
+        #if APR_HAS_NETSCAPE_LDAPSDK 
+
+            /* Netscape sdk only supports a cert7.db file 
+            */
+            if (st->cert_file_type == LDAP_CA_TYPE_CERT7_DB)
+            {
+                rc = ldapssl_client_init(st->cert_auth_file, NULL);
+            }
+            else
+            {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
+                         "LDAP: Invalid LDAPTrustedCAType directive - "
+                          "CERT7_DB_PATH type required");
+                rc = -1;
+            }
+
+        #elif APR_HAS_NOVELL_LDAPSDK
+        
+            /* Novell SDK supports DER or BASE64 files
+            */
+            if (st->cert_file_type == LDAP_CA_TYPE_DER  ||
+                st->cert_file_type == LDAP_CA_TYPE_BASE64 )
+            {
+                rc = ldapssl_client_init(NULL, NULL);
+                if (LDAP_SUCCESS == rc)
+                {
+                    if (st->cert_file_type == LDAP_CA_TYPE_BASE64)
+                        rc = ldapssl_add_trusted_cert(st->cert_auth_file, 
+                                                  LDAPSSL_CERT_FILETYPE_B64);
+                    else
+                        rc = ldapssl_add_trusted_cert(st->cert_auth_file, 
+                                                  LDAPSSL_CERT_FILETYPE_DER);
+
+                    if (LDAP_SUCCESS != rc)
+                        ldapssl_client_deinit();
+                }
+            }
+            else
+            {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
+                             "LDAP: Invalid LDAPTrustedCAType directive - "
+                             "DER_FILE or BASE64_FILE type required");
+                rc = -1;
+            }
+
+        #elif APR_HAS_OPENLDAP_LDAPSDK
+
+            /* OpenLDAP SDK supports BASE64 files
+            */
+            if (st->cert_file_type == LDAP_CA_TYPE_BASE64)
+            {
+                rc = ldap_set_option(NULL, LDAP_OPT_X_TLS_CACERTFILE, st->cert_auth_file);
+            }
+            else
+            {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
+                             "LDAP: Invalid LDAPTrustedCAType directive - "
+                             "BASE64_FILE type required");
+                rc = -1;
+            }
+
+
+        #elif APR_HAS_MICROSOFT_LDAPSDK
+            
+            /* Microsoft SDK use the registry certificate store - always
+             * assume support is always available
+            */
+            rc = LDAP_SUCCESS;
+
+        #else
+            rc = -1;
+        #endif /* APR_HAS_NETSCAPE_LDAPSDK */
+
+        #else  /* not compiled with SSL Support */
+
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+                     "LDAP: Not built with SSL support." );
+            rc = -1;
+
+        #endif /* APR_HAS_LDAP_SSL */
+
+        if (LDAP_SUCCESS == rc)
+        {
+            st->ssl_support = 1;
+        }
+        else
+        {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, 
+                         "LDAP: SSL initialization failed");
+            st->ssl_support = 0;
+        }
+    }
+      
+        /* The Microsoft SDK uses the registry certificate store -
+         * always assume support is available
+        */
+    #if APR_HAS_MICROSOFT_LDAPSDK
+        st->ssl_support = 1;
+    #endif
+    
+
+        /* log SSL status - If SSL isn't available it isn't necessarily
+         * an error because the modules asking for LDAP connections 
+         * may not ask for SSL support
+        */
+    if (st->ssl_support)
+    {
+       ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+                         "LDAP: SSL support available" );
+    }
+    else
+    {
+       ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+                         "LDAP: SSL support unavailable" );
+    }
+    
+    return(OK);
 }

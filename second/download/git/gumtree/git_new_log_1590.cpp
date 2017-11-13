@@ -1,1 +1,1 @@
-write_file(buf->buf, 0, "%s\n", oid_to_hex(oid));
+error("%s", err.buf);

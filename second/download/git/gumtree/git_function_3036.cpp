@@ -1,10 +1,22 @@
-int write_or_whine(int fd, const void *buf, size_t count, const char *msg)
+static void show_merge_in_progress(struct wt_status *s,
+				struct wt_status_state *state,
+				const char *color)
 {
-	if (write_in_full(fd, buf, count) < 0) {
-		fprintf(stderr, "%s: write error (%s)\n",
-			msg, strerror(errno));
-		return 0;
+	if (has_unmerged(s)) {
+		status_printf_ln(s, color, _("You have unmerged paths."));
+		if (s->hints) {
+			status_printf_ln(s, color,
+					 _("  (fix conflicts and run \"git commit\")"));
+			status_printf_ln(s, color,
+					 _("  (use \"git merge --abort\" to abort the merge)"));
+		}
+	} else {
+		s-> commitable = 1;
+		status_printf_ln(s, color,
+			_("All conflicts fixed but you are still merging."));
+		if (s->hints)
+			status_printf_ln(s, color,
+				_("  (use \"git commit\" to conclude merge)"));
 	}
-
-	return 1;
+	wt_status_print_trailer(s);
 }

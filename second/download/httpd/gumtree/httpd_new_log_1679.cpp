@@ -1,1 +1,4 @@
-ap_rvputs(r, "<a href=\"", href, "\">", text, "</a>", NULL);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "[%" APR_PID_T_FMT "] auth_ldap authorize: require group \"%s\": "
+                              "authorization failed [%s][%d - %s]",
+                              getpid(), t, ldc->reason, result, ldap_err2string(result));

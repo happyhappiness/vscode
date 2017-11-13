@@ -1,1 +1,4 @@
-ap_add_output_filter("H1_TO_H2", task, NULL, c);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ServerSupportFunction "
+                          "HSE_REQ_REFRESH_ISAPI_ACL "
+                          "is not supported: %s", r->filename);

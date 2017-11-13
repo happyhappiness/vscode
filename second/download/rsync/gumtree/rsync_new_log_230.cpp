@@ -1,1 +1,1 @@
-fprintf(FERROR,"unlink %s : %s\n",fname,strerror(errno));
+fprintf(FERROR,"Failed to close : %s\n",strerror(errno));

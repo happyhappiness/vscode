@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: bybusyness selected worker \"%s\" : busy %" APR_SIZE_T_FMT " : lbstatus %d",
-                     mycandidate->name, mycandidate->s->busy, mycandidate->s->lbstatus);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                  "Authorization of user %s to access %s failed, reason: %s",
+                  r->user, r->uri,
+                  reason ? reason : "user is not part of the "
+                                    "'require'ed group(s).");

@@ -1,11 +1,11 @@
 fputs(
-"              backslash preceding any other letter is ignored.  If  the  first\n"
-"              column of a config line is a '#' character, the rest of the line\n"
-"              will be treated as a comment. Only write one option per physical\n"
-"              line in the config file.\n"
+"              Typical browsers always discard  session  cookies  when  they're\n"
+"              closed down.\n"
 "\n"
-"              Specify  the  filename  to -K, --config as '-' to make curl read\n"
-"              the file from stdin.\n"
+"       -J, --remote-header-name\n"
+"              (HTTP) This option tells the -O, --remote-name option to use the\n"
+"              server-specified   Content-Disposition   filename   instead   of\n"
+"              extracting a filename from the URL.\n"
 "\n"
-"              Note that to be able to specify a URL in the  config  file,  you\n"
+"              If  the  server  specifies a file name and a file with that name\n"
 , stdout);

@@ -1,1 +1,1 @@
-printf("prerequisite-patch-id: %s\n", oid_to_hex(&bases->patch_id[i]));
+error("%s does not point to a valid object!", entry->name);

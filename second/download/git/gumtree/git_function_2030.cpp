@@ -1,17 +1,14 @@
-static int is_dup_ref(const struct ref_entry *ref1, const struct ref_entry *ref2)
+static void NORETURN diagnose_missing_default(const char *def)
 {
-	if (strcmp(ref1->name, ref2->name))
-		return 0;
+	unsigned char sha1[20];
+	int flags;
+	const char *refname;
 
-	/* Duplicate name; make sure that they don't conflict: */
+	refname = resolve_ref_unsafe(def, 0, sha1, &flags);
+	if (!refname || !(flags & REF_ISSYMREF) || (flags & REF_ISBROKEN))
+		die(_("your current branch appears to be broken"));
 
-	if ((ref1->flag & REF_DIR) || (ref2->flag & REF_DIR))
-		/* This is impossible by construction */
-		die("Reference directory conflict: %s", ref1->name);
-
-	if (oidcmp(&ref1->u.value.oid, &ref2->u.value.oid))
-		die("Duplicated ref, and SHA1s don't match: %s", ref1->name);
-
-	warning("Duplicated ref: %s", ref1->name);
-	return 1;
+	skip_prefix(refname, "refs/heads/", &refname);
+	die(_("your current branch '%s' does not have any commits yet"),
+	    refname);
 }

@@ -1,8 +1,11 @@
-static void show_parents(struct commit *commit, int abbrev)
+static void copy_request(const char *prog_name, int out)
 {
-	struct commit_list *p;
-	for (p = commit->parents; p ; p = p->next) {
-		struct commit *parent = p->item;
-		printf(" %s", find_unique_abbrev(parent->object.sha1, abbrev));
-	}
+	unsigned char *buf;
+	ssize_t n = read_request(0, &buf);
+	if (n < 0)
+		die_errno("error reading request body");
+	if (write_in_full(out, buf, n) != n)
+		die("%s aborted reading request", prog_name);
+	close(out);
+	free(buf);
 }

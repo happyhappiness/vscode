@@ -1,11 +1,11 @@
 fputs(
-"              For HTTP, Ignore the Content-Length header. This is particularly\n"
-"              useful  for servers running Apache 1.x, which will report incor-\n"
-"              rect Content-Length for files larger than 2 gigabytes.\n"
+"              If used in combination with -I, the POST data  will  instead  be\n"
+"              appended to the URL with a HEAD request.\n"
 "\n"
-"              For FTP (since 7.46.0), skip the RETR command to figure out  the\n"
-"              size before downloading a file.\n"
+"              If  this  option  is  used  several times, only the first one is\n"
+"              used. This is because undoing a GET doesn't make sense, but  you\n"
+"              should then instead enforce the alternative method you prefer.\n"
 "\n"
-"       -i, --include\n"
-"              (HTTP)  Include  the  HTTP-header in the output. The HTTP-header\n"
+"       -H, --header <header>\n"
+"              (HTTP)  Extra header to include in the request when sending HTTP\n"
 , stdout);

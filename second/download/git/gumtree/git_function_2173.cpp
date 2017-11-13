@@ -1,26 +1,31 @@
-static void pp_buffer_stderr(struct parallel_processes *pp, int output_timeout)
+static int delete_pseudoref(const char *pseudoref, const unsigned char *old_sha1)
 {
-	int i;
+	static struct lock_file lock;
+	const char *filename;
 
-	while ((i = poll(pp->pfd, pp->max_processes, output_timeout)) < 0) {
-		if (errno == EINTR)
-			continue;
-		pp_cleanup(pp);
-		die_errno("poll");
-	}
+	filename = git_path("%s", pseudoref);
 
-	/* Buffer output from all pipes. */
-	for (i = 0; i < pp->max_processes; i++) {
-		if (pp->children[i].state == GIT_CP_WORKING &&
-		    pp->pfd[i].revents & (POLLIN | POLLHUP)) {
-			int n = strbuf_read_once(&pp->children[i].err,
-						 pp->children[i].process.err, 0);
-			if (n == 0) {
-				close(pp->children[i].process.err);
-				pp->children[i].state = GIT_CP_WAIT_CLEANUP;
-			} else if (n < 0)
-				if (errno != EAGAIN)
-					die_errno("read");
+	if (old_sha1 && !is_null_sha1(old_sha1)) {
+		int fd;
+		unsigned char actual_old_sha1[20];
+
+		fd = hold_lock_file_for_update(&lock, filename,
+					       LOCK_DIE_ON_ERROR);
+		if (fd < 0)
+			die_errno(_("Could not open '%s' for writing"), filename);
+		if (read_ref(pseudoref, actual_old_sha1))
+			die("could not read ref '%s'", pseudoref);
+		if (hashcmp(actual_old_sha1, old_sha1)) {
+			warning("Unexpected sha1 when deleting %s", pseudoref);
+			rollback_lock_file(&lock);
+			return -1;
 		}
+
+		unlink(filename);
+		rollback_lock_file(&lock);
+	} else {
+		unlink(filename);
 	}
+
+	return 0;
 }

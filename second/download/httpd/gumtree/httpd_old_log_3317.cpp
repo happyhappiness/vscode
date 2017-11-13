@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "invalid CGI ref "
-                              "\"%s\" in %s", tag_val, file);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, status, pconf,
+                                 "alloc_listener: failed to set up sockaddr for %s:%d", sl->addr, sl->port);

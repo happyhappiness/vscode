@@ -1,96 +1,39 @@
-void *util_ald_cache_insert(util_ald_cache_t *cache, void *payload)
+static int open_postfile(const char *pfile)
 {
-    unsigned long hashval;
-    void *tmp_payload;
-    util_cache_node_t *node;
+    apr_file_t *postfd = NULL;
+    apr_finfo_t finfo;
+    apr_fileperms_t mode = APR_OS_DEFAULT;
+    apr_size_t length;
+    apr_status_t rv;
+    char errmsg[120];
 
-    /* sanity check */
-    if (cache == NULL || payload == NULL) {
-        return NULL;
+    rv = apr_file_open(&postfd, pfile, APR_READ, mode, cntxt);
+    if (rv != APR_SUCCESS) {
+	printf("Invalid postfile name (%s): %s\n", pfile,
+	       apr_strerror(rv, errmsg, sizeof errmsg));
+	return rv;
     }
 
-    /* check if we are full - if so, try purge */
-    if (cache->numentries >= cache->maxentries) {
-        util_ald_cache_purge(cache);
-        if (cache->numentries >= cache->maxentries) {
-            /* if the purge was not effective, we leave now to avoid an overflow */
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
-                         "Purge of LDAP cache failed");
-            return NULL;
-        }
+    apr_file_info_get(&finfo, APR_FINFO_NORM, postfd);
+    postlen = (apr_size_t)finfo.size;
+    postdata = (char *) malloc(postlen);
+    if (!postdata) {
+	printf("Can\'t alloc postfile buffer\n");
+	return APR_ENOMEM;
     }
-
-    node = (util_cache_node_t *)util_ald_alloc(cache,
-                                               sizeof(util_cache_node_t));
-    if (node == NULL) {
-        /*
-         * XXX: The cache management should be rewritten to work
-         * properly when LDAPSharedCacheSize is too small.
-         */
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
-                     "LDAPSharedCacheSize is too small. Increase it or "
-                     "reduce LDAPCacheEntries/LDAPOpCacheEntries!");
-        if (cache->numentries < cache->fullmark) {
-            /*
-             * We have not even reached fullmark, trigger a complete purge.
-             * This is still better than not being able to add new entries
-             * at all.
-             */
-            cache->marktime = apr_time_now();
-        }
-        util_ald_cache_purge(cache);
-        node = (util_cache_node_t *)util_ald_alloc(cache,
-                                                   sizeof(util_cache_node_t));
-        if (node == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
-                         "Could not allocate memory for LDAP cache entry");
-            return NULL;
-        }
+    length = postlen;
+    rv = apr_file_read(postfd, postdata, &length);
+    if (rv != APR_SUCCESS) {
+	printf("error reading postfile: %s\n",
+	       apr_strerror(rv, errmsg, sizeof errmsg));
+	return rv;
     }
-
-    /* Take a copy of the payload before proceeeding. */
-    tmp_payload = (*cache->copy)(cache, payload);
-    if (tmp_payload == NULL) {
-        /*
-         * XXX: The cache management should be rewritten to work
-         * properly when LDAPSharedCacheSize is too small.
-         */
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
-                     "LDAPSharedCacheSize is too small. Increase it or "
-                     "reduce LDAPCacheEntries/LDAPOpCacheEntries!");
-        if (cache->numentries < cache->fullmark) {
-            /*
-             * We have not even reached fullmark, trigger a complete purge.
-             * This is still better than not being able to add new entries
-             * at all.
-             */
-            cache->marktime = apr_time_now();
-        }
-        util_ald_cache_purge(cache);
-        tmp_payload = (*cache->copy)(cache, payload);
-        if (tmp_payload == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
-                         "Could not allocate memory for LDAP cache value");
-            util_ald_free(cache, node);
-            return NULL;
-        }
+    if (length != postlen) {
+	printf("error reading postfile: read only %"
+	       APR_SIZE_T_FMT " bytes",
+	       length);
+	return APR_EINVAL;
     }
-    payload = tmp_payload;
-
-    /* populate the entry */
-    cache->inserts++;
-    hashval = (*cache->hash)(payload) % cache->size;
-    node->add_time = apr_time_now();
-    node->payload = payload;
-    node->next = cache->nodes[hashval];
-    cache->nodes[hashval] = node;
-
-    /* if we reach the full mark, note the time we did so
-     * for the benefit of the purge function
-     */
-    if (++cache->numentries == cache->fullmark) {
-        cache->marktime=apr_time_now();
-    }
-
-    return node->payload;
+    apr_file_close(postfd);
+    return 0;
 }

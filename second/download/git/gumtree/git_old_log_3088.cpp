@@ -1,1 +1,1 @@
-error(_("unrecognized binary patch at line %d"), linenr-1);
+die(_("patch with only garbage at line %d"), linenr);

@@ -1,2 +1,1 @@
-error(_("could not copy '%s' to '%s'"),
-			     rebase_path_message(), git_path("MERGE_MSG"));
+error("unknown hint type for '%s': %s", var, value);

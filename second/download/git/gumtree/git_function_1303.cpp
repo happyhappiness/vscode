@@ -1,9 +1,7 @@
-int unable_to_lock_error(const char *path, int err)
+int cmd_remote_ext(int argc, const char **argv, const char *prefix)
 {
-	struct strbuf buf = STRBUF_INIT;
+	if (argc != 3)
+		die("Expected two arguments");
 
-	unable_to_lock_message(path, err, &buf);
-	error("%s", buf.buf);
-	strbuf_release(&buf);
-	return -1;
+	return command_loop(argv[2]);
 }

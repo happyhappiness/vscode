@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(03091)
-                         "post_config: mpm type unknown");
+ap_log_error(APLOG_MARK, APLOG_ERR, rs, s, APLOGNO(02665)
+            "mod_lua: Failed to create shared memory segment on file %s",
+                     lua_ivm_shmfile);

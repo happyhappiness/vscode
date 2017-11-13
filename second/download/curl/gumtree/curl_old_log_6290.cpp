@@ -1,11 +1,9 @@
 fputs(
-"              input. No cookies will be stored in the file. To store  cookies,\n"
-"              use  the  -c/--cookie-jar option or you could even save the HTTP\n"
-"              headers to a file using -D/--dump-header!\n"
+"              also  activates  the \"cookie parser\" which will make curl record\n"
+"              incoming cookies too, which may be handy if you're using this in\n"
+"              combination  with  the  -L/--location option. The file format of\n"
+"              the file to read cookies from should be plain  HTTP  headers  or\n"
+"              the Netscape/Mozilla cookie file format.\n"
 "\n"
-"              If this option is set more than once, the last one will  be  the\n"
-"              one that's used.\n"
-"\n"
-"       -B/--use-ascii\n"
-"              Enable  ASCII transfer when using FTP or LDAP. For FTP, this can\n"
+"              NOTE  that  the  file specified with -b/--cookie is only used as\n"
 , stdout);

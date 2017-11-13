@@ -1,70 +1,35 @@
-static authz_status fileowner_check_authorization(request_rec *r,
-                                             const char *require_args)
+static char *get_password(const char *prompt)
 {
-    char *reason = NULL;
-    apr_status_t status = 0;
+    struct termios attr;
+    static char password[MAX_STRING_LEN];
+    int n=0;
+    fputs(prompt, stderr);
+    fflush(stderr);
 
-#if !APR_HAS_USER
-    reason = "'Require file-owner' is not supported on this platform.";
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                  "Authorization of user %s to access %s failed, reason: %s",
-                  r->user, r->uri, reason ? reason : "unknown");
-    return AUTHZ_DENIED;
-#else  /* APR_HAS_USER */
-    char *owner = NULL;
-    apr_finfo_t finfo;
+    if (tcgetattr(STDIN_FILENO, &attr) != 0)
+        return NULL;
+    attr.c_lflag &= ~(ECHO);
 
-    if (!r->user) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-            "access to %s failed, reason: no authenticated user", r->uri);
-        return AUTHZ_DENIED;
+    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &attr) != 0)
+        return NULL;
+    while ((password[n] = getchar()) != '\n') {
+        if (n < sizeof(password) - 1 && password[n] >= ' ' && password[n] <= '~') {
+            n++;
+        } else {
+            fprintf(stderr,"\n");
+            fputs(prompt, stderr);
+            fflush(stderr);
+            n = 0;
+        }
+    }
+ 
+    password[n] = '\0';
+    printf("\n");
+    if (n > (MAX_STRING_LEN - 1)) {
+        password[MAX_STRING_LEN - 1] = '\0';
     }
 
-    if (!r->filename) {
-        reason = "no filename available";
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                      "Authorization of user %s to access %s failed, reason: %s",
-                      r->user, r->uri, reason ? reason : "unknown");
-        return AUTHZ_DENIED;
-    }
-
-    status = apr_stat(&finfo, r->filename, APR_FINFO_USER, r->pool);
-    if (status != APR_SUCCESS) {
-        reason = apr_pstrcat(r->pool, "could not stat file ",
-                                r->filename, NULL);
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                      "Authorization of user %s to access %s failed, reason: %s",
-                      r->user, r->uri, reason ? reason : "unknown");
-        return AUTHZ_DENIED;
-    }
-
-    if (!(finfo.valid & APR_FINFO_USER)) {
-        reason = "no file owner information available";
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                      "Authorization of user %s to access %s failed, reason: %s",
-                      r->user, r->uri, reason ? reason : "unknown");
-        return AUTHZ_DENIED;
-    }
-
-    status = apr_uid_name_get(&owner, finfo.user, r->pool);
-    if (status != APR_SUCCESS || !owner) {
-        reason = "could not get name of file owner";
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                      "Authorization of user %s to access %s failed, reason: %s",
-                      r->user, r->uri, reason ? reason : "unknown");
-        return AUTHZ_DENIED;
-    }
-
-    if (strcmp(owner, r->user)) {
-        reason = apr_psprintf(r->pool, "file owner %s does not match.",
-                                owner);
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                      "Authorization of user %s to access %s failed, reason: %s",
-                      r->user, r->uri, reason ? reason : "unknown");
-        return AUTHZ_DENIED;
-    }
-
-    /* this user is authorized */
-    return AUTHZ_GRANTED;
-#endif /* APR_HAS_USER */
+    attr.c_lflag |= ECHO;
+    tcsetattr(STDIN_FILENO, TCSANOW, &attr);
+    return (char*) &password;
 }

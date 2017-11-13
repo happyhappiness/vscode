@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02343)
-                          "Can't evaluate logout expression: %s", err);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server, APLOGNO(02124)
+                     "Error: %d with WSAIoctl(flag SO_TLS_ENABLE)",
+                     WSAGetLastError());

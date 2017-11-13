@@ -1,1 +1,1 @@
-apr_file_printf(errfile, "Usage:" NL);
+(APR_STATUS_IS_EINTR(rv);

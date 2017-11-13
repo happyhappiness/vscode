@@ -1,71 +1,63 @@
-static void do_rerere_one_path(struct string_list_item *rr_item,
-			       struct string_list *update)
+static int do_plain_rerere(struct string_list *rr, int fd)
 {
-	const char *path = rr_item->string;
-	struct rerere_id *id = rr_item->util;
-	struct rerere_dir *rr_dir = id->collection;
-	int variant;
+	struct string_list conflict = STRING_LIST_INIT_DUP;
+	struct string_list update = STRING_LIST_INIT_DUP;
+	int i;
 
-	variant = id->variant;
+	find_conflict(&conflict);
 
-	/* Has the user resolved it already? */
-	if (variant >= 0) {
-		if (!handle_file(path, NULL, NULL)) {
-			copy_file(rerere_path(id, "postimage"), path, 0666);
-			id->collection->status[variant] |= RR_HAS_POSTIMAGE;
-			fprintf(stderr, "Recorded resolution for '%s'.\n", path);
-			free_rerere_id(rr_item);
-			rr_item->util = NULL;
-			return;
-		}
-		/*
-		 * There may be other variants that can cleanly
-		 * replay.  Try them and update the variant number for
-		 * this one.
-		 */
-	}
+	/*
+	 * MERGE_RR records paths with conflicts immediately after
+	 * merge failed.  Some of the conflicted paths might have been
+	 * hand resolved in the working tree since then, but the
+	 * initial run would catch all and register their preimages.
+	 */
+	for (i = 0; i < conflict.nr; i++) {
+		struct rerere_id *id;
+		unsigned char sha1[20];
+		const char *path = conflict.items[i].string;
+		int ret;
 
-	/* Does any existing resolution apply cleanly? */
-	for (variant = 0; variant < rr_dir->status_nr; variant++) {
-		const int both = RR_HAS_PREIMAGE | RR_HAS_POSTIMAGE;
-		struct rerere_id vid = *id;
-
-		if ((rr_dir->status[variant] & both) != both)
+		if (string_list_has_string(rr, path))
 			continue;
 
-		vid.variant = variant;
-		if (merge(&vid, path))
-			continue; /* failed to replay */
+		/*
+		 * Ask handle_file() to scan and assign a
+		 * conflict ID.  No need to write anything out
+		 * yet.
+		 */
+		ret = handle_file(path, sha1, NULL);
+		if (ret < 1)
+			continue;
+
+		id = new_rerere_id(sha1);
+		string_list_insert(rr, path)->util = id;
 
 		/*
-		 * If there already is a different variant that applies
-		 * cleanly, there is no point maintaining our own variant.
+		 * If the directory does not exist, create
+		 * it.  mkdir_in_gitdir() will fail with
+		 * EEXIST if there already is one.
+		 *
+		 * NEEDSWORK: make sure "gc" does not remove
+		 * preimage without removing the directory.
 		 */
-		if (0 <= id->variant && id->variant != variant)
-			remove_variant(id);
+		if (mkdir_in_gitdir(rerere_path(id, NULL)))
+			continue;
 
-		if (rerere_autoupdate)
-			string_list_insert(update, path);
-		else
-			fprintf(stderr,
-				"Resolved '%s' using previous resolution.\n",
-				path);
-		free_rerere_id(rr_item);
-		rr_item->util = NULL;
-		return;
+		/*
+		 * We are the first to encounter this
+		 * conflict.  Ask handle_file() to write the
+		 * normalized contents to the "preimage" file.
+		 */
+		handle_file(path, NULL, rerere_path(id, "preimage"));
+		fprintf(stderr, "Recorded preimage for '%s'\n", path);
 	}
 
-	/* None of the existing one applies; we need a new variant */
-	assign_variant(id);
+	for (i = 0; i < rr->nr; i++)
+		do_rerere_one_path(&rr->items[i], &update);
 
-	variant = id->variant;
-	handle_file(path, NULL, rerere_path(id, "preimage"));
-	if (id->collection->status[variant] & RR_HAS_POSTIMAGE) {
-		const char *path = rerere_path(id, "postimage");
-		if (unlink(path))
-			die_errno("cannot unlink stray '%s'", path);
-		id->collection->status[variant] &= ~RR_HAS_POSTIMAGE;
-	}
-	id->collection->status[variant] |= RR_HAS_PREIMAGE;
-	fprintf(stderr, "Recorded preimage for '%s'\n", path);
+	if (update.nr)
+		update_paths(&update);
+
+	return write_rr(rr, fd);
 }

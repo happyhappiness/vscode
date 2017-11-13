@@ -1,11 +1,11 @@
 fputs(
-"              system does  not  support  extended  attributes,  a  warning  is\n"
-"              issued.\n"
+"              doing file lists with FTP.\n"
 "\n"
-"       -y, --speed-time <time>\n"
-"              If a download is slower than speed-limit bytes per second during\n"
-"              a speed-time period, the download gets aborted. If speed-time is\n"
-"              used, the default speed-limit will be 1 unless set with -Y.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              This  option  controls  transfers  and thus will not affect slow\n"
+"       --xattr\n"
+"              When saving output to a file, this option tells  curl  to  store\n"
+"              certain file metadata in extened file attributes. Currently, the\n"
+"              URL is stored in the xdg.origin.url attribute and, for HTTP, the\n"
+"              content  type  is stored in the mime_type attribute. If the file\n"
 , stdout);

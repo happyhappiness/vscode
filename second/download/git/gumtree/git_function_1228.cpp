@@ -1,15 +1,31 @@
-static void show_ref(const char *path, const unsigned char *sha1)
+static char *prepare_initial(struct scoreboard *sb)
 {
-	if (ref_is_hidden(path))
-		return;
+	int i;
+	const char *final_commit_name = NULL;
+	struct rev_info *revs = sb->revs;
 
-	if (sent_capabilities)
-		packet_write(1, "%s %s\n", sha1_to_hex(sha1), path);
-	else
-		packet_write(1, "%s %s%c%s%s agent=%s\n",
-			     sha1_to_hex(sha1), path, 0,
-			     " report-status delete-refs side-band-64k quiet",
-			     prefer_ofs_delta ? " ofs-delta" : "",
-			     git_user_agent_sanitized());
-	sent_capabilities = 1;
+	/*
+	 * There must be one and only one negative commit, and it must be
+	 * the boundary.
+	 */
+	for (i = 0; i < revs->pending.nr; i++) {
+		struct object *obj = revs->pending.objects[i].item;
+		if (!(obj->flags & UNINTERESTING))
+			continue;
+		obj = deref_tag(obj, NULL, 0);
+		if (obj->type != OBJ_COMMIT)
+			die("Non commit %s?", revs->pending.objects[i].name);
+		if (sb->final)
+			die("More than one commit to dig up from, %s and %s?",
+			    revs->pending.objects[i].name,
+			    final_commit_name);
+		sb->final = (struct commit *) obj;
+		final_commit_name = revs->pending.objects[i].name;
+	}
+
+	if (!final_commit_name)
+		final_commit_name = dwim_reverse_initial(sb);
+	if (!final_commit_name)
+		die("No commit to dig up from?");
+	return xstrdup(final_commit_name);
 }

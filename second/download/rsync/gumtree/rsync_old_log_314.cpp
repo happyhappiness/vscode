@@ -1,1 +1,1 @@
-fprintf(FERROR,"done hash search\n");
+fprintf(FERROR,"skipping directory %s\n",fname);

@@ -1,1 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, NULL, msg);
+fprintf (stderr, " -> %s\n", ssl_expr_yytname[ssl_expr_yyr1[ssl_expr_yyn]]);

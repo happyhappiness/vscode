@@ -6,23 +6,29 @@ static void child_main(int child_num_arg)
     apr_threadattr_t *thread_attr;
     apr_thread_t *start_thread_id;
 
-    mpm_state = AP_MPMQ_STARTING;       /* for benefit of any hooks that run as this
-                                         * child initializes
-                                         */
+    mpm_state = AP_MPMQ_STARTING; /* for benefit of any hooks that run as this
+                                   * child initializes
+                                   */
     ap_my_pid = getpid();
     ap_fatal_signal_child_setup(ap_server_conf);
     apr_pool_create(&pchild, pconf);
 
-    /*stuff to do before we switch id's, so we have permissions. */
+    /*stuff to do before we switch id's, so we have permissions.*/
     ap_reopen_scoreboard(pchild, NULL, 0);
+
+    rv = SAFE_ACCEPT(apr_proc_mutex_child_init(&accept_mutex,
+                                               apr_proc_mutex_lockfile(accept_mutex),
+                                               pchild));
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf, APLOGNO(00280)
+                     "Couldn't initialize cross-process lock in child");
+        clean_child_exit(APEXIT_CHILDFATAL);
+    }
 
     if (ap_run_drop_privileges(pchild, ap_server_conf)) {
         clean_child_exit(APEXIT_CHILDFATAL);
     }
 
-    apr_thread_mutex_create(&g_timer_ring_mtx, APR_THREAD_MUTEX_DEFAULT, pchild);
-    APR_RING_INIT(&timer_free_ring, timer_event_t, link);
-    APR_RING_INIT(&timer_ring, timer_event_t, link);
     ap_run_child_init(pchild, ap_server_conf);
 
     /* done with init critical section */
@@ -33,17 +39,17 @@ static void child_main(int child_num_arg)
      */
     rv = apr_setup_signal_thread();
     if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf, APLOGNO(00479)
+        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf, APLOGNO(00281)
                      "Couldn't initialize signal thread");
         clean_child_exit(APEXIT_CHILDFATAL);
     }
 
     if (ap_max_requests_per_child) {
-        conns_this_child = ap_max_requests_per_child;
+        requests_this_child = ap_max_requests_per_child;
     }
     else {
         /* coding a value of zero means infinity */
-        conns_this_child = APR_INT32_MAX;
+        requests_this_child = INT_MAX;
     }
 
     /* Setup worker threads */
@@ -51,8 +57,9 @@ static void child_main(int child_num_arg)
     /* clear the storage; we may not create all our threads immediately,
      * and we want a 0 entry to indicate a thread which was not created
      */
-    threads = ap_calloc(threads_per_child, sizeof(apr_thread_t *));
-    ts = apr_palloc(pchild, sizeof(*ts));
+    threads = (apr_thread_t **)ap_calloc(1,
+                                  sizeof(apr_thread_t *) * threads_per_child);
+    ts = (thread_starter *)apr_palloc(pchild, sizeof(*ts));
 
     apr_threadattr_create(&thread_attr, pchild);
     /* 0 means PTHREAD_CREATE_JOINABLE */
@@ -61,7 +68,7 @@ static void child_main(int child_num_arg)
     if (ap_thread_stacksize != 0) {
         rv = apr_threadattr_stacksize_set(thread_attr, ap_thread_stacksize);
         if (rv != APR_SUCCESS && rv != APR_ENOTIMPL) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf, APLOGNO(02436)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf, APLOGNO(02435)
                          "WARNING: ThreadStackSize of %" APR_SIZE_T_FMT " is "
                          "inappropriate, using default", 
                          ap_thread_stacksize);
@@ -76,7 +83,7 @@ static void child_main(int child_num_arg)
     rv = apr_thread_create(&start_thread_id, thread_attr, start_threads,
                            ts, pchild);
     if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf, APLOGNO(00480)
+        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf, APLOGNO(00282)
                      "apr_thread_create: unable to create worker thread");
         /* let the parent decide how bad this really is */
         clean_child_exit(APEXIT_CHILDSICK);
@@ -97,12 +104,10 @@ static void child_main(int child_num_arg)
          *     shutdown this child
          */
         join_start_thread(start_thread_id);
-
-        /* helps us terminate a little more quickly than the dispatch of the
-         * signal thread; beats the Pipe of Death and the browsers
-         */
-        signal_threads(ST_UNGRACEFUL);
-
+        signal_threads(ST_UNGRACEFUL); /* helps us terminate a little more
+                           * quickly than the dispatch of the signal thread
+                           * beats the Pipe of Death and the browsers
+                           */
         /* A terminating signal was received. Now join each of the
          * workers to clean them up.
          *   If the worker already exited, then the join frees
@@ -112,7 +117,7 @@ static void child_main(int child_num_arg)
          */
         join_workers(ts->listener, threads);
     }
-    else {                      /* !one_process */
+    else { /* !one_process */
         /* remove SIGTERM from the set of blocked signals...  if one of
          * the other threads in the process needs to take us down
          * (e.g., for MaxConnectionsPerChild) it will send us SIGTERM
@@ -121,10 +126,10 @@ static void child_main(int child_num_arg)
         apr_signal(SIGTERM, dummy_signal_handler);
         /* Watch for any messages from the parent over the POD */
         while (1) {
-            rv = ap_event_pod_check(pod);
+            rv = ap_worker_pod_check(pod);
             if (rv == AP_NORESTART) {
                 /* see if termination was triggered while we slept */
-                switch (terminate_mode) {
+                switch(terminate_mode) {
                 case ST_GRACEFUL:
                     rv = AP_GRACEFUL;
                     break;
@@ -138,8 +143,7 @@ static void child_main(int child_num_arg)
                  * signal_threads() and join_workers depend on that
                  */
                 join_start_thread(start_thread_id);
-                signal_threads(rv ==
-                               AP_GRACEFUL ? ST_GRACEFUL : ST_UNGRACEFUL);
+                signal_threads(rv == AP_GRACEFUL ? ST_GRACEFUL : ST_UNGRACEFUL);
                 break;
             }
         }

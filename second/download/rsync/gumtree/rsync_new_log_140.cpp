@@ -1,1 +1,1 @@
-fprintf(FERROR,"done hash search\n");
+fprintf(FERROR,"chdir %s : %s\n",name,strerror(errno));

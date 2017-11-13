@@ -1,1 +1,3 @@
-fprintf(stderr, "                    (" SSL2_HELP_MSG "SSL3, TLS1" TLS1_X_HELP_MSG " or ALL)\n");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02987) 
+                      "Error reading response headers from %s for %s",
+                      dobj->hdrs.file, dobj->name);

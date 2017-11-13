@@ -1,2 +1,1 @@
-die(_("Not tracking: ambiguous information for ref %s"),
-		    orig_ref);
+error("--name-only is only applicable to --list or --get-regexp");

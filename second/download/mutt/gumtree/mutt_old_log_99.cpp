@@ -1,1 +1,0 @@
-printf (_("Error extracting key data!\n"));

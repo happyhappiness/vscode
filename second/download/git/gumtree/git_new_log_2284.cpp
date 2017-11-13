@@ -1,1 +1,1 @@
-warning_errno("failed to stat %s", pack_tmp_name);
+die("BUG! Want to close pack marked 'do-not-close'");

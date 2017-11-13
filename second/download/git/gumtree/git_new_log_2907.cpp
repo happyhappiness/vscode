@@ -1,1 +1,1 @@
-error_errno(_("failed to remove '%s'"), path.buf);
+error_errno("lstat(%s)", ce->name);

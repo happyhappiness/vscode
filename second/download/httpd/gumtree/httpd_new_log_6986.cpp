@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(10005)
-                "too short to decrypt, aborting");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, res, r, APLOGNO(10006)
+                    "auth does not match, skipping");

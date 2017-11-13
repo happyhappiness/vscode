@@ -1,1 +1,1 @@
-die(_("positive value expected contents:lines=%s"), valp);
+die("unable to generate checkdiff for %s", one->path);

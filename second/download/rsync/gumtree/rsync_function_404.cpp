@@ -1,23 +1,49 @@
-void clean_flist(struct file_list *flist)
+int local_child(int argc, char **argv,int *f_in,int *f_out)
 {
-	int i;
+	int pid;
+	int to_child_pipe[2];
+	int from_child_pipe[2];
 
-	if (!flist || flist->count == 0) 
-		return;
-  
-	qsort(flist->files,flist->count,
-	      sizeof(flist->files[0]),
-	      (int (*)())file_compare);
-
-	for (i=1;i<flist->count;i++) {
-		if (flist->files[i]->basename &&
-		    flist->files[i-1]->basename &&
-		    strcmp(f_name(flist->files[i]),
-			   f_name(flist->files[i-1])) == 0) {
-			if (verbose > 1 && !am_server)
-				fprintf(FINFO,"removing duplicate name %s from file list %d\n",
-					f_name(flist->files[i-1]),i-1);
-			free_file(flist->files[i]);
-		} 
+	if (pipe(to_child_pipe) < 0 ||
+	    pipe(from_child_pipe) < 0) {
+		fprintf(FERROR,"pipe: %s\n",strerror(errno));
+		exit_cleanup(1);
 	}
+
+
+	pid = do_fork();
+	if (pid < 0) {
+		fprintf(FERROR,"fork: %s\n",strerror(errno));
+		exit_cleanup(1);
+	}
+
+	if (pid == 0) {
+		extern int am_sender;
+		extern int am_server;
+
+		am_sender = !am_sender;
+		am_server = 1;		
+
+		if (dup2(to_child_pipe[0], STDIN_FILENO) < 0 ||
+		    close(to_child_pipe[1]) < 0 ||
+		    close(from_child_pipe[0]) < 0 ||
+		    dup2(from_child_pipe[1], STDOUT_FILENO) < 0) {
+			fprintf(FERROR,"Failed to dup/close : %s\n",strerror(errno));
+			exit_cleanup(1);
+		}
+		if (to_child_pipe[0] != STDIN_FILENO) close(to_child_pipe[0]);
+		if (from_child_pipe[1] != STDOUT_FILENO) close(from_child_pipe[1]);
+		start_server(argc, argv);
+	}
+
+	if (close(from_child_pipe[1]) < 0 ||
+	    close(to_child_pipe[0]) < 0) {
+		fprintf(FERROR,"Failed to close : %s\n",strerror(errno));   
+		exit_cleanup(1);
+	}
+
+	*f_in = from_child_pipe[0];
+	*f_out = to_child_pipe[1];
+  
+	return pid;
 }

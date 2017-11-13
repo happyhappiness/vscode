@@ -1,24 +1,21 @@
-static int udt_do_read(struct unidirectional_transfer *t)
+static int udt_do_write(struct unidirectional_transfer *t)
 {
 	ssize_t bytes;
 
-	if (t->bufuse == BUFFERSIZE)
-		return 0;	/* No space for more. */
+	if (t->bufuse == 0)
+		return 0;	/* Nothing to write. */
 
-	transfer_debug("%s is readable", t->src_name);
-	bytes = read(t->src, t->buf + t->bufuse, BUFFERSIZE - t->bufuse);
-	if (bytes < 0 && errno != EWOULDBLOCK && errno != EAGAIN &&
-		errno != EINTR) {
-		error("read(%s) failed: %s", t->src_name, strerror(errno));
+	transfer_debug("%s is writable", t->dest_name);
+	bytes = xwrite(t->dest, t->buf, t->bufuse);
+	if (bytes < 0 && errno != EWOULDBLOCK) {
+		error("write(%s) failed: %s", t->dest_name, strerror(errno));
 		return -1;
-	} else if (bytes == 0) {
-		transfer_debug("%s EOF (with %i bytes in buffer)",
-			t->src_name, (int)t->bufuse);
-		t->state = SSTATE_FLUSHING;
 	} else if (bytes > 0) {
-		t->bufuse += bytes;
-		transfer_debug("Read %i bytes from %s (buffer now at %i)",
-			(int)bytes, t->src_name, (int)t->bufuse);
+		t->bufuse -= bytes;
+		if (t->bufuse)
+			memmove(t->buf, t->buf + bytes, t->bufuse);
+		transfer_debug("Wrote %i bytes to %s (buffer now at %i)",
+			(int)bytes, t->dest_name, (int)t->bufuse);
 	}
 	return 0;
 }

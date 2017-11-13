@@ -1,45 +1,43 @@
-static int h2_post_config(apr_pool_t *p, apr_pool_t *plog,
-                          apr_pool_t *ptemp, server_rec *s)
+static int lua_post_config(apr_pool_t *pconf, apr_pool_t *plog,
+                             apr_pool_t *ptemp, server_rec *s)
 {
-    void *data = NULL;
-    const char *mod_h2_init_key = "mod_h2_init_counter";
-    nghttp2_info *ngh2;
-    apr_status_t status;
-    (void)plog;(void)ptemp;
+    apr_pool_t **pool;
+    const char *tempdir;
+    apr_status_t rs;
+
+    lua_ssl_val = APR_RETRIEVE_OPTIONAL_FN(ssl_var_lookup);
+    lua_ssl_is_https = APR_RETRIEVE_OPTIONAL_FN(ssl_is_https);
     
-    apr_pool_userdata_get(&data, mod_h2_init_key, s->process->pool);
-    if ( data == NULL ) {
-        ap_log_error( APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "initializing post config dry run");
-        apr_pool_userdata_set((const void *)1, mod_h2_init_key,
-                              apr_pool_cleanup_null, s->process->pool);
-        return APR_SUCCESS;
+    if (ap_state_query(AP_SQ_MAIN_STATE) == AP_SQ_MS_CREATE_PRE_CONFIG)
+        return OK;
+
+    /* Create ivm mutex */
+    rs = ap_global_mutex_create(&lua_ivm_mutex, NULL, "lua-ivm-shm", NULL,
+                            s, pconf, 0);
+    if (APR_SUCCESS != rs) {
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
-    
-    ngh2 = nghttp2_version(0);
-    ap_log_error( APLOG_MARK, APLOG_INFO, 0, s,
-                 "mod_http2 (v%s, nghttp2 %s), initializing...",
-                 MOD_HTTP2_VERSION, ngh2? ngh2->version_str : "unknown");
-    
-    switch (h2_conn_mpm_type()) {
-        case H2_MPM_EVENT:
-        case H2_MPM_WORKER:
-            /* all fine, we know these ones */
-            break;
-        case H2_MPM_PREFORK:
-            /* ok, we now know how to handle that one */
-            break;
-        case H2_MPM_UNKNOWN:
-            /* ??? */
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "post_config: mpm type unknown");
-            break;
+
+    /* Create shared memory space */
+    rs = apr_temp_dir_get(&tempdir, pconf);
+    if (rs != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rs, s,
+                 "mod_lua IVM: Failed to find temporary directory");
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
-    
-    status = h2_h2_init(p, s);
-    if (status == APR_SUCCESS) {
-        status = h2_switch_init(p, s);
+    lua_ivm_shmfile = apr_psprintf(pconf, "%s/httpd_lua_shm.%ld", tempdir,
+                           (long int)getpid());
+    rs = apr_shm_create(&lua_ivm_shm, sizeof(apr_pool_t**),
+                    (const char *) lua_ivm_shmfile, pconf);
+    if (rs != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rs, s,
+            "mod_lua: Failed to create shared memory segment on file %s",
+                     lua_ivm_shmfile);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
-    
-    return status;
+    pool = (apr_pool_t **)apr_shm_baseaddr_get(lua_ivm_shm);
+    apr_pool_create(pool, pconf);
+    apr_pool_cleanup_register(pconf, NULL, shm_cleanup_wrapper,
+                          apr_pool_cleanup_null);
+    return OK;
 }

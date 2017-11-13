@@ -1,1 +1,2 @@
-die(_("could not stat file '%s'"), ce->name);
+error(_("cannot '%s' without a previous commit"),
+				command_to_string(item->command));

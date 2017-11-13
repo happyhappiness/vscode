@@ -1,1 +1,1 @@
-printf("%s\n", sha1_to_hex(result->item->object.sha1));
+die_errno("cannot open pid file '%s'", path);

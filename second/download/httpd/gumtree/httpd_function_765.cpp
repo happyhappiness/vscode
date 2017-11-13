@@ -1,28 +1,46 @@
-RSA *ssl_callback_TmpRSA(SSL *ssl, int export, int keylen)
+static apr_status_t run_rewritemap_programs(server_rec *s, apr_pool_t *p)
 {
-    conn_rec *c = (conn_rec *)SSL_get_app_data(ssl);
-    SSLModConfigRec *mc = myModConfig(c->base_server);
-    int idx;
+    rewrite_server_conf *conf;
+    apr_array_header_t *rewritemaps;
+    rewritemap_entry *entries;
+    int i;
+    apr_status_t rc;
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, c->base_server,
-                 "handing out temporary %d bit RSA key", keylen);
+    conf = ap_get_module_config(s->module_config, &rewrite_module);
 
-    /* doesn't matter if export flag is on,
-     * we won't be asked for keylen > 512 in that case.
-     * if we are asked for a keylen > 1024, it is too expensive
-     * to generate on the fly.
-     * XXX: any reason not to generate 2048 bit keys at startup?
+    /*  If the engine isn't turned on,
+     *  don't even try to do anything.
      */
-
-    switch (keylen) {
-      case 512:
-        idx = SSL_TMP_KEY_RSA_512;
-        break;
-
-      case 1024:
-      default:
-        idx = SSL_TMP_KEY_RSA_1024;
+    if (conf->state == ENGINE_DISABLED) {
+        return APR_SUCCESS;
     }
 
-    return (RSA *)mc->pTmpKeys[idx];
+    rewritemaps = conf->rewritemaps;
+    entries = (rewritemap_entry *)rewritemaps->elts;
+    for (i = 0; i < rewritemaps->nelts; i++) {
+        apr_file_t *fpin = NULL;
+        apr_file_t *fpout = NULL;
+        rewritemap_entry *map = &entries[i];
+
+        if (map->type != MAPTYPE_PRG) {
+            continue;
+        }
+        if (map->argv[0] == NULL
+            || *(map->argv[0]) == '\0'
+            || map->fpin  != NULL
+            || map->fpout != NULL        ) {
+            continue;
+        }
+        rc = rewritemap_program_child(p, map->argv[0], map->argv,
+                                      &fpout, &fpin);
+        if (rc != APR_SUCCESS || fpin == NULL || fpout == NULL) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rc, s,
+                         "mod_rewrite: could not startup RewriteMap "
+                         "program %s", map->datafile);
+            return rc;
+        }
+        map->fpin  = fpin;
+        map->fpout = fpout;
+    }
+    return APR_SUCCESS;
 }

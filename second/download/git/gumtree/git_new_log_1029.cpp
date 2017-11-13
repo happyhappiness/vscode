@@ -1,1 +1,1 @@
-usage(usage_msg);
+die(_("--contains option is only allowed in list mode"));

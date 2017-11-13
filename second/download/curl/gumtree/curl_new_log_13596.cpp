@@ -1,12 +1,11 @@
 fputs(
-"       22     HTTP  page  not  retrieved.  The  requested url was not found or\n"
-"              returned another error with the HTTP error  code  being  400  or\n"
-"              above. This return code only appears if -f, --fail is used.\n"
+"    curl --metalink http://www.example.com/example.metalink\n"
 "\n"
-"       23     Write  error.  Curl couldn't write data to a local filesystem or\n"
-"              similar.\n"
+"  To use a Metalink file in the local file system, use FILE protocol (file://):\n"
 "\n"
-"       25     FTP couldn't STOR file. The server denied  the  STOR  operation,\n"
-"              used for FTP uploading.\n"
+"    curl --metalink file://example.metalink\n"
 "\n"
+"  Please note that if FILE protocol is disabled, there is no way to use a local\n"
+"  Metalink file at the time of this writing. Also note that if --metalink and\n"
+"  --include are used together, --include will be ignored. This is because including\n"
 , stdout);

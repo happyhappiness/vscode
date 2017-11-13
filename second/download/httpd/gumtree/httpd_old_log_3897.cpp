@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "proxy: FCGI: serving URL %s", url);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+                     "Cannot get media subtype.");

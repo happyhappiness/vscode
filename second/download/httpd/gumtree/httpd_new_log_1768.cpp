@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, r->server,
-                             "proxy: ProxyBlock comparing %s and %s", conf_ip, uri_ip);
+ap_register_output_filter("CACHE",
+                                  cache_filter,
+                                  NULL,
+                                  AP_FTYPE_RESOURCE);

@@ -1,99 +1,70 @@
-void receive_xattr(struct file_struct *file, int f)
+static void match_gnums(int32 *ndx_list, int ndx_count)
 {
-	static item_list temp_xattr = EMPTY_ITEM_LIST;
-	int count, num;
-#ifdef HAVE_LINUX_XATTRS
-	int need_sort = 0;
-#else
-	int need_sort = 1;
-#endif
-	int ndx = read_varint(f);
+	int32 from, prev;
+	struct file_struct *file, *file_next;
+	struct ht_int32_node *node = NULL;
+	int32 gnum, gnum_next;
 
-	if (ndx < 0 || (size_t)ndx > rsync_xal_l.count) {
-		rprintf(FERROR, "receive_xattr: xa index %d out of"
-			" range for %s\n", ndx, f_name(file, NULL));
-		exit_cleanup(RERR_STREAMIO);
-	}
+	qsort(ndx_list, ndx_count, sizeof ndx_list[0],
+	     (int (*)()) hlink_compare_gnum);
 
-	if (ndx != 0) {
-		F_XATTR(file) = ndx - 1;
-		return;
-	}
-	
-	if ((count = read_varint(f)) != 0) {
-		(void)EXPAND_ITEM_LIST(&temp_xattr, rsync_xa, count);
-		temp_xattr.count = 0;
-	}
-
-	for (num = 1; num <= count; num++) {
-		char *ptr, *name;
-		rsync_xa *rxa;
-		size_t name_len = read_varint(f);
-		size_t datum_len = read_varint(f);
-		size_t dget_len = datum_len > MAX_FULL_DATUM ? 1 + MAX_DIGEST_LEN : datum_len;
-		size_t extra_len = MIGHT_NEED_RPRE ? RPRE_LEN : 0;
-		if (dget_len + extra_len < dget_len)
-			out_of_memory("receive_xattr"); /* overflow */
-		if (dget_len + extra_len + name_len < dget_len)
-			out_of_memory("receive_xattr"); /* overflow */
-		ptr = new_array(char, dget_len + extra_len + name_len);
-		if (!ptr)
-			out_of_memory("receive_xattr");
-		name = ptr + dget_len + extra_len;
-		read_buf(f, name, name_len);
-		if (dget_len == datum_len)
-			read_buf(f, ptr, dget_len);
-		else {
-			*ptr = XSTATE_ABBREV;
-			read_buf(f, ptr + 1, MAX_DIGEST_LEN);
-		}
-#ifdef HAVE_LINUX_XATTRS
-		/* Non-root can only save the user namespace. */
-		if (am_root <= 0 && !HAS_PREFIX(name, USER_PREFIX)) {
-			if (!am_root) {
-				free(ptr);
-				continue;
-			}
-			name -= RPRE_LEN;
-			name_len += RPRE_LEN;
-			memcpy(name, RSYNC_PREFIX, RPRE_LEN);
-			need_sort = 1;
-		}
-#else
-		/* This OS only has a user namespace, so we either
-		 * strip the user prefix, or we put a non-user
-		 * namespace inside our rsync hierarchy. */
-		if (HAS_PREFIX(name, USER_PREFIX)) {
-			name += UPRE_LEN;
-			name_len -= UPRE_LEN;
-		} else if (am_root) {
-			name -= RPRE_LEN;
-			name_len += RPRE_LEN;
-			memcpy(name, RSYNC_PREFIX, RPRE_LEN);
+	for (from = 0; from < ndx_count; from++) {
+		file = hlink_flist->sorted[ndx_list[from]];
+		gnum = F_HL_GNUM(file);
+		if (inc_recurse) {
+			node = hashtable_find(prior_hlinks, gnum, 1);
+			if (!node->data) {
+				if (!(node->data = new_array0(char, 5)))
+					out_of_memory("match_gnums");
+				assert(gnum >= hlink_flist->ndx_start);
+				file->flags |= FLAG_HLINK_FIRST;
+				prev = -1;
+			} else if (CVAL(node->data, 0) == 0) {
+				struct file_list *flist;
+				prev = IVAL(node->data, 1);
+				flist = flist_for_ndx(prev, NULL);
+				if (flist)
+					flist->files[prev - flist->ndx_start]->flags &= ~FLAG_HLINK_LAST;
+				else {
+					/* We skipped all prior files in this
+					 * group, so mark this as a "first". */
+					file->flags |= FLAG_HLINK_FIRST;
+					prev = -1;
+				}
+			} else
+				prev = -1;
 		} else {
-			free(ptr);
+			file->flags |= FLAG_HLINK_FIRST;
+			prev = -1;
+		}
+		for ( ; from < ndx_count-1; file = file_next, gnum = gnum_next, from++) { /*SHARED ITERATOR*/
+			file_next = hlink_flist->sorted[ndx_list[from+1]];
+			gnum_next = F_HL_GNUM(file_next);
+			if (gnum != gnum_next)
+				break;
+			F_HL_PREV(file) = prev;
+			/* The linked list uses over-the-wire ndx values. */
+			if (unsort_ndx)
+				prev = F_NDX(file);
+			else
+				prev = ndx_list[from] + hlink_flist->ndx_start;
+		}
+		if (prev < 0 && !inc_recurse) {
+			/* Disable hard-link bit and set DONE so that
+			 * HLINK_BUMP()-dependent values are unaffected. */
+			file->flags &= ~(FLAG_HLINKED | FLAG_HLINK_FIRST);
+			file->flags |= FLAG_HLINK_DONE;
 			continue;
 		}
-#endif
-		/* No rsync.%FOO attributes are copied w/o 2 -X options. */
-		if (preserve_xattrs < 2 && name_len > RPRE_LEN
-		 && name[RPRE_LEN] == '%' && HAS_PREFIX(name, RSYNC_PREFIX)) {
-			free(ptr);
-			continue;
+
+		file->flags |= FLAG_HLINK_LAST;
+		F_HL_PREV(file) = prev;
+		if (inc_recurse && CVAL(node->data, 0) == 0) {
+			if (unsort_ndx)
+				prev = F_NDX(file);
+			else
+				prev = ndx_list[from] + hlink_flist->ndx_start;
+			SIVAL(node->data, 1, prev);
 		}
-		rxa = EXPAND_ITEM_LIST(&temp_xattr, rsync_xa, 1);
-		rxa->name = name;
-		rxa->datum = ptr;
-		rxa->name_len = name_len;
-		rxa->datum_len = datum_len;
-		rxa->num = num;
 	}
-
-	if (need_sort && count > 1)
-		qsort(temp_xattr.items, count, sizeof (rsync_xa), rsync_xal_compare_names);
-
-	ndx = rsync_xal_l.count; /* pre-incremented count */
-	rsync_xal_store(&temp_xattr); /* adds item to rsync_xal_l */
-
-	F_XATTR(file) = ndx;
 }

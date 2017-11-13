@@ -1,70 +1,40 @@
-static apr_status_t rfc1413_connect(apr_socket_t **newsock, conn_rec *conn,
-                                    server_rec *srv, apr_time_t timeout)
+static void hm_processmsg(hm_ctx_t *ctx, apr_pool_t *p,
+                                  apr_sockaddr_t *from, char *buf, int len)
 {
-    apr_status_t rv;
-    apr_sockaddr_t *localsa, *destsa;
+    apr_table_t *tbl;
 
-    if ((rv = apr_sockaddr_info_get(&localsa, conn->local_ip, APR_UNSPEC,
-                              0, /* ephemeral port */
-                              0, conn->pool)) != APR_SUCCESS) {
-        /* This should not fail since we have a numeric address string
-         * as the host. */
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, srv,
-                     "rfc1413: apr_sockaddr_info_get(%s) failed",
-                     conn->local_ip);
-        return rv;
+    buf[len] = '\0';
+
+    tbl = apr_table_make(p, 10);
+
+    qs_to_table(buf, tbl, p);
+
+    if (apr_table_get(tbl, "v") != NULL &&
+        apr_table_get(tbl, "busy") != NULL &&
+        apr_table_get(tbl, "ready") != NULL) {
+        char *ip;
+        int port = 80;
+        hm_server_t *s;
+        /* TODO: REMOVE ME BEFORE PRODUCTION (????) */
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ctx->s,
+                     "Heartmonitor: %pI busy=%s ready=%s", from,
+                     apr_table_get(tbl, "busy"), apr_table_get(tbl, "ready"));
+
+        apr_sockaddr_ip_get(&ip, from);
+
+        if (apr_table_get(tbl, "port") != NULL)
+            port = atoi(apr_table_get(tbl, "port"));
+           
+        s = hm_get_server(ctx, ip, port);
+
+        s->busy = atoi(apr_table_get(tbl, "busy"));
+        s->ready = atoi(apr_table_get(tbl, "ready"));
+        s->seen = apr_time_now();
+    }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ctx->s,
+                     "Heartmonitor: malformed message from %pI",
+                     from);
     }
 
-    if ((rv = apr_sockaddr_info_get(&destsa, conn->remote_ip,
-                              localsa->family, /* has to match */
-                              RFC1413_PORT, 0, conn->pool)) != APR_SUCCESS) {
-        /* This should not fail since we have a numeric address string
-         * as the host. */
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, srv,
-                     "rfc1413: apr_sockaddr_info_get(%s) failed",
-                     conn->remote_ip);
-        return rv;
-    }
-
-    if ((rv = apr_socket_create(newsock,
-                                localsa->family, /* has to match */
-                                SOCK_STREAM, 0, conn->pool)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, srv,
-                     "rfc1413: error creating query socket");
-        return rv;
-    }
-
-    if ((rv = apr_socket_timeout_set(*newsock, timeout)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, srv,
-                     "rfc1413: error setting query socket timeout");
-        apr_socket_close(*newsock);
-        return rv;
-    }
-
-/*
- * Bind the local and remote ends of the query socket to the same
- * IP addresses as the connection under investigation. We go
- * through all this trouble because the local or remote system
- * might have more than one network address. The RFC1413 etc.
- * client sends only port numbers; the server takes the IP
- * addresses from the query socket.
- */
-
-    if ((rv = apr_socket_bind(*newsock, localsa)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, srv,
-                     "rfc1413: Error binding query socket to local port");
-        apr_socket_close(*newsock);
-        return rv;
-    }
-
-/*
- * errors from connect usually imply the remote machine doesn't support
- * the service; don't log such an error
- */
-    if ((rv = apr_socket_connect(*newsock, destsa)) != APR_SUCCESS) {
-        apr_socket_close(*newsock);
-        return rv;
-    }
-
-    return APR_SUCCESS;
 }

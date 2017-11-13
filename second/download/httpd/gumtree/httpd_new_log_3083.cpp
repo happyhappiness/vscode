@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, APLOGNO(02093)
-                     "mod_watchdog is required");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Buggy authn provider failed to set user for %s",
+                                  r->uri);

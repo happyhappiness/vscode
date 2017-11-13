@@ -1,1 +1,1 @@
-error_errno("read(%s) failed", t->src_name);
+die("cannot describe '%s'", oid_to_hex(oid));

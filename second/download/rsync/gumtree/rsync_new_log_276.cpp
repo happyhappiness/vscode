@@ -1,1 +1,1 @@
-fprintf(FINFO,"excluding file %s\n",fname);
+fprintf(f,"-R, --relative           use relative path names\n");

@@ -1,118 +1,61 @@
-int recv_files(int f_in,struct file_list *flist,char *local_name)
-{  
-  int fd1,fd2;
-  struct stat st;
-  char *fname;
-  char fnametmp[MAXPATHLEN];
-  char *buf;
-  int i;
+static void set_perms(char *fname,struct file_struct *file,struct stat *st,
+		      int report)
+{
+  int updated = 0;
+  struct stat st2;
 
-  if (verbose > 2)
-    fprintf(stderr,"recv_files(%d) starting\n",flist->count);
+  if (dry_run) return;
 
-  if (recurse && delete_mode && !local_name && flist->count>0) {
-    if (cvs_exclude)
-      add_cvs_excludes();
-    delete_files(flist);
+  if (!st) {
+    if (stat(fname,&st2) != 0) {
+      fprintf(stderr,"stat %s : %s\n",fname,strerror(errno));
+      return;
+    }
+    st = &st2;
   }
 
-  while (1) 
-    {
-      i = read_int(f_in);
-      if (i == -1) break;
-
-      fname = flist->files[i].name;
-
-      if (local_name)
-	fname = local_name;
-
-      if (dry_run) {
-	if (!am_server && verbose)
-	  printf("%s\n",fname);
-	continue;
-      }
-
-      if (verbose > 2)
-	fprintf(stderr,"recv_files(%s)\n",fname);
-
-      /* open the file */  
-      if ((fd1 = open(fname,O_RDONLY)) == -1 &&
-	  (fd1 = open(fname,O_RDONLY|O_CREAT,flist->files[i].mode)) == -1) {
-	fprintf(stderr,"recv_files failed to open %s\n",fname);
-	return -1;
-      }
-
-      if (fstat(fd1,&st) != 0) {
-	fprintf(stderr,"fstat %s : %s\n",fname,strerror(errno));
-	close(fd1);
-	return -1;
-      }
-
-      if (!S_ISREG(st.st_mode)) {
-	fprintf(stderr,"%s : not a regular file\n",fname);
-	close(fd1);
-	return -1;
-      }
-
-      if (st.st_size > 0) {
-	buf = map_file(fd1,st.st_size);
-	if (!buf) {
-	  fprintf(stderr,"map_file failed\n");
-	  return -1;
-	}
-      } else {
-	buf = NULL;
-      }
-
-      if (verbose > 2)
-	fprintf(stderr,"mapped %s of size %d\n",fname,(int)st.st_size);
-
-      /* open tmp file */
-      sprintf(fnametmp,"%s.XXXXXX",fname);
-      if (NULL == mktemp(fnametmp)) {
-	fprintf(stderr,"mktemp %s failed\n",fnametmp);
-	return -1;
-      }
-      fd2 = open(fnametmp,O_WRONLY|O_CREAT,st.st_mode);
-      if (fd2 == -1) {
-	fprintf(stderr,"open %s : %s\n",fnametmp,strerror(errno));
-	return -1;
-      }
-
-      if (!am_server && verbose)
-	printf("%s\n",fname);
-
-      /* recv file data */
-      receive_data(f_in,buf,fd2);
-
-      close(fd1);
-      close(fd2);
-
-      if (verbose > 2)
-	fprintf(stderr,"renaming %s to %s\n",fnametmp,fname);
-
-      if (make_backups) {
-	char fnamebak[MAXPATHLEN];
-	sprintf(fnamebak,"%s%s",fname,backup_suffix);
-	if (rename(fname,fnamebak) != 0) {
-	  fprintf(stderr,"rename %s %s : %s\n",fname,fnamebak,strerror(errno));
-	  exit(1);
-	}
-      }
-
-      /* move tmp file over real file */
-      if (rename(fnametmp,fname) != 0) {
-	fprintf(stderr,"rename %s -> %s : %s\n",
-		fnametmp,fname,strerror(errno));
-      }
-
-      unmap_file(buf,st.st_size);
-
-      set_perms(fname,&flist->files[i],NULL,0);
+#ifdef HAVE_UTIME
+  if (preserve_times && st->st_mtime != file->modtime) {
+    struct utimbuf tbuf;  
+    updated = 1;
+    tbuf.actime = time(NULL);
+    tbuf.modtime = file->modtime;
+    if (utime(fname,&tbuf) != 0) {
+      fprintf(stderr,"failed to set times on %s : %s\n",
+	      fname,strerror(errno));
+      return;
     }
+  }
+#endif
 
-  if (verbose > 2)
-    fprintf(stderr,"recv_files finished\n");
-  
-  return 0;
+#ifdef HAVE_CHMOD
+  if (preserve_perms && st->st_mode != file->mode) {
+    updated = 1;
+    if (chmod(fname,file->mode) != 0) {
+      fprintf(stderr,"failed to set permissions on %s : %s\n",
+	      fname,strerror(errno));
+      return;
+    }
+  }
+#endif
+
+#ifdef HAVE_CHOWN
+  if ((preserve_uid && st->st_uid != file->uid) || 
+      (preserve_gid && st->st_gid != file->gid) {
+    updated = 1;
+    if (chown(fname,
+	      preserve_uid?file->uid:-1,
+	      preserve_gid?file->gid:-1) != 0) {
+      fprintf(stderr,"chown %s : %s\n",fname,strerror(errno));
+      return;
+    }
+  }
+#endif
+
+  if (verbose > 1 && report) {
+    if (updated)
+      fprintf(am_server?stderr:stdout,"%s\n",fname);
+    else
+      fprintf(am_server?stderr:stdout,"%s is uptodate\n",fname);
+  }
 }

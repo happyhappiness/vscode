@@ -1,1 +1,1 @@
-fprintf(stderr, "corrupt mailbox\n");
+die("no such commit %s", oid_to_hex(oid));

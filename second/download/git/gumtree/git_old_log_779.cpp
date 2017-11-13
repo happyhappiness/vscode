@@ -1,1 +1,1 @@
-warning(_(msg_warn_remove_failed), qname);
+printf_ln(_("Huh (%s)?"), (*ptr)->buf);

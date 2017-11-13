@@ -1,15 +1,45 @@
-static int table_do_fn_check_lengths(void *r_, const char *key,
-                                     const char *value)
+static PCOMP_CONTEXT winnt_get_connection(PCOMP_CONTEXT context)
 {
-    request_rec *r = r_;
-    if (value == NULL || r->server->limit_req_fieldsize >= strlen(value) )
-        return 1;
+    int rc;
+    DWORD BytesRead;
+    LPOVERLAPPED pol;
+#ifdef _WIN64
+    ULONG_PTR CompKey;
+#else
+    DWORD CompKey;
+#endif
 
-    r->status = HTTP_BAD_REQUEST;
-    apr_table_setn(r->notes, "error-notes",
-                   "Size of a request header field exceeds server limit.");
-    ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "Request "
-                  "header exceeds LimitRequestFieldSize after merging: %.*s",
-                  field_name_len(key), key);
-    return 0;
+    mpm_recycle_completion_context(context);
+
+    apr_atomic_inc32(&g_blocked_threads);
+    while (1) {
+        if (workers_may_exit) {
+            apr_atomic_dec32(&g_blocked_threads);
+            return NULL;
+        }
+        rc = GetQueuedCompletionStatus(ThreadDispatchIOCP, &BytesRead, &CompKey,
+                                       &pol, INFINITE);
+        if (!rc) {
+            rc = apr_get_os_error();
+            ap_log_error(APLOG_MARK,APLOG_DEBUG, rc, ap_server_conf,
+                             "Child %d: GetQueuedComplationStatus returned %d", my_pid, rc);
+            continue;
+        }
+
+        switch (CompKey) {
+        case IOCP_CONNECTION_ACCEPTED:
+            context = CONTAINING_RECORD(pol, COMP_CONTEXT, Overlapped);
+            break;
+        case IOCP_SHUTDOWN:
+            apr_atomic_dec32(&g_blocked_threads);
+            return NULL;
+        default:
+            apr_atomic_dec32(&g_blocked_threads);
+            return NULL;
+        }
+        break;
+    }
+    apr_atomic_dec32(&g_blocked_threads);
+
+    return context;
 }

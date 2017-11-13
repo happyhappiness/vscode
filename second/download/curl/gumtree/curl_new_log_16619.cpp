@@ -1,14 +1,10 @@
 puts(
-"          If this option is used several times, the ones  follow�\n"
-"          ing the first will append data.\n"
+"  To subscribe to the curl-announce list, to only get information about new\n"
+"  releases, follow the instructions at http://curl.haxx.se/mail/\n"
 "\n"
-"     --data-ascii <data>\n"
-"          (HTTP) This is an alias for the -d/--data option.\n"
+"  To subscribe to the curl-and-PHP list in which curl using with PHP is\n"
+"  discussed, follow the instructions at http://curl.haxx.se/mail/\n"
 "\n"
-"          If  this option is used several times, the ones follow�\n"
-"          ing the first will append data.\n"
-"\n"
-"     --data-binary <data>\n"
-"          (HTTP) This posts data in a similar manner  as  --data-\n"
-"          ascii  does, although when using this option the entire\n"
-);
+"  Please direct curl questions, feature requests and trouble reports to one of\n"
+"  these mailing lists instead of mailing any individual.\n"
+ );

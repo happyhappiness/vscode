@@ -1,46 +1,51 @@
-static apr_status_t on_stream_resume(void *ctx, h2_stream *stream)
+h2_stream *h2_mplx_next_submit(h2_mplx *m, h2_ihash_t *streams)
 {
-    h2_session *session = ctx;
-    apr_status_t status = APR_EAGAIN;
-    int rv;
-    apr_off_t len = 0;
-    int eos = 0;
-    h2_headers *headers;
-    
-    ap_assert(stream);
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
-                  "h2_stream(%ld-%d): on_resume", session->id, stream->id);
-        
-send_headers:
-    headers = NULL;
-    status = h2_stream_out_prepare(stream, &len, &eos, &headers);
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, session->c, 
-                  "h2_stream(%ld-%d): prepared len=%ld, eos=%d", 
-                  session->id, stream->id, (long)len, eos);
-    if (headers) {
-        status = on_stream_headers(session, stream, headers, len, eos);
-        if (status != APR_SUCCESS || stream->rst_error) {
-            return status;
+    apr_status_t status;
+    h2_stream *stream = NULL;
+    int acquired;
+
+    AP_DEBUG_ASSERT(m);
+    if ((status = enter_mutex(m, &acquired)) == APR_SUCCESS) {
+        h2_io *io = h2_io_set_shift(m->ready_ios);
+        if (io && !m->aborted) {
+            stream = h2_ihash_get(streams, io->id);
+            if (stream) {
+                io->submitted = 1;
+                if (io->rst_error) {
+                    h2_stream_rst(stream, io->rst_error);
+                }
+                else {
+                    AP_DEBUG_ASSERT(io->response);
+                    H2_MPLX_IO_OUT(APLOG_TRACE2, m, io, "h2_mplx_next_submit_pre");
+                    h2_stream_set_response(stream, io->response, io->bbout);
+                    H2_MPLX_IO_OUT(APLOG_TRACE2, m, io, "h2_mplx_next_submit_post");
+                }
+            }
+            else {
+                /* We have the io ready, but the stream has gone away, maybe
+                 * reset by the client. Should no longer happen since such
+                 * streams should clear io's from the ready queue.
+                 */
+                ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, APLOGNO(03347)
+                              "h2_mplx(%ld): stream for response %d closed, "
+                              "resetting io to close request processing",
+                              m->id, io->id);
+                h2_io_make_orphaned(io, H2_ERR_STREAM_CLOSED);
+                if (!io->worker_started || io->worker_done) {
+                    io_destroy(m, io, 1);
+                }
+                else {
+                    /* hang around until the h2_task is done, but
+                     * shutdown input and send out any events (e.g. window
+                     * updates) asap. */
+                    h2_io_in_shutdown(io);
+                    io_in_consumed_signal(m, io);
+                }
+            }
+            
+            h2_io_signal(io, H2_IO_WRITE);
         }
-        goto send_headers;
+        leave_mutex(m, acquired);
     }
-    else if (status != APR_EAGAIN) {
-        if (!stream->has_response) {
-            int err = H2_STREAM_RST(stream, H2_ERR_PROTOCOL_ERROR);
-            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03466)
-                          "h2_stream(%ld-%d): no response, RST_STREAM, err=%d",
-                          session->id, stream->id, err);
-            nghttp2_submit_rst_stream(session->ngh2, NGHTTP2_FLAG_NONE,
-                                      stream->id, err);
-            return APR_SUCCESS;
-        } 
-        rv = nghttp2_session_resume_data(session->ngh2, stream->id);
-        session->have_written = 1;
-        ap_log_cerror(APLOG_MARK, nghttp2_is_fatal(rv)?
-                      APLOG_ERR : APLOG_DEBUG, 0, session->c,
-                      APLOGNO(02936) 
-                      "h2_stream(%ld-%d): resuming %s",
-                      session->id, stream->id, rv? nghttp2_strerror(rv) : "");
-    }
-    return status;
+    return stream;
 }

@@ -1,1 +1,0 @@
-warning(_("%s has multiple values"), key);

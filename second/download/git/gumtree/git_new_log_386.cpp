@@ -1,1 +1,1 @@
-die(_("%s failed"), cmd_name);
+warning(_("--shallow-since is ignored in local clones; use file:// instead."));

@@ -1,6 +1,4 @@
-warning("the merge base between %s and [%s] "
-		"must be skipped.\n"
-		"So we cannot be sure the first %s commit is "
-		"between %s and %s.\n"
-		"We continue anyway.",
-		bad_hex, good_hex, term_bad, mb_hex, bad_hex);
+packet_buf_write(&req_buf,
+					 "%s %s %s%c%s",
+					 old_hex, new_hex, ref->name, 0,
+					 cap_buf.buf);

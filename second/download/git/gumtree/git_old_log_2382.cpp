@@ -1,1 +1,1 @@
-error("file write error (%s)", strerror(errno));
+fprintf(fout, "Email: %s\n", email.buf);

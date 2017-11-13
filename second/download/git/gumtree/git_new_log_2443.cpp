@@ -1,1 +1,1 @@
-die(_("Unexpected option --remote"));
+die("BUG: color parsing ran out of space");

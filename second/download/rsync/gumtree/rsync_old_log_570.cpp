@@ -1,1 +1,1 @@
-fprintf(FERROR, "compression init failed\n");
+fprintf(FINFO,"deleting directory %s\n",f_name(f));

@@ -1,1 +1,1 @@
-die(_("%s: Unable to write new index file"), action_name(opts));
+die("Could not find commit from NOTES_MERGE_PARTIAL.");

@@ -1,1 +1,1 @@
-die("'%s': not a non-negative integer", arg);
+error_errno("waitpid for %s failed", argv0);

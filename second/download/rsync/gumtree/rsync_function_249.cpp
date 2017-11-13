@@ -1,31 +1,54 @@
-static void delete_files(struct file_list *flist)
+void generate_files(int f,struct file_list *flist,char *local_name,int f_recv)
 {
-  struct file_list *local_file_list;
-  char *dot=".";
-  int i, j;
-  char *last_name=NULL;
+  int i;
+  int phase=0;
 
-  if (cvs_exclude)
-    add_cvs_excludes();
+  if (verbose > 2)
+    fprintf(FERROR,"generator starting pid=%d count=%d\n",
+	    (int)getpid(),flist->count);
 
-  for (j=0;j<flist->count;j++) {
-	  if (!S_ISDIR(flist->files[j].mode)) continue;
-	  if (strcmp(flist->files[j].name,".")==0) continue;
-	  if (last_name &&
-	      flist->files[j].name[strlen(last_name)] == '/' &&
-	      strncmp(flist->files[j].name,last_name, strlen(last_name))==0)
-		  continue;
-	  last_name = flist->files[j].name;
-	  if (verbose > 1)
-		  fprintf(FINFO,"deleting in %s\n", last_name);
-	  if (!(local_file_list = send_file_list(-1,1,&last_name)))
-		  return;
-
-	  for (i=local_file_list->count-1;i>=0;i--) {
-		  if (!local_file_list->files[i].name) continue;
-		  if (-1 == flist_find(flist,&local_file_list->files[i])) {
-			  delete_one(&local_file_list->files[i]);
-		  }    
-	  }
+  for (i = 0; i < flist->count; i++) {
+    struct file_struct *file = &flist->files[i];
+    if (!file->name) continue;
+    if (S_ISDIR(file->mode)) {
+      if (dry_run) continue;
+      if (mkdir(file->name,file->mode) != 0 &&
+	  errno != EEXIST) {
+	fprintf(FERROR,"mkdir %s : %s\n",
+		file->name,strerror(errno));
+      }
+      continue;
+    }
+    recv_generator(local_name?local_name:file->name,
+		   flist,i,f);
   }
+
+  phase++;
+  csum_length = SUM_LENGTH;
+  ignore_times=1;
+
+  if (verbose > 2)
+    fprintf(FERROR,"generate_files phase=%d\n",phase);
+
+  write_int(f,-1);
+  write_flush(f);
+
+  if (remote_version >= 13) {
+    for (i=read_int(f_recv); i != -1; i=read_int(f_recv)) {
+      struct file_struct *file = &flist->files[i];
+      recv_generator(local_name?local_name:file->name,
+		     flist,i,f);    
+    }
+
+    phase++;
+    if (verbose > 2)
+      fprintf(FERROR,"generate_files phase=%d\n",phase);
+
+    write_int(f,-1);
+    write_flush(f);
+  }
+
+
+  if (verbose > 2)
+    fprintf(FERROR,"generator wrote %d\n",write_total());
 }

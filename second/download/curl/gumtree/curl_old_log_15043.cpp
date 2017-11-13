@@ -1,10 +1,9 @@
 fputs(
-"              makes curl record and use cookies. Another way to activate it is\n"
-"              to use the -b, --cookie option.\n"
+"              default config file is checked for in the  following  places  in\n"
+"              this order:\n"
 "\n"
-"              If the cookie jar can't be created or written to, the whole curl\n"
-"              operation  won't fail or even report an error clearly. Using -v,\n"
-"              --verbose will get a warning displayed, but  that  is  the  only\n"
-"              visible feedback you get about this possibly lethal situation.\n"
-"\n"
+"              1)  curl  tries  to find the \"home dir\": It first checks for the\n"
+"              CURL_HOME and then the HOME environment variables. Failing that,\n"
+"              it  uses getpwuid() on Unix-like systems (which returns the home\n"
+"              dir given the current user in your system). On Windows, it  then\n"
 , stdout);

@@ -1,1 +1,0 @@
-warning("Please upgrade Git");

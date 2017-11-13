@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT | level_flags, rv,
-                     (startup ? NULL : s),
-                     "could not duplicate listeners");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf, APLOGNO(00345)
+                                     "Child: Encountered too many accept() "
+                                     "resource faults, aborting.");

@@ -1,1 +1,1 @@
-fprintf(FERROR,"recv_files finished\n");
+fprintf(FINFO,"%s\n",fname);

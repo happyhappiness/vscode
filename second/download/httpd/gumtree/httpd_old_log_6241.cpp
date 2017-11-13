@@ -1,2 +1,2 @@
-ap_log_cerror( APLOG_MARK, APLOG_TRACE1, status, c,
-                                      "h2_session(%ld): input gone", session->id);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                     "start_lingering_close: apr_pollset_add failure");

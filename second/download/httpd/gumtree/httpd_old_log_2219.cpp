@@ -1,2 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
-                      "DBD: can't find driver for %s", svr->name);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                    "WARNING: detected MinSpareServers set to non-positive.");

@@ -1,1 +1,3 @@
-die(_("invalid ident line: %.*s"), (int)ident_len, ident_line);
+warning("ignoring alternate that does"
+						" not end in 'objects': %s",
+						target.buf);

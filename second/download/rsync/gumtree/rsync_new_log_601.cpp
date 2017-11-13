@@ -1,1 +1,1 @@
-out_of_memory("unsafe_symlink");
+rprintf(FINFO,"send files finished\n");

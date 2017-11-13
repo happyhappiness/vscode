@@ -1,1 +1,1 @@
-printf("%s	%s\n", oid_to_hex(&ref->old_oid), ref->name);;
+error(_("Could not remove branch %s"), refname);

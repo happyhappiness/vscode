@@ -1,1 +1,1 @@
-is_blank_line(buf + ll);
+die("git upload-pack: deepen and deepen-since (or deepen-not) cannot be used together");

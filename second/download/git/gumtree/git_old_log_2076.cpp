@@ -1,2 +1,1 @@
-fprintf(stderr, "Cannot obtain needed %s %s\n",
-		obj->type ? typename(obj->type): "object", missing_hex);
+die(_("'%s' is already checked out at '%s'"), new->name, gitdir.buf);

@@ -1,19 +1,65 @@
-static apr_status_t make_h2_headers(h2_from_h1 *from_h1, request_rec *r)
+apr_status_t ap_fatal_signal_setup(server_rec *s, apr_pool_t *in_pconf)
 {
-    from_h1->response = h2_response_create(from_h1->stream_id, 0,
-                                           from_h1->http_status, from_h1->hlines,
-                                           from_h1->pool);
-    from_h1->content_length = from_h1->response->content_length;
-    from_h1->chunked = r->chunked;
-    
-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, r->connection,
-                  "h2_from_h1(%d): converted headers, content-length: %d"
-                  ", chunked=%d",
-                  from_h1->stream_id, (int)from_h1->content_length, 
-                  (int)from_h1->chunked);
-    
-    set_state(from_h1, ((from_h1->chunked || from_h1->content_length > 0)?
-                        H2_RESP_ST_BODY : H2_RESP_ST_DONE));
-    /* We are ready to be sent to the client */
+#ifndef NO_USE_SIGACTION
+    struct sigaction sa;
+
+    sigemptyset(&sa.sa_mask);
+
+#if defined(SA_ONESHOT)
+    sa.sa_flags = SA_ONESHOT;
+#elif defined(SA_RESETHAND)
+    sa.sa_flags = SA_RESETHAND;
+#else
+    sa.sa_flags = 0;
+#endif
+
+    sa.sa_handler = sig_coredump;
+    if (sigaction(SIGSEGV, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGSEGV)");
+#ifdef SIGBUS
+    if (sigaction(SIGBUS, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGBUS)");
+#endif
+#ifdef SIGABORT
+    if (sigaction(SIGABORT, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGABORT)");
+#endif
+#ifdef SIGABRT
+    if (sigaction(SIGABRT, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGABRT)");
+#endif
+#ifdef SIGILL
+    if (sigaction(SIGILL, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGILL)");
+#endif
+#ifdef SIGFPE
+    if (sigaction(SIGFPE, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGFPE)");
+#endif
+
+#else /* NO_USE_SIGACTION */
+
+    apr_signal(SIGSEGV, sig_coredump);
+#ifdef SIGBUS
+    apr_signal(SIGBUS, sig_coredump);
+#endif /* SIGBUS */
+#ifdef SIGABORT
+    apr_signal(SIGABORT, sig_coredump);
+#endif /* SIGABORT */
+#ifdef SIGABRT
+    apr_signal(SIGABRT, sig_coredump);
+#endif /* SIGABRT */
+#ifdef SIGILL
+    apr_signal(SIGILL, sig_coredump);
+#endif /* SIGILL */
+#ifdef SIGFPE
+    apr_signal(SIGFPE, sig_coredump);
+#endif /* SIGFPE */
+
+#endif /* NO_USE_SIGACTION */
+
+    pconf = in_pconf;
+    parent_pid = my_pid = getpid();
+
     return APR_SUCCESS;
 }

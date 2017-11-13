@@ -1,11 +1,11 @@
 fputs(
-"              operation  won't  fail or even report an error clearly. Using -v\n"
-"              will get a warning displayed, but that is the only visible feed-\n"
-"              back you get about this possibly lethal situation.\n"
+"              The file specified with -b, --cookie is only used as  input.  No\n"
+"              cookies  will  be written to the file. To store cookies, use the\n"
+"              -c, --cookie-jar option.\n"
 "\n"
-"              If  this  option  is used several times, the last specified file\n"
-"              name will be used.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       -C, --continue-at <offset>\n"
-"              Continue/Resume a previous file transfer at  the  given  offset.\n"
+"       -B, --use-ascii\n"
+"              (FTP/LDAP) Enable ASCII transfer. For  FTP,  this  can  also  be\n"
+"              enforced  by  using an URL that ends with \";type=A\". This option\n"
 , stdout);

@@ -1,1 +1,1 @@
-fprintf(FERROR,"Failed to close : %s\n",strerror(errno));
+fprintf(FINFO,"sending sums for %d\n",i);

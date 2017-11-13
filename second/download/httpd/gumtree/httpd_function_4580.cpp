@@ -1,81 +1,69 @@
-static int mpmt_os2_run(apr_pool_t *_pconf, apr_pool_t *plog, server_rec *s )
+static int ap_session_load(request_rec * r, session_rec ** z)
 {
-    char *listener_shm_name;
-    parent_info_t *parent_info;
-    ULONG rc;
-    pconf = _pconf;
-    ap_server_conf = s;
-    restart_pending = 0;
 
-    DosSetMaxFH(ap_thread_limit * 2);
-    listener_shm_name = apr_psprintf(pconf, "/sharemem/httpd/parent_info.%d", getppid());
-    rc = DosGetNamedSharedMem((PPVOID)&parent_info, listener_shm_name, PAG_READ);
-    is_parent_process = rc != 0;
-    ap_scoreboard_fname = apr_psprintf(pconf, "/sharemem/httpd/scoreboard.%d", is_parent_process ? getpid() : getppid());
+    session_dir_conf *dconf = ap_get_module_config(r->per_dir_config,
+                                                   &session_module);
+    apr_time_t now;
+    session_rec *zz = NULL;
+    int rv = 0;
 
-    if (rc == 0) {
-        /* Child process */
-        ap_listen_rec *lr;
-        int num_listeners = 0;
+    /* is the session enabled? */
+    if (!dconf || !dconf->enabled) {
+        return APR_SUCCESS;
+    }
 
-        ap_mpm_accept_mutex = parent_info->accept_mutex;
+    /* should the session be loaded at all? */
+    if (!session_included(r, dconf)) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, SESSION_PREFIX
+                      "excluded by configuration for: %s", r->uri);
+        return APR_SUCCESS;
+    }
 
-        /* Set up a default listener if necessary */
-        if (ap_listeners == NULL) {
-            ap_listen_rec *lr = apr_pcalloc(s->process->pool, sizeof(ap_listen_rec));
-            ap_listeners = lr;
-            apr_sockaddr_info_get(&lr->bind_addr, "0.0.0.0", APR_UNSPEC,
-                                  DEFAULT_HTTP_PORT, 0, s->process->pool);
-            apr_socket_create(&lr->sd, lr->bind_addr->family,
-                              SOCK_STREAM, 0, s->process->pool);
-        }
+    /* load the session from the session hook */
+    rv = ap_run_session_load(r, &zz);
+    if (DECLINED == rv) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, SESSION_PREFIX
+                      "session is enabled but no session modules have been configured, "
+                      "session not loaded: %s", r->uri);
+        return APR_EGENERAL;
+    }
+    else if (OK != rv) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, SESSION_PREFIX
+                      "error while loading the session, "
+                      "session not loaded: %s", r->uri);
+        return rv;
+    }
 
-        for (lr = ap_listeners; lr; lr = lr->next) {
-            apr_sockaddr_t *sa;
-            apr_os_sock_put(&lr->sd, &parent_info->listeners[num_listeners].listen_fd, pconf);
-            apr_socket_addr_get(&sa, APR_LOCAL, lr->sd);
-            num_listeners++;
-        }
+    /* found a session that hasn't expired? */
+    now = apr_time_now();
+    if (!zz || (zz->expiry && zz->expiry < now)) {
 
-        DosFreeMem(parent_info);
+        /* no luck, create a blank session */
+        zz = (session_rec *) apr_pcalloc(r->pool, sizeof(session_rec));
+        zz->pool = r->pool;
+        zz->entries = apr_table_make(zz->pool, 10);
+        zz->uuid = (apr_uuid_t *) apr_pcalloc(zz->pool, sizeof(apr_uuid_t));
+        apr_uuid_get(zz->uuid);
 
-        /* Do the work */
-        ap_mpm_child_main(pconf);
-
-        /* Outta here */
-        return 1;
     }
     else {
-        /* Parent process */
-        char restart;
-        is_parent_process = TRUE;
-
-        if (ap_setup_listeners(ap_server_conf) < 1) {
-            ap_log_error(APLOG_MARK, APLOG_ALERT, 0, s,
-                         "no listening sockets available, shutting down");
-            return 1;
+        rv = ap_run_session_decode(r, zz);
+        if (OK != rv) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, SESSION_PREFIX
+                          "error while decoding the session, "
+                          "session not loaded: %s", r->uri);
+            return rv;
         }
+    }
 
-        ap_log_pid(pconf, ap_pid_fname);
+    /* make sure the expiry is set, if present */
+    if (!zz->expiry && dconf->maxage) {
+        zz->expiry = now + dconf->maxage * APR_USEC_PER_SEC;
+        zz->maxage = dconf->maxage;
+    }
 
-        restart = master_main();
-        ++ap_my_generation;
-        ap_scoreboard_image->global->running_generation = ap_my_generation;
+    *z = zz;
 
-        if (!restart) {
-            const char *pidfile = ap_server_root_relative(pconf, ap_pid_fname);
+    return APR_SUCCESS;
 
-            if (pidfile != NULL && remove(pidfile) == 0) {
-                ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS,
-                             ap_server_conf, "removed PID file %s (pid=%d)",
-                             pidfile, getpid());
-            }
-
-            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                         "caught SIGTERM, shutting down");
-            return 1;
-        }
-    }  /* Parent process */
-
-    return 0; /* Restart */
 }

@@ -1,2 +1,1 @@
-fprintf(FERROR,"\nError: MDupdate called with illegal count value %d."
-              ,count);
+fprintf(FERROR,"recv_files finished\n");

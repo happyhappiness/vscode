@@ -1,1 +1,1 @@
-out_of_memory("make_exclude");
+rprintf(FERROR,"fstat failed : %s\n",strerror(errno));

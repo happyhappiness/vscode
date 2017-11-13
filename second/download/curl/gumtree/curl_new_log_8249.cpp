@@ -1,9 +1,12 @@
 fputs(
-"              (FTP)  Use  CCC  (Clear  Command Channel) Shuts down the SSL/TLS\n"
-"              layer after authenticating. The rest of the control channel com-\n"
-"              munication  will be unencrypted. This allows NAT routers to fol-\n"
-"              low the FTP transaction. The default mode is passive. See --ftp-\n"
-"              ssl-ccc-mode for other modes.  (Added in 7.16.1)\n"
+"              This  option has no effect if PORT, EPRT or EPSV is used instead\n"
+"              of PASV.\n"
 "\n"
-"       --ftp-ssl-ccc-mode [active/passive]\n"
+"       --ftp-pret\n"
+"              (FTP) Tell curl to send a PRET command before PASV  (and  EPSV).\n"
+"              Certain  FTP  servers,  mainly drftpd, require this non-standard\n"
+"              command for directory listings as well as up  and  downloads  in\n"
+"              PASV mode.  (Added in 7.20.x)\n"
+"\n"
+"       --ftp-ssl-ccc\n"
 , stdout);

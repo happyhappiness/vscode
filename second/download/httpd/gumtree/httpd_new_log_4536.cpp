@@ -1,1 +1,2 @@
-event_note_child_lost_slot(slot, pid);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                              "*: found reverse proxy worker for %s", *url);

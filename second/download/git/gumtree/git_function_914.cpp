@@ -1,78 +1,43 @@
-unsigned is_submodule_modified(const char *path, int ignore_untracked)
+static int push_git(struct discovery *heads, int nr_spec, char **specs)
 {
-	struct child_process cp = CHILD_PROCESS_INIT;
-	struct strbuf buf = STRBUF_INIT;
-	FILE *fp;
-	unsigned dirty_submodule = 0;
-	const char *git_dir;
-	int ignore_cp_exit_code = 0;
+	struct rpc_state rpc;
+	int i, err;
+	struct argv_array args;
+	struct string_list_item *cas_option;
+	struct strbuf preamble = STRBUF_INIT;
 
-	strbuf_addf(&buf, "%s/.git", path);
-	git_dir = read_gitfile(buf.buf);
-	if (!git_dir)
-		git_dir = buf.buf;
-	if (!is_git_directory(git_dir)) {
-		if (is_directory(git_dir))
-			die(_("'%s' not recognized as a git repository"), git_dir);
-		strbuf_release(&buf);
-		/* The submodule is not checked out, so it is not modified */
-		return 0;
-	}
-	strbuf_reset(&buf);
+	argv_array_init(&args);
+	argv_array_pushl(&args, "send-pack", "--stateless-rpc", "--helper-status",
+			 NULL);
 
-	argv_array_pushl(&cp.args, "status", "--porcelain=2", NULL);
-	if (ignore_untracked)
-		argv_array_push(&cp.args, "-uno");
+	if (options.thin)
+		argv_array_push(&args, "--thin");
+	if (options.dry_run)
+		argv_array_push(&args, "--dry-run");
+	if (options.verbosity == 0)
+		argv_array_push(&args, "--quiet");
+	else if (options.verbosity > 1)
+		argv_array_push(&args, "--verbose");
+	argv_array_push(&args, options.progress ? "--progress" : "--no-progress");
+	for_each_string_list_item(cas_option, &cas_options)
+		argv_array_push(&args, cas_option->string);
+	argv_array_push(&args, url.buf);
 
-	prepare_submodule_repo_env(&cp.env_array);
-	cp.git_cmd = 1;
-	cp.no_stdin = 1;
-	cp.out = -1;
-	cp.dir = path;
-	if (start_command(&cp))
-		die("Could not run 'git status --porcelain=2' in submodule %s", path);
+	argv_array_push(&args, "--stdin");
+	for (i = 0; i < nr_spec; i++)
+		packet_buf_write(&preamble, "%s\n", specs[i]);
+	packet_buf_flush(&preamble);
 
-	fp = xfdopen(cp.out, "r");
-	while (strbuf_getwholeline(&buf, fp, '\n') != EOF) {
-		/* regular untracked files */
-		if (buf.buf[0] == '?')
-			dirty_submodule |= DIRTY_SUBMODULE_UNTRACKED;
+	memset(&rpc, 0, sizeof(rpc));
+	rpc.service_name = "git-receive-pack",
+	rpc.argv = args.argv;
+	rpc.stdin_preamble = &preamble;
 
-		if (buf.buf[0] == 'u' ||
-		    buf.buf[0] == '1' ||
-		    buf.buf[0] == '2') {
-			/* T = line type, XY = status, SSSS = submodule state */
-			if (buf.len < strlen("T XY SSSS"))
-				die("BUG: invalid status --porcelain=2 line %s",
-				    buf.buf);
-
-			if (buf.buf[5] == 'S' && buf.buf[8] == 'U')
-				/* nested untracked file */
-				dirty_submodule |= DIRTY_SUBMODULE_UNTRACKED;
-
-			if (buf.buf[0] == 'u' ||
-			    buf.buf[0] == '2' ||
-			    memcmp(buf.buf + 5, "S..U", 4))
-				/* other change */
-				dirty_submodule |= DIRTY_SUBMODULE_MODIFIED;
-		}
-
-		if ((dirty_submodule & DIRTY_SUBMODULE_MODIFIED) &&
-		    ((dirty_submodule & DIRTY_SUBMODULE_UNTRACKED) ||
-		     ignore_untracked)) {
-			/*
-			 * We're not interested in any further information from
-			 * the child any more, neither output nor its exit code.
-			 */
-			ignore_cp_exit_code = 1;
-			break;
-		}
-	}
-	fclose(fp);
-
-	if (finish_command(&cp) && !ignore_cp_exit_code)
-		die("'git status --porcelain=2' failed in submodule %s", path);
-
-	strbuf_release(&buf);
-	return dirty_submodule;
+	err = rpc_service(&rpc, heads);
+	if (rpc.result.len)
+		write_or_die(1, rpc.result.buf, rpc.result.len);
+	strbuf_release(&rpc.result);
+	strbuf_release(&preamble);
+	argv_array_clear(&args);
+	return err;
 }

@@ -1,12 +1,15 @@
-puts(
-"          If this option is used more than  once,  the  last  one\n"
-"          will be the one to be used.\n"
+fputs(
 "\n"
-"     -b/--cookie <name=data>\n"
-"          (HTTP) Pass the data to the HTTP server as a cookie. It\n"
-"          is supposedly the data  previously  received  from  the\n"
-"          server  in a \"Set-Cookie:\" line.  The data should be in\n"
-"          the format \"NAME1=VALUE1; NAME2=VALUE2\".\n"
+"       12     During  an  active  FTP  session while waiting for the server to\n"
+"              connect back to curl, the timeout expired.\n"
 "\n"
-"          If no '=' letter is used in the line, it is treated  as\n"
-);
+"       13     FTP weird PASV reply, Curl couldn't parse the reply sent to  the\n"
+"              PASV request.\n"
+"\n"
+"       14     FTP  weird  227  format.  Curl  couldn't  parse the 227-line the\n"
+"              server sent.\n"
+"\n"
+"       15     FTP can't get host. Couldn't resolve the host IP we got  in  the\n"
+"              227-line.\n"
+"\n"
+, stdout);

@@ -1,107 +1,206 @@
-static authz_status ldapdn_check_authorization(request_rec *r,
-                                             const char *require_args)
+int main (int argc, const char * const argv[])
 {
-    int result = 0;
-    authn_ldap_request_t *req =
-        (authn_ldap_request_t *)ap_get_module_config(r->request_config, &authnz_ldap_module);
-    authn_ldap_config_t *sec =
-        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
+    char buf[BUFSIZE], buf2[MAX_PATH], errbuf[ERRMSGSZ];
+    int tLogEnd = 0, tRotation = 0, utc_offset = 0;
+    unsigned int sRotation = 0;
+    int nMessCount = 0;
+    apr_size_t nRead, nWrite;
+    int use_strftime = 0;
+    int use_localtime = 0;
+    int now = 0;
+    const char *szLogRoot;
+    apr_file_t *f_stdin, *nLogFD = NULL, *nLogFDprev = NULL;
+    apr_pool_t *pool;
+    char *ptr = NULL;
+    int argBase = 0;
+    int argFile = 1;
+    int argIntv = 2;
+    int argOffset = 3;
 
-    util_ldap_connection_t *ldc = NULL;
+    apr_app_initialize(&argc, &argv, NULL);
+    atexit(apr_terminate);
 
-    const char *t;
-
-    char filtbuf[FILTER_LENGTH];
-    const char *dn = NULL;
-
-    if (!r->user) {
-        return AUTHZ_DENIED_NO_USER;
+    apr_pool_create(&pool, NULL);
+    if ((argc > 2) && (strcmp(argv[1], "-l") == 0)) {
+        argBase++;
+        argFile += argBase;
+        argIntv += argBase;
+        argOffset += argBase;
+        use_localtime = 1;
+    }
+    if (argc < (argBase + 3) || argc > (argBase + 4)) {
+        fprintf(stderr,
+                "Usage: %s [-l] <logfile> <rotation time in seconds> "
+                "[offset minutes from UTC] or <rotation size in megabytes>\n\n",
+                argv[0]);
+#ifdef OS2
+        fprintf(stderr,
+                "Add this:\n\nTransferLog \"|%s.exe /some/where 86400\"\n\n",
+                argv[0]);
+#else
+        fprintf(stderr,
+                "Add this:\n\nTransferLog \"|%s /some/where 86400\"\n\n",
+                argv[0]);
+        fprintf(stderr,
+                "or \n\nTransferLog \"|%s /some/where 5M\"\n\n", argv[0]);
+#endif
+        fprintf(stderr,
+                "to httpd.conf. The generated name will be /some/where.nnnn "
+                "where nnnn is the\nsystem time at which the log nominally "
+                "starts (N.B. if using a rotation time,\nthe time will always "
+                "be a multiple of the rotation time, so you can synchronize\n"
+                "cron scripts with it). At the end of each rotation time or "
+                "when the file size\nis reached a new log is started.\n");
+        exit(1);
     }
 
-    if (!sec->have_ldap_url) {
-        return AUTHZ_DENIED;
-    }
+    szLogRoot = argv[argFile];
 
-    if (sec->host) {
-        ldc = get_connection_for_authz(r, LDAP_SEARCH); /* _comparedn is a searche */
-        apr_pool_cleanup_register(r->pool, ldc,
-                                  authnz_ldap_cleanup_connection_close,
-                                  apr_pool_cleanup_null);
+    ptr = strchr(argv[argIntv], 'M');
+    if (ptr) {
+        if (*(ptr+1) == '\0') {
+            sRotation = atoi(argv[argIntv]) * 1048576;
+        }
+        if (sRotation == 0) {
+            fprintf(stderr, "Invalid rotation size parameter\n");
+            exit(1);
+        }
     }
     else {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                      "auth_ldap authorize: no sec->host - weird...?");
-        return AUTHZ_DENIED;
-    }
-
-    /*
-     * If we have been authenticated by some other module than mod_auth_ldap,
-     * the req structure needed for authorization needs to be created
-     * and populated with the userid and DN of the account in LDAP
-     */
-
-    if (!strlen(r->user)) {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-            "ldap authorize: Userid is blank, AuthType=%s",
-            r->ap_auth_type);
-    }
-
-    if(!req) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-            "ldap authorize: Creating LDAP req structure");
-
-        /* Build the username filter */
-        authn_ldap_build_filter(filtbuf, r, r->user, NULL, sec);
-
-        /* Search for the user DN */
-        result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
-             sec->scope, sec->attributes, filtbuf, &dn, &(req->vals));
-
-        /* Search failed, log error and return failure */
-        if(result != LDAP_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                "auth_ldap authorise: User DN not found, %s", ldc->reason);
-            return AUTHZ_DENIED;
+        if (argc >= (argBase + 4)) {
+            utc_offset = atoi(argv[argOffset]) * 60;
         }
-
-        req = (authn_ldap_request_t *)apr_pcalloc(r->pool,
-            sizeof(authn_ldap_request_t));
-        ap_set_module_config(r->request_config, &authnz_ldap_module, req);
-        req->dn = apr_pstrdup(r->pool, dn);
-        req->user = r->user;
-    }
-
-    t = require_args;
-
-    if (req->dn == NULL || strlen(req->dn) == 0) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "auth_ldap authorize: require dn: user's DN has not "
-                      "been defined; failing authorization");
-        return AUTHZ_DENIED;
-    }
-
-    result = util_ldap_cache_comparedn(r, ldc, sec->url, req->dn, t, sec->compare_dn_on_server);
-    switch(result) {
-        case LDAP_COMPARE_TRUE: {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "auth_ldap authorize: "
-                          "require dn: authorization successful");
-            set_request_vars(r, LDAP_AUTHZ);
-            return AUTHZ_GRANTED;
-        }
-        default: {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "auth_ldap authorize: "
-                          "require dn \"%s\": LDAP error [%s][%s]",
-                          t, ldc->reason, ldap_err2string(result));
+        tRotation = atoi(argv[argIntv]);
+        if (tRotation <= 0) {
+            fprintf(stderr, "Rotation time must be > 0\n");
+            exit(6);
         }
     }
 
+    use_strftime = (strchr(szLogRoot, '%') != NULL);
+    if (apr_file_open_stdin(&f_stdin, pool) != APR_SUCCESS) {
+        fprintf(stderr, "Unable to open stdin\n");
+        exit(1);
+    }
 
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "auth_ldap authorize dn: authorization denied for "
-                  "user %s to %s",
-                  r->user, r->uri);
+    for (;;) {
+        nRead = sizeof(buf);
+        if (apr_file_read(f_stdin, buf, &nRead) != APR_SUCCESS) {
+            exit(3);
+        }
+        if (tRotation) {
+            /*
+             * Check for our UTC offset every time through the loop, since
+             * it might change if there's a switch between standard and
+             * daylight savings time.
+             */
+            if (use_localtime) {
+                apr_time_exp_t lt;
+                apr_time_exp_lt(&lt, apr_time_now());
+                utc_offset = lt.tm_gmtoff;
+            }
+            now = (int)(apr_time_now() / APR_USEC_PER_SEC) + utc_offset;
+            if (nLogFD != NULL && now >= tLogEnd) {
+                nLogFDprev = nLogFD;
+                nLogFD = NULL;
+            }
+        }
+        else if (sRotation) {
+            apr_finfo_t finfo;
+            apr_off_t current_size = -1;
 
-    return AUTHZ_DENIED;
+            if ((nLogFD != NULL) &&
+                (apr_file_info_get(&finfo, APR_FINFO_SIZE, nLogFD) == APR_SUCCESS)) {
+                current_size = finfo.size;
+            }
+
+            if (current_size > sRotation) {
+                nLogFDprev = nLogFD;
+                nLogFD = NULL;
+            }
+        }
+        else {
+            fprintf(stderr, "No rotation time or size specified\n");
+            exit(2);
+        }
+
+        if (nLogFD == NULL) {
+            int tLogStart;
+            apr_status_t rv;
+
+            if (tRotation) {
+                tLogStart = (now / tRotation) * tRotation;
+            }
+            else {
+                tLogStart = (int)apr_time_sec(apr_time_now());
+            }
+
+            if (use_strftime) {
+                apr_time_t tNow = apr_time_from_sec(tLogStart);
+                apr_time_exp_t e;
+                apr_size_t rs;
+
+                apr_time_exp_gmt(&e, tNow);
+                apr_strftime(buf2, &rs, sizeof(buf2), szLogRoot, &e);
+            }
+            else {
+                sprintf(buf2, "%s.%010d", szLogRoot, tLogStart);
+            }
+            tLogEnd = tLogStart + tRotation;
+            rv = apr_file_open(&nLogFD, buf2, APR_WRITE | APR_CREATE | APR_APPEND,
+                               APR_OS_DEFAULT, pool);
+            if (rv != APR_SUCCESS) {
+                char error[120];
+
+                apr_strerror(rv, error, sizeof error);
+
+                /* Uh-oh. Failed to open the new log file. Try to clear
+                 * the previous log file, note the lost log entries,
+                 * and keep on truckin'. */
+                if (nLogFDprev == NULL) {
+                    fprintf(stderr, "Could not open log file '%s' (%s)\n", buf2, error);
+                    exit(2);
+                }
+                else {
+                    nLogFD = nLogFDprev;
+                    /* Try to keep this error message constant length
+                     * in case it occurs several times. */
+                    apr_snprintf(errbuf, sizeof errbuf,
+                                 "Resetting log file due to error opening "
+                                 "new log file, %10d messages lost: %-25.25s\n",
+                                 nMessCount, error);
+                    nWrite = strlen(errbuf);
+                    apr_file_trunc(nLogFD, 0);
+                    if (apr_file_write(nLogFD, errbuf, &nWrite) != APR_SUCCESS) {
+                        fprintf(stderr, "Error writing to the file %s\n", buf2);
+                        exit(2);
+                    }
+                }
+            }
+            else if (nLogFDprev) {
+                apr_file_close(nLogFDprev);
+            }
+            nMessCount = 0;
+        }
+        nWrite = nRead;
+        apr_file_write(nLogFD, buf, &nWrite);
+        if (nWrite != nRead) {
+            nMessCount++;
+            sprintf(errbuf,
+                    "Error writing to log file. "
+                    "%10d messages lost.\n",
+                    nMessCount);
+            nWrite = strlen(errbuf);
+            apr_file_trunc(nLogFD, 0);
+            if (apr_file_write(nLogFD, errbuf, &nWrite) != APR_SUCCESS) {
+                fprintf(stderr, "Error writing to the file %s\n", buf2);
+                exit(2);
+            }
+        }
+        else {
+            nMessCount++;
+        }
+    }
+    /* Of course we never, but prevent compiler warnings */
+    return 0;
 }

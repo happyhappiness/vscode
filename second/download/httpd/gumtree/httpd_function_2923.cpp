@@ -1,43 +1,78 @@
-int cache_create_entity(cache_request_rec *cache, request_rec *r,
-                        apr_off_t size, apr_bucket_brigade *in)
+static SSL_SESSION *shmcb_lookup_session_id(
+    server_rec *s, SHMCBQueue *queue,
+    SHMCBCache *cache, UCHAR *id,
+    unsigned int idlen)
 {
-    cache_provider_list *list;
-    cache_handle_t *h = apr_pcalloc(r->pool, sizeof(cache_handle_t));
-    apr_status_t rv;
+    unsigned char tempasn[SSL_SESSION_MAX_DER];
+    SHMCBIndex *idx;
+    SHMCBHeader *header;
+    SSL_SESSION *pSession = NULL;
+    unsigned int curr_pos, loop, count;
+    MODSSL_D2I_SSL_SESSION_CONST unsigned char *ptr;
+    time_t now;
 
-    if (!cache) {
-        /* This should never happen */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_EGENERAL, r, APLOGNO(00692)
-                "cache: No cache request information available for key"
-                " generation");
-        return APR_EGENERAL;
-    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "entering shmcb_lookup_session_id");
 
-    if (!cache->key) {
-        rv = cache_generate_key(r, r->pool, &cache->key);
-        if (rv != APR_SUCCESS) {
-            return rv;
-        }
-    }
+    /* If there are entries to expire, ditch them first thing. */
+    shmcb_expire_division(s, queue, cache);
+    now = time(NULL);
+    curr_pos = shmcb_get_safe_uint(queue->first_pos);
+    count = shmcb_get_safe_uint(queue->pos_count);
+    header = queue->header;
+    for (loop = 0; loop < count; loop++) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "loop=%u, count=%u, curr_pos=%u",
+                     loop, count, curr_pos);
+        idx = shmcb_get_index(queue, curr_pos);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "idx->s_id2=%u, id[1]=%u, offset=%u",
+                idx->s_id2, id[1], shmcb_get_safe_uint(&(idx->offset)));
+        /* Only look into the session further if;
+         * (a) the second byte of the session_id matches,
+         * (b) the "removed" flag isn't set,
+         * (c) the session hasn't expired yet.
+         * We do (c) like this so that it saves us having to
+         * do natural expiries ... naturally expired sessions
+         * scroll off the front anyway when the cache is full and
+         * "rotating", the only real issue that remains is the
+         * removal or disabling of forcibly killed sessions. */
+        if ((idx->s_id2 == id[1]) && !idx->removed &&
+            (shmcb_get_safe_time(&(idx->expires)) > now)) {
+            unsigned int session_id_length;
+            unsigned char *session_id;
 
-    list = cache->providers;
-    /* for each specified cache type, delete the URL */
-    while (list) {
-        switch (rv = list->provider->create_entity(h, r, cache->key, size, in)) {
-        case OK: {
-            cache->handle = h;
-            cache->provider = list->provider;
-            cache->provider_name = list->provider_name;
-            return OK;
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "at index %u, found possible session match",
+                         curr_pos);
+            shmcb_cyclic_cton_memcpy(header->cache_data_size,
+                                     tempasn, cache->data,
+                                     shmcb_get_safe_uint(&(idx->offset)),
+                                     SSL_SESSION_MAX_DER);
+            ptr = tempasn;
+            pSession = d2i_SSL_SESSION(NULL, &ptr, SSL_SESSION_MAX_DER);
+            session_id_length = SSL_SESSION_get_session_id_length(pSession);
+            session_id = SSL_SESSION_get_session_id(pSession);
+
+            if (pSession == NULL) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                             "scach2_lookup_session_id internal error");
+                return NULL;
+            }
+            if ((session_id_length == idlen) &&
+                (memcmp(session_id, id, idlen) == 0)) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                             "a match!");
+                return pSession;
+            }
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "not a match");
+            SSL_SESSION_free(pSession);
+            pSession = NULL;
         }
-        case DECLINED: {
-            list = list->next;
-            continue;
-        }
-        default: {
-            return rv;
-        }
-        }
+        curr_pos = shmcb_cyclic_increment(header->index_num, curr_pos, 1);
     }
-    return DECLINED;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "no matching sessions were found");
+    return NULL;
 }

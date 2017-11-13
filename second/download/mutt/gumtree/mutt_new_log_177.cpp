@@ -1,1 +1,1 @@
-state_puts (msg, s);
+state_puts (_("Available CRL is too old\n"), s);

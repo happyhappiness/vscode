@@ -1,2 +1,1 @@
-error_errno(_("could not open '%s' for writing"),
-					   mail);
+print_rebase_state(s, state, color);

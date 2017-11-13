@@ -1,1 +1,1 @@
-warning("realloc failed: '%s'", strerror(errno));
+die(_("malformed object name %s"), arg);

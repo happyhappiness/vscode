@@ -1,1 +1,1 @@
-die(_("could not unset '%s'"), buf.buf);
+die("BUG: observed stagemask 0x%x != expected stagemask 0x%x", sum, d->stagemask);

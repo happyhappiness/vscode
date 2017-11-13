@@ -1,33 +1,43 @@
-static void wd_child_init_hook(apr_pool_t *p, server_rec *s)
+static int check_dir_access(request_rec *r)
 {
-    apr_status_t rv;
-    const apr_array_header_t *wl;
+    int method = r->method_number;
+    int ret = OK;
+    access_compat_dir_conf *a = (access_compat_dir_conf *)
+        ap_get_module_config(r->per_dir_config, &access_compat_module);
 
-    if (!wd_server_conf->child_workers) {
-        /* We don't have anything configured, bail out.
-         */
-        return;
-    }
-    if ((wl = ap_list_provider_names(p, AP_WATCHODG_PGROUP,
-                                        AP_WATCHODG_CVERSION))) {
-        const ap_list_provider_names_t *wn;
-        int i;
-        wn = (ap_list_provider_names_t *)wl->elts;
-        for (i = 0; i < wl->nelts; i++) {
-            ap_watchdog_t *w = ap_lookup_provider(AP_WATCHODG_PGROUP,
-                                                  wn[i].provider_name,
-                                                  AP_WATCHODG_CVERSION);
-            if (w && w->active) {
-                /* We have some callbacks registered.
-                 * Kick of the watchdog
-                 */
-                if ((rv = wd_startup(w, wd_server_conf->pool)) != APR_SUCCESS) {
-                    ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
-                                 "Watchdog: Failed to create worker thread.");
-                    /* No point to continue */
-                    return;
-                }
-            }
+    if (a->order[method] == ALLOW_THEN_DENY) {
+        ret = HTTP_FORBIDDEN;
+        if (find_allowdeny(r, a->allows, method)) {
+            ret = OK;
+        }
+        if (find_allowdeny(r, a->denys, method)) {
+            ret = HTTP_FORBIDDEN;
         }
     }
+    else if (a->order[method] == DENY_THEN_ALLOW) {
+        if (find_allowdeny(r, a->denys, method)) {
+            ret = HTTP_FORBIDDEN;
+        }
+        if (find_allowdeny(r, a->allows, method)) {
+            ret = OK;
+        }
+    }
+    else {
+        if (find_allowdeny(r, a->allows, method)
+            && !find_allowdeny(r, a->denys, method)) {
+            ret = OK;
+        }
+        else {
+            ret = HTTP_FORBIDDEN;
+        }
+    }
+
+    if (ret == HTTP_FORBIDDEN) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "client denied by server configuration: %s%s",
+                      r->filename ? "" : "uri ",
+                      r->filename ? r->filename : r->uri);
+    }
+
+    return ret;
 }

@@ -1,39 +1,32 @@
-int finalize_object_file(const char *tmpfile, const char *filename)
+static void handle_info(void)
 {
-	int ret = 0;
+	struct strbuf *hdr;
+	int i;
 
-	if (object_creation_mode == OBJECT_CREATION_USES_RENAMES)
-		goto try_rename;
-	else if (link(tmpfile, filename))
-		ret = errno;
+	for (i = 0; header[i]; i++) {
+		/* only print inbody headers if we output a patch file */
+		if (patch_lines && s_hdr_data[i])
+			hdr = s_hdr_data[i];
+		else if (p_hdr_data[i])
+			hdr = p_hdr_data[i];
+		else
+			continue;
 
-	/*
-	 * Coda hack - coda doesn't like cross-directory links,
-	 * so we fall back to a rename, which will mean that it
-	 * won't be able to check collisions, but that's not a
-	 * big deal.
-	 *
-	 * The same holds for FAT formatted media.
-	 *
-	 * When this succeeds, we just return.  We have nothing
-	 * left to unlink.
-	 */
-	if (ret && ret != EEXIST) {
-	try_rename:
-		if (!rename(tmpfile, filename))
-			goto out;
-		ret = errno;
-	}
-	unlink_or_warn(tmpfile);
-	if (ret) {
-		if (ret != EEXIST) {
-			return error("unable to write sha1 filename %s: %s", filename, strerror(ret));
+		if (!strcmp(header[i], "Subject")) {
+			if (!keep_subject) {
+				cleanup_subject(hdr);
+				cleanup_space(hdr);
+			}
+			output_header_lines(fout, "Subject", hdr);
+		} else if (!strcmp(header[i], "From")) {
+			cleanup_space(hdr);
+			handle_from(hdr);
+			fprintf(fout, "Author: %s\n", name.buf);
+			fprintf(fout, "Email: %s\n", email.buf);
+		} else {
+			cleanup_space(hdr);
+			fprintf(fout, "%s: %s\n", header[i], hdr->buf);
 		}
-		/* FIXME!!! Collision check here ? */
 	}
-
-out:
-	if (adjust_shared_perm(filename))
-		return error("unable to set permission to '%s'", filename);
-	return 0;
+	fprintf(fout, "\n");
 }

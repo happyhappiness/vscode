@@ -1,118 +1,51 @@
-static authz_status ldapattribute_check_authorization(request_rec *r,
-                                             const char *require_args)
+static void stats (FILE *output)
 {
-    int result = 0;
-    authn_ldap_request_t *req =
-        (authn_ldap_request_t *)ap_get_module_config(r->request_config, &authnz_ldap_module);
-    authn_ldap_config_t *sec =
-        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
+    int i;
+    char *ipstring;
+    struct nsrec *current;
+    char *errstring[MAX_ERR + 3];
 
-    util_ldap_connection_t *ldc = NULL;
+    for (i = 0; i < MAX_ERR + 3; i++)
+        errstring[i] = "Unknown error";
+    errstring[HOST_NOT_FOUND] = "Host not found";
+    errstring[TRY_AGAIN] = "Try again";
+    errstring[NO_RECOVERY] = "Non recoverable error";
+    errstring[NO_DATA] = "No data record";
+    errstring[NO_ADDRESS] = "No address";
+    errstring[NO_REVERSE] = "No reverse entry";
 
-    const char *t;
-    char *w, *value;
+    fprintf(output, "logresolve Statistics:\n");
 
-    char filtbuf[FILTER_LENGTH];
-    const char *dn = NULL;
+    fprintf(output, "Entries: %d\n", entries);
+    fprintf(output, "    With name   : %d\n", withname);
+    fprintf(output, "    Resolves    : %d\n", resolves);
+    if (errors[HOST_NOT_FOUND])
+        fprintf(output, "    - Not found : %d\n", errors[HOST_NOT_FOUND]);
+    if (errors[TRY_AGAIN])
+        fprintf(output, "    - Try again : %d\n", errors[TRY_AGAIN]);
+    if (errors[NO_DATA])
+        fprintf(output, "    - No data   : %d\n", errors[NO_DATA]);
+    if (errors[NO_ADDRESS])
+        fprintf(output, "    - No address: %d\n", errors[NO_ADDRESS]);
+    if (errors[NO_REVERSE])
+        fprintf(output, "    - No reverse: %d\n", errors[NO_REVERSE]);
+    fprintf(output, "Cache hits      : %d\n", cachehits);
+    fprintf(output, "Cache size      : %d\n", cachesize);
+    fprintf(output, "Cache buckets   :     IP number * hostname\n");
 
-    if (!sec->have_ldap_url) {
-        return AUTHZ_DENIED;
-    }
-
-    if (sec->host) {
-        ldc = get_connection_for_authz(r, LDAP_COMPARE);
-        apr_pool_cleanup_register(r->pool, ldc,
-                                  authnz_ldap_cleanup_connection_close,
-                                  apr_pool_cleanup_null);
-    }
-    else {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authorize: no sec->host - weird...?", getpid());
-        return AUTHZ_DENIED;
-    }
-
-    /*
-     * If we have been authenticated by some other module than mod_auth_ldap,
-     * the req structure needed for authorization needs to be created
-     * and populated with the userid and DN of the account in LDAP
-     */
-
-    /* Check that we have a userid to start with */
-    if (!r->user) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-            "access to %s failed, reason: no authenticated user", r->uri);
-        return AUTHZ_DENIED;
-    }
-
-    if (!strlen(r->user)) {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-            "ldap authorize: Userid is blank, AuthType=%s",
-            r->ap_auth_type);
-    }
-
-    if(!req) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-            "ldap authorize: Creating LDAP req structure");
-
-        /* Build the username filter */
-        authn_ldap_build_filter(filtbuf, r, r->user, NULL, sec);
-
-        /* Search for the user DN */
-        result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
-             sec->scope, sec->attributes, filtbuf, &dn, &(req->vals));
-
-        /* Search failed, log error and return failure */
-        if(result != LDAP_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                "auth_ldap authorise: User DN not found, %s", ldc->reason);
-            return AUTHZ_DENIED;
-        }
-
-        req = (authn_ldap_request_t *)apr_pcalloc(r->pool,
-            sizeof(authn_ldap_request_t));
-        ap_set_module_config(r->request_config, &authnz_ldap_module, req);
-        req->dn = apr_pstrdup(r->pool, dn);
-        req->user = r->user;
-    }
-
-    if (req->dn == NULL || strlen(req->dn) == 0) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authorize: "
-                      "require ldap-attribute: user's DN has not been defined; failing authorization",
-                      getpid());
-        return AUTHZ_DENIED;
-    }
-
-    t = require_args;
-    while (t[0]) {
-        w = ap_getword(r->pool, &t, '=');
-        value = ap_getword_conf(r->pool, &t);
-
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authorize: checking attribute"
-                      " %s has value %s", getpid(), w, value);
-        result = util_ldap_cache_compare(r, ldc, sec->url, req->dn, w, value);
-        switch(result) {
-            case LDAP_COMPARE_TRUE: {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
-                              0, r, "[%" APR_PID_T_FMT "] auth_ldap authorize: "
-                              "require attribute: authorization successful", 
-                              getpid());
-                set_request_vars(r, LDAP_AUTHZ);
-                return AUTHZ_GRANTED;
-            }
-            default: {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
-                              0, r, "[%" APR_PID_T_FMT "] auth_ldap authorize: "
-                              "require attribute: authorization failed [%s][%s]", 
-                              getpid(), ldc->reason, ldap_err2string(result));
+    for (i = 0; i < BUCKETS; i++)
+        for (current = nscache[i]; current != NULL; current = current->next) {
+            ipstring = inet_ntoa(current->ipnum);
+            if (current->noname == 0)
+                fprintf(output, "  %3d  %15s - %s\n", i, ipstring,
+                        current->hostname);
+            else {
+                if (current->noname > MAX_ERR + 2)
+                    fprintf(output, "  %3d  %15s : Unknown error\n", i,
+                            ipstring);
+                else
+                    fprintf(output, "  %3d  %15s : %s\n", i, ipstring,
+                            errstring[current->noname]);
             }
         }
-    }
-
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "[%" APR_PID_T_FMT "] auth_ldap authorize attribute: authorization denied for user %s to %s",
-                  getpid(), r->user, r->uri);
-
-    return AUTHZ_DENIED;
 }

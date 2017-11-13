@@ -1,4 +1,1 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p,
-                          "make_sock: for address %pI, apr_socket_opt_set: "
-                          "(IPV6_V6ONLY)",
-                          server->bind_addr);
+ap_register_input_filter  (ssl_io_filter, ssl_io_filter_input,  NULL, AP_FTYPE_CONNECTION + 5);

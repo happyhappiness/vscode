@@ -1,50 +1,62 @@
-static apr_status_t include_cmd(include_ctx_t *ctx, ap_filter_t *f,
-                                apr_bucket_brigade *bb, const char *command)
+int convert_secure_socket(conn_rec *c, apr_socket_t *csd)
 {
-    cgi_exec_info_t  e_info;
-    const char **argv;
-    apr_file_t *script_out = NULL, *script_in = NULL, *script_err = NULL;
-    apr_status_t rv;
-    request_rec *r = f->r;
+        int rcode;
+        struct tlsclientopts sWS2Opts;
+        struct nwtlsopts sNWTLSOpts;
+        struct sslserveropts opts;
+    unsigned long ulFlags;
+    SOCKET sock;
+    unicode_t keyFileName[60];
 
-    add_ssi_vars(r);
+    apr_os_sock_get(&sock, csd);
 
-    e_info.process_cgi = 0;
-    e_info.cmd_type    = APR_SHELLCMD;
-    e_info.detached    = 0;
-    e_info.in_pipe     = APR_NO_PIPE;
-    e_info.out_pipe    = APR_FULL_BLOCK;
-    e_info.err_pipe    = APR_NO_PIPE;
-    e_info.prog_type   = RUN_AS_SSI;
-    e_info.bb          = &bb;
-    e_info.ctx         = ctx;
-    e_info.next        = f->next;
-    e_info.addrspace   = 0;
+    /* zero out buffers */
+        memset((char *)&sWS2Opts, 0, sizeof(struct tlsclientopts));
+        memset((char *)&sNWTLSOpts, 0, sizeof(struct nwtlsopts));
 
-    if ((rv = cgi_build_command(&command, &argv, r, r->pool,
-                                &e_info)) != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "don't know how to spawn cmd child process: %s",
-                      r->filename);
-        return rv;
+    /* turn on ssl for the socket */
+        ulFlags = (numcerts ? SO_TLS_ENABLE : SO_TLS_ENABLE | SO_TLS_BLIND_ACCEPT);
+        rcode = WSAIoctl(sock, SO_TLS_SET_FLAGS, &ulFlags, sizeof(unsigned long),
+                     NULL, 0, NULL, NULL, NULL);
+        if (SOCKET_ERROR == rcode)
+        {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
+                     "Error: %d with ioctlsocket(flag SO_TLS_ENABLE)", WSAGetLastError());
+                return rcode;
+        }
+
+    ulFlags = SO_TLS_UNCLEAN_SHUTDOWN;
+        WSAIoctl(sock, SO_TLS_SET_FLAGS, &ulFlags, sizeof(unsigned long),
+                     NULL, 0, NULL, NULL, NULL);
+
+    /* setup the socket for SSL */
+    memset (&sWS2Opts, 0, sizeof(sWS2Opts));
+    memset (&sNWTLSOpts, 0, sizeof(sNWTLSOpts));
+    sWS2Opts.options = &sNWTLSOpts;
+
+    if (numcerts) {
+        sNWTLSOpts.walletProvider = WAL_PROV_DER;   //the wallet provider defined in wdefs.h
+        sNWTLSOpts.TrustedRootList = certarray;     //array of certs in UNICODE format
+        sNWTLSOpts.numElementsInTRList = numcerts;  //number of certs in TRList
+    }
+    else {
+        /* setup the socket for SSL */
+        unicpy(keyFileName, L"SSL CertificateIP");
+        sWS2Opts.wallet = keyFileName;    /* no client certificate */
+        sWS2Opts.walletlen = unilen(keyFileName);
+
+        sNWTLSOpts.walletProvider = WAL_PROV_KMO;  //the wallet provider defined in wdefs.h
     }
 
-    /* run the script in its own process */
-    if ((rv = run_cgi_child(&script_out, &script_in, &script_err,
-                            command, argv, r, r->pool,
-                            &e_info)) != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "couldn't spawn child process: %s", r->filename);
-        return rv;
-    }
+    /* make the IOCTL call */
+    rcode = WSAIoctl(sock, SO_TLS_SET_CLIENT, &sWS2Opts,
+                     sizeof(struct tlsclientopts), NULL, 0, NULL,
+                     NULL, NULL);
 
-    APR_BRIGADE_INSERT_TAIL(bb, apr_bucket_pipe_create(script_in,
-                            f->c->bucket_alloc));
-    ctx->flush_now = 1;
-
-    /* We can't close the pipe here, because we may return before the
-     * full CGI has been sent to the network.  That's okay though,
-     * because we can rely on the pool to close the pipe for us.
-     */
-    return APR_SUCCESS;
+    /* make sure that it was successfull */
+        if(SOCKET_ERROR == rcode ){
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
+                     "Error: %d with ioctl (SO_TLS_SET_CLIENT)", WSAGetLastError());
+        }
+        return rcode;
 }

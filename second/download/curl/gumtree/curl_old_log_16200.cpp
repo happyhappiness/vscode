@@ -1,11 +1,11 @@
 fputs(
-"              returns and newlines will be stripped out. If you don't want the\n"
-"              @  character  to  have  a  special interpretation use --data-raw\n"
-"              instead.\n"
+"              -c, --cookie-jar in the same command line is common.\n"
 "\n"
-"              See also --data-binary and --data-urlencode and --data-raw. This\n"
-"              option overrides -F, --form and -I, --head and --upload.\n"
+"       --create-dirs\n"
+"              When used in conjunction with the -o, --output option, curl will\n"
+"              create  the  necessary local directory hierarchy as needed. This\n"
+"              option creates the dirs mentioned with the -o, --output  option,\n"
+"              nothing  else.  If  the --output file name uses no dir or if the\n"
+"              dirs it mentions already exist, no dir will be created.\n"
 "\n"
-"       --delegation <LEVEL>\n"
-"              (GSS/kerberos)  Set  LEVEL to tell the server what it is allowed\n"
 , stdout);

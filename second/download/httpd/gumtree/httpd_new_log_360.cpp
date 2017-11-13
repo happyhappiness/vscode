@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s, 
-                         "LDAP merging Shared Cache conf: shm=0x%pp rmm=0x%pp for VHOST: %s",
-                         st->cache_shm, st->cache_rmm, s_vhost->server_hostname);
+apr_file_printf(errfile, "%s: could not determine temp dir\n",
+                        argv[0]);

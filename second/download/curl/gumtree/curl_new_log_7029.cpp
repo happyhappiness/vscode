@@ -1,12 +1,9 @@
 fputs(
-"              Manual. Display the huge help text.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       -V, --version\n"
-"              Displays information about curl and the libcurl version it uses.\n"
-"              The first line includes the full version of  curl,  libcurl  and\n"
-"              other 3rd party libraries linked with the executable.\n"
-"\n"
-"              The  second  line (starts with \"Protocols:\") shows all protocols\n"
-"              that libcurl reports to support.\n"
-"\n"
+"       -z, --time-cond <date expression>\n"
+"              (HTTP/FTP/FILE) Request a file that has been modified later than\n"
+"              the given time and date, or one that has  been  modified  before\n"
+"              that  time. The date expression can be all sorts of date strings\n"
+"              or if it doesn't match any internal ones, it tries  to  get  the\n"
 , stdout);

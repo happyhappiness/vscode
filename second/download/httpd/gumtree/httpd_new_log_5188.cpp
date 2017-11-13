@@ -1,2 +1,3 @@
-ap_register_output_filter(logio_ttfb_filter_name, logio_ttfb_filter, NULL,
-                              AP_FTYPE_RESOURCE);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00180)
+                         "WARNING: MaxRequestWorkers of %d exceeds ServerLimit "
+                         "value of", ap_daemons_limit);

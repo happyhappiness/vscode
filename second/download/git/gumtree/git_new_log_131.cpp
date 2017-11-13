@@ -1,1 +1,1 @@
-die("BUG: have_old is true but old_sha1 is NULL");
+die_errno("atexit(winansi_exit) failed");

@@ -1,1 +1,1 @@
-die(_("positive width expected with the %%(align) atom"));
+die("transport '%s' not allowed", type);

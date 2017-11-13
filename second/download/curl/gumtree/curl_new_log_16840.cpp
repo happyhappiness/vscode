@@ -1,11 +1,10 @@
 puts(
-"          If  this  option  is  used serveral times, the last one\n"
-"          will be used.\n"
+"          will  enable  user  authentication.  See  netrc(4)  for\n"
+"          details  on  the file format. Curl will not complain if\n"
+"          that file hasn't the right permissions (it  should  not\n"
+"          be  world nor group readable). The environment variable\n"
+"          \"HOME\" is used to find the home directory.\n"
 "\n"
-"     -f/--fail\n"
-"          (HTTP) Fail silently  (no  output  at  all)  on  server\n"
-"          errors.  This is mostly done like this to better enable\n"
-"          scripts etc to better deal  with  failed  attempts.  In\n"
-"          normal cases when a HTTP server fails to deliver a doc�\n"
-"          ument, it returns a HTML  document  stating  so  (which\n"
+"          A quick and very simple  example  of  how  to  setup  a\n"
+"          .netrc   to   allow   curl   to   ftp  to  the  machine\n"
 );

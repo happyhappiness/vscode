@@ -1,44 +1,42 @@
-static void cat_blob(struct object_entry *oe, unsigned char sha1[20])
+void bitmap_writer_finish(struct pack_idx_entry **index,
+			  uint32_t index_nr,
+			  const char *filename,
+			  uint16_t options)
 {
-	struct strbuf line = STRBUF_INIT;
-	unsigned long size;
-	enum object_type type = 0;
-	char *buf;
+	static char tmp_file[PATH_MAX];
+	static uint16_t default_version = 1;
+	static uint16_t flags = BITMAP_OPT_FULL_DAG;
+	struct sha1file *f;
 
-	if (!oe || oe->pack_id == MAX_PACK_ID) {
-		buf = read_sha1_file(sha1, &type, &size);
-	} else {
-		type = oe->type;
-		buf = gfi_unpack_entry(oe, &size);
-	}
+	struct bitmap_disk_header header;
 
-	/*
-	 * Output based on batch_one_object() from cat-file.c.
-	 */
-	if (type <= 0) {
-		strbuf_reset(&line);
-		strbuf_addf(&line, "%s missing\n", sha1_to_hex(sha1));
-		cat_blob_write(line.buf, line.len);
-		strbuf_release(&line);
-		free(buf);
-		return;
-	}
-	if (!buf)
-		die("Can't read object %s", sha1_to_hex(sha1));
-	if (type != OBJ_BLOB)
-		die("Object %s is a %s but a blob was expected.",
-		    sha1_to_hex(sha1), typename(type));
-	strbuf_reset(&line);
-	strbuf_addf(&line, "%s %s %lu\n", sha1_to_hex(sha1),
-						typename(type), size);
-	cat_blob_write(line.buf, line.len);
-	strbuf_release(&line);
-	cat_blob_write(buf, size);
-	cat_blob_write("\n", 1);
-	if (oe && oe->pack_id == pack_id) {
-		last_blob.offset = oe->idx.offset;
-		strbuf_attach(&last_blob.data, buf, size, size);
-		last_blob.depth = oe->depth;
-	} else
-		free(buf);
+	int fd = odb_mkstemp(tmp_file, sizeof(tmp_file), "pack/tmp_bitmap_XXXXXX");
+
+	if (fd < 0)
+		die_errno("unable to create '%s'", tmp_file);
+	f = sha1fd(fd, tmp_file);
+
+	memcpy(header.magic, BITMAP_IDX_SIGNATURE, sizeof(BITMAP_IDX_SIGNATURE));
+	header.version = htons(default_version);
+	header.options = htons(flags | options);
+	header.entry_count = htonl(writer.selected_nr);
+	hashcpy(header.checksum, writer.pack_checksum);
+
+	sha1write(f, &header, sizeof(header));
+	dump_bitmap(f, writer.commits);
+	dump_bitmap(f, writer.trees);
+	dump_bitmap(f, writer.blobs);
+	dump_bitmap(f, writer.tags);
+	write_selected_commits_v1(f, index, index_nr);
+
+	if (options & BITMAP_OPT_HASH_CACHE)
+		write_hash_cache(f, index, index_nr);
+
+	sha1close(f, NULL, CSUM_FSYNC);
+
+	if (adjust_shared_perm(tmp_file))
+		die_errno("unable to make temporary bitmap file readable");
+
+	if (rename(tmp_file, filename))
+		die_errno("unable to rename temporary bitmap file to '%s'", filename);
 }

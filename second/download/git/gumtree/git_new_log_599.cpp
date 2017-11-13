@@ -1,1 +1,1 @@
-printf(_("Huh (%s)?\n"), (*ptr)->buf);
+die("BUG: main_ref_store initialized twice");

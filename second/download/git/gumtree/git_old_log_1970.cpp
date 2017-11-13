@@ -1,2 +1,1 @@
-error("bad tree pointer in commit %s",
-			     sha1_to_hex(item->object.sha1));
+packet_write(fd, "shallow %s\n", sha1_to_hex(graft->sha1));

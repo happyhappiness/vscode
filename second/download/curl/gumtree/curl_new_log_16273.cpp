@@ -1,10 +1,9 @@
 fputs(
-"                     This will  make  curl  load  data  from  the  given  file\n"
-"                     (including  any  newlines), URL-encode that data and pass\n"
-"                     it on in the POST.\n"
+"              is  supposedly the data previously received from the server in a\n"
+"              \"Set-Cookie:\"  line.   The  data  should  be   in   the   format\n"
+"              \"NAME1=VALUE1; NAME2=VALUE2\".\n"
 "\n"
-"              name@filename\n"
-"                     This will  make  curl  load  data  from  the  given  file\n"
-"                     (including  any  newlines), URL-encode that data and pass\n"
-"                     it on in the POST. The  name  part  gets  an  equal  sign\n"
+"              If  no '=' symbol is used in the argument, it is instead treated\n"
+"              as a filename to read previously stored cookie from. This option\n"
+"              also  activates  the  cookie  engine which will make curl record\n"
 , stdout);

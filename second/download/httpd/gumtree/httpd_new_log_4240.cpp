@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02260)
-                          "Performing full renegotiation: complete handshake "
-                          "protocol (%s support secure renegotiation)",
-                          reneg_support);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02230)
+                         "mod_proxy must be loaded for mod_proxy_balancer");

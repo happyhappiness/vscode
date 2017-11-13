@@ -1,98 +1,50 @@
-int ssl_io_buffer_fill(request_rec *r, apr_size_t maxlen)
+static int proxy_balancer_canon(request_rec *r, char *url)
 {
-    conn_rec *c = r->connection;
-    struct modssl_buffer_ctx *ctx;
-    apr_bucket_brigade *tempb;
-    apr_off_t total = 0; /* total length buffered */
-    int eos = 0; /* non-zero once EOS is seen */
+    char *host, *path;
+    char *search = NULL;
+    const char *err;
+    apr_port_t port = 0;
 
-    /* Create the context which will be passed to the input filter;
-     * containing a setaside pool and a brigade which constrain the
-     * lifetime of the buffered data. */
-    ctx = apr_palloc(r->pool, sizeof *ctx);
-    ctx->bb = apr_brigade_create(r->pool, c->bucket_alloc);
-
-    /* ... and a temporary brigade. */
-    tempb = apr_brigade_create(r->pool, c->bucket_alloc);
-
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, c, "filling buffer, max size "
-                  "%" APR_SIZE_T_FMT " bytes", maxlen);
-
-    do {
-        apr_status_t rv;
-        apr_bucket *e, *next;
-
-        /* The request body is read from the protocol-level input
-         * filters; the buffering filter will reinject it from that
-         * level, allowing content/resource filters to run later, if
-         * necessary. */
-
-        rv = ap_get_brigade(r->proto_input_filters, tempb, AP_MODE_READBYTES,
-                            APR_BLOCK_READ, 8192);
-        if (rv) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "could not read request body for SSL buffer");
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
-
-        /* Iterate through the returned brigade: setaside each bucket
-         * into the context's pool and move it into the brigade. */
-        for (e = APR_BRIGADE_FIRST(tempb);
-             e != APR_BRIGADE_SENTINEL(tempb) && !eos; e = next) {
-            const char *data;
-            apr_size_t len;
-
-            next = APR_BUCKET_NEXT(e);
-
-            if (APR_BUCKET_IS_EOS(e)) {
-                eos = 1;
-            } else if (!APR_BUCKET_IS_METADATA(e)) {
-                rv = apr_bucket_read(e, &data, &len, APR_BLOCK_READ);
-                if (rv != APR_SUCCESS) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                                  "could not read bucket for SSL buffer");
-                    return HTTP_INTERNAL_SERVER_ERROR;
-                }
-                total += len;
-            }
-
-            rv = apr_bucket_setaside(e, r->pool);
-            if (rv != APR_SUCCESS) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                              "could not setaside bucket for SSL buffer");
-                return HTTP_INTERNAL_SERVER_ERROR;
-            }
-
-            APR_BUCKET_REMOVE(e);
-            APR_BRIGADE_INSERT_TAIL(ctx->bb, e);
-        }
-
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, c,
-                      "total of %" APR_OFF_T_FMT " bytes in buffer, eos=%d",
-                      total, eos);
-
-        /* Fail if this exceeds the maximum buffer size. */
-        if (total > maxlen) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "request body exceeds maximum size (%" APR_SIZE_T_FMT 
-                          ") for SSL buffer", maxlen);
-            return HTTP_REQUEST_ENTITY_TOO_LARGE;
-        }
-
-    } while (!eos);
-
-    apr_brigade_destroy(tempb);
-
-    /* After consuming all protocol-level input, remove all protocol-level
-     * filters.  It should strictly only be necessary to remove filters
-     * at exactly ftype == AP_FTYPE_PROTOCOL, since this filter will 
-     * precede all > AP_FTYPE_PROTOCOL anyway. */
-    while (r->proto_input_filters->frec->ftype < AP_FTYPE_CONNECTION) {
-        ap_remove_input_filter(r->proto_input_filters);
+    if (strncasecmp(url, "balancer:", 9) == 0) {
+        url += 9;
+    }
+    else {
+        return DECLINED;
     }
 
-    /* Insert the filter which will supply the buffered content. */
-    ap_add_input_filter(ssl_io_buffer, ctx, r, c);
+    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, r->server,
+             "proxy: BALANCER: canonicalising URL %s", url);
 
-    return 0;
+    /* do syntatic check.
+     * We break the URL into host, port, path, search
+     */
+    err = ap_proxy_canon_netloc(r->pool, &url, NULL, NULL, &host, &port);
+    if (err) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "error parsing URL %s: %s",
+                      url, err);
+        return HTTP_BAD_REQUEST;
+    }
+    /*
+     * now parse path/search args, according to rfc1738:
+     * process the path. With proxy-noncanon set (by
+     * mod_proxy) we use the raw, unparsed uri
+     */
+    if (apr_table_get(r->notes, "proxy-nocanon")) {
+        path = url;   /* this is the raw path */
+    }
+    else {
+        path = ap_proxy_canonenc(r->pool, url, strlen(url), enc_path, 0,
+                                 r->proxyreq);
+        search = r->args;
+    }
+    if (path == NULL)
+        return HTTP_BAD_REQUEST;
+
+    r->filename = apr_pstrcat(r->pool, "proxy:balancer://", host,
+            "/", path, (search) ? "?" : "", (search) ? search : "", NULL);
+
+    r->path_info = apr_pstrcat(r->pool, "/", path, NULL);
+
+    return OK;
 }

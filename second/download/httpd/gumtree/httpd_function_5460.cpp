@@ -1,46 +1,51 @@
-apr_status_t h2_mplx_out_close(h2_mplx *m, int stream_id, apr_table_t *trailers)
+static apr_status_t open_scoreboard(apr_pool_t *pconf)
 {
-    apr_status_t status;
-    AP_DEBUG_ASSERT(m);
-    if (m->aborted) {
-        return APR_ECONNABORTED;
+#if APR_HAS_SHARED_MEMORY
+    apr_status_t rv;
+    char *fname = NULL;
+    apr_pool_t *global_pool;
+
+    /* We don't want to have to recreate the scoreboard after
+     * restarts, so we'll create a global pool and never clean it.
+     */
+    rv = apr_pool_create(&global_pool, NULL);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
+                     "Fatal error: unable to create global pool "
+                     "for use by the scoreboard");
+        return rv;
     }
-    status = apr_thread_mutex_lock(m->lock);
-    if (APR_SUCCESS == status) {
-        if (!m->aborted) {
-            h2_io *io = h2_io_set_get(m->stream_ios, stream_id);
-            if (io && !io->orphaned) {
-                if (!io->response && !io->rst_error) {
-                    /* In case a close comes before a response was created,
-                     * insert an error one so that our streams can properly
-                     * reset.
-                     */
-                    h2_response *r = h2_response_die(stream_id, APR_EGENERAL, 
-                                                     io->request, m->pool);
-                    status = out_open(m, stream_id, r, NULL, NULL, NULL);
-                    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, m->c,
-                                  "h2_mplx(%ld-%d): close, no response, no rst", 
-                                  m->id, io->id);
-                }
-                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, m->c,
-                              "h2_mplx(%ld-%d): close with trailers=%s", 
-                              m->id, io->id, trailers? "yes" : "no");
-                status = h2_io_out_close(io, trailers);
-                H2_MPLX_IO_OUT(APLOG_TRACE2, m, io, "h2_mplx_out_close");
-                
-                have_out_data_for(m, stream_id);
-                if (m->aborted) {
-                    /* if we were the last output, the whole session might
-                     * have gone down in the meantime.
-                     */
-                    return APR_SUCCESS;
-                }
-            }
-            else {
-                status = APR_ECONNABORTED;
-            }
+
+    /* The config says to create a name-based shmem */
+    if (ap_scoreboard_fname) {
+        /* make sure it's an absolute pathname */
+        fname = ap_server_root_relative(pconf, ap_scoreboard_fname);
+        if (!fname) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, APR_EBADPATH, NULL,
+                         "Fatal error: Invalid Scoreboard path %s",
+                         ap_scoreboard_fname);
+            return APR_EBADPATH;
         }
-        apr_thread_mutex_unlock(m->lock);
+        return create_namebased_scoreboard(global_pool, fname);
     }
-    return status;
+    else { /* config didn't specify, we get to choose shmem type */
+        rv = apr_shm_create(&ap_scoreboard_shm, scoreboard_size, NULL,
+                            global_pool); /* anonymous shared memory */
+        if ((rv != APR_SUCCESS) && (rv != APR_ENOTIMPL)) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
+                         "Unable to create or access scoreboard "
+                         "(anonymous shared memory failure)");
+            return rv;
+        }
+        /* Make up a filename and do name-based shmem */
+        else if (rv == APR_ENOTIMPL) {
+            /* Make sure it's an absolute pathname */
+            ap_scoreboard_fname = DEFAULT_SCOREBOARD;
+            fname = ap_server_root_relative(pconf, ap_scoreboard_fname);
+
+            return create_namebased_scoreboard(global_pool, fname);
+        }
+    }
+#endif /* APR_HAS_SHARED_MEMORY */
+    return APR_SUCCESS;
 }

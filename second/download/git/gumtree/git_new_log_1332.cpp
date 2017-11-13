@@ -1,1 +1,1 @@
-error("%s", err.buf);
+fprintf(rpt, "  tip commit  : %s\n", oid_to_hex(&b->oid));

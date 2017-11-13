@@ -1,9 +1,10 @@
 fputs(
-"              exact). To make commands take place after a successful transfer,\n"
-"              prefix  them  with  a  dash '-'.  To make commands be sent after\n"
-"              curl has changed the working directory, just before the transfer\n"
-"              command(s),  prefix  the  command  with a '+' (this is only sup-\n"
-"              ported for FTP). You may specify any number of commands.\n"
+"              (HTTP) Extra header to include in the request when sending  HTTP\n"
+"              to a proxy. You may specify any number of extra headers. This is\n"
+"              the equivalent option to -H, --header but is for proxy  communi-\n"
+"              cation  only  like  in CONNECT requests when you want a separate\n"
+"              header sent to the proxy to what is sent to  the  actual  remote\n"
+"              host.\n"
 "\n"
-"              If the server returns failure  for  one  of  the  commands,  the\n"
+"              curl  will  make  sure  that each header you add/replace is sent\n"
 , stdout);

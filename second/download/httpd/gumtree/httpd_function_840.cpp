@@ -1,39 +1,79 @@
-static void show_mpm_settings(void)
+static void ssl_init_ctx_verify(server_rec *s,
+                                apr_pool_t *p,
+                                apr_pool_t *ptemp,
+                                modssl_ctx_t *mctx)
 {
-    int mpm_query_info;
-    apr_status_t retval;
+    SSL_CTX *ctx = mctx->ssl_ctx;
 
-    printf("Server MPM:     %s\n", ap_show_mpm());
+    int verify = SSL_VERIFY_NONE;
+    STACK_OF(X509_NAME) *ca_list;
 
-    retval = ap_mpm_query(AP_MPMQ_IS_THREADED, &mpm_query_info);
-
-    if (retval == APR_SUCCESS) {
-        printf("  threaded:     ");
-
-        if (mpm_query_info == AP_MPMQ_DYNAMIC) {
-            printf("yes (variable thread count)\n");
-        }
-        else if (mpm_query_info == AP_MPMQ_STATIC) {
-            printf("yes (fixed thread count)\n");
-        }
-        else {
-            printf("no\n");
-        }
+    if (mctx->auth.verify_mode == SSL_CVERIFY_UNSET) {
+        mctx->auth.verify_mode = SSL_CVERIFY_NONE;
     }
 
-    retval = ap_mpm_query(AP_MPMQ_IS_FORKED, &mpm_query_info);
+    if (mctx->auth.verify_depth == UNSET) {
+        mctx->auth.verify_depth = 1;
+    }
 
-    if (retval == APR_SUCCESS) {
-        printf("    forked:     ");
+    /*
+     *  Configure callbacks for SSL context
+     */
+    if (mctx->auth.verify_mode == SSL_CVERIFY_REQUIRE) {
+        verify |= SSL_VERIFY_PEER_STRICT;
+    }
 
-        if (mpm_query_info == AP_MPMQ_DYNAMIC) {
-            printf("yes (variable process count)\n");
+    if ((mctx->auth.verify_mode == SSL_CVERIFY_OPTIONAL) ||
+        (mctx->auth.verify_mode == SSL_CVERIFY_OPTIONAL_NO_CA))
+    {
+        verify |= SSL_VERIFY_PEER;
+    }
+
+    SSL_CTX_set_verify(ctx, verify, ssl_callback_SSLVerify);
+
+    /*
+     * Configure Client Authentication details
+     */
+    if (mctx->auth.ca_cert_file || mctx->auth.ca_cert_path) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "Configuring client authentication");
+
+        if (!SSL_CTX_load_verify_locations(ctx,
+                         MODSSL_PCHAR_CAST mctx->auth.ca_cert_file,
+                         MODSSL_PCHAR_CAST mctx->auth.ca_cert_path))
+        {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                    "Unable to configure verify locations "
+                    "for client authentication");
+            ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, s);
+            ssl_die();
         }
-        else if (mpm_query_info == AP_MPMQ_STATIC) {
-            printf("yes (fixed process count)\n");
+
+        ca_list = ssl_init_FindCAList(s, ptemp,
+                                      mctx->auth.ca_cert_file,
+                                      mctx->auth.ca_cert_path);
+        if (!ca_list) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                    "Unable to determine list of available "
+                    "CA certificates for client authentication");
+            ssl_die();
         }
-        else {
-            printf("no\n");
+
+        SSL_CTX_set_client_CA_list(ctx, (STACK *)ca_list);
+    }
+
+    /*
+     * Give a warning when no CAs were configured but client authentication
+     * should take place. This cannot work.
+     */
+    if (mctx->auth.verify_mode == SSL_CVERIFY_REQUIRE) {
+        ca_list = (STACK_OF(X509_NAME) *)SSL_CTX_get_client_CA_list(ctx);
+
+        if (sk_X509_NAME_num(ca_list) == 0) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "Init: Oops, you want to request client "
+                         "authentication, but no CAs are known for "
+                         "verification!?  [Hint: SSLCACertificate*]");
         }
     }
 }

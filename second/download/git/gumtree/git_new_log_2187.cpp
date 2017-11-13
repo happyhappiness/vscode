@@ -1,1 +1,1 @@
-die_errno(_("could not open temporary file"));
+error("%s", log_err.buf);

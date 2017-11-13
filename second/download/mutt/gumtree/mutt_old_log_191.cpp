@@ -1,1 +1,1 @@
-state_attach_puts ("\n", s);
+state_attach_puts (txt, s);

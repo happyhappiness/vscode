@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                                 "proxy: search for temporary directory failed");
+printf("Processing: " CONF_FMT_STRING, 
+                mintot - mincon, meantot - meancon,  maxtot - maxcon);

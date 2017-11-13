@@ -1,1 +1,1 @@
-error(_("could not resolve HEAD commit\n"));
+die(_("could not parse commit from NOTES_MERGE_PARTIAL."));

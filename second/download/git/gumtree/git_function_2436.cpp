@@ -1,12 +1,14 @@
-int error_resolve_conflict(const char *me)
+static void show_worktree_porcelain(struct worktree *wt)
 {
-	error("%s is not possible because you have unmerged files.", me);
-	if (advice_resolve_conflict)
-		/*
-		 * Message used both when 'git commit' fails and when
-		 * other commands doing a merge do.
-		 */
-		advise(_("Fix them up in the work tree, and then use 'git add/rm <file>'\n"
-			 "as appropriate to mark resolution and make a commit."));
-	return -1;
+	printf("worktree %s\n", wt->path);
+	if (wt->is_bare)
+		printf("bare\n");
+	else {
+		printf("HEAD %s\n", sha1_to_hex(wt->head_sha1));
+		if (wt->is_detached)
+			printf("detached\n");
+		else
+			printf("branch %s\n", wt->head_ref);
+	}
+	printf("\n");
 }

@@ -1,16 +1,17 @@
-void fast_export_begin_note(uint32_t revision, const char *author,
-		const char *log, unsigned long timestamp, const char *note_ref)
+static int submodule_has_dirty_index(const struct submodule *sub)
 {
-	static int firstnote = 1;
-	size_t loglen = strlen(log);
-	printf("commit %s\n", note_ref);
-	printf("committer %s <%s@%s> %lu +0000\n", author, author, "local", timestamp);
-	printf("data %"PRIuMAX"\n", (uintmax_t)loglen);
-	fwrite(log, loglen, 1, stdout);
-	if (firstnote) {
-		if (revision > 1)
-			printf("from %s^0", note_ref);
-		firstnote = 0;
-	}
-	fputc('\n', stdout);
+	struct child_process cp = CHILD_PROCESS_INIT;
+
+	prepare_submodule_repo_env_no_git_dir(&cp.env_array);
+
+	cp.git_cmd = 1;
+	argv_array_pushl(&cp.args, "diff-index", "--quiet",
+				   "--cached", "HEAD", NULL);
+	cp.no_stdin = 1;
+	cp.no_stdout = 1;
+	cp.dir = sub->path;
+	if (start_command(&cp))
+		die("could not recurse into submodule '%s'", sub->path);
+
+	return finish_command(&cp);
 }

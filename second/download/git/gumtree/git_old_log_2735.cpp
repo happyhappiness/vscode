@@ -1,1 +1,1 @@
-error("Unable to write to %s", lockpath);
+error("Unable to create %s", git_HEAD);

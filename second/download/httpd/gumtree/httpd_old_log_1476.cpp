@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "[%" APR_PID_T_FMT "] auth_ldap authorise: "
-                              "require dn: user's DN has not been defined; failing authorisation",
-                              getpid());
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_parse_headers: wrong type %02x expecting 0x04", result);

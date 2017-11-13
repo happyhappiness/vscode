@@ -1,1 +1,1 @@
-warning("could not mark '%s' as hidden.", filename);
+die("helper %s does not support --signed", name);

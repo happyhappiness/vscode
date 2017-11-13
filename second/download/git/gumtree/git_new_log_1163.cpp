@@ -1,1 +1,1 @@
-die(_("Failed to resolve HEAD as a valid ref."));
+printf(_("Applied autostash.\n"));

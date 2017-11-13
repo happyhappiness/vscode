@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE6, 0, f->r,
-                              "mime type is %s; no translation selected",
-                              mime_type);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(01679)
+                      "authn credentials for %s not cached (mutex busy)", user);

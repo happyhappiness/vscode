@@ -1,4 +1,3 @@
-apr_psprintf(p, "Module \"%s\" could not be loaded, "
-                                "because the dynamic module limit was "
-                                "reached. Please increase "
-                                "DYNAMIC_MODULE_LIMIT and recompile.", m->name);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+              "proxy: ap_get_scoreboard_lb(%d) failed for worker %s",
+              worker->id, worker->name);

@@ -1,3 +1,6 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, sts, s,
-                     "Failed to initialise global mutex %s in child process",
-                     ldap_cache_mutex_type);
+ap_log_error(APLOG_MARK, ptr->loglevel, 0, c->base_server,
+                 "mod_dumpio:  %s (%s-%s): %s",
+                 f->frec->name,
+                 (APR_BUCKET_IS_METADATA(b)) ? "metadata" : "data",
+                 b->type->name,
+                 "error reading data");

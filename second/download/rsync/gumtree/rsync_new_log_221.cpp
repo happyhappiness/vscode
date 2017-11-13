@@ -1,1 +1,1 @@
-fprintf(FERROR,"generate_files phase=%d\n",phase);
+fprintf(FERROR,"send files finished\n");

@@ -1,2 +1,1 @@
-error("Couldn't write %s",
-				lock->lk->filename);
+die(_("revision walk setup failed"));

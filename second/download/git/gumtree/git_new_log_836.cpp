@@ -1,1 +1,2 @@
-die(_("could not create directories for %s"), cfg_sb.buf);
+error(_("could not rename '%s' to '%s'"),
+					     rebase_path_squash_msg(), dest);

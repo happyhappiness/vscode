@@ -1,36 +1,16 @@
-static int create_graft(int argc, const char **argv, int force)
+int hold_lock_file_for_update_timeout(struct lock_file *lk, const char *path,
+				      int flags, long timeout_ms)
 {
-	unsigned char old[20], new[20];
-	const char *old_ref = argv[0];
-	struct commit *commit;
-	struct strbuf buf = STRBUF_INIT;
-	const char *buffer;
-	unsigned long size;
-
-	if (get_sha1(old_ref, old) < 0)
-		die(_("Not a valid object name: '%s'"), old_ref);
-	commit = lookup_commit_or_die(old, old_ref);
-
-	buffer = get_commit_buffer(commit, &size);
-	strbuf_add(&buf, buffer, size);
-	unuse_commit_buffer(commit, buffer);
-
-	replace_parents(&buf, argc - 1, &argv[1]);
-
-	if (remove_signature(&buf)) {
-		warning(_("the original commit '%s' has a gpg signature."), old_ref);
-		warning(_("the signature will be removed in the replacement commit!"));
+	int fd = lock_file_timeout(lk, path, flags, timeout_ms);
+	if (fd < 0) {
+		if (flags & LOCK_DIE_ON_ERROR)
+			unable_to_lock_die(path, errno);
+		if (flags & LOCK_REPORT_ON_ERROR) {
+			struct strbuf buf = STRBUF_INIT;
+			unable_to_lock_message(path, errno, &buf);
+			error("%s", buf.buf);
+			strbuf_release(&buf);
+		}
 	}
-
-	check_mergetags(commit, argc, argv);
-
-	if (write_sha1_file(buf.buf, buf.len, commit_type, new))
-		die(_("could not write replacement commit for: '%s'"), old_ref);
-
-	strbuf_release(&buf);
-
-	if (!hashcmp(old, new))
-		return error("new commit is the same as the old one: '%s'", sha1_to_hex(old));
-
-	return replace_object_sha1(old_ref, old, "replacement", new, force);
+	return fd;
 }

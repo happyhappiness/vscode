@@ -1,1 +1,1 @@
-die("strange port '%s' blocked", port);
+die(_("Not a valid commit name %s"), oid_to_hex(oid));

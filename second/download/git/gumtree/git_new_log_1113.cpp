@@ -1,1 +1,1 @@
-die("Reference has invalid format: '%s'", refname);
+die_errno("unable to overwrite old ref-pack file");

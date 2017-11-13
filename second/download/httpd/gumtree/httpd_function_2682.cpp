@@ -1,93 +1,31 @@
-static authn_status authn_dbd_password(request_rec *r, const char *user,
-                                       const char *password)
+static process_rec *create_process(int argc, const char * const *argv)
 {
-    apr_status_t rv;
-    const char *dbd_password = NULL;
-    apr_dbd_prepared_t *statement;
-    apr_dbd_results_t *res = NULL;
-    apr_dbd_row_t *row = NULL;
+    process_rec *process;
+    apr_pool_t *cntx;
+    apr_status_t stat;
 
-    authn_dbd_conf *conf = ap_get_module_config(r->per_dir_config,
-                                                &authn_dbd_module);
-    ap_dbd_t *dbd = authn_dbd_acquire_fn(r);
-    if (dbd == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Failed to acquire database connection to look up "
-                      "user '%s'", user);
-        return AUTH_GENERAL_ERROR;
+    stat = apr_pool_create(&cntx, NULL);
+    if (stat != APR_SUCCESS) {
+        /* XXX From the time that we took away the NULL pool->malloc mapping
+         *     we have been unable to log here without segfaulting.
+         */
+        ap_log_error(APLOG_MARK, APLOG_ERR, stat, NULL,
+                     "apr_pool_create() failed to create "
+                     "initial context");
+        apr_terminate();
+        exit(1);
     }
 
-    if (conf->user == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "No AuthDBDUserPWQuery has been specified");
-        return AUTH_GENERAL_ERROR;
-    }
+    apr_pool_tag(cntx, "process");
+    ap_open_stderr_log(cntx);
 
-    statement = apr_hash_get(dbd->prepared, conf->user, APR_HASH_KEY_STRING);
-    if (statement == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "A prepared statement could not be found for "
-                      "AuthDBDUserPWQuery with the key '%s'", conf->user);
-        return AUTH_GENERAL_ERROR;
-    }
-    if (apr_dbd_pvselect(dbd->driver, r->pool, dbd->handle, &res, statement,
-                              0, user, NULL) != 0) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Query execution error looking up '%s' "
-                      "in database", user);
-        return AUTH_GENERAL_ERROR;
-    }
-    for (rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1);
-         rv != -1;
-         rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1)) {
-        if (rv != 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "Error retrieving results while looking up '%s' "
-                          "in database", user);
-            return AUTH_GENERAL_ERROR;
-        }
-        if (dbd_password == NULL) {
-#if APU_MAJOR_VERSION > 1 || (APU_MAJOR_VERSION == 1 && APU_MINOR_VERSION >= 3)
-            /* add the rest of the columns to the environment */
-            int i = 1;
-            const char *name;
-            for (name = apr_dbd_get_name(dbd->driver, res, i);
-                 name != NULL;
-                 name = apr_dbd_get_name(dbd->driver, res, i)) {
+    process = apr_palloc(cntx, sizeof(process_rec));
+    process->pool = cntx;
 
-                char *str = apr_pstrcat(r->pool, AUTHN_PREFIX,
-                                        name,
-                                        NULL);
-                int j = sizeof(AUTHN_PREFIX)-1; /* string length of "AUTHENTICATE_", excluding the trailing NIL */
-                while (str[j]) {
-                    if (!apr_isalnum(str[j])) {
-                        str[j] = '_';
-                    }
-                    else {
-                        str[j] = apr_toupper(str[j]);
-                    }
-                    j++;
-                }
-                apr_table_set(r->subprocess_env, str,
-                              apr_dbd_get_entry(dbd->driver, row, i));
-                i++;
-            }
-#endif
-            dbd_password = apr_dbd_get_entry(dbd->driver, row, 0);
-        }
-        /* we can't break out here or row won't get cleaned up */
-    }
-
-    if (!dbd_password) {
-        return AUTH_USER_NOT_FOUND;
-    }
-    AUTHN_CACHE_STORE(r, user, NULL, dbd_password);
-
-    rv = apr_password_validate(password, dbd_password);
-
-    if (rv != APR_SUCCESS) {
-        return AUTH_DENIED;
-    }
-
-    return AUTH_GRANTED;
+    apr_pool_create(&process->pconf, process->pool);
+    apr_pool_tag(process->pconf, "pconf");
+    process->argc = argc;
+    process->argv = argv;
+    process->short_name = apr_filepath_name_get(argv[0]);
+    return process;
 }

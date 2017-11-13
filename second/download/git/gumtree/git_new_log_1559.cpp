@@ -1,1 +1,1 @@
-warning(_("Untracked cache is disabled on this system."));
+die(_("bad config file line %d in %s"), cf->linenr, cf->name);

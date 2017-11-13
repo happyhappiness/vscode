@@ -1,70 +1,64 @@
-static char *get_lines_till_end_token(apr_pool_t * pool,
-                                      ap_configfile_t * config_file,
-                                      const char *end_token,
-                                      const char *begin_token,
-                                      const char *where,
-                                      apr_array_header_t ** plines)
+static apr_status_t init_pollset(apr_pool_t *p)
 {
-    apr_array_header_t *lines = apr_array_make(pool, 1, sizeof(char *));
-    char line[MAX_STRING_LEN];  /* sorry, but this is expected by getline:-( */
-    int macro_nesting = 1, any_nesting = 1;
-    int line_number_start = config_file->line_number;
+#if HAVE_SERF
+    s_baton_t *baton = NULL;
+#endif
+    apr_status_t rv;
+    ap_listen_rec *lr;
+    listener_poll_type *pt;
 
-    while (!ap_cfg_getline(line, MAX_STRING_LEN, config_file)) {
-        char *ptr = line;
-        char *first, **new;
-        /* skip comments */
-        if (*line == '#')
-            continue;
-        first = ap_getword_conf_nc(pool, &ptr);
-        if (first) {
-            /* detect nesting... */
-            if (!strncmp(first, "</", 2)) {
-                any_nesting--;
-                if (any_nesting < 0) {
-                    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_WARNING,
-                                 0, NULL,
-                                 "bad (negative) nesting on line %d of %s",
-                                 config_file->line_number - line_number_start,
-                                 where);
-                }
-            }
-            else if (!strncmp(first, "<", 1)) {
-                any_nesting++;
-            }
-
-            if (!strcasecmp(first, end_token)) {
-                /* check for proper closing */
-                char * endp = (char *) ap_strrchr_c(line, '>');
-
-                /* this cannot happen if end_token contains '>' */
-                if (endp == NULL) {
-                  return "end directive missing closing '>'";
-                }
-
-                warn_if_non_blank(
-                    "non blank chars found after directive closing",
-                    endp+1, config_file);
-
-                macro_nesting--;
-                if (!macro_nesting) {
-                    if (any_nesting) {
-                        ap_log_error(APLOG_MARK,
-                                     APLOG_NOERRNO | APLOG_WARNING, 0, NULL,
-                                     "bad cumulated nesting (%+d) in %s",
-                                     any_nesting, where);
-                    }
-                    *plines = lines;
-                    return NULL;
-                }
-            }
-            else if (begin_token && !strcasecmp(first, begin_token)) {
-                macro_nesting++;
-            }
-        }
-        new = apr_array_push(lines);
-        *new = apr_psprintf(pool, "%s" APR_EOL_STR, line); /* put EOL back? */
+    rv = apr_thread_mutex_create(&timeout_mutex, APR_THREAD_MUTEX_DEFAULT, p);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                     "creation of the timeout mutex failed.");
+        return rv;
     }
 
-    return apr_psprintf(pool, "expected token not found: %s", end_token);
+    APR_RING_INIT(&timeout_head, conn_state_t, timeout_list);
+    APR_RING_INIT(&keepalive_timeout_head, conn_state_t, timeout_list);
+
+    /* Create the main pollset */
+    rv = apr_pollset_create(&event_pollset,
+                            threads_per_child,
+                            p, APR_POLLSET_THREADSAFE | APR_POLLSET_NOCOPY);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                     "apr_pollset_create with Thread Safety failed.");
+        return rv;
+    }
+
+    for (lr = ap_listeners; lr != NULL; lr = lr->next) {
+        apr_pollfd_t *pfd = apr_palloc(p, sizeof(*pfd));
+        pt = apr_pcalloc(p, sizeof(*pt));
+        pfd->desc_type = APR_POLL_SOCKET;
+        pfd->desc.s = lr->sd;
+        pfd->reqevents = APR_POLLIN;
+
+        pt->type = PT_ACCEPT;
+        pt->baton = lr;
+
+        pfd->client_data = pt;
+
+        apr_socket_opt_set(pfd->desc.s, APR_SO_NONBLOCK, 1);
+        apr_pollset_add(event_pollset, pfd);
+
+        lr->accept_func = ap_unixd_accept;
+    }
+
+#if HAVE_SERF
+    baton = apr_pcalloc(p, sizeof(*baton));
+    baton->pollset = event_pollset;
+    /* TODO: subpools, threads, reuse, etc.  -- currently use malloc() inside :( */
+    baton->pool = p;
+
+    g_serf = serf_context_create_ex(baton,
+                                    s_socket_add,
+                                    s_socket_remove, p);
+
+    ap_register_provider(p, "mpm_serf",
+                         "instance", "0", g_serf);
+
+#endif
+
+    return APR_SUCCESS;
 }

@@ -1,1 +1,1 @@
-warning(_("unable to access '%s': %s"), path, strerror(errno));
+die("missing blob object '%s'", sha1_to_hex(obj->sha1));

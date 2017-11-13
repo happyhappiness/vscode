@@ -1,29 +1,20 @@
-static void usage(void)
+void ssl_dyn_lock_function(int mode, struct CRYPTO_dynlock_value *l,
+                           const char *file, int line)
 {
-    apr_file_printf(errfile, "Usage:" NL);
-    apr_file_printf(errfile, "\thtpasswd [-cmdpsD] passwordfile username" NL);
-    apr_file_printf(errfile, "\thtpasswd -b[cmdpsD] passwordfile username "
-                    "password" NL NL);
-    apr_file_printf(errfile, "\thtpasswd -n[mdps] username" NL);
-    apr_file_printf(errfile, "\thtpasswd -nb[mdps] username password" NL);
-    apr_file_printf(errfile, " -c  Create a new file." NL);
-    apr_file_printf(errfile, " -n  Don't update file; display results on "
-                    "stdout." NL);
-    apr_file_printf(errfile, " -m  Force MD5 encryption of the password"
-        " (default)"
-        "." NL);
-    apr_file_printf(errfile, " -d  Force CRYPT encryption of the password"
-            "." NL);
-    apr_file_printf(errfile, " -p  Do not encrypt the password (plaintext)." NL);
-    apr_file_printf(errfile, " -s  Force SHA encryption of the password." NL);
-    apr_file_printf(errfile, " -b  Use the password from the command line "
-            "rather than prompting for it." NL);
-    apr_file_printf(errfile, " -D  Delete the specified user." NL);
-    apr_file_printf(errfile,
-            "On other systems than Windows, NetWare and TPF the '-p' flag will "
-            "probably not work." NL);
-    apr_file_printf(errfile,
-            "The SHA algorithm does not use a salt and is less secure than "
-            "the MD5 algorithm." NL);
-    exit(ERR_SYNTAX);
+    apr_status_t rv;
+
+    if (mode & CRYPTO_LOCK) {
+        ap_log_perror(file, line, APLOG_DEBUG, 0, l->pool, 
+                      "Acquiring mutex %s:%d", l->file, l->line);
+        rv = apr_thread_mutex_lock(l->mutex);
+        ap_log_perror(file, line, APLOG_DEBUG, rv, l->pool, 
+                      "Mutex %s:%d acquired!", l->file, l->line);
+    }
+    else {
+        ap_log_perror(file, line, APLOG_DEBUG, 0, l->pool, 
+                      "Releasing mutex %s:%d", l->file, l->line);
+        rv = apr_thread_mutex_unlock(l->mutex);
+        ap_log_perror(file, line, APLOG_DEBUG, rv, l->pool, 
+                      "Mutex %s:%d released!", l->file, l->line);
+    }
 }

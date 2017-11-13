@@ -1,10 +1,11 @@
 fputs(
-"              directory view doesn't use a standard look or format. When  used\n"
-"              like  this,  the  option causes a NLST command to be sent to the\n"
-"              server instead of LIST.\n"
+"              (meaning  Linux, recent AIX, HP-UX and more). This option has no\n"
+"              effect if --no-keepalive is used. (Added in 7.18.0)\n"
 "\n"
-"              Note: Some FTP servers list only  files  in  their  response  to\n"
-"              NLST; they do not include sub-directories and symbolic links.\n"
+"              If this option is used several times, the last one will be used.\n"
+"              If unspecified, the option defaults to 60 seconds.\n"
 "\n"
-"              (POP3)  When  retrieving a specific email from POP3, this switch\n"
+"       --key <key>\n"
+"              (SSL/SSH) Private key file name. Allows you to provide your pri-\n"
+"              vate key in this separate file. For SSH, if not specified,  curl\n"
 , stdout);

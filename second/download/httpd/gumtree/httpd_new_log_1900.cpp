@@ -1,1 +1,1 @@
-ap_log_command_line(plog, s);
+ap_rvputs(r, "<a href=\"", href, "\">", text, "</a>", NULL);

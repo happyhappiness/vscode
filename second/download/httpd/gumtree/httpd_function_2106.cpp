@@ -1,59 +1,33 @@
-static apr_status_t remove_directory(apr_pool_t *pool, const char *dir)
+BOOL ssl_scache_store(server_rec *s, UCHAR *id, int idlen,
+                      apr_time_t expiry, SSL_SESSION *sess,
+                      apr_pool_t *p)
 {
+    SSLModConfigRec *mc = myModConfig(s);
+    unsigned char encoded[SSL_SESSION_MAX_DER], *ptr;
+    unsigned int len;
     apr_status_t rv;
-    apr_dir_t *dirp;
-    apr_finfo_t dirent;
 
-    rv = apr_dir_open(&dirp, dir, pool);
-    if (rv == APR_ENOENT) {
-        return rv;
-    }
-    if (rv != APR_SUCCESS) {
-        char errmsg[120];
-        apr_file_printf(errfile, "Could not open directory %s: %s" APR_EOL_STR,
-                dir, apr_strerror(rv, errmsg, sizeof errmsg));
-        return rv;
+    /* Serialise the session. */
+    len = i2d_SSL_SESSION(sess, NULL);
+    if (len > sizeof encoded) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "session is too big (%u bytes)", len);
+        return FALSE;
     }
 
-    while (apr_dir_read(&dirent, APR_FINFO_DIRENT | APR_FINFO_TYPE, dirp)
-            == APR_SUCCESS) {
-        if (dirent.filetype == APR_DIR) {
-            if (strcmp(dirent.name, ".") && strcmp(dirent.name, "..")) {
-                rv = remove_directory(pool, apr_pstrcat(pool, dir, "/",
-                        dirent.name, NULL));
-                /* tolerate the directory not being empty, the cache may have
-                 * attempted to recreate the directory in the mean time.
-                 */
-                if (APR_SUCCESS != rv && APR_ENOTEMPTY != rv) {
-                    break;
-                }
-            }
-        } else {
-            const char *file = apr_pstrcat(pool, dir, "/", dirent.name, NULL);
-            rv = apr_file_remove(file, pool);
-            if (APR_SUCCESS != rv) {
-                char errmsg[120];
-                apr_file_printf(errfile,
-                        "Could not remove file '%s': %s" APR_EOL_STR, file,
-                        apr_strerror(rv, errmsg, sizeof errmsg));
-                break;
-            }
-        }
+    ptr = encoded;
+    len = i2d_SSL_SESSION(sess, &ptr);
+
+    if (mc->sesscache->flags & AP_SOCACHE_FLAG_NOTMPSAFE) {
+        ssl_mutex_on(s);
+    }
+    
+    rv = mc->sesscache->store(mc->sesscache_context, s, id, idlen, 
+                              expiry, encoded, len, p);
+
+    if (mc->sesscache->flags & AP_SOCACHE_FLAG_NOTMPSAFE) {
+        ssl_mutex_off(s);
     }
 
-    apr_dir_close(dirp);
-
-    if (rv == APR_SUCCESS) {
-        rv = apr_dir_remove(dir, pool);
-        if (APR_ENOTEMPTY == rv) {
-            rv = APR_SUCCESS;
-        }
-        if (rv != APR_SUCCESS) {
-            char errmsg[120];
-            apr_file_printf(errfile, "Could not remove directory %s: %s" APR_EOL_STR,
-                    dir, apr_strerror(rv, errmsg, sizeof errmsg));
-        }
-    }
-
-    return rv;
+    return rv == APR_SUCCESS ? TRUE : FALSE;
 }

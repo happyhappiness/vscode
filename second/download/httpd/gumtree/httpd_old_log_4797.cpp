@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                     "Failed to open the WinNT service manager.");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                        "Bad OCSP responder answer (bad nonce)");

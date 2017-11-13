@@ -1,2 +1,1 @@
-fprintf(stderr, "Also look at %s\n",
-						target.buf);
+fputs(env_hint, stderr);

@@ -1,1 +1,1 @@
-warning(degrade_cc_to_c_warning);
+die("--progress can't be used with --incremental or porcelain formats");

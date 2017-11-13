@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: ajp_alloc_data_msg failed");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "apr_file_close(child input)");

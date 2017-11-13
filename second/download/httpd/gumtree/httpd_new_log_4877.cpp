@@ -1,2 +1,2 @@
-apr_file_printf(out, "PidFile: \"%s\"\n",
-                    ap_server_root_relative(p, ap_pid_fname));
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01933)
+                 "stapling_get_cached_response: cache hit");

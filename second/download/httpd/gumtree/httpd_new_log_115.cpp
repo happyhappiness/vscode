@@ -1,1 +1,4 @@
-ap_register_output_filter (ssl_io_filter, ssl_io_filter_output, NULL, AP_FTYPE_CONNECTION + 5);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0,
+                         f->c->base_server,
+                         "SSL handshake failed: HTTP spoken on HTTPS port; "
+                         "trying to send HTML error page");

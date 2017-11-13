@@ -4,7 +4,7 @@ krb4_auth(void *app_data, struct connectdata *conn)
   int ret;
   char *p;
   unsigned char *ptr;
-  size_t len = 0;
+  size_t len;
   KTEXT_ST adat;
   MSG_DAT msg_data;
   int checksum;
@@ -15,7 +15,6 @@ krb4_auth(void *app_data, struct connectdata *conn)
   int l = sizeof(conn->local_addr);
   struct SessionHandle *data = conn->data;
   CURLcode result;
-  size_t base64_sz = 0;
 
   if(getsockname(conn->sock[FIRSTSOCKET],
                  (struct sockaddr *)LOCAL_ADDR, &l) < 0)
@@ -51,10 +50,8 @@ krb4_auth(void *app_data, struct connectdata *conn)
   }
 #endif
 
-  result = Curl_base64_encode(conn->data, (char *)adat.dat, adat.length,
-                              &p, &base64_sz);
-  if(result) {
-    Curl_failf(data, "base64-encoding: %s", curl_easy_strerror(result));
+  if(Curl_base64_encode(conn->data, (char *)adat.dat, adat.length, &p) < 1) {
+    Curl_failf(data, "Out of memory base64-encoding");
     return AUTH_CONTINUE;
   }
 
@@ -68,7 +65,7 @@ krb4_auth(void *app_data, struct connectdata *conn)
   if(Curl_GetFTPResponse(&nread, conn, NULL))
     return -1;
 
-  if(data->state.buffer[0] != '2') {
+  if(data->state.buffer[0] != '2'){
     Curl_failf(data, "Server didn't accept auth data");
     return AUTH_ERROR;
   }
@@ -79,15 +76,10 @@ krb4_auth(void *app_data, struct connectdata *conn)
     return AUTH_ERROR;
   }
   p += 5;
-  result = Curl_base64_decode(p, &ptr, &len);
-  if(result) {
-    Curl_failf(data, "base64-decoding: %s", curl_easy_strerror(result));
-    return AUTH_ERROR;
-  }
+  len = Curl_base64_decode(p, &ptr);
   if(len > sizeof(adat.dat)-1) {
     free(ptr);
-    ptr = NULL;
-    len = 0;
+    len=0;
   }
   if(!len || !ptr) {
     Curl_failf(data, "Failed to decode base64 from server");

@@ -1,1 +1,1 @@
-die(_("unable to parse default color value"));
+die("strange hostname '%s' blocked", ssh_host);

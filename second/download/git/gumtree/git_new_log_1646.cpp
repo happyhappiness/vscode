@@ -1,1 +1,1 @@
-diagnose_missing_default(revs->def);
+die_errno("unable to fdopen packed-refs descriptor");

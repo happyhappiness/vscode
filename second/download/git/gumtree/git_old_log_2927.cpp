@@ -1,1 +1,1 @@
-error("copy-fd: write returned %s", strerror(errno));
+error("%s: close error: %s", dst, strerror(errno));

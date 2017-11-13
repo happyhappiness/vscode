@@ -1,1 +1,1 @@
-fprintf(FERROR,"receive_sums failed\n");
+fprintf(FINFO,"gen mapped %s of size %d\n",fname,(int)st.st_size);

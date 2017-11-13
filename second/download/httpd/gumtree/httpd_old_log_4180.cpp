@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                     "no client certs found for SSL proxy");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: Entering roundrobin for BALANCER %s (%d)",
+                 balancer->name, (int)getpid());

@@ -1,1 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "filling buffer");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "SSL Re-negotiation in conjunction "
+                     "with POST method not supported! "
+                     "hint: try SSLOptions +OptRenegotiate");

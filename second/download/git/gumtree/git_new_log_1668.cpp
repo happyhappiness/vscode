@@ -1,1 +1,1 @@
-die(_("Exiting because of unfinished merge."));
+packet_buf_write(req_buf, "push-cert-end\n");

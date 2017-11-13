@@ -1,10 +1,9 @@
 fputs(
-"              When performing a mailing list expand (EXPN command), the recip-\n"
-"              ient should be specified using the mailing list  name,  such  as\n"
-"              \"Friends\" or \"London-Office\".  (Added in 7.34.0)\n"
+"              (which is plaintext in the case of HTTP Basic authentication).\n"
 "\n"
-"       --max-redirs <num>\n"
-"              Set  maximum  number  of  redirection-followings allowed. If -L,\n"
-"              --location is used, this option can be used to prevent curl from\n"
-"              following  redirections  \"in absurdum\". By default, the limit is\n"
+"       -m, --max-time <seconds>\n"
+"              Maximum  time  in  seconds that you allow the whole operation to\n"
+"              take.  This is useful for preventing your batch jobs from  hang-\n"
+"              ing  for  hours due to slow networks or links going down.  Since\n"
+"              7.32.0, this option accepts decimal values, but the actual time-\n"
 , stdout);

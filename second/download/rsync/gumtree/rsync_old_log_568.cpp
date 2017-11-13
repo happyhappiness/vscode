@@ -1,1 +1,1 @@
-fprintf(FINFO,"generate_files phase=%d\n",phase);
+fprintf(FINFO,"deleting %s\n",f_name(f));

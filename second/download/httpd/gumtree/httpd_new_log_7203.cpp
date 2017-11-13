@@ -1,1 +1,1 @@
-fprintf(stderr, "                    (" SSL2_HELP_MSG "SSL3, TLS1" TLS1_X_HELP_MSG " or ALL)\n");
+fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol\n");

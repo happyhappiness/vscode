@@ -1,1 +1,1 @@
-die("unable to generate checkdiff for %s", one->path);
+warning("--curl not supported in this build");

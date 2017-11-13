@@ -1,57 +1,27 @@
-static int merge_one_change_manual(struct notes_merge_options *o,
-				   struct notes_merge_pair *p,
-				   struct notes_tree *t)
+static int parse_reuse_arg(const struct option *opt, const char *arg, int unset)
 {
-	const char *lref = o->local_ref ? o->local_ref : "local version";
-	const char *rref = o->remote_ref ? o->remote_ref : "remote version";
+	struct note_data *d = opt->value;
+	char *buf;
+	unsigned char object[20];
+	enum object_type type;
+	unsigned long len;
 
-	trace_printf("\t\t\tmerge_one_change_manual(obj = %.7s, base = %.7s, "
-	       "local = %.7s, remote = %.7s)\n",
-	       sha1_to_hex(p->obj), sha1_to_hex(p->base),
-	       sha1_to_hex(p->local), sha1_to_hex(p->remote));
+	if (d->buf.len)
+		strbuf_addch(&d->buf, '\n');
 
-	/* add "Conflicts:" section to commit message first time through */
-	if (!o->has_worktree)
-		strbuf_addstr(&(o->commit_msg), "\n\nConflicts:\n");
-
-	strbuf_addf(&(o->commit_msg), "\t%s\n", sha1_to_hex(p->obj));
-
-	if (o->verbosity >= 2)
-		printf("Auto-merging notes for %s\n", sha1_to_hex(p->obj));
-	check_notes_merge_worktree(o);
-	if (is_null_sha1(p->local)) {
-		/* D/F conflict, checkout p->remote */
-		assert(!is_null_sha1(p->remote));
-		if (o->verbosity >= 1)
-			printf("CONFLICT (delete/modify): Notes for object %s "
-				"deleted in %s and modified in %s. Version from %s "
-				"left in tree.\n",
-				sha1_to_hex(p->obj), lref, rref, rref);
-		write_note_to_worktree(p->obj, p->remote);
-	} else if (is_null_sha1(p->remote)) {
-		/* D/F conflict, checkout p->local */
-		assert(!is_null_sha1(p->local));
-		if (o->verbosity >= 1)
-			printf("CONFLICT (delete/modify): Notes for object %s "
-				"deleted in %s and modified in %s. Version from %s "
-				"left in tree.\n",
-				sha1_to_hex(p->obj), rref, lref, lref);
-		write_note_to_worktree(p->obj, p->local);
-	} else {
-		/* "regular" conflict, checkout result of ll_merge() */
-		const char *reason = "content";
-		if (is_null_sha1(p->base))
-			reason = "add/add";
-		assert(!is_null_sha1(p->local));
-		assert(!is_null_sha1(p->remote));
-		if (o->verbosity >= 1)
-			printf("CONFLICT (%s): Merge conflict in notes for "
-				"object %s\n", reason, sha1_to_hex(p->obj));
-		ll_merge_in_worktree(o, p);
+	if (get_sha1(arg, object))
+		die(_("Failed to resolve '%s' as a valid ref."), arg);
+	if (!(buf = read_sha1_file(object, &type, &len))) {
+		free(buf);
+		die(_("Failed to read object '%s'."), arg);
 	}
+	if (type != OBJ_BLOB) {
+		free(buf);
+		die(_("Cannot read note data from non-blob object '%s'."), arg);
+	}
+	strbuf_add(&d->buf, buf, len);
+	free(buf);
 
-	trace_printf("\t\t\tremoving from partial merge result\n");
-	remove_note(t, p->obj);
-
-	return 1;
+	d->given = 1;
+	return 0;
 }

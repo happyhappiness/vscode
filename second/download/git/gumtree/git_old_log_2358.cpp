@@ -1,2 +1,1 @@
-error("Writing %s failed: %s", path,
-			     strerror(errno));
+die(_("object type mismatch at %s"), sha1_to_hex(obj->sha1));

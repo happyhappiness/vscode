@@ -1,9 +1,11 @@
 fputs(
-"              when getting a file with HTTPS, FTPS or another SSL-based proto-\n"
-"              col. The certificate must be in PEM  format.   If  the  optional\n"
-"              password  isn't  specified, it will be queried for on the termi-\n"
-"              nal. Note that this option assumes a \"certificate\" file that  is\n"
-"              the  private  key  and the private certificate concatenated! See\n"
-"              --cert and --key to specify them independently.\n"
+"              used with -L, --location you can append \";auto\" to the --referer\n"
+"              URL to make curl automatically set the previous URL when it fol-\n"
+"              lows  a  Location: header. The \";auto\" string can be used alone,\n"
+"              even if you don't set an initial --referer.\n"
 "\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -E, --cert <certificate[:password]>\n"
+"              (SSL) Tells curl to use the specified  client  certificate  file\n"
 , stdout);

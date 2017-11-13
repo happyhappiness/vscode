@@ -1,46 +1,49 @@
-static int parse_binary(char *buffer, unsigned long size, struct patch *patch)
+static void add_remote_info_ref(struct remote_ls_ctx *ls)
 {
-	/*
-	 * We have read "GIT binary patch\n"; what follows is a line
-	 * that says the patch method (currently, either "literal" or
-	 * "delta") and the length of data before deflating; a
-	 * sequence of 'length-byte' followed by base-85 encoded data
-	 * follows.
-	 *
-	 * When a binary patch is reversible, there is another binary
-	 * hunk in the same format, starting with patch method (either
-	 * "literal" or "delta") with the length of data, and a sequence
-	 * of length-byte + base-85 encoded data, terminated with another
-	 * empty line.  This data, when applied to the postimage, produces
-	 * the preimage.
-	 */
-	struct fragment *forward;
-	struct fragment *reverse;
-	int status;
-	int used, used_1;
+	struct strbuf *buf = (struct strbuf *)ls->userData;
+	struct object *o;
+	int len;
+	char *ref_info;
+	struct ref *ref;
 
-	forward = parse_binary_hunk(&buffer, &size, &status, &used);
-	if (!forward && !status)
-		/* there has to be one hunk (forward hunk) */
-		return error(_("unrecognized binary patch at line %d"), linenr-1);
-	if (status)
-		/* otherwise we already gave an error message */
-		return status;
+	ref = alloc_ref(ls->dentry_name);
 
-	reverse = parse_binary_hunk(&buffer, &size, &status, &used_1);
-	if (reverse)
-		used += used_1;
-	else if (status) {
-		/*
-		 * Not having reverse hunk is not an error, but having
-		 * a corrupt reverse hunk is.
-		 */
-		free((void*) forward->patch);
-		free(forward);
-		return status;
+	if (http_fetch_ref(repo->url, ref) != 0) {
+		fprintf(stderr,
+			"Unable to fetch ref %s from %s\n",
+			ls->dentry_name, repo->url);
+		aborted = 1;
+		free(ref);
+		return;
 	}
-	forward->next = reverse;
-	patch->fragments = forward;
-	patch->is_binary = 1;
-	return used;
+
+	o = parse_object(ref->old_sha1);
+	if (!o) {
+		fprintf(stderr,
+			"Unable to parse object %s for remote ref %s\n",
+			sha1_to_hex(ref->old_sha1), ls->dentry_name);
+		aborted = 1;
+		free(ref);
+		return;
+	}
+
+	len = strlen(ls->dentry_name) + 42;
+	ref_info = xcalloc(len + 1, 1);
+	sprintf(ref_info, "%s	%s\n",
+		sha1_to_hex(ref->old_sha1), ls->dentry_name);
+	fwrite_buffer(ref_info, 1, len, buf);
+	free(ref_info);
+
+	if (o->type == OBJ_TAG) {
+		o = deref_tag(o, ls->dentry_name, 0);
+		if (o) {
+			len = strlen(ls->dentry_name) + 45;
+			ref_info = xcalloc(len + 1, 1);
+			sprintf(ref_info, "%s	%s^{}\n",
+				sha1_to_hex(o->sha1), ls->dentry_name);
+			fwrite_buffer(ref_info, 1, len, buf);
+			free(ref_info);
+		}
+	}
+	free(ref);
 }

@@ -1,272 +1,312 @@
-apr_status_t isapi_handler (request_rec *r)
+int main(int argc, const char * const argv[])
 {
-    isapi_dir_conf *dconf;
-    apr_table_t *e;
+    char c;
+    int configtestonly = 0, showcompile = 0;
+    const char *confname = SERVER_CONFIG_FILE;
+    const char *def_server_root = HTTPD_ROOT;
+    const char *temp_error_log = NULL;
+    const char *error;
+    process_rec *process;
+    apr_pool_t *pconf;
+    apr_pool_t *plog; /* Pool of log streams, reset _after_ each read of conf */
+    apr_pool_t *ptemp; /* Pool for temporary config stuff, reset often */
+    apr_pool_t *pcommands; /* Pool for -D, -C and -c switches */
+    apr_getopt_t *opt;
     apr_status_t rv;
-    isapi_loaded *isa;
-    isapi_cid *cid;
-    const char *val;
-    apr_uint32_t read;
-    int res;
+    module **mod;
+    const char *optarg;
+    APR_OPTIONAL_FN_TYPE(ap_signal_server) *signal_server;
 
-    if(strcmp(r->handler, "isapi-isa")
-        && strcmp(r->handler, "isapi-handler")) {
-        /* Hang on to the isapi-isa for compatibility with older docs
-         * (wtf did '-isa' mean in the first place?) but introduce
-         * a newer and clearer "isapi-handler" name.
-         */
-        return DECLINED;
+    AP_MONCONTROL(0); /* turn off profiling of startup */
+
+    process = init_process(&argc, &argv);
+    ap_pglobal = process->pool;
+    pconf = process->pconf;
+    ap_server_argv0 = process->short_name;
+
+    /* Set up the OOM callback in the global pool, so all pools should
+     * by default inherit it. */
+    apr_pool_abort_set(abort_on_oom, apr_pool_parent_get(process->pool));
+
+#if APR_CHARSET_EBCDIC
+    if (ap_init_ebcdic(ap_pglobal) != APR_SUCCESS) {
+        destroy_and_exit_process(process, 1);
     }
-    dconf = ap_get_module_config(r->per_dir_config, &isapi_module);
-    e = r->subprocess_env;
+#endif
+    if (ap_expr_init(ap_pglobal) != APR_SUCCESS) {
+        destroy_and_exit_process(process, 1);
+    }
 
-    /* Use similar restrictions as CGIs
-     *
-     * If this fails, it's pointless to load the isapi dll.
+    apr_pool_create(&pcommands, ap_pglobal);
+    apr_pool_tag(pcommands, "pcommands");
+    ap_server_pre_read_config  = apr_array_make(pcommands, 1, sizeof(char *));
+    ap_server_post_read_config = apr_array_make(pcommands, 1, sizeof(char *));
+    ap_server_config_defines   = apr_array_make(pcommands, 1, sizeof(char *));
+
+    error = ap_setup_prelinked_modules(process);
+    if (error) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_EMERG, 0, NULL, "%s: %s",
+                     ap_server_argv0, error);
+        destroy_and_exit_process(process, 1);
+    }
+
+    ap_run_rewrite_args(process);
+
+    /* Maintain AP_SERVER_BASEARGS list in http_main.h to allow the MPM
+     * to safely pass on our args from its rewrite_args() handler.
      */
-    if (!(ap_allow_options(r) & OPT_EXECCGI)) {
-        return HTTP_FORBIDDEN;
-    }
-    if (r->finfo.filetype == APR_NOFILE) {
-        return HTTP_NOT_FOUND;
-    }
-    if (r->finfo.filetype != APR_REG) {
-        return HTTP_FORBIDDEN;
-    }
-    if ((r->used_path_info == AP_REQ_REJECT_PATH_INFO) &&
-        r->path_info && *r->path_info) {
-        /* default to accept */
-        return HTTP_NOT_FOUND;
-    }
+    apr_getopt_init(&opt, pcommands, process->argc, process->argv);
 
-    if (isapi_lookup(r->pool, r->server, r, r->filename, &isa)
-           != APR_SUCCESS) {
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-    /* Set up variables */
-    ap_add_common_vars(r);
-    ap_add_cgi_vars(r);
-    apr_table_setn(e, "UNMAPPED_REMOTE_USER", "REMOTE_USER");
-    if ((val = apr_table_get(e, "HTTPS")) && (strcmp(val, "on") == 0))
-        apr_table_setn(e, "SERVER_PORT_SECURE", "1");
-    else
-        apr_table_setn(e, "SERVER_PORT_SECURE", "0");
-    apr_table_setn(e, "URL", r->uri);
+    while ((rv = apr_getopt(opt, AP_SERVER_BASEARGS, &c, &optarg))
+            == APR_SUCCESS) {
+        char **new;
 
-    /* Set up connection structure and ecb,
-     * NULL or zero out most fields.
-     */
-    cid = apr_pcalloc(r->pool, sizeof(isapi_cid));
-
-    /* Fixup defaults for dconf */
-    cid->dconf.read_ahead_buflen = (dconf->read_ahead_buflen == ISAPI_UNDEF)
-                                     ? 49152 : dconf->read_ahead_buflen;
-    cid->dconf.log_unsupported   = (dconf->log_unsupported == ISAPI_UNDEF)
-                                     ? 0 : dconf->log_unsupported;
-    cid->dconf.log_to_errlog     = (dconf->log_to_errlog == ISAPI_UNDEF)
-                                     ? 0 : dconf->log_to_errlog;
-    cid->dconf.log_to_query      = (dconf->log_to_query == ISAPI_UNDEF)
-                                     ? 1 : dconf->log_to_query;
-    cid->dconf.fake_async        = (dconf->fake_async == ISAPI_UNDEF)
-                                     ? 0 : dconf->fake_async;
-
-    cid->ecb = apr_pcalloc(r->pool, sizeof(EXTENSION_CONTROL_BLOCK));
-    cid->ecb->ConnID = cid;
-    cid->isa = isa;
-    cid->r = r;
-    r->status = 0;
-
-    cid->ecb->cbSize = sizeof(EXTENSION_CONTROL_BLOCK);
-    cid->ecb->dwVersion = isa->report_version;
-    cid->ecb->dwHttpStatusCode = 0;
-    strcpy(cid->ecb->lpszLogData, "");
-    /* TODO: are copies really needed here?
-     */
-    cid->ecb->lpszMethod = (char*) r->method;
-    cid->ecb->lpszQueryString = (char*) apr_table_get(e, "QUERY_STRING");
-    cid->ecb->lpszPathInfo = (char*) apr_table_get(e, "PATH_INFO");
-    cid->ecb->lpszPathTranslated = (char*) apr_table_get(e, "PATH_TRANSLATED");
-    cid->ecb->lpszContentType = (char*) apr_table_get(e, "CONTENT_TYPE");
-
-    /* Set up the callbacks */
-    cid->ecb->GetServerVariable = GetServerVariable;
-    cid->ecb->WriteClient = WriteClient;
-    cid->ecb->ReadClient = ReadClient;
-    cid->ecb->ServerSupportFunction = ServerSupportFunction;
-
-    /* Set up client input */
-    res = ap_setup_client_block(r, REQUEST_CHUNKED_ERROR);
-    if (res) {
-        isapi_unload(isa, 0);
-        return res;
-    }
-
-    if (ap_should_client_block(r)) {
-        /* Time to start reading the appropriate amount of data,
-         * and allow the administrator to tweak the number
-         */
-        if (r->remaining) {
-            cid->ecb->cbTotalBytes = (apr_size_t)r->remaining;
-            if (cid->ecb->cbTotalBytes > (apr_uint32_t)cid->dconf.read_ahead_buflen)
-                cid->ecb->cbAvailable = cid->dconf.read_ahead_buflen;
-            else
-                cid->ecb->cbAvailable = cid->ecb->cbTotalBytes;
-        }
-        else
-        {
-            cid->ecb->cbTotalBytes = 0xffffffff;
-            cid->ecb->cbAvailable = cid->dconf.read_ahead_buflen;
-        }
-
-        cid->ecb->lpbData = apr_pcalloc(r->pool, cid->ecb->cbAvailable + 1);
-
-        read = 0;
-        while (read < cid->ecb->cbAvailable &&
-               ((res = ap_get_client_block(r, (char*)cid->ecb->lpbData + read,
-                                        cid->ecb->cbAvailable - read)) > 0)) {
-            read += res;
-        }
-
-        if (res < 0) {
-            isapi_unload(isa, 0);
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
-
-        /* Although it's not to spec, IIS seems to null-terminate
-         * its lpdData string. So we will too.
-         */
-        if (res == 0)
-            cid->ecb->cbAvailable = cid->ecb->cbTotalBytes = read;
-        else
-            cid->ecb->cbAvailable = read;
-        cid->ecb->lpbData[read] = '\0';
-    }
-    else {
-        cid->ecb->cbTotalBytes = 0;
-        cid->ecb->cbAvailable = 0;
-        cid->ecb->lpbData = NULL;
-    }
-
-    /* To emulate async behavior...
-     *
-     * We create a cid->completed mutex and lock on it so that the
-     * app can believe is it running async.
-     *
-     * This request completes upon a notification through
-     * ServerSupportFunction(HSE_REQ_DONE_WITH_SESSION), which
-     * unlocks this mutex.  If the HttpExtensionProc() returns
-     * HSE_STATUS_PENDING, we will attempt to gain this lock again
-     * which may *only* happen once HSE_REQ_DONE_WITH_SESSION has
-     * unlocked the mutex.
-     */
-    if (cid->dconf.fake_async) {
-        rv = apr_thread_mutex_create(&cid->completed,
-                                     APR_THREAD_MUTEX_UNNESTED,
-                                     r->pool);
-        if (cid->completed && (rv == APR_SUCCESS)) {
-            rv = apr_thread_mutex_lock(cid->completed);
-        }
-
-        if (!cid->completed || (rv != APR_SUCCESS)) {
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "ISAPI: Failed to create completion mutex");
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
-    }
-
-    /* All right... try and run the sucker */
-    rv = (*isa->HttpExtensionProc)(cid->ecb);
-
-    /* Check for a log message - and log it */
-    if (cid->ecb->lpszLogData && *cid->ecb->lpszLogData)
-        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                      "ISAPI: %s: %s", r->filename, cid->ecb->lpszLogData);
-
-    switch(rv) {
-        case 0:  /* Strange, but MS isapi accepts this as success */
-        case HSE_STATUS_SUCCESS:
-        case HSE_STATUS_SUCCESS_AND_KEEP_CONN:
-            /* Ignore the keepalive stuff; Apache handles it just fine without
-             * the ISAPI Handler's "advice".
-             * Per Microsoft: "In IIS versions 4.0 and later, the return
-             * values HSE_STATUS_SUCCESS and HSE_STATUS_SUCCESS_AND_KEEP_CONN
-             * are functionally identical: Keep-Alive connections are
-             * maintained, if supported by the client."
-             * ... so we were pat all this time
-             */
+        switch (c) {
+        case 'c':
+            new = (char **)apr_array_push(ap_server_post_read_config);
+            *new = apr_pstrdup(pcommands, optarg);
             break;
 
-        case HSE_STATUS_PENDING:
-            /* emulating async behavior...
-             */
-            if (cid->completed) {
-                /* The completion port was locked prior to invoking
-                 * HttpExtensionProc().  Once we can regain the lock,
-                 * when ServerSupportFunction(HSE_REQ_DONE_WITH_SESSION)
-                 * is called by the extension to release the lock,
-                 * we may finally destroy the request.
-                 */
-                (void)apr_thread_mutex_lock(cid->completed);
-                break;
+        case 'C':
+            new = (char **)apr_array_push(ap_server_pre_read_config);
+            *new = apr_pstrdup(pcommands, optarg);
+            break;
+
+        case 'd':
+            def_server_root = optarg;
+            break;
+
+        case 'D':
+            new = (char **)apr_array_push(ap_server_config_defines);
+            *new = apr_pstrdup(pcommands, optarg);
+            /* Setting -D DUMP_VHOSTS is equivalent to setting -S */
+            if (strcmp(optarg, "DUMP_VHOSTS") == 0)
+                configtestonly = 1;
+            /* Setting -D DUMP_MODULES is equivalent to setting -M */
+            if (strcmp(optarg, "DUMP_MODULES") == 0)
+                configtestonly = 1;
+            break;
+
+        case 'e':
+            if (ap_parse_log_level(optarg, &ap_default_loglevel) != NULL)
+                usage(process);
+            break;
+
+        case 'E':
+            temp_error_log = apr_pstrdup(process->pool, optarg);
+            break;
+
+        case 'X':
+            new = (char **)apr_array_push(ap_server_config_defines);
+            *new = "DEBUG";
+            break;
+
+        case 'f':
+            confname = optarg;
+            break;
+
+        case 'v':
+            printf("Server version: %s\n", ap_get_server_description());
+            printf("Server built:   %s\n", ap_get_server_built());
+            destroy_and_exit_process(process, 0);
+
+        case 'V':
+            if (strcmp(ap_show_mpm(), "")) { /* MPM built-in? */
+                show_compile_settings();
+                destroy_and_exit_process(process, 0);
             }
-            else if (cid->dconf.log_unsupported) {
-                 ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                               "ISAPI: asynch I/O result HSE_STATUS_PENDING "
-                               "from HttpExtensionProc() is not supported: %s",
-                               r->filename);
-                 r->status = HTTP_INTERNAL_SERVER_ERROR;
+            else {
+                showcompile = 1;
             }
             break;
 
-        case HSE_STATUS_ERROR:
-            /* end response if we have yet to do so.
-             */
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, apr_get_os_error(), r,
-                          "ISAPI: HSE_STATUS_ERROR result from "
-                          "HttpExtensionProc(): %s", r->filename);
-            r->status = HTTP_INTERNAL_SERVER_ERROR;
+        case 'l':
+            ap_show_modules();
+            destroy_and_exit_process(process, 0);
+
+        case 'L':
+            ap_show_directives();
+            destroy_and_exit_process(process, 0);
+
+        case 't':
+            configtestonly = 1;
             break;
 
-        default:
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, apr_get_os_error(), r,
-                          "ISAPI: unrecognized result code %d "
-                          "from HttpExtensionProc(): %s ", 
-                          rv, r->filename);
-            r->status = HTTP_INTERNAL_SERVER_ERROR;
+       case 'T':
+           ap_document_root_check = 0;
+           break;
+
+        case 'S':
+            configtestonly = 1;
+            new = (char **)apr_array_push(ap_server_config_defines);
+            *new = "DUMP_VHOSTS";
             break;
+
+        case 'M':
+            configtestonly = 1;
+            new = (char **)apr_array_push(ap_server_config_defines);
+            *new = "DUMP_MODULES";
+            break;
+
+        case 'h':
+        case '?':
+            usage(process);
+        }
     }
 
-    /* Flush the response now, including headers-only responses */
-    if (cid->headers_set || cid->response_sent) {
-        conn_rec *c = r->connection;
-        apr_bucket_brigade *bb;
-        apr_bucket *b;
-        apr_status_t rv;
+    /* bad cmdline option?  then we die */
+    if (rv != APR_EOF || opt->ind < opt->argc) {
+        usage(process);
+    }
 
-        bb = apr_brigade_create(r->pool, c->bucket_alloc);
-        b = apr_bucket_eos_create(c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(bb, b);
-        rv = ap_pass_brigade(r->output_filters, bb);
-        cid->response_sent = 1;
+    apr_pool_create(&plog, ap_pglobal);
+    apr_pool_tag(plog, "plog");
+    apr_pool_create(&ptemp, pconf);
+    apr_pool_tag(ptemp, "ptemp");
 
-        if (rv != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
-                          "ISAPI: ap_pass_brigade failed to "
-                          "complete the response: %s ", r->filename);
+    /* Note that we preflight the config file once
+     * before reading it _again_ in the main loop.
+     * This allows things, log files configuration
+     * for example, to settle down.
+     */
+
+    ap_server_root = def_server_root;
+    if (temp_error_log) {
+        ap_replace_stderr_log(process->pool, temp_error_log);
+    }
+    ap_server_conf = ap_read_config(process, ptemp, confname, &ap_conftree);
+    if (!ap_server_conf) {
+        destroy_and_exit_process(process, 1);
+    }
+
+    if (ap_run_pre_config(pconf, plog, ptemp) != OK) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
+                     NULL, "Pre-configuration failed");
+        destroy_and_exit_process(process, 1);
+    }
+
+    rv = ap_process_config_tree(ap_server_conf, ap_conftree,
+                                process->pconf, ptemp);
+    if (rv == OK) {
+        ap_fixup_virtual_hosts(pconf, ap_server_conf);
+        ap_fini_vhost_config(pconf, ap_server_conf);
+        apr_hook_sort_all();
+
+        if (ap_run_check_config(pconf, plog, ptemp, ap_server_conf) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
+                         NULL, "Configuration check failed");
+            destroy_and_exit_process(process, 1);
         }
 
-        return OK; /* NOT r->status, even if it has changed. */
+        if (configtestonly) {
+            ap_run_test_config(pconf, ap_server_conf);
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, "Syntax OK");
+            destroy_and_exit_process(process, 0);
+        }
+        else if (showcompile) { /* deferred due to dynamically loaded MPM */
+            show_compile_settings();
+            destroy_and_exit_process(process, 0);
+        }
     }
 
-    /* As the client returned no error, and if we did not error out
-     * ourselves, trust dwHttpStatusCode to say something relevant.
-     */
-    if (!ap_is_HTTP_SERVER_ERROR(r->status) && cid->ecb->dwHttpStatusCode) {
-        r->status = cid->ecb->dwHttpStatusCode;
+    signal_server = APR_RETRIEVE_OPTIONAL_FN(ap_signal_server);
+    if (signal_server) {
+        int exit_status;
+
+        if (signal_server(&exit_status, pconf) != 0) {
+            destroy_and_exit_process(process, exit_status);
+        }
     }
 
-    /* For all missing-response situations simply return the status,
-     * and let the core respond to the client.
-     */
-    return r->status;
+    /* If our config failed, deal with that here. */
+    if (rv != OK) {
+        destroy_and_exit_process(process, 1);
+    }
+
+    apr_pool_clear(plog);
+
+    if ( ap_run_open_logs(pconf, plog, ptemp, ap_server_conf) != OK) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                     0, NULL, "Unable to open logs");
+        destroy_and_exit_process(process, 1);
+    }
+
+    if ( ap_run_post_config(pconf, plog, ptemp, ap_server_conf) != OK) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
+                     NULL, "Configuration Failed");
+        destroy_and_exit_process(process, 1);
+    }
+
+    apr_pool_destroy(ptemp);
+
+    for (;;) {
+        apr_hook_deregister_all();
+        apr_pool_clear(pconf);
+        ap_clear_auth_internal();
+
+        for (mod = ap_prelinked_modules; *mod != NULL; mod++) {
+            ap_register_hooks(*mod, pconf);
+        }
+
+        /* This is a hack until we finish the code so that it only reads
+         * the config file once and just operates on the tree already in
+         * memory.  rbb
+         */
+        ap_conftree = NULL;
+        apr_pool_create(&ptemp, pconf);
+        apr_pool_tag(ptemp, "ptemp");
+        ap_server_root = def_server_root;
+        ap_server_conf = ap_read_config(process, ptemp, confname, &ap_conftree);
+        if (!ap_server_conf) {
+            destroy_and_exit_process(process, 1);
+        }
+
+        if (ap_run_pre_config(pconf, plog, ptemp) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                         0, NULL, "Pre-configuration failed");
+            destroy_and_exit_process(process, 1);
+        }
+
+        if (ap_process_config_tree(ap_server_conf, ap_conftree, process->pconf,
+                                   ptemp) != OK) {
+            destroy_and_exit_process(process, 1);
+        }
+        ap_fixup_virtual_hosts(pconf, ap_server_conf);
+        ap_fini_vhost_config(pconf, ap_server_conf);
+        apr_hook_sort_all();
+
+        if (ap_run_check_config(pconf, plog, ptemp, ap_server_conf) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
+                         NULL, "Configuration check failed");
+            destroy_and_exit_process(process, 1);
+        }
+
+        apr_pool_clear(plog);
+        if (ap_run_open_logs(pconf, plog, ptemp, ap_server_conf) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                         0, NULL, "Unable to open logs");
+            destroy_and_exit_process(process, 1);
+        }
+
+        if (ap_run_post_config(pconf, plog, ptemp, ap_server_conf) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                         0, NULL, "Configuration Failed");
+            destroy_and_exit_process(process, 1);
+        }
+
+        apr_pool_destroy(ptemp);
+        apr_pool_lock(pconf, 1);
+
+        ap_run_optional_fn_retrieve();
+
+        if (ap_run_mpm(pconf, plog, ap_server_conf) != OK)
+            break;
+
+        apr_pool_lock(pconf, 0);
+    }
+
+    apr_pool_lock(pconf, 0);
+    destroy_and_exit_process(process, 0);
+
+    return 0; /* Termination 'ok' */
 }

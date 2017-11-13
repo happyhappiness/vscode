@@ -1,60 +1,62 @@
-apr_status_t h2_conn_process(conn_rec *c, request_rec *r, server_rec *s)
+static int reclaim_one_pid(pid_t pid, action_t action)
 {
-    apr_status_t status;
-    h2_session *session;
-    const h2_config *config;
-    int rv;
-    
-    if (!workers) {
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(02911) 
-                      "workers not initialized");
-        return APR_EGENERAL;
-    }
-    
-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, "h2_conn_process start");
-    
-    if (!s && r) {
-        s = r->server;
-    }
-    
-    config = s? h2_config_sget(s) : h2_config_get(c);
-    if (r) {
-        session = h2_session_rcreate(r, config, workers);
-    }
-    else {
-        session = h2_session_create(c, config, workers);
-    }
-    
-    if (!h2_is_acceptable_connection(c, 1)) {
-        nghttp2_submit_goaway(session->ngh2, NGHTTP2_FLAG_NONE, 0,
-                              NGHTTP2_INADEQUATE_SECURITY, NULL, 0);
-    } 
+    apr_proc_t proc;
+    apr_status_t waitret;
+    apr_exit_why_e why;
+    int status;
 
-    ap_update_child_status_from_conn(c->sbh, SERVER_BUSY_READ, c);
-    status = h2_session_start(session, &rv);
-    
-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
-                  "h2_session(%ld): starting on %s:%d", session->id,
-                  session->c->base_server->server_hostname,
-                  session->c->local_addr->port);
-    if (status != APR_SUCCESS) {
-        h2_session_abort(session, status, rv);
-        h2_session_eoc_callback(session);
-        return status;
-    }
-    
-    status = h2_session_process(session);
+    /* Ensure pid sanity. */
+    if (pid < 1) {
+        return 1;
+    }        
 
-    ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, session->c,
-                  "h2_session(%ld): done", session->id);
-    /* Make sure this connection gets closed properly. */
-    ap_update_child_status_from_conn(c->sbh, SERVER_CLOSING, c);
-    c->keepalive = AP_CONN_CLOSE;
-    if (c->cs) {
-        c->cs->state = CONN_STATE_WRITE_COMPLETION;
+    proc.pid = pid;
+    waitret = apr_proc_wait(&proc, &status, &why, APR_NOWAIT);
+    if (waitret != APR_CHILD_NOTDONE) {
+        if (waitret == APR_CHILD_DONE)
+            ap_process_child_status(&proc, why, status);
+        return 1;
     }
 
-    h2_session_close(session);
-    /* hereafter session will be gone */
-    return status;
+    switch(action) {
+    case DO_NOTHING:
+        break;
+
+    case SEND_SIGTERM:
+        /* ok, now it's being annoying */
+        ap_log_error(APLOG_MARK, APLOG_WARNING,
+                     0, ap_server_conf,
+                     "child process %" APR_PID_T_FMT
+                     " still did not exit, "
+                     "sending a SIGTERM",
+                     pid);
+        kill(pid, SIGTERM);
+        break;
+
+    case SEND_SIGKILL:
+        ap_log_error(APLOG_MARK, APLOG_ERR,
+                     0, ap_server_conf,
+                     "child process %" APR_PID_T_FMT
+                     " still did not exit, "
+                     "sending a SIGKILL",
+                     pid);
+        kill(pid, SIGKILL);
+        break;
+
+    case GIVEUP:
+        /* gave it our best shot, but alas...  If this really
+         * is a child we are trying to kill and it really hasn't
+         * exited, we will likely fail to bind to the port
+         * after the restart.
+         */
+        ap_log_error(APLOG_MARK, APLOG_ERR,
+                     0, ap_server_conf,
+                     "could not make child process %" APR_PID_T_FMT
+                     " exit, "
+                     "attempting to continue anyway",
+                     pid);
+        break;
+    }
+
+    return 0;
 }

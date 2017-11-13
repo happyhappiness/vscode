@@ -1,65 +1,67 @@
-static apr_status_t handle_printenv(include_ctx_t *ctx, ap_filter_t *f,
-                                    apr_bucket_brigade *bb)
+static authz_status dbmgroup_check_authorization(request_rec *r,
+                                             const char *require_args)
 {
-    request_rec *r = f->r;
-    const apr_array_header_t *arr;
-    const apr_table_entry_t *elts;
-    int i;
+    authz_dbm_config_rec *conf = ap_get_module_config(r->per_dir_config,
+                                                      &authz_dbm_module);
+    char *user = r->user;
+    const char *t;
+    char *w;
+    const char *orig_groups = NULL;
+    const char *realm = ap_auth_name(r);
+    const char *groups;
+    char *v;
 
-    if (ctx->argc) {
-        ap_log_rerror(APLOG_MARK,
-                      (ctx->flags & SSI_FLAG_PRINTING)
-                          ? APLOG_ERR : APLOG_WARNING,
-                      0, r, "printenv directive does not take tags in %s",
-                      r->filename);
+    if (!user) {
+        return AUTHZ_DENIED_NO_USER;
     }
 
-    if (!(ctx->flags & SSI_FLAG_PRINTING)) {
-        return APR_SUCCESS;
+    if (!conf->grpfile) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                        "No group file was specified in the configuration");
+        return AUTHZ_DENIED;
     }
 
-    if (ctx->argc) {
-        SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
-        return APR_SUCCESS;
-    }
+    /* fetch group data from dbm file only once. */
+    if (!orig_groups) {
+        apr_status_t status;
 
-    arr = apr_table_elts(r->subprocess_env);
-    elts = (apr_table_entry_t *)arr->elts;
+        status = get_dbm_grp(r, apr_pstrcat(r->pool, user, ":", realm, NULL),
+                             user, conf->grpfile, conf->dbmtype, &groups);
 
-    for (i = 0; i < arr->nelts; ++i) {
-        const char *key_text, *val_text;
-        char *key_val, *next;
-        apr_size_t k_len, v_len, kv_length;
-
-        /* get key */
-        key_text = ap_escape_html(ctx->dpool, elts[i].key);
-        k_len = strlen(key_text);
-
-        /* get value */
-        val_text = elts[i].val;
-        if (val_text == LAZY_VALUE) {
-            val_text = add_include_vars_lazy(r, elts[i].key, ctx->time_str);
+        if (status != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                          "could not open dbm (type %s) group access "
+                          "file: %s", conf->dbmtype, conf->grpfile);
+            return AUTHZ_GENERAL_ERROR;
         }
-        val_text = ap_escape_html(ctx->dpool, val_text);
-        v_len = strlen(val_text);
 
-        /* assemble result */
-        kv_length = k_len + v_len + sizeof("=\n");
-        key_val = apr_palloc(ctx->pool, kv_length);
-        next = key_val;
+        if (groups == NULL) {
+            /* no groups available, so exit immediately */
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Authorization of user %s to access %s failed, reason: "
+                          "user doesn't appear in DBM group file (%s).", 
+                          r->user, r->uri, conf->grpfile);
+            return AUTHZ_DENIED;
+        }
 
-        memcpy(next, key_text, k_len);
-        next += k_len;
-        *next++ = '=';
-        memcpy(next, val_text, v_len);
-        next += v_len;
-        *next++ = '\n';
-        *next = 0;
-
-        APR_BRIGADE_INSERT_TAIL(bb, apr_bucket_pool_create(key_val, kv_length-1,
-                                ctx->pool, f->c->bucket_alloc));
+        orig_groups = groups;
     }
 
-    ctx->flush_now = 1;
-    return APR_SUCCESS;
+    t = require_args;
+    while ((w = ap_getword_white(r->pool, &t)) && w[0]) {
+        groups = orig_groups;
+        while (groups[0]) {
+            v = ap_getword(r->pool, &groups, ',');
+            if (!strcmp(v, w)) {
+                return AUTHZ_GRANTED;
+            }
+        }
+    }
+
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                  "Authorization of user %s to access %s failed, reason: "
+                  "user is not part of the 'require'ed group(s).",
+                  r->user, r->uri);
+
+    return AUTHZ_DENIED;
 }

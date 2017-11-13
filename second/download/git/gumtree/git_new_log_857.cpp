@@ -1,1 +1,1 @@
-die("BUG: should have same number of entries");
+error(_("cannot read HEAD"));

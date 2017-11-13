@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s,
-                             "Operating in SSL FIPS mode");
+apr_file_printf(errfile, "%s: -c and -D options conflict" NL, argv[0]);

@@ -1,1 +1,2 @@
-die("strange hostname '%s' blocked", ssh_host);
+warning_errno("could not create file '%s'",
+			      filename);

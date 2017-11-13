@@ -1,9 +1,12 @@
 fputs(
-"              When curl is invoked, it always (unless -q is used) checks for a\n"
-"              default  config  file  and  uses it if found. The default config\n"
-"              file is checked for in the following places in this order:\n"
+"              file name, so this option may provide you with rather unexpected\n"
+"              file names.\n"
 "\n"
-"              1) curl tries to find the \"home dir\": It first  checks  for  the\n"
-"              CURL_HOME and then the HOME environment variables. Failing that,\n"
-"              it uses getpwuid() on Unix-like systems (which returns the  home\n"
+"              WARNING:  Exercise  judicious  use of this option, especially on\n"
+"              Windows. A rogue server could send you the  name  of  a  DLL  or\n"
+"              other  file  that could possibly be loaded automatically by Win-\n"
+"              dows or some third party software.\n"
+"\n"
+"       -k, --insecure\n"
+"              (SSL) This option explicitly allows curl to  perform  \"insecure\"\n"
 , stdout);

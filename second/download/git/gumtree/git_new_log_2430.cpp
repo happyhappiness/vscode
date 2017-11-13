@@ -1,2 +1,1 @@
-status_printf_ln(s, color,
-					 _("  (use \"git merge --abort\" to abort the merge)"));
+die("object %s tried to add buffer twice!", oid_to_hex(&object->oid));

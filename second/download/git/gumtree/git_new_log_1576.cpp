@@ -1,1 +1,2 @@
-error_buf(err, _("push has no destination (push.default is 'nothing')"));
+error("chmod on %s failed: %s",
+				lock->filename.buf, strerror(errno));

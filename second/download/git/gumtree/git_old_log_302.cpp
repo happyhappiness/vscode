@@ -1,1 +1,2 @@
-die("--reflog option needs one branch name");
+error(_("%s: already exists in working directory"),
+				     new_name);

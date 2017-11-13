@@ -1,12 +1,8 @@
 fputs(
-"  included in recent versions of OpenSSL, and for older versions Dr Stephen\n"
-"  N. Henson has written a patch for SSLeay that adds this functionality. You\n"
-"  can get his patch (that requires an SSLeay installation) from his site at:\n"
-"  http://www.drh-consultancy.demon.co.uk/\n"
-"\n"
-"  Example on how to automatically retrieve a document using a certificate with\n"
-"  a personal password:\n"
-"\n"
-"        curl -E /path/to/cert.pem:password https://secure.site.com/\n"
-"\n"
+"  certificate needs to be in PEM-format. PEM is a standard and open format to\n"
+"  store certificates with, but it is not used by the most commonly used\n"
+"  browsers (Netscape and MSIE both use the so called PKCS#12 format). If you\n"
+"  want curl to use the certificates you use with your (favourite) browser, you\n"
+"  may need to download/compile a converter that can convert your browser's\n"
+"  formatted certificates to PEM formatted ones. This kind of converter is\n"
 , stdout);

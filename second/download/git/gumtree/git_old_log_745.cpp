@@ -1,1 +1,1 @@
-die("unknown mode for %s", arg);
+die("bad pack compression level %d", level);

@@ -1,1 +1,2 @@
-fprintf(stderr,"file list sent\n");
+fprintf(stderr,"Error reading %d bytes : %s\n",
+	      len,ret==-1?strerror(errno):"EOF");

@@ -1,29 +1,8 @@
-static int ssl_tmp_key_init_rsa(server_rec *s,
-                                int bits, int idx)
+int ajp_parse_type(request_rec  *r, ajp_msg_t *msg)
 {
-    SSLModConfigRec *mc = myModConfig(s);
-
-#ifdef HAVE_FIPS
-
-    if (FIPS_mode() && bits < 1024) {
-        mc->pTmpKeys[idx] = NULL;
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "Init: Skipping generating temporary "
-                     "%d bit RSA private key in FIPS mode", bits);
-        return OK;
-    }
-
-#endif
-
-    if (!(mc->pTmpKeys[idx] =
-          RSA_generate_key(bits, RSA_F4, NULL, NULL)))
-    {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "Init: Failed to generate temporary "
-                     "%d bit RSA private key", bits);
-        ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
-        return !OK;
-    }
-
-    return OK;
+    apr_byte_t result;
+    ajp_msg_peek_uint8(msg, &result);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+               "ajp_parse_type: got %02x", result);
+    return (int) result;
 }

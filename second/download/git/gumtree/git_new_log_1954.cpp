@@ -1,1 +1,1 @@
-die("failed to write object %s", oid_to_hex(&obj->oid));
+error_buf(err, _("push has no destination (push.default is 'nothing')"));

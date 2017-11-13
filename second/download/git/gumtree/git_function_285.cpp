@@ -1,115 +1,73 @@
-static int merge(int argc, const char **argv, const char *prefix)
+static int try_threeway(struct apply_state *state,
+			struct image *image,
+			struct patch *patch,
+			struct stat *st,
+			const struct cache_entry *ce)
 {
-	struct strbuf remote_ref = STRBUF_INIT, msg = STRBUF_INIT;
-	unsigned char result_sha1[20];
-	struct notes_tree *t;
-	struct notes_merge_options o;
-	int do_merge = 0, do_commit = 0, do_abort = 0;
-	int verbosity = 0, result;
-	const char *strategy = NULL;
-	struct option options[] = {
-		OPT_GROUP(N_("General options")),
-		OPT__VERBOSITY(&verbosity),
-		OPT_GROUP(N_("Merge options")),
-		OPT_STRING('s', "strategy", &strategy, N_("strategy"),
-			   N_("resolve notes conflicts using the given strategy "
-			      "(manual/ours/theirs/union/cat_sort_uniq)")),
-		OPT_GROUP(N_("Committing unmerged notes")),
-		{ OPTION_SET_INT, 0, "commit", &do_commit, NULL,
-			N_("finalize notes merge by committing unmerged notes"),
-			PARSE_OPT_NOARG | PARSE_OPT_NONEG, NULL, 1},
-		OPT_GROUP(N_("Aborting notes merge resolution")),
-		{ OPTION_SET_INT, 0, "abort", &do_abort, NULL,
-			N_("abort notes merge"),
-			PARSE_OPT_NOARG | PARSE_OPT_NONEG, NULL, 1},
-		OPT_END()
-	};
+	unsigned char pre_sha1[20], post_sha1[20], our_sha1[20];
+	struct strbuf buf = STRBUF_INIT;
+	size_t len;
+	int status;
+	char *img;
+	struct image tmp_image;
 
-	argc = parse_options(argc, argv, prefix, options,
-			     git_notes_merge_usage, 0);
+	/* No point falling back to 3-way merge in these cases */
+	if (patch->is_delete ||
+	    S_ISGITLINK(patch->old_mode) || S_ISGITLINK(patch->new_mode))
+		return -1;
 
-	if (strategy || do_commit + do_abort == 0)
-		do_merge = 1;
-	if (do_merge + do_commit + do_abort != 1) {
-		error(_("cannot mix --commit, --abort or -s/--strategy"));
-		usage_with_options(git_notes_merge_usage, options);
+	/* Preimage the patch was prepared for */
+	if (patch->is_new)
+		write_sha1_file("", 0, blob_type, pre_sha1);
+	else if (get_sha1(patch->old_sha1_prefix, pre_sha1) ||
+		 read_blob_object(&buf, pre_sha1, patch->old_mode))
+		return error("repository lacks the necessary blob to fall back on 3-way merge.");
+
+	fprintf(stderr, "Falling back to three-way merge...\n");
+
+	img = strbuf_detach(&buf, &len);
+	prepare_image(&tmp_image, img, len, 1);
+	/* Apply the patch to get the post image */
+	if (apply_fragments(state, &tmp_image, patch) < 0) {
+		clear_image(&tmp_image);
+		return -1;
 	}
+	/* post_sha1[] is theirs */
+	write_sha1_file(tmp_image.buf, tmp_image.len, blob_type, post_sha1);
+	clear_image(&tmp_image);
 
-	if (do_merge && argc != 1) {
-		error(_("Must specify a notes ref to merge"));
-		usage_with_options(git_notes_merge_usage, options);
-	} else if (!do_merge && argc) {
-		error(_("too many parameters"));
-		usage_with_options(git_notes_merge_usage, options);
-	}
-
-	init_notes_merge_options(&o);
-	o.verbosity = verbosity + NOTES_MERGE_VERBOSITY_DEFAULT;
-
-	if (do_abort)
-		return merge_abort(&o);
-	if (do_commit)
-		return merge_commit(&o);
-
-	o.local_ref = default_notes_ref();
-	strbuf_addstr(&remote_ref, argv[0]);
-	expand_loose_notes_ref(&remote_ref);
-	o.remote_ref = remote_ref.buf;
-
-	t = init_notes_check("merge", NOTES_INIT_WRITABLE);
-
-	if (strategy) {
-		if (parse_notes_merge_strategy(strategy, &o.strategy)) {
-			error(_("Unknown -s/--strategy: %s"), strategy);
-			usage_with_options(git_notes_merge_usage, options);
-		}
+	/* our_sha1[] is ours */
+	if (patch->is_new) {
+		if (load_current(state, &tmp_image, patch))
+			return error("cannot read the current contents of '%s'",
+				     patch->new_name);
 	} else {
-		struct strbuf merge_key = STRBUF_INIT;
-		const char *short_ref = NULL;
+		if (load_preimage(state, &tmp_image, patch, st, ce))
+			return error("cannot read the current contents of '%s'",
+				     patch->old_name);
+	}
+	write_sha1_file(tmp_image.buf, tmp_image.len, blob_type, our_sha1);
+	clear_image(&tmp_image);
 
-		if (!skip_prefix(o.local_ref, "refs/notes/", &short_ref))
-			die("BUG: local ref %s is outside of refs/notes/",
-			    o.local_ref);
-
-		strbuf_addf(&merge_key, "notes.%s.mergeStrategy", short_ref);
-
-		if (git_config_get_notes_strategy(merge_key.buf, &o.strategy))
-			git_config_get_notes_strategy("notes.mergeStrategy", &o.strategy);
-
-		strbuf_release(&merge_key);
+	/* in-core three-way merge between post and our using pre as base */
+	status = three_way_merge(image, patch->new_name,
+				 pre_sha1, our_sha1, post_sha1);
+	if (status < 0) {
+		fprintf(stderr, "Failed to fall back on three-way merge...\n");
+		return status;
 	}
 
-	strbuf_addf(&msg, "notes: Merged notes from %s into %s",
-		    remote_ref.buf, default_notes_ref());
-	strbuf_add(&(o.commit_msg), msg.buf + 7, msg.len - 7); /* skip "notes: " */
-
-	result = notes_merge(&o, t, result_sha1);
-
-	if (result >= 0) /* Merge resulted (trivially) in result_sha1 */
-		/* Update default notes ref with new commit */
-		update_ref(msg.buf, default_notes_ref(), result_sha1, NULL,
-			   0, UPDATE_REFS_DIE_ON_ERR);
-	else { /* Merge has unresolved conflicts */
-		const struct worktree *wt;
-		/* Update .git/NOTES_MERGE_PARTIAL with partial merge result */
-		update_ref(msg.buf, "NOTES_MERGE_PARTIAL", result_sha1, NULL,
-			   0, UPDATE_REFS_DIE_ON_ERR);
-		/* Store ref-to-be-updated into .git/NOTES_MERGE_REF */
-		wt = find_shared_symref("NOTES_MERGE_REF", default_notes_ref());
-		if (wt)
-			die(_("A notes merge into %s is already in-progress at %s"),
-			    default_notes_ref(), wt->path);
-		if (create_symref("NOTES_MERGE_REF", default_notes_ref(), NULL))
-			die(_("Failed to store link to current notes ref (%s)"),
-			    default_notes_ref());
-		printf(_("Automatic notes merge failed. Fix conflicts in %s and "
-			 "commit the result with 'git notes merge --commit', or "
-			 "abort the merge with 'git notes merge --abort'.\n"),
-		       git_path(NOTES_MERGE_WORKTREE));
+	if (status) {
+		patch->conflicted_threeway = 1;
+		if (patch->is_new)
+			oidclr(&patch->threeway_stage[0]);
+		else
+			hashcpy(patch->threeway_stage[0].hash, pre_sha1);
+		hashcpy(patch->threeway_stage[1].hash, our_sha1);
+		hashcpy(patch->threeway_stage[2].hash, post_sha1);
+		fprintf(stderr, "Applied patch to '%s' with conflicts.\n", patch->new_name);
+	} else {
+		fprintf(stderr, "Applied patch to '%s' cleanly.\n", patch->new_name);
 	}
-
-	free_notes(t);
-	strbuf_release(&remote_ref);
-	strbuf_release(&msg);
-	return result < 0; /* return non-zero on conflicts */
+	return 0;
 }

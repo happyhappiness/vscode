@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unknown parameter "
-                          "\"%s\" in tag echo of %s", tag, r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r,
+                  "authorization result of %s: %s",
+                  format_authz_command(r->pool, section),
+                  format_authz_result(auth_result));

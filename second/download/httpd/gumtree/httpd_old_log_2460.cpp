@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "entering shmcb_lookup_session_id");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "Empty folded line encountered");

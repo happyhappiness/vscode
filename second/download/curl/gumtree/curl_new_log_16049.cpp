@@ -1,10 +1,11 @@
 fputs(
-"              used  instead  of  the  method otherwise used (which defaults to\n"
-"              GET). Read the HTTP 1.1 specification for details  and  explana-\n"
-"              tions.  Common  additional HTTP requests include PUT and DELETE,\n"
-"              but related technologies like WebDAV offers PROPFIND, COPY, MOVE\n"
-"              and more.\n"
+"              you'll instead get the whole document.\n"
 "\n"
-"              Normally  you  don't  need  this option. All sorts of GET, HEAD,\n"
-"              POST and PUT requests are rather invoked by using dedicated com-\n"
+"              FTP and SFTP range downloads only  support  the  simple  'start-\n"
+"              stop'  syntax  (optionally with one of the numbers omitted). FTP\n"
+"              use depends on the extended FTP command SIZE.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --raw  (HTTP) When used, it disables all internal HTTP decoding of con-\n"
 , stdout);

@@ -1,80 +1,71 @@
-static apr_status_t read_table(cache_handle_t *handle, request_rec *r,
-                               apr_table_t *table, apr_file_t *file)
+static apr_status_t store_body(cache_handle_t *h, request_rec *r, apr_bucket_brigade *b)
 {
-    char w[MAX_STRING_LEN];
-    char *l;
-    int p;
+    apr_bucket *e;
     apr_status_t rv;
+    disk_cache_object_t *dobj = (disk_cache_object_t *) h->cache_obj->vobj;
+    disk_cache_conf *conf = ap_get_module_config(r->server->module_config,
+                                                 &disk_cache_module);
 
-    while (1) {
-
-        /* ### What about APR_EOF? */
-        rv = apr_file_gets(w, MAX_STRING_LEN - 1, file);
+    if (!dobj->fd) {
+        rv = apr_file_open(&dobj->fd, dobj->tempfile,
+                           APR_WRITE | APR_CREATE | APR_BINARY| APR_TRUNCATE | APR_BUFFERED,
+                           APR_UREAD | APR_UWRITE, r->pool);
         if (rv != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Premature end of cache headers.");
             return rv;
         }
-
-        /* Delete terminal (CR?)LF */
-
-        p = strlen(w);
-        /* Indeed, the host's '\n':
-           '\012' for UNIX; '\015' for MacOS; '\025' for OS/390
-           -- whatever the script generates.
-        */
-        if (p > 0 && w[p - 1] == '\n') {
-            if (p > 1 && w[p - 2] == CR) {
-                w[p - 2] = '\0';
-            }
-            else {
-                w[p - 1] = '\0';
-            }
+        dobj->file_size = 0;
+    }
+    for (e = APR_BRIGADE_FIRST(b);
+         e != APR_BRIGADE_SENTINEL(b);
+         e = APR_BUCKET_NEXT(e))
+    {
+        const char *str;
+        apr_size_t length;
+        apr_bucket_read(e, &str, &length, APR_BLOCK_READ);
+        if (apr_file_write(dobj->fd, str, &length) != APR_SUCCESS) {
+          ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "cache_disk: Error when writing cache file for URL %s",
+                     h->cache_obj->key);
+          /* Remove the intermediate cache file and return non-APR_SUCCESS */
+          return file_cache_errorcleanup(dobj, r);
         }
-
-        /* If we've finished reading the headers, break out of the loop. */
-        if (w[0] == '\0') {
-            break;
+        dobj->file_size += length;
+        if (dobj->file_size > conf->maxfs) {
+          ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "cache_disk: URL %s failed the size check (%lu>%lu)",
+                     h->cache_obj->key, (unsigned long)dobj->file_size, (unsigned long)conf->maxfs);
+          /* Remove the intermediate cache file and return non-APR_SUCCESS */
+          return file_cache_errorcleanup(dobj, r);
         }
+    }
 
-#if APR_CHARSET_EBCDIC
-        /* Chances are that we received an ASCII header text instead of
-         * the expected EBCDIC header lines. Try to auto-detect:
-         */
-        if (!(l = strchr(w, ':'))) {
-            int maybeASCII = 0, maybeEBCDIC = 0;
-            unsigned char *cp, native;
-            apr_size_t inbytes_left, outbytes_left;
-
-            for (cp = w; *cp != '\0'; ++cp) {
-                native = apr_xlate_conv_byte(ap_hdrs_from_ascii, *cp);
-                if (apr_isprint(*cp) && !apr_isprint(native))
-                    ++maybeEBCDIC;
-                if (!apr_isprint(*cp) && apr_isprint(native))
-                    ++maybeASCII;
-            }
-            if (maybeASCII > maybeEBCDIC) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "CGI Interface Error: Script headers apparently ASCII: (CGI = %s)",
-                             r->filename);
-                inbytes_left = outbytes_left = cp - w;
-                apr_xlate_conv_buffer(ap_hdrs_from_ascii,
-                                      w, &inbytes_left, w, &outbytes_left);
-            }
+    /* Was this the final bucket? If yes, close the body file and make sanity checks */
+    if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(b))) {
+        if (h->cache_obj->info.len <= 0) {
+          /* XXX Fixme: file_size isn't constrained by size_t. */
+          h->cache_obj->info.len = dobj->file_size;
         }
-#endif /*APR_CHARSET_EBCDIC*/
-
-        /* if we see a bogus header don't ignore it. Shout and scream */
-        if (!(l = strchr(w, ':'))) {
-            return APR_EGENERAL;
+        else if (h->cache_obj->info.len != dobj->file_size) {
+          /* "Content-Length" and actual content disagree in size. Log that. */
+          ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                       "disk_cache: URL %s failed the size check (%lu != %lu)",
+                       h->cache_obj->key,
+                       (unsigned long)h->cache_obj->info.len,
+                       (unsigned long)dobj->file_size);
+          /* Remove the intermediate cache file and return non-APR_SUCCESS */
+          return file_cache_errorcleanup(dobj, r);
         }
-
-        *l++ = '\0';
-        while (*l && apr_isspace(*l)) {
-            ++l;
+        if (dobj->file_size < conf->minfs) {
+          ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "cache_disk: URL %s failed the size check (%lu<%lu)",
+                     h->cache_obj->key, (unsigned long)dobj->file_size, (unsigned long)conf->minfs);
+          /* Remove the intermediate cache file and return non-APR_SUCCESS */
+          return file_cache_errorcleanup(dobj, r);
         }
-
-        apr_table_add(table, w, l);
+        /* All checks were fine. Move tempfile to final destination */
+        file_cache_el_final(h, r);    /* Link to the perm file, and close the descriptor */
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "disk_cache: Body for URL %s cached.",  dobj->name);
     }
 
     return APR_SUCCESS;

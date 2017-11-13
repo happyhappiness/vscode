@@ -1,12 +1,9 @@
 fputs(
-"              There is no URL decoding done on the file name. If it has %20 or\n"
-"              other URL encoded parts of the name, they will end up  as-is  as\n"
-"              file name.\n"
+"              is  specified.  The only wildcard is a single * character, which\n"
+"              matches all hosts, and effectively disables the proxy. Each name\n"
+"              in  this  list  is matched as either a domain which contains the\n"
+"              hostname, or the hostname itself. For example,  local.com  would\n"
+"              match   local.com,  local.com:80,  and  www.local.com,  but  not\n"
+"              www.notlocal.com.  (Added in 7.19.4).\n"
 "\n"
-"              You  may use this option as many times as the number of URLs you\n"
-"              have.\n"
-"\n"
-"       --oauth2-bearer\n"
-"              (IMAP, POP3, SMTP) Specify the Bearer Token for OAUTH 2.0 server\n"
-"              authentication. The Bearer Token is used in conjunction with the\n"
 , stdout);

@@ -1,33 +1,22 @@
-static int ansi_emulate(const char *str, FILE *stream)
+static void parse_cmd_verify(const char *next)
 {
-	int rv = 0;
-	const char *pos = str;
+	struct strbuf ref = STRBUF_INIT;
+	struct strbuf value = STRBUF_INIT;
+	struct ref_update *update;
 
-	while (*pos) {
-		pos = strstr(str, "\033[");
-		if (pos) {
-			size_t len = pos - str;
+	update = update_alloc();
 
-			if (len) {
-				size_t out_len = fwrite(str, 1, len, stream);
-				rv += out_len;
-				if (out_len < len)
-					return rv;
-			}
+	if ((next = parse_first_arg(next, &ref)) != NULL && ref.buf[0])
+		update_store_ref_name(update, ref.buf);
+	else
+		die("verify line missing <ref>");
 
-			str = pos + 2;
-			rv += 2;
+	if ((next = parse_next_arg(next, &value)) != NULL) {
+		update_store_old_sha1(update, value.buf);
+		update_store_new_sha1(update, value.buf);
+	} else if(!line_termination)
+		die("verify %s missing [<oldvalue>] NUL", ref.buf);
 
-			fflush(stream);
-
-			pos = set_attr(str);
-			rv += pos - str;
-			str = pos;
-		} else {
-			rv += strlen(str);
-			fputs(str, stream);
-			return rv;
-		}
-	}
-	return rv;
+	if (next && *next)
+		die("verify %s has extra input: %s", ref.buf, next);
 }

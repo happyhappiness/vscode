@@ -1,1 +1,1 @@
-io_printf(f_out, "@ERROR: invalid uid %s\n", p);
+out_of_memory("unsafe_symlink");

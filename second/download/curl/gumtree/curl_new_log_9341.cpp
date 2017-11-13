@@ -1,12 +1,11 @@
 fputs(
-"              nects within the given period it will continue - if not it  will\n"
-"              exit.  Since version 7.32.0, this option accepts decimal values.\n"
-"\n"
-"              See also the -m, --max-time option.\n"
+"              resume the transfer. It then uses the given  output/input  files\n"
+"              to figure that out.\n"
 "\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --create-dirs\n"
-"              When  used  in  conjunction with the -o option, curl will create\n"
-"              the necessary local directory hierarchy as needed.  This  option\n"
+"       --ciphers <list of ciphers>\n"
+"              (SSL) Specifies which ciphers to use in the connection. The list\n"
+"              of ciphers must specify valid ciphers. Read  up  on  SSL  cipher\n"
+"              list           details           on           this          URL:\n"
 , stdout);

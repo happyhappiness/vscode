@@ -1,1 +1,1 @@
-die(_("could not create directory '%s'"), new_git_dir);
+packet_write_fmt(1, "ACK %s\n", last_hex);

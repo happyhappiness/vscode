@@ -1,58 +1,34 @@
-static authn_status get_hash(request_rec *r, const char *user,
-                             digest_config_rec *conf)
+static apr_status_t dbd_setup_lock(apr_pool_t *pool, server_rec *s)
 {
-    authn_status auth_result;
-    char *password;
-    authn_provider_list *current_provider;
+    svr_cfg *svr = ap_get_module_config(s->module_config, &dbd_module);
+    apr_status_t rv, rv2 = APR_SUCCESS;
 
-    current_provider = conf->providers;
-    do {
-        const authn_provider *provider;
-
-        /* For now, if a provider isn't set, we'll be nice and use the file
-         * provider.
-         */
-        if (!current_provider) {
-            provider = ap_lookup_provider(AUTHN_PROVIDER_GROUP,
-                                          AUTHN_DEFAULT_PROVIDER,
-                                          AUTHN_PROVIDER_VERSION);
-
-            if (!provider || !provider->get_realm_hash) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "No Authn provider configured");
-                auth_result = AUTH_GENERAL_ERROR;
-                break;
-            }
-            apr_table_setn(r->notes, AUTHN_PROVIDER_NAME_NOTE, AUTHN_DEFAULT_PROVIDER);
-        }
-        else {
-            provider = current_provider->provider;
-            apr_table_setn(r->notes, AUTHN_PROVIDER_NAME_NOTE, current_provider->provider_name);
-        }
-
-
-        /* We expect the password to be md5 hash of user:realm:password */
-        auth_result = provider->get_realm_hash(r, user, conf->realm,
-                                               &password);
-
-        apr_table_unset(r->notes, AUTHN_PROVIDER_NAME_NOTE);
-
-        /* Something occured.  Stop checking. */
-        if (auth_result != AUTH_USER_NOT_FOUND) {
-            break;
-        }
-
-        /* If we're not really configured for providers, stop now. */
-        if (!conf->providers) {
-           break;
-        }
-
-        current_provider = current_provider->next;
-    } while (current_provider);
-
-    if (auth_result == AUTH_USER_FOUND) {
-        conf->ha1 = password;
+    /* several threads could be here at the same time, all trying to
+     * initialize the reslist because dbd_setup_init failed to do so
+     */
+    if (!svr->mutex) {
+        /* we already logged an error when the mutex couldn't be created */
+        return APR_EGENERAL;
     }
 
-    return auth_result;
+    rv = apr_thread_mutex_lock(svr->mutex);
+    if (rv != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, pool,
+                      "DBD: Failed to acquire thread mutex");
+        return rv;
+    }
+
+    if (!svr->dbpool) {
+        rv2 = dbd_setup(s->process->pool, svr);
+    }
+
+    rv = apr_thread_mutex_unlock(svr->mutex);
+    if (rv != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, pool,
+                      "DBD: Failed to release thread mutex");
+        if (rv2 == APR_SUCCESS) {
+            rv2 = rv;
+        }
+    }
+    return rv2;
 }

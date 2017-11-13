@@ -1,8 +1,9 @@
 fputs(
-"              (HTTP)  Tells  curl  to  respect RFC 2616/10.3.2 and not convert\n"
-"              POST requests into GET requests when following a  301  redirect-\n"
-"              ion.  The  non-RFC  behaviour  is ubiquitous in web browsers, so\n"
-"              curl does the conversion by  default  to  maintain  consistency.\n"
-"              However, a server may require a POST to remain a POST after such\n"
-"              a redirection. This option is meaningful  only  when  using  -L,\n"
+"              Metalink file (both version 3 and 4 (RFC  5854)  are  supported)\n"
+"              and  make use of the mirrors listed within for failover if there\n"
+"              are errors (such as the file or server not being available).  It\n"
+"              will  also  verify  the hash of the file after the download com-\n"
+"              pletes. The Metalink file itself is downloaded and processed  in\n"
+"              memory and not stored in the local file system.\n"
+"\n"
 , stdout);

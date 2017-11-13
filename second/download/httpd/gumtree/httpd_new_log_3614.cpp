@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, rv, main_server, APLOGNO(01563)
-          "unable to find hostname of the server");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00600)
+                          "An \"href\" element does not contain a URI.");

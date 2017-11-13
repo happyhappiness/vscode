@@ -1,1 +1,1 @@
-error("%s", buf.buf);
+die("delete: missing <ref>");

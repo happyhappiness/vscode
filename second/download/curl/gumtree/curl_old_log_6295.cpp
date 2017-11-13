@@ -1,11 +1,10 @@
 fputs(
-"              -m/--max-time option.\n"
+"              libcurl supports, and save the uncompressed document.   If  this\n"
+"              option  is  used  and  the server sends an unsupported encoding,\n"
+"              curl will report an error.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -c/--cookie-jar <file name>\n"
-"              Specify to which file you want curl to write all cookies after a\n"
-"              completed operation. Curl writes  all  cookies  previously  read\n"
-"              from  a  specified  file  as  well  as all cookies received from\n"
-"              remote server(s). If no cookies are known, no file will be writ-\n"
+"       --connect-timeout <seconds>\n"
+"              Maximum time in seconds that you allow  the  connection  to  the\n"
+"              server  to  take.   This  only limits the connection phase, once\n"
+"              curl has connected this option is of no more use. See  also  the\n"
 , stdout);

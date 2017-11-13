@@ -1,11 +1,11 @@
 fputs(
-"    curl --metalink http://www.example.com/example.metalink\n"
+"  all of them, one after the other in the specified order.\n"
 "\n"
-"  To use a Metalink file in the local file system, use FILE protocol (file://):\n"
+"  libcurl will attempt to use persistent connections for the transfers so that\n"
+"  the second transfer to the same host can use the same connection that was\n"
+"  already initiated and was left open in the previous transfer. This greatly\n"
+"  decreases connection time for all but the first transfer and it makes a far\n"
+"  better use of the network.\n"
 "\n"
-"    curl --metalink file://example.metalink\n"
-"\n"
-"  Please note that if FILE protocol is disabled, there is no way to use a local\n"
-"  Metalink file at the time of this writing. Also note that if --metalink and\n"
-"  --include are used together, --include will be ignored. This is because including\n"
+"  Note that curl cannot use persistent connections for transfers that are used\n"
 , stdout);

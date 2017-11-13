@@ -1,9 +1,8 @@
 fputs(
-"              name  contains \"\\\", it needs to be escaped as \"\\\\\" so that it is\n"
-"              not recognized as an escape character.\n"
-"\n"
-"              (iOS and Mac OS X only) If curl is built against  Secure  Trans-\n"
-"              port,  then the certificate string must match the name of a cer-\n"
-"              tificate that's in the system or user keychain. The private  key\n"
-"              corresponding  to  the  certificate,  and  certificate chain (if\n"
+"              default  /etc/pki/nssdb).  If  the  NSS PEM PKCS#11 module (lib-\n"
+"              nsspem.so) is available then PEM files may  be  loaded.  If  you\n"
+"              want to use a file from the current directory, please precede it\n"
+"              with \"./\" prefix, in order to avoid confusion with  a  nickname.\n"
+"              If  the nickname contains \":\", it needs to be preceded by \"\\\" so\n"
+"              that it is not recognized as password delimiter.  If  the  nick-\n"
 , stdout);

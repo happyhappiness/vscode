@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, status, s,
-                         "could not open transfer log file %s.", fname);
+ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
+                         "invalid transfer log path %s.", cls->fname);

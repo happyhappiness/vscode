@@ -1,1 +1,1 @@
-fprintf(FERROR,"%s : not a regular file (generator)\n",fname);
+fprintf(FERROR,"server_recv(%d) starting pid=%d\n",argc,(int)getpid());

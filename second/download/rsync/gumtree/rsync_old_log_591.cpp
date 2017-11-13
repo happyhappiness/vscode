@@ -1,2 +1,1 @@
-fprintf(FERROR,"open %s: %s\n",
-			dest,strerror(errno));
+fprintf(FINFO,"send_files starting\n");

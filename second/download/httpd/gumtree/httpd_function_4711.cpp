@@ -1,341 +1,198 @@
-void child_main(apr_pool_t *pconf)
+static apr_status_t ssl_io_filter_handshake(ssl_filter_ctx_t *filter_ctx)
 {
-    apr_status_t status;
-    apr_hash_t *ht;
-    ap_listen_rec *lr;
-    HANDLE child_events[2];
-    HANDLE *child_handles;
-    int listener_started = 0;
-    int threads_created = 0;
-    int watch_thread;
-    int time_remains;
-    int cld;
-    int tid;
-    int rv;
-    int i;
+    conn_rec *c         = (conn_rec *)SSL_get_app_data(filter_ctx->pssl);
+    SSLConnRec *sslconn = myConnConfig(c);
+    SSLSrvConfigRec *sc;
+    X509 *cert;
+    int n;
+    int ssl_err;
+    long verify_result;
+    server_rec *server;
 
-    apr_pool_create(&pchild, pconf);
-    apr_pool_tag(pchild, "pchild");
-
-    ap_run_child_init(pchild, ap_server_conf);
-    ht = apr_hash_make(pchild);
-
-    /* Initialize the child_events */
-    max_requests_per_child_event = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (!max_requests_per_child_event) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Child %d: Failed to create a max_requests event.", 
-                     my_pid);
-        exit(APEXIT_CHILDINIT);
-    }
-    child_events[0] = exit_event;
-    child_events[1] = max_requests_per_child_event;
-
-    /*
-     * Wait until we have permission to start accepting connections.
-     * start_mutex is used to ensure that only one child ever
-     * goes into the listen/accept loop at once.
-     */
-    status = apr_proc_mutex_lock(start_mutex);
-    if (status != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, status, ap_server_conf,
-                     "Child %d: Failed to acquire the start_mutex. "
-                     "Process will exit.", my_pid);
-        exit(APEXIT_CHILDINIT);
-    }
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                 "Child %d: Acquired the start mutex.", my_pid);
-
-    /*
-     * Create the worker thread dispatch IOCompletionPort
-     */
-    /* Create the worker thread dispatch IOCP */
-    ThreadDispatchIOCP = CreateIoCompletionPort(INVALID_HANDLE_VALUE,
-                                                NULL, 0, 0); 
-    apr_thread_mutex_create(&qlock, APR_THREAD_MUTEX_DEFAULT, pchild);
-    qwait_event = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (!qwait_event) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), 
-                     ap_server_conf,
-                     "Child %d: Failed to create a qwait event.", my_pid);
-        exit(APEXIT_CHILDINIT);
+    if (SSL_is_init_finished(filter_ctx->pssl)) {
+        return APR_SUCCESS;
     }
 
-    /*
-     * Create the pool of worker threads
-     */
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                 "Child %d: Starting %d worker threads.",
-                 my_pid, ap_threads_per_child);
-    child_handles = (HANDLE) apr_pcalloc(pchild, ap_threads_per_child
-                                                  * sizeof(HANDLE));
-    apr_thread_mutex_create(&child_lock, APR_THREAD_MUTEX_DEFAULT, pchild);
+    server = sslconn->server;
+    if (sslconn->is_proxy) {
+        const char *hostname_note;
 
-    while (1) {
-        for (i = 0; i < ap_threads_per_child; i++) {
-            int *score_idx;
-            int status = ap_scoreboard_image->servers[0][i].status;
-            if (status != SERVER_GRACEFUL && status != SERVER_DEAD) {
-                continue;
+        sc = mySrvConfig(server);
+        if ((n = SSL_connect(filter_ctx->pssl)) <= 0) {
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                          "SSL Proxy connect failed");
+            ssl_log_ssl_error(SSLLOG_MARK, APLOG_INFO, server);
+            /* ensure that the SSL structures etc are freed, etc: */
+            ssl_filter_io_shutdown(filter_ctx, c, 1);
+            return MODSSL_ERROR_BAD_GATEWAY;
+        }
+
+        if (sc->proxy_ssl_check_peer_expire != SSL_ENABLED_FALSE) {
+            cert = SSL_get_peer_certificate(filter_ctx->pssl);
+            if (!cert
+                || (X509_cmp_current_time(
+                     X509_get_notBefore(cert)) >= 0)
+                || (X509_cmp_current_time(
+                     X509_get_notAfter(cert)) <= 0)) {
+                ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                              "SSL Proxy: Peer certificate is expired");
+                if (cert) {
+                    X509_free(cert);
+                }
+                /* ensure that the SSL structures etc are freed, etc: */
+                ssl_filter_io_shutdown(filter_ctx, c, 1);
+                return HTTP_BAD_GATEWAY;
             }
-            ap_update_child_status_from_indexes(0, i, SERVER_STARTING, NULL);
-        
-            child_handles[i] = CreateThread(NULL, ap_thread_stacksize,
-                                            worker_main, (void *) i,
-                                            stack_res_flag, &tid);
-            if (child_handles[i] == 0) {
-                ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(),
-                             ap_server_conf,
-                             "Child %d: CreateThread failed. Unable to "
-                             "create all worker threads. Created %d of the %d "
-                             "threads requested with the ThreadsPerChild "
-                             "configuration directive.",
-                             my_pid, threads_created, ap_threads_per_child);
-                ap_signal_parent(SIGNAL_PARENT_SHUTDOWN);
-                goto shutdown;
+            X509_free(cert);
+        }
+        if ((sc->proxy_ssl_check_peer_cn != SSL_ENABLED_FALSE)
+            && ((hostname_note =
+                 apr_table_get(c->notes, "proxy-request-hostname")) != NULL)) {
+            const char *hostname;
+
+            hostname = ssl_var_lookup(NULL, server, c, NULL,
+                                      "SSL_CLIENT_S_DN_CN");
+            apr_table_unset(c->notes, "proxy-request-hostname");
+            if (strcasecmp(hostname, hostname_note)) {
+                ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                              "SSL Proxy: Peer certificate CN mismatch:"
+                              " Certificate CN: %s Requested hostname: %s",
+                              hostname, hostname_note);
+                /* ensure that the SSL structures etc are freed, etc: */
+                ssl_filter_io_shutdown(filter_ctx, c, 1);
+                return HTTP_BAD_GATEWAY;
             }
-            threads_created++;
-            /* Save the score board index in ht keyed to the thread handle. 
-             * We need this when cleaning up threads down below...
-             */
-            apr_thread_mutex_lock(child_lock);
-            score_idx = apr_pcalloc(pchild, sizeof(int));
-            *score_idx = i;
-            apr_hash_set(ht, &child_handles[i], sizeof(HANDLE), score_idx);
-            apr_thread_mutex_unlock(child_lock);
         }
-        /* Start the listener only when workers are available */
-        if (!listener_started && threads_created) {
-            create_listener_thread();
-            listener_started = 1;
-            winnt_mpm_state = AP_MPMQ_RUNNING;
-        }
-        if (threads_created == ap_threads_per_child) {
-            break;
-        }
-        /* Check to see if the child has been told to exit */
-        if (WaitForSingleObject(exit_event, 0) != WAIT_TIMEOUT) {
-            break;
-        }
-        /* wait for previous generation to clean up an entry in the scoreboard
-         */
-        apr_sleep(1 * APR_USEC_PER_SEC);
+
+        return APR_SUCCESS;
     }
 
-    /* Wait for one of three events:
-     * exit_event:
-     *    The exit_event is signaled by the parent process to notify
-     *    the child that it is time to exit.
-     *
-     * max_requests_per_child_event:
-     *    This event is signaled by the worker threads to indicate that
-     *    the process has handled MaxRequestsPerChild connections.
-     *
-     * TIMEOUT:
-     *    To do periodic maintenance on the server (check for thread exits,
-     *    number of completion contexts, etc.)
-     *
-     * XXX: thread exits *aren't* being checked.
-     *
-     * XXX: other_child - we need the process handles to the other children
-     *      in order to map them to apr_proc_other_child_read (which is not
-     *      named well, it's more like a_p_o_c_died.)
-     *
-     * XXX: however - if we get a_p_o_c handle inheritance working, and
-     *      the parent process creates other children and passes the pipes
-     *      to our worker processes, then we have no business doing such
-     *      things in the child_main loop, but should happen in master_main.
-     */
-    while (1) {
-#if !APR_HAS_OTHER_CHILD
-        rv = WaitForMultipleObjects(2, (HANDLE *)child_events, FALSE, INFINITE);
-        cld = rv - WAIT_OBJECT_0;
-#else
-        rv = WaitForMultipleObjects(2, (HANDLE *)child_events, FALSE, 1000);
-        cld = rv - WAIT_OBJECT_0;
-        if (rv == WAIT_TIMEOUT) {
-            apr_proc_other_child_refresh_all(APR_OC_REASON_RUNNING);
-        }
-        else
-#endif
-            if (rv == WAIT_FAILED) {
-            /* Something serious is wrong */
-            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(),
-                         ap_server_conf,
-                         "Child %d: WAIT_FAILED -- shutting down server", 
-                         my_pid);
-            break;
-        }
-        else if (cld == 0) {
-            /* Exit event was signaled */
-            ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                         "Child %d: Exit event signaled. Child process is "
-                         "ending.", my_pid);
-            break;
-        }
-        else {
-            /* MaxRequestsPerChild event set by the worker threads.
-             * Signal the parent to restart
+    if ((n = SSL_accept(filter_ctx->pssl)) <= 0) {
+        bio_filter_in_ctx_t *inctx = (bio_filter_in_ctx_t *)
+                                     (filter_ctx->pbioRead->ptr);
+        bio_filter_out_ctx_t *outctx = (bio_filter_out_ctx_t *)
+                                       (filter_ctx->pbioWrite->ptr);
+        apr_status_t rc = inctx->rc ? inctx->rc : outctx->rc ;
+        ssl_err = SSL_get_error(filter_ctx->pssl, n);
+
+        if (ssl_err == SSL_ERROR_ZERO_RETURN) {
+            /*
+             * The case where the connection was closed before any data
+             * was transferred. That's not a real error and can occur
+             * sporadically with some clients.
              */
-            ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                         "Child %d: Process exiting because it reached "
-                         "MaxRequestsPerChild. Signaling the parent to "
-                         "restart a new child process.", my_pid);
-            ap_signal_parent(SIGNAL_PARENT_RESTART);
-            break;
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c,
+                         "SSL handshake stopped: connection was closed");
         }
+        else if (ssl_err == SSL_ERROR_WANT_READ) {
+            /*
+             * This is in addition to what was present earlier. It is
+             * borrowed from openssl_state_machine.c [mod_tls].
+             * TBD.
+             */
+            outctx->rc = APR_EAGAIN;
+            return APR_EAGAIN;
+        }
+        else if (ERR_GET_LIB(ERR_peek_error()) == ERR_LIB_SSL &&
+                 ERR_GET_REASON(ERR_peek_error()) == SSL_R_HTTP_REQUEST) {
+            /*
+             * The case where OpenSSL has recognized a HTTP request:
+             * This means the client speaks plain HTTP on our HTTPS port.
+             * ssl_io_filter_error will disable the ssl filters when it
+             * sees this status code.
+             */
+            return MODSSL_ERROR_HTTP_ON_HTTPS;
+        }
+        else if (ssl_err == SSL_ERROR_SYSCALL) {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rc, c,
+                          "SSL handshake interrupted by system "
+                          "[Hint: Stop button pressed in browser?!]");
+        }
+        else /* if (ssl_err == SSL_ERROR_SSL) */ {
+            /*
+             * Log SSL errors and any unexpected conditions.
+             */
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c,
+                          "SSL library error %d in handshake "
+                          "(server %s)", ssl_err,
+                          ssl_util_vhostid(c->pool, server));
+            ssl_log_ssl_error(SSLLOG_MARK, APLOG_INFO, server);
+
+        }
+        if (inctx->rc == APR_SUCCESS) {
+            inctx->rc = APR_EGENERAL;
+        }
+
+        ssl_filter_io_shutdown(filter_ctx, c, 1);
+        return inctx->rc;
     }
+    sc = mySrvConfig(sslconn->server);
 
     /*
-     * Time to shutdown the child process
+     * Check for failed client authentication
      */
+    verify_result = SSL_get_verify_result(filter_ctx->pssl);
 
- shutdown:
-
-    winnt_mpm_state = AP_MPMQ_STOPPING;
-
-    /* Close the listening sockets. Note, we must close the listeners
-     * before closing any accept sockets pending in AcceptEx to prevent
-     * memory leaks in the kernel.
-     */
-    for (lr = ap_listeners; lr ; lr = lr->next) {
-        apr_socket_close(lr->sd);
-    }
-
-    /* Shutdown listener threads and pending AcceptEx socksts
-     * but allow the worker threads to continue consuming from
-     * the queue of accepted connections.
-     */
-    shutdown_in_progress = 1;
-
-    Sleep(1000);
-
-    /* Tell the worker threads to exit */
-    workers_may_exit = 1;
-
-    /* Release the start_mutex to let the new process (in the restart
-     * scenario) a chance to begin accepting and servicing requests
-     */
-    rv = apr_proc_mutex_unlock(start_mutex);
-    if (rv == APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, rv, ap_server_conf,
-                     "Child %d: Released the start mutex", my_pid);
-    }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
-                     "Child %d: Failure releasing the start mutex", my_pid);
-    }
-
-    /* Shutdown the worker threads
-     * Post worker threads blocked on the ThreadDispatch IOCompletion port
-     */
-    while (g_blocked_threads > 0) {
-        ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, ap_server_conf,
-                     "Child %d: %d threads blocked on the completion port",
-                     my_pid, g_blocked_threads);
-        for (i=g_blocked_threads; i > 0; i--) {
-            PostQueuedCompletionStatus(ThreadDispatchIOCP, 0, 
-                                       IOCP_SHUTDOWN, NULL);
-        }
-        Sleep(1000);
-    }
-    /* Empty the accept queue of completion contexts */
-    apr_thread_mutex_lock(qlock);
-    while (qhead) {
-        CloseHandle(qhead->overlapped.hEvent);
-        closesocket(qhead->accept_socket);
-        qhead = qhead->next;
-    }
-    apr_thread_mutex_unlock(qlock);
-
-    /* Give busy threads a chance to service their connections,
-     * (no more than the global server timeout period which 
-     * we track in msec remaining).
-     */
-    watch_thread = 0;
-    time_remains = (int)(ap_server_conf->timeout / APR_TIME_C(1000));
-
-    while (threads_created)
+    if ((verify_result != X509_V_OK) ||
+        sslconn->verify_error)
     {
-        int nFailsafe = MAXIMUM_WAIT_OBJECTS;
-        DWORD dwRet;
-
-        /* Every time we roll over to wait on the first group
-         * of MAXIMUM_WAIT_OBJECTS threads, take a breather,
-         * and infrequently update the error log.
-         */
-        if (watch_thread >= threads_created) {
-            if ((time_remains -= 100) < 0)
-                break;
-
-            /* Every 30 seconds give an update */
-            if ((time_remains % 30000) == 0) {
-                ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, 
-                             ap_server_conf,
-                             "Child %d: Waiting %d more seconds "
-                             "for %d worker threads to finish.", 
-                             my_pid, time_remains / 1000, threads_created);
-            }
-            /* We'll poll from the top, 10 times per second */
-            Sleep(100);
-            watch_thread = 0;
-        }
-
-        /* Fairness, on each iteration we will pick up with the thread
-         * after the one we just removed, even if it's a single thread.
-         * We don't block here.
-         */
-        dwRet = WaitForMultipleObjects(min(threads_created - watch_thread,
-                                           MAXIMUM_WAIT_OBJECTS),
-                                       child_handles + watch_thread, 0, 0);
-
-        if (dwRet == WAIT_FAILED) {
-            break;
-        }
-        if (dwRet == WAIT_TIMEOUT) {
-            /* none ready */
-            watch_thread += MAXIMUM_WAIT_OBJECTS;
-            continue;
-        }
-        else if (dwRet >= WAIT_ABANDONED_0) {
-            /* We just got the ownership of the object, which
-             * should happen at most MAXIMUM_WAIT_OBJECTS times.
-             * It does NOT mean that the object is signaled.
+        if (ssl_verify_error_is_optional(verify_result) &&
+            (sc->server->auth.verify_mode == SSL_CVERIFY_OPTIONAL_NO_CA))
+        {
+            /* leaving this log message as an error for the moment,
+             * according to the mod_ssl docs:
+             * "level optional_no_ca is actually against the idea
+             *  of authentication (but can be used to establish
+             * SSL test pages, etc.)"
+             * optional_no_ca doesn't appear to work as advertised
+             * in 1.x
              */
-            if ((nFailsafe--) < 1)
-                break;
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                          "SSL client authentication failed, "
+                          "accepting certificate based on "
+                          "\"SSLVerifyClient optional_no_ca\" "
+                          "configuration");
+            ssl_log_ssl_error(SSLLOG_MARK, APLOG_INFO, server);
         }
         else {
-            watch_thread += (dwRet - WAIT_OBJECT_0);
-            if (watch_thread >= threads_created)
-                break;
-            cleanup_thread(child_handles, &threads_created, watch_thread);
+            const char *error = sslconn->verify_error ?
+                sslconn->verify_error :
+                X509_verify_cert_error_string(verify_result);
+
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                         "SSL client authentication failed: %s",
+                         error ? error : "unknown");
+            ssl_log_ssl_error(SSLLOG_MARK, APLOG_INFO, server);
+
+            ssl_filter_io_shutdown(filter_ctx, c, 1);
+            return APR_ECONNABORTED;
         }
     }
 
-    /* Kill remaining threads off the hard way */
-    if (threads_created) {
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                     "Child %d: Terminating %d threads that failed to exit.",
-                     my_pid, threads_created);
-    }
-    for (i = 0; i < threads_created; i++) {
-        int *score_idx;
-        TerminateThread(child_handles[i], 1);
-        CloseHandle(child_handles[i]);
-        /* Reset the scoreboard entry for the thread we just whacked */
-        score_idx = apr_hash_get(ht, &child_handles[i], sizeof(HANDLE));
-        if (score_idx) {
-            ap_update_child_status_from_indexes(0, *score_idx, SERVER_DEAD, NULL);
+    /*
+     * Remember the peer certificate's DN
+     */
+    if ((cert = SSL_get_peer_certificate(filter_ctx->pssl))) {
+        if (sslconn->client_cert) {
+            X509_free(sslconn->client_cert);
         }
+        sslconn->client_cert = cert;
+        sslconn->client_dn = NULL;
     }
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                 "Child %d: All worker threads have exited.", my_pid);
 
-    apr_thread_mutex_destroy(child_lock);
-    apr_thread_mutex_destroy(qlock);
-    CloseHandle(qwait_event);
+    /*
+     * Make really sure that when a peer certificate
+     * is required we really got one... (be paranoid)
+     */
+    if ((sc->server->auth.verify_mode == SSL_CVERIFY_REQUIRE) &&
+        !sslconn->client_cert)
+    {
+        ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                      "No acceptable peer certificate available");
 
-    apr_pool_destroy(pchild);
-    CloseHandle(exit_event);
+        ssl_filter_io_shutdown(filter_ctx, c, 1);
+        return APR_ECONNABORTED;
+    }
+
+    return APR_SUCCESS;
 }

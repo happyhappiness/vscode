@@ -1,11 +1,9 @@
 fputs(
-"              note  that  if  --metalink  and  --include  are  used  together,\n"
-"              --include will be ignored. This is because including headers  in\n"
-"              the  response  will break Metalink parser and if the headers are\n"
-"              included in the file described in Metalink file, hash check will\n"
-"              fail.\n"
+"              Metalink  file  (both  version 3 and 4 (RFC 5854) are supported)\n"
+"              and make use of the mirrors listed within for failover if  there\n"
+"              are  errors (such as the file or server not being available). It\n"
+"              will also verify the hash of the file after  the  download  com-\n"
+"              pletes.  The Metalink file itself is downloaded and processed in\n"
+"              memory and not stored in the local file system.\n"
 "\n"
-"              (Added in 7.27.0, if built against the libmetalink library.)\n"
-"\n"
-"       -n, --netrc\n"
 , stdout);

@@ -1,46 +1,74 @@
-apr_status_t h2_stream_write_data(h2_stream *stream,
-                                  const char *data, size_t len)
+void mpm_signal_service(apr_pool_t *ptemp, int signal)
 {
-    apr_status_t status = APR_SUCCESS;
-    
-    AP_DEBUG_ASSERT(stream);
-    if (input_closed(stream) || !stream->request->eoh || !stream->bbin) {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, stream->session->c,
-                      "h2_stream(%ld-%d): writing denied, closed=%d, eoh=%d, bbin=%d", 
-                      stream->session->id, stream->id, input_closed(stream),
-                      stream->request->eoh, !!stream->bbin);
-        return APR_EINVAL;
+    int success = FALSE;
+    SC_HANDLE   schService;
+    SC_HANDLE   schSCManager;
+
+    schSCManager = OpenSCManager(NULL, NULL, // default machine & database
+                                 SC_MANAGER_CONNECT);
+
+    if (!schSCManager) {
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), NULL,
+                     "Failed to open the NT Service Manager");
+        return;
     }
 
-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, stream->session->c,
-                  "h2_stream(%ld-%d): add %ld input bytes", 
-                  stream->session->id, stream->id, (long)len);
+    /* ###: utf-ize */
+    schService = OpenService(schSCManager, mpm_service_name,
+                             SERVICE_INTERROGATE | SERVICE_QUERY_STATUS |
+                             SERVICE_USER_DEFINED_CONTROL |
+                             SERVICE_START | SERVICE_STOP);
 
-    H2_STREAM_IN(APLOG_TRACE2, stream, "write_data_pre");
-    if (stream->request->chunked) {
-        /* if input may have a body and we have not seen any
-         * content-length header, we need to chunk the input data.
-         */
-        status = input_add_data(stream, data, len, 1);
+    if (schService == NULL) {
+        /* Could not open the service */
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), NULL,
+                     "Failed to open the %s Service", mpm_display_name);
+        CloseServiceHandle(schSCManager);
+        return;
     }
-    else {
-        stream->input_remaining -= len;
-        if (stream->input_remaining < 0) {
-            ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, stream->session->c,
-                          APLOGNO(02961) 
-                          "h2_stream(%ld-%d): got %ld more content bytes than announced "
-                          "in content-length header: %ld", 
-                          stream->session->id, stream->id,
-                          (long)stream->request->content_length, 
-                          -(long)stream->input_remaining);
-            h2_stream_rst(stream, H2_ERR_PROTOCOL_ERROR);
-            return APR_ECONNABORTED;
-        }
-        status = input_add_data(stream, data, len, 0);
+
+    if (!QueryServiceStatus(schService, &globdat.ssStatus)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), NULL,
+                     "Query of Service %s failed", mpm_display_name);
+        CloseServiceHandle(schService);
+        CloseServiceHandle(schSCManager);
+        return;
     }
-    if (status == APR_SUCCESS) {
-        status = h2_stream_input_flush(stream);
+
+    if (!signal && (globdat.ssStatus.dwCurrentState == SERVICE_STOPPED)) {
+        fprintf(stderr,"The %s service is not started.\n", mpm_display_name);
+        CloseServiceHandle(schService);
+        CloseServiceHandle(schSCManager);
+        return;
     }
-    H2_STREAM_IN(APLOG_TRACE2, stream, "write_data_post");
-    return status;
+
+    fprintf(stderr,"The %s service is %s.\n", mpm_display_name,
+            signal ? "restarting" : "stopping");
+
+    if (!signal)
+        success = signal_service_transition(schService,
+                                            SERVICE_CONTROL_STOP,
+                                            SERVICE_STOP_PENDING,
+                                            SERVICE_STOPPED);
+    else if (globdat.ssStatus.dwCurrentState == SERVICE_STOPPED) {
+        mpm_service_start(ptemp, 0, NULL);
+        CloseServiceHandle(schService);
+        CloseServiceHandle(schSCManager);
+        return;
+    }
+    else
+        success = signal_service_transition(schService,
+                                            SERVICE_APACHE_RESTART,
+                                            SERVICE_START_PENDING,
+                                            SERVICE_RUNNING);
+
+    CloseServiceHandle(schService);
+    CloseServiceHandle(schSCManager);
+
+    if (success)
+        fprintf(stderr,"The %s service has %s.\n", mpm_display_name,
+               signal ? "restarted" : "stopped");
+    else
+        fprintf(stderr,"Failed to %s the %s service.\n",
+               signal ? "restart" : "stop", mpm_display_name);
 }

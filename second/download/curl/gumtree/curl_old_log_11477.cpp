@@ -1,11 +1,10 @@
 fputs(
-"                             was successful. (Added in 7.19.0)\n"
+"                             --remote-header-name option. (Added in 7.25.1)\n"
 "\n"
-"              time_appconnect\n"
-"                             The  time,  in  seconds,  it  took from the start\n"
-"                             until the SSL/SSH/etc  connect/handshake  to  the\n"
-"                             remote host was completed. (Added in 7.19.0)\n"
+"              ftp_entry_path The initial path curl ended up in when logging on\n"
+"                             to the remote FTP server. (Added in 7.15.4)\n"
 "\n"
-"              time_connect   The  time,  in  seconds,  it  took from the start\n"
-"                             until the TCP connect  to  the  remote  host  (or\n"
+"              http_code      The numerical response code that was found in the\n"
+"                             last retrieved HTTP(S)  or  FTP(s)  transfer.  In\n"
+"                             7.18.2  the alias response_code was added to show\n"
 , stdout);

@@ -1,2 +1,2 @@
-warnf(operation, "%s:%d: warning: '%s' %s\n",
-                filename, lineno, option, reason);
+warnf(config, "Error setting extended attributes: %s\n",
+                  strerror(errno));

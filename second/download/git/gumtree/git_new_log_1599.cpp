@@ -1,1 +1,1 @@
-die_errno(_("could not close %s"), path);
+die("curl_global_init failed");

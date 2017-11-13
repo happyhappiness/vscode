@@ -1,108 +1,60 @@
-static int show_one_sig_status (gpgme_ctx_t ctx, int idx, STATE *s)
+static int _mutt_bounce_message (FILE *fp, HEADER *h, ADDRESS *to, const char *resent_from,
+				  ADDRESS *env_from)
 {
-  const char *fpr;
-  gpgme_key_t key = NULL;
-  int i, anybad = 0, anywarn = 0;
-  unsigned int sum;
-  gpgme_verify_result_t result;
-  gpgme_signature_t sig;
-  gpgme_error_t err = GPG_ERR_NO_ERROR;
+  int i, ret = 0;
+  FILE *f;
+  char date[SHORT_STRING], tempfile[_POSIX_PATH_MAX];
+  MESSAGE *msg = NULL;
 
-  result = gpgme_op_verify_result (ctx);
-  if (result)
-    {
-      /* FIXME: this code should use a static variable and remember
-	 the current position in the list of signatures, IMHO.
-	 -moritz.  */
+  if (!h)
+  {
+	  /* Try to bounce each message out, aborting if we get any failures. */
+    for (i=0; i<Context->msgcount; i++)
+      if (Context->hdrs[i]->tagged)
+        ret |= _mutt_bounce_message (fp, Context->hdrs[i], to, resent_from, env_from);
+    return ret;
+  }
 
-      for (i = 0, sig = result->signatures; sig && (i < idx);
-           i++, sig = sig->next)
-        ;
-      if (! sig)
-	return -1;		/* Signature not found.  */
+  /* If we failed to open a message, return with error */
+  if (!fp && (msg = mx_open_message (Context, h->msgno)) == NULL)
+    return -1;
 
-      if (signature_key)
-	{
-	  gpgme_key_release (signature_key);
-	  signature_key = NULL;
-	}
-      
-      fpr = sig->fpr;
-      sum = sig->summary;
+  if (!fp) fp = msg->fp;
 
-      if (gpg_err_code (sig->status) != GPG_ERR_NO_ERROR)
-	anybad = 1;
+  mutt_mktemp (tempfile, sizeof (tempfile));
+  if ((f = safe_fopen (tempfile, "w")) != NULL)
+  {
+    int ch_flags = CH_XMIT | CH_NONEWLINE | CH_NOQFROM;
+    char* msgid_str;
 
-      if (gpg_err_code (sig->status) != GPG_ERR_NO_PUBKEY)
-      {
-	err = gpgme_get_key (ctx, fpr, &key, 0); /* secret key?  */
-	if (! err)
-	{
-	  if (! signature_key)
-	    signature_key = key;
-	}
-	else
-	{
-	  key = NULL; /* Old gpgme versions did not set KEY to NULL on
-			 error.   Do it here to avoid a double free. */
-	}
-      }
-      else
-      {
-	/* pubkey not present */
-      }
+    if (!option (OPTBOUNCEDELIVERED))
+      ch_flags |= CH_WEED_DELIVERED;
 
-      if (!s || !s->fpout || !(s->flags & M_DISPLAY))
-	; /* No state information so no way to print anything. */
-      else if (err)
-	{
-          state_attach_puts (_("Error getting key information for KeyID "), s);
-	  state_attach_puts ( fpr, s );
-          state_attach_puts (_(": "), s);
-          state_attach_puts ( gpgme_strerror (err), s );
-          state_attach_puts ("\n", s);
-          anybad = 1;
-	}
-      else if ((sum & GPGME_SIGSUM_GREEN))
-      {
-        print_smime_keyinfo (_("Good signature from:"), sig, key, s);
-	if (show_sig_summary (sum, ctx, key, idx, s, sig))
-	  anywarn = 1;
-	show_one_sig_validity (ctx, idx, s);
-      }
-      else if ((sum & GPGME_SIGSUM_RED))
-      {
-        print_smime_keyinfo (_("*BAD* signature from:"), sig, key, s);
-        show_sig_summary (sum, ctx, key, idx, s, sig);
-      }
-      else if (!anybad && key && (key->protocol == GPGME_PROTOCOL_OpenPGP))
-      { /* We can't decide (yellow) but this is a PGP key with a good
-           signature, so we display what a PGP user expects: The name,
-	   fingerprint and the key validity (which is neither fully or
-	   ultimate). */
-        print_smime_keyinfo (_("Good signature from:"), sig, key, s);
-	show_one_sig_validity (ctx, idx, s);
-	show_fingerprint (key,s);
-	if (show_sig_summary (sum, ctx, key, idx, s, sig))
-	  anywarn = 1;
-      }
-      else /* can't decide (yellow) */
-      {
-        print_smime_keyinfo (_("Problem signature from:"), sig, key, s);
-	/* 0 indicates no expiration */
-	if (sig->exp_timestamp)
-	{
-	  state_attach_puts (_("               expires: "), s);
-	  print_time (sig->exp_timestamp, s);
-	  state_attach_puts ("\n", s);
-	}
-	show_sig_summary (sum, ctx, key, idx, s, sig);
-        anywarn = 1;
-      }
+    fseeko (fp, h->offset, 0);
+    fprintf (f, "Resent-From: %s", resent_from);
+    fprintf (f, "\nResent-%s", mutt_make_date (date, sizeof(date)));
+    msgid_str = mutt_gen_msgid();
+    fprintf (f, "Resent-Message-ID: %s\n", msgid_str);
+    fputs ("Resent-To: ", f);
+    mutt_write_address_list (to, f, 11, 0);
+    mutt_copy_header (fp, h, f, ch_flags, NULL);
+    fputc ('\n', f);
+    mutt_copy_bytes (fp, f, h->content->length);
+    safe_fclose (&f);
+    FREE (&msgid_str);
 
-      if (key != signature_key)
-	gpgme_key_release (key);
-    }
+#if USE_SMTP
+    if (SmtpUrl)
+      ret = mutt_smtp_send (env_from, to, NULL, NULL, tempfile,
+                            h->content->encoding == ENC8BIT);
+    else
+#endif /* USE_SMTP */
+    ret = mutt_invoke_sendmail (env_from, to, NULL, NULL, tempfile,
+			  	h->content->encoding == ENC8BIT);
+  }
 
-  return anybad ? 1 : anywarn ? 2 : 0;
+  if (msg)
+    mx_close_message (&msg);
+
+  return ret;
 }

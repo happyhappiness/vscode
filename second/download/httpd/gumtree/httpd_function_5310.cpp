@@ -1,95 +1,62 @@
-apr_status_t h2_session_set_prio(h2_session *session, h2_stream *stream, 
-                                 const h2_priority *prio)
+static int winnt_run(apr_pool_t *_pconf, apr_pool_t *plog, server_rec *s )
 {
-    apr_status_t status = APR_SUCCESS;
-#ifdef H2_NG2_CHANGE_PRIO
-    nghttp2_stream *s_grandpa, *s_parent, *s;
-    
-    s = nghttp2_session_find_stream(session->ngh2, stream->id);
-    if (!s) {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
-                      "h2_stream(%ld-%d): lookup of nghttp2_stream failed",
-                      session->id, stream->id);
-        return APR_EINVAL;
-    }
-    
-    s_parent = nghttp2_stream_get_parent(s);
-    if (s_parent) {
-        nghttp2_priority_spec ps;
-        int id_parent, id_grandpa, w_parent, w, rv = 0;
-        char *ptype = "AFTER";
-        h2_dependency dep = prio->dependency;
-        
-        id_parent = nghttp2_stream_get_stream_id(s_parent);
-        s_grandpa = nghttp2_stream_get_parent(s_parent);
-        if (s_grandpa) {
-            id_grandpa = nghttp2_stream_get_stream_id(s_grandpa);
-        }
-        else {
-            /* parent of parent does not exist, 
-             * only possible if parent == root */
-            dep = H2_DEPENDANT_AFTER;
-        }
-        
-        switch (dep) {
-            case H2_DEPENDANT_INTERLEAVED:
-                /* PUSHed stream is to be interleaved with initiating stream.
-                 * It is made a sibling of the initiating stream and gets a
-                 * proportional weight [1, MAX_WEIGHT] of the initiaing
-                 * stream weight.
-                 */
-                ptype = "INTERLEAVED";
-                w_parent = nghttp2_stream_get_weight(s_parent);
-                w = valid_weight(w_parent * ((float)prio->weight / NGHTTP2_MAX_WEIGHT));
-                nghttp2_priority_spec_init(&ps, id_grandpa, w, 0);
-                break;
-                
-            case H2_DEPENDANT_BEFORE:
-                /* PUSHed stream os to be sent BEFORE the initiating stream.
-                 * It gets the same weight as the initiating stream, replaces
-                 * that stream in the dependency tree and has the initiating
-                 * stream as child.
-                 */
-                ptype = "BEFORE";
-                w = w_parent = nghttp2_stream_get_weight(s_parent);
-                nghttp2_priority_spec_init(&ps, stream->id, w_parent, 0);
-                id_grandpa = nghttp2_stream_get_stream_id(s_grandpa);
-                rv = nghttp2_session_change_stream_priority(session->ngh2, id_parent, &ps);
-                if (rv < 0) {
-                    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
-                                  "h2_stream(%ld-%d): PUSH BEFORE2, weight=%d, "
-                                  "depends=%d, returned=%d",
-                                  session->id, id_parent, ps.weight, ps.stream_id, rv);
-                    return APR_EGENERAL;
-                }
-                nghttp2_priority_spec_init(&ps, id_grandpa, w, 0);
-                break;
-                
-            case H2_DEPENDANT_AFTER:
-                /* The PUSHed stream is to be sent after the initiating stream.
-                 * Give if the specified weight and let it depend on the intiating
-                 * stream.
-                 */
-                /* fall through, it's the default */
-            default:
-                nghttp2_priority_spec_init(&ps, id_parent, valid_weight(prio->weight), 0);
-                break;
-        }
+    static int restart = 0;            /* Default is "not a restart" */
 
-
-        rv = nghttp2_session_change_stream_priority(session->ngh2, stream->id, &ps);
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
-                      "h2_stream(%ld-%d): PUSH %s, weight=%d, "
-                      "depends=%d, returned=%d",
-                      session->id, stream->id, ptype, 
-                      ps.weight, ps.stream_id, rv);
-        status = (rv < 0)? APR_EGENERAL : APR_SUCCESS;
+    /* ### If non-graceful restarts are ever introduced - we need to rerun
+     * the pre_mpm hook on subsequent non-graceful restarts.  But Win32
+     * has only graceful style restarts - and we need this hook to act
+     * the same on Win32 as on Unix.
+     */
+    if (!restart && ((parent_pid == my_pid) || one_process)) {
+        /* Set up the scoreboard. */
+        if (ap_run_pre_mpm(s->process->pool, SB_SHARED) != OK) {
+            return DONE;
+        }
     }
-#else
-    (void)session;
-    (void)stream;
-    (void)prio;
-    (void)valid_weight;
-#endif
-    return status;
+
+    if ((parent_pid != my_pid) || one_process)
+    {
+        /* The child process or in one_process (debug) mode
+         */
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                     "Child %d: Child process is running", my_pid);
+
+        child_main(pconf);
+
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                     "Child %d: Child process is exiting", my_pid);
+        return DONE;
+    }
+    else
+    {
+        /* A real-honest to goodness parent */
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                     "%s configured -- resuming normal operations",
+                     ap_get_server_description());
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                     "Server built: %s", ap_get_server_built());
+        ap_log_command_line(plog, s);
+
+        restart = master_main(ap_server_conf, shutdown_event, restart_event);
+
+        if (!restart)
+        {
+            /* Shutting down. Clean up... */
+            const char *pidfile = ap_server_root_relative (pconf, ap_pid_fname);
+
+            if (pidfile != NULL && unlink(pidfile) == 0) {
+                ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS,
+                             ap_server_conf, "removed PID file %s (pid=%ld)",
+                             pidfile, GetCurrentProcessId());
+            }
+            apr_proc_mutex_destroy(start_mutex);
+
+            CloseHandle(restart_event);
+            CloseHandle(shutdown_event);
+
+            return DONE;
+        }
+    }
+
+    return OK; /* Restart */
 }

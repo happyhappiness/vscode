@@ -1,328 +1,46 @@
-int main(int argc,char *argv[])
+static void usage(FILE *f)
 {
-    int pid, status = 0, status2 = 0;
-    int opt;
-    int option_index;
-    char *shell_cmd = NULL;
-    char *shell_machine = NULL;
-    char *shell_path = NULL;
-    char *shell_user = NULL;
-    char *p;
-    int f_in,f_out;
-    struct file_list *flist;
-    char *local_name = NULL;
-
-    signal(SIGUSR1, sigusr1_handler);
-
-    starttime = time(NULL);
-    am_root = (getuid() == 0);
-
-    /* we set a 0 umask so that correct file permissions can be
-       carried across */
-    orig_umask = (int)umask(0);
-
-    while ((opt = getopt_long(argc, argv, 
-			      short_options, long_options, &option_index)) 
-	   != -1) {
-      switch (opt) 
-	{
-	case OPT_VERSION:
-	  printf("rsync version %s  protocol version %d\n",
-		 VERSION,PROTOCOL_VERSION);
-	  exit_cleanup(0);
-
-	case OPT_SUFFIX:
-	  backup_suffix = optarg;
-	  break;
-
-	case OPT_RSYNC_PATH:
-	  rsync_path = optarg;
-	  break;
-
-	case 'I':
-	  ignore_times = 1;
-	  break;
-
-	case 'x':
-	  one_file_system=1;
-	  break;
-
-	case OPT_DELETE:
-	  delete_mode = 1;
-	  break;
-
-	case OPT_FORCE:
-	  force_delete = 1;
-	  break;
-
-	case OPT_NUMERIC_IDS:
-	  numeric_ids = 1;
-	  break;
-
-	case OPT_EXCLUDE:
-	  add_exclude(optarg);
-	  break;
-
-	case OPT_EXCLUDE_FROM:
-	  add_exclude_file(optarg,1);
-	  break;
-
-	case 'h':
-	  usage(FINFO);
-	  exit_cleanup(0);
-
-	case 'b':
-	  make_backups=1;
-	  break;
-
-	case 'n':
-	  dry_run=1;
-	  break;
-
-	case 'S':
-	  sparse_files=1;
-	  break;
-
-	case 'C':
-	  cvs_exclude=1;
-	  break;
-
-	case 'u':
-	  update_only=1;
-	  break;
-
-	case 'l':
-	  preserve_links=1;
-	  break;
-
-	case 'L':
-	  copy_links=1;
-	  break;
-
-	case 'W':
-	  whole_file=1;
-	  break;
-
-	case 'H':
-#if SUPPORT_HARD_LINKS
-	  preserve_hard_links=1;
-#else 
-	  fprintf(FERROR,"ERROR: hard links not supported on this platform\n");
-	  exit_cleanup(1);
-#endif
-	  break;
-
-	case 'p':
-	  preserve_perms=1;
-	  break;
-
-	case 'o':
-	  preserve_uid=1;
-	  break;
-
-	case 'g':
-	  preserve_gid=1;
-	  break;
-
-	case 'D':
-	  preserve_devices=1;
-	  break;
-
-	case 't':
-	  preserve_times=1;
-	  break;
-
-	case 'c':
-	  always_checksum=1;
-	  break;
-
-	case 'v':
-	  verbose++;
-	  break;
-
-	case 'a':
-	  recurse=1;
-#if SUPPORT_LINKS
-	  preserve_links=1;
-#endif
-	  preserve_perms=1;
-	  preserve_times=1;
-	  preserve_gid=1;
-	  if (am_root) {
-	    preserve_devices=1;
-	    preserve_uid=1;
-	  }
-	  break;
-
-	case OPT_SERVER:
-	  am_server = 1;
-	  break;
-
-	case OPT_SENDER:
-	  if (!am_server) {
-	    usage(FERROR);
-	    exit_cleanup(1);
-	  }
-	  am_sender = 1;
-	  break;
-
-	case 'r':
-	  recurse = 1;
-	  break;
-
-	case 'R':
-	  relative_paths = 1;
-	  break;
-
-	case 'e':
-	  shell_cmd = optarg;
-	  break;
-
-	case 'B':
-	  block_size = atoi(optarg);
-	  break;
-
-	case OPT_TIMEOUT:
-	  io_timeout = atoi(optarg);
-	  break;
-
-	case 'T':
-		tmpdir = optarg;
-		break;
-
-        case 'z':
-	  do_compression = 1;
-	  break;
-
-	default:
-	  /* fprintf(FERROR,"bad option -%c\n",opt); */
-	  exit_cleanup(1);
-	}
-    }
-
-    while (optind--) {
-      argc--;
-      argv++;
-    }
-
-    signal(SIGCHLD,SIG_IGN);
-    signal(SIGINT,SIGNAL_CAST sig_int);
-    signal(SIGPIPE,SIGNAL_CAST sig_int);
-    signal(SIGHUP,SIGNAL_CAST sig_int);
-
-    if (dry_run)
-      verbose = MAX(verbose,1);
-
-#ifndef SUPPORT_LINKS
-    if (!am_server && preserve_links) {
-	    fprintf(FERROR,"ERROR: symbolic links not supported\n");
-	    exit_cleanup(1);
-    }
-#endif
-
-    if (am_server) {
-	    start_server(argc, argv);
-    }
-
-    if (argc < 2) {
-      usage(FERROR);
-      exit_cleanup(1);
-    }
-
-    p = strchr(argv[0],':');
-
-    if (p) {
-      am_sender = 0;
-      *p = 0;
-      shell_machine = argv[0];
-      shell_path = p+1;
-      argc--;
-      argv++;
-    } else {
-      am_sender = 1;
-
-      p = strchr(argv[argc-1],':');
-      if (!p) {
-	local_server = 1;
-      }
-
-      if (local_server) {
-	shell_machine = NULL;
-	shell_path = argv[argc-1];
-      } else {
-	*p = 0;
-	shell_machine = argv[argc-1];
-	shell_path = p+1;
-      }
-      argc--;
-    }
-
-    if (shell_machine) {
-      p = strchr(shell_machine,'@');
-      if (p) {
-	*p = 0;
-	shell_user = shell_machine;
-	shell_machine = p+1;
-      }
-    }
-
-    if (verbose > 3) {
-      fprintf(FINFO,"cmd=%s machine=%s user=%s path=%s\n",
-	      shell_cmd?shell_cmd:"",
-	      shell_machine?shell_machine:"",
-	      shell_user?shell_user:"",
-	      shell_path?shell_path:"");
-    }
-    
-    if (!am_sender && argc != 1) {
-      usage(FERROR);
-      exit_cleanup(1);
-    }
-
-    pid = do_cmd(shell_cmd,shell_machine,shell_user,shell_path,&f_in,&f_out);
-
-    setup_protocol(f_out,f_in);
-
-#if HAVE_SETLINEBUF
-    setlinebuf(FINFO);
-    setlinebuf(FERROR);
-#endif
-
-    if (verbose > 3) 
-      fprintf(FINFO,"parent=%d child=%d sender=%d recurse=%d\n",
-	      (int)getpid(),pid,am_sender,recurse);
-
-    if (am_sender) {
-      if (cvs_exclude)
-	add_cvs_excludes();
-      if (delete_mode) 
-	send_exclude_list(f_out);
-      flist = send_file_list(f_out,argc,argv);
-      if (verbose > 3) 
-	fprintf(FINFO,"file list sent\n");
-      send_files(flist,f_out,f_in);
-      if (verbose > 3)
-	fprintf(FINFO,"waiting on %d\n",pid);
-      waitpid(pid, &status, 0);
-      report(-1);
-      exit_cleanup(status);
-    }
-
-    send_exclude_list(f_out);
-
-    flist = recv_file_list(f_in);
-    if (!flist || flist->count == 0) {
-      fprintf(FINFO,"nothing to do\n");
-      exit_cleanup(0);
-    }
-
-    local_name = get_local_name(flist,argv[0]);
-
-    status2 = do_recv(f_in,f_out,flist,local_name);
-
-    report(f_in);
-
-    waitpid(pid, &status, 0);
-
-    return status | status2;
+  fprintf(f,"rsync version %s Copyright Andrew Tridgell and Paul Mackerras\n\n",
+	  VERSION);
+  fprintf(f,"Usage:\t%s [options] src user@host:dest\nOR",RSYNC_NAME);
+  fprintf(f,"\t%s [options] user@host:src dest\n\n",RSYNC_NAME);
+  fprintf(f,"Options:\n");
+  fprintf(f,"-v, --verbose            increase verbosity\n");
+  fprintf(f,"-c, --checksum           always checksum\n");
+  fprintf(f,"-a, --archive            archive mode (same as -rlptDog)\n");
+  fprintf(f,"-r, --recursive          recurse into directories\n");
+  fprintf(f,"-R, --relative           use relative path names\n");
+  fprintf(f,"-b, --backup             make backups (default ~ extension)\n");
+  fprintf(f,"-u, --update             update only (don't overwrite newer files)\n");
+  fprintf(f,"-l, --links              preserve soft links\n");
+  fprintf(f,"-L, --copy-links         treat soft links like regular files\n");
+  fprintf(f,"-H, --hard-links         preserve hard links\n");
+  fprintf(f,"-p, --perms              preserve permissions\n");
+  fprintf(f,"-o, --owner              preserve owner (root only)\n");
+  fprintf(f,"-g, --group              preserve group\n");
+  fprintf(f,"-D, --devices            preserve devices (root only)\n");
+  fprintf(f,"-t, --times              preserve times\n");  
+  fprintf(f,"-S, --sparse             handle sparse files efficiently\n");
+  fprintf(f,"-n, --dry-run            show what would have been transferred\n");
+  fprintf(f,"-W, --whole-file         copy whole files, no incremental checks\n");
+  fprintf(f,"-x, --one-file-system    don't cross filesystem boundaries\n");
+  fprintf(f,"-B, --block-size SIZE    checksum blocking size\n");  
+  fprintf(f,"-e, --rsh COMMAND        specify rsh replacement\n");
+  fprintf(f,"    --rsync-path PATH    specify path to rsync on the remote machine\n");
+  fprintf(f,"-C, --cvs-exclude        auto ignore files in the same way CVS does\n");
+  fprintf(f,"    --delete             delete files that don't exist on the sending side\n");
+  fprintf(f,"    --force              force deletion of directories even if not empty\n");
+  fprintf(f,"    --numeric-ids        don't map uid/gid values by user/group name\n");
+  fprintf(f,"    --timeout TIME       set IO timeout in seconds\n");
+  fprintf(f,"-I, --ignore-times       don't exclude files that match length and time\n");
+  fprintf(f,"-T  --temp-dir DIR       create temporary files in directory DIR\n");
+  fprintf(f,"-z, --compress           compress file data\n");
+  fprintf(f,"    --exclude FILE       exclude file FILE\n");
+  fprintf(f,"    --exclude-from FILE  exclude files listed in FILE\n");
+  fprintf(f,"    --suffix SUFFIX      override backup suffix\n");  
+  fprintf(f,"    --version            print version number\n");  
+
+  fprintf(f,"\n");
+  fprintf(f,"the backup suffix defaults to %s\n",BACKUP_SUFFIX);
+  fprintf(f,"the block size defaults to %d\n",BLOCK_SIZE);  
 }

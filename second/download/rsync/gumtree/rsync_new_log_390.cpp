@@ -1,1 +1,1 @@
-rprintf(FINFO,"cannot cvs-exclude in long-named directory %s\n",fname);
+fprintf(FINFO,"send_files(%d,%s)\n",i,fname);

@@ -1,99 +1,44 @@
-off_t send_files(struct file_list *flist,int f_out,int f_in)
-{ 
-  int fd;
-  struct sum_struct *s;
-  char *buf;
-  struct stat st;
-  char fname[MAXPATHLEN];  
-  off_t total=0;
-  int i;
+static void receive_data(int f_in,char *buf,int fd,char *fname)
+{
+  int i,n,remainder,len,count;
+  off_t offset = 0;
+  off_t offset2;
 
-  if (verbose > 2)
-    fprintf(stderr,"send_files starting\n");
+  count = read_int(f_in);
+  n = read_int(f_in);
+  remainder = read_int(f_in);
 
-  setup_nonblocking(f_in,f_out);
+  for (i=read_int(f_in); i != 0; i=read_int(f_in)) {
+    if (i > 0) {
+      if (verbose > 3)
+	fprintf(stderr,"data recv %d at %d\n",i,(int)offset);
 
-  while (1) 
-    {
-      i = read_int(f_in);
-      if (i == -1) break;
-
-      fname[0] = 0;
-      if (flist->files[i].dir) {
-	strcpy(fname,flist->files[i].dir);
-	strcat(fname,"/");
+      if (read_write(f_in,fd,i) != i) {
+	fprintf(stderr,"write failed on %s : %s\n",fname,strerror(errno));
+	exit_cleanup(1);
       }
-      strcat(fname,flist->files[i].name);
+      offset += i;
+    } else {
+      i = -(i+1);
+      offset2 = i*n;
+      len = n;
+      if (i == count-1 && remainder != 0)
+	len = remainder;
 
-      if (verbose > 2) 
-	fprintf(stderr,"send_files(%d,%s)\n",i,fname);
+      if (verbose > 3)
+	fprintf(stderr,"chunk[%d] of size %d at %d offset=%d\n",
+		i,len,(int)offset2,(int)offset);
 
-      if (dry_run) {	
-	if (!am_server && verbose)
-	  printf("%s\n",fname);
-	write_int(f_out,i);
-	continue;
+      if (write_sparse(fd,map_ptr(buf,offset2,len),len) != len) {
+	fprintf(stderr,"write failed on %s : %s\n",fname,strerror(errno));
+	exit_cleanup(1);
       }
-
-      s = receive_sums(f_in);
-      if (!s) {
-	fprintf(stderr,"receive_sums failed\n");
-	return -1;
-      }
-
-      fd = open(fname,O_RDONLY);
-      if (fd == -1) {
-	fprintf(stderr,"send_files failed to open %s: %s\n",
-		fname,strerror(errno));
-	continue;
-      }
-  
-      /* map the local file */
-      if (fstat(fd,&st) != 0) {
-	fprintf(stderr,"fstat failed : %s\n",strerror(errno));
-	return -1;
-      }
-      
-      if (st.st_size > 0) {
-	buf = map_file(fd,st.st_size);
-      } else {
-	buf = NULL;
-      }
-
-      if (verbose > 2)
-	fprintf(stderr,"send_files mapped %s of size %d\n",
-		fname,(int)st.st_size);
-
-      write_int(f_out,i);
-
-      write_int(f_out,s->count);
-      write_int(f_out,s->n);
-      write_int(f_out,s->remainder);
-
-      if (verbose > 2)
-	fprintf(stderr,"calling match_sums %s\n",fname);
-
-      if (!am_server && verbose)
-	printf("%s\n",fname);
-      
-      match_sums(f_out,s,buf,st.st_size);
-      write_flush(f_out);
-      
-      unmap_file(buf,st.st_size);
-      close(fd);
-
-      free_sums(s);
-
-      if (verbose > 2)
-	fprintf(stderr,"sender finished %s\n",fname);
-
-      total += st.st_size;
+      offset += len;
     }
+  }
 
-  match_report();
-
-  write_int(f_out,-1);
-  write_flush(f_out);
-
-  return total;
+  if (offset > 0 && sparse_end(fd) != 0) {
+    fprintf(stderr,"write failed on %s : %s\n",fname,strerror(errno));
+    exit_cleanup(1);
+  }
 }

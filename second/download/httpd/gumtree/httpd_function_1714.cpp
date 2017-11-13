@@ -1,82 +1,82 @@
-static proxy_worker *find_best_bybusyness(proxy_balancer *balancer,
-                                request_rec *r)
+static int authnz_ldap_post_config(apr_pool_t *p, apr_pool_t *plog, apr_pool_t *ptemp, server_rec *s)
 {
+    ap_configfile_t *f;
+    char l[MAX_STRING_LEN];
+    const char *charset_confname = ap_get_module_config(s->module_config,
+                                                      &authnz_ldap_module);
+    apr_status_t status;
 
-    int i;
-    proxy_worker *worker;
-    proxy_worker *mycandidate = NULL;
-    int cur_lbset = 0;
-    int max_lbset = 0;
-    int checking_standby;
-    int checked_standby;
+    /*
+    authn_ldap_config_t *sec = (authn_ldap_config_t *)
+                                    ap_get_module_config(s->module_config,
+                                                         &authnz_ldap_module);
 
-    int total_factor = 0;
-    
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "proxy: Entering bybusyness for BALANCER (%s)",
-                 balancer->name);
-
-    /* First try to see if we have available candidate */
-    do {
-
-        checking_standby = checked_standby = 0;
-        while (!mycandidate && !checked_standby) {
-
-            worker = (proxy_worker *)balancer->workers->elts;
-            for (i = 0; i < balancer->workers->nelts; i++, worker++) {
-                if  (!checking_standby) {    /* first time through */
-                    if (worker->s->lbset > max_lbset)
-                        max_lbset = worker->s->lbset;
-                }
-
-                if (worker->s->lbset != cur_lbset)
-                    continue;
-
-                if ( (checking_standby ? !PROXY_WORKER_IS_STANDBY(worker) : PROXY_WORKER_IS_STANDBY(worker)) )
-                    continue;
-
-                /* If the worker is in error state run
-                 * retry on that worker. It will be marked as
-                 * operational if the retry timeout is elapsed.
-                 * The worker might still be unusable, but we try
-                 * anyway.
-                 */
-                if (!PROXY_WORKER_IS_USABLE(worker))
-                    ap_proxy_retry_worker("BALANCER", worker, r->server);
-
-                /* Take into calculation only the workers that are
-                 * not in error state or not disabled.
-                 */
-                if (PROXY_WORKER_IS_USABLE(worker)) {
-
-                    worker->s->lbstatus += worker->s->lbfactor;
-                    total_factor += worker->s->lbfactor;
-                    
-                    if (!mycandidate
-                        || worker->s->busy < mycandidate->s->busy
-                        || (worker->s->busy == mycandidate->s->busy && worker->s->lbstatus > mycandidate->s->lbstatus))
-                        mycandidate = worker;
-
-                }
-
-            }
-
-            checked_standby = checking_standby++;
-
+    if (sec->secure)
+    {
+        if (!util_ldap_ssl_supported(s))
+        {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s,
+                     "LDAP: SSL connections (ldaps://) not supported by utilLDAP");
+            return(!OK);
         }
+    }
+    */
 
-        cur_lbset++;
-
-    } while (cur_lbset <= max_lbset && !mycandidate);
-
-    if (mycandidate) {
-        mycandidate->s->lbstatus -= total_factor;
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: bybusyness selected worker \"%s\" : busy %" APR_SIZE_T_FMT " : lbstatus %d",
-                     mycandidate->name, mycandidate->s->busy, mycandidate->s->lbstatus);
+    /* make sure that mod_ldap (util_ldap) is loaded */
+    if (ap_find_linked_module("util_ldap.c") == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "Module mod_ldap missing. Mod_ldap (aka. util_ldap) "
+                     "must be loaded in order for mod_auth_ldap to function properly");
+        return HTTP_INTERNAL_SERVER_ERROR;
 
     }
 
-    return mycandidate;
+    if (!charset_confname) {
+        return OK;
+    }
 
+    charset_confname = ap_server_root_relative(p, charset_confname);
+    if (!charset_confname) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
+                     "Invalid charset conversion config path %s",
+                     (const char *)ap_get_module_config(s->module_config,
+                                                        &authnz_ldap_module));
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+    if ((status = ap_pcfg_openfile(&f, ptemp, charset_confname))
+                != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, s,
+                     "could not open charset conversion config file %s.",
+                     charset_confname);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    charset_conversions = apr_hash_make(p);
+
+    while (!(ap_cfg_getline(l, MAX_STRING_LEN, f))) {
+        const char *ll = l;
+        char *lang;
+
+        if (l[0] == '#') {
+            continue;
+        }
+        lang = ap_getword_conf(p, &ll);
+        ap_str_tolower(lang);
+
+        if (ll[0]) {
+            char *charset = ap_getword_conf(p, &ll);
+            apr_hash_set(charset_conversions, lang, APR_HASH_KEY_STRING, charset);
+        }
+    }
+    ap_cfg_closefile(f);
+
+    to_charset = derive_codepage_from_lang (p, "utf-8");
+    if (to_charset == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, s,
+                     "could not find the UTF-8 charset in the file %s.",
+                     charset_confname);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    return OK;
 }

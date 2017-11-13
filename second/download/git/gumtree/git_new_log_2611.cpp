@@ -1,1 +1,2 @@
-fprintf(opt->diffopt.file, " %s", find_unique_abbrev(p->item->object.oid.hash, abbrev));
+error("Could not read %s",
+			     oid_to_hex(&item->object.oid));

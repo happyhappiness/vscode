@@ -1,10 +1,9 @@
 fputs(
-"              port  (on  iOS  7.0  or  later, or OS X 10.9 or later) backends.\n"
-"              (Added in 7.42.0)\n"
+"              be in PEM format, and if curl  is  built  against  OpenSSL,  the\n"
+"              directory  must  have  been processed using the c_rehash utility\n"
+"              supplied with OpenSSL. Using --capath can allow  OpenSSL-powered\n"
+"              curl  to  make  SSL-connections much more efficiently than using\n"
+"              --cacert if the --cacert file contains many CA certificates.\n"
 "\n"
-"       -f, --fail\n"
-"              (HTTP) Fail silently (no output at all) on server  errors.  This\n"
-"              is  mostly done to better enable scripts etc to better deal with\n"
-"              failed attempts. In normal cases when an HTTP  server  fails  to\n"
-"              deliver  a  document,  it  returns  an  HTML document stating so\n"
+"              If this option is set, the default capath value will be ignored,\n"
 , stdout);

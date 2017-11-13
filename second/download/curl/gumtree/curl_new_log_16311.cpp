@@ -1,11 +1,9 @@
 fputs(
-"              (FTP)  If  authenticating with the USER and PASS commands fails,\n"
-"              send this  command.   When  connecting  to  Tumbleweed's  Secure\n"
-"              Transport  server  over  FTPS  using a client certificate, using\n"
-"              \"SITE AUTH\" will tell the server to retrieve the  username  from\n"
-"              the certificate.\n"
-"              Added in 7.15.5.\n"
+"              just get the content part from a file, prefix the file name with\n"
+"              the  symbol  <.  The  difference  between @ and < is then that @\n"
+"              makes a file get attached in the post as a  file  upload,  while\n"
+"              the < makes a text field and just get the contents for that text\n"
+"              field from a file.\n"
 "\n"
-"       --ftp-create-dirs\n"
-"              (FTP  SFTP)  When  an FTP or SFTP URL/operation uses a path that\n"
+"              Example: to send an image to an HTTP server, where 'profile'  is\n"
 , stdout);

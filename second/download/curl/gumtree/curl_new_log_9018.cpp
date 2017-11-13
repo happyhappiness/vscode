@@ -1,12 +1,10 @@
 fputs(
-"              (meaning Linux, recent AIX, HP-UX and more). This option has  no\n"
-"              effect if --no-keepalive is used. (Added in 7.18.0)\n"
+"              url = \"http://curl.haxx.se/docs/\"\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"              If unspecified, the option defaults to 60 seconds.\n"
+"              When curl is invoked, it always (unless -q is used) checks for a\n"
+"              default config file and uses it if  found.  The  default  config\n"
+"              file is checked for in the following places in this order:\n"
 "\n"
-"       --key <key>\n"
-"              (SSL/SSH) Private key file name. Allows you to provide your pri-\n"
-"              vate key in this separate file.\n"
-"\n"
+"              1)  curl  tries  to find the \"home dir\": It first checks for the\n"
+"              CURL_HOME and then the HOME environment variables. Failing that,\n"
 , stdout);

@@ -1,1 +1,2 @@
-warning_errno(_(msg_warn_remove_failed), quoted.buf);
+die("More than %d nested symlinks "
+					    "on path '%s'", MAXSYMLINKS, path);

@@ -1,1 +1,1 @@
-error(_("Could not parse object '%s'."), oid_to_hex(&index));
+strbuf_addf(&buf, "%s:%s", name, ref->name);

@@ -1,2 +1,1 @@
-error("Could not push objects to %s",
-				rsync_url(transport->url));
+die_errno ("Could not make temporary directory");

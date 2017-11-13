@@ -1,1 +1,1 @@
-die(_("No existing author found with '%s'"), name);
+error("Could not write %s", output);

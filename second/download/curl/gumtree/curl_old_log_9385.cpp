@@ -1,11 +1,11 @@
 fputs(
-"              --include will be ignored. This is because including headers  in\n"
-"              the  response  will break Metalink parser and if the headers are\n"
-"              included in the file described in Metalink file, hash check will\n"
-"              fail.\n"
+"              domain (as per Section 3.5 of RFC5321). (Added in 7.34.0)\n"
 "\n"
-"              (Added in 7.27.0, if built against the libmetalink library.)\n"
+"              When performing a mailing list expand (EXPN command), the recip-\n"
+"              ient  should  be  specified using the mailing list name, such as\n"
+"              \"Friends\" or \"London-Office\".  (Added in 7.34.0)\n"
 "\n"
-"       -n, --netrc\n"
-"              Makes  curl  scan  the  .netrc  (_netrc  on Windows) file in the\n"
+"       --max-redirs <num>\n"
+"              Set maximum number of  redirection-followings  allowed.  If  -L,\n"
+"              --location is used, this option can be used to prevent curl from\n"
 , stdout);

@@ -1,64 +1,46 @@
-static apr_status_t vm_construct(lua_State **vm, void *params, apr_pool_t *lifecycle_pool)
+static apr_status_t on_stream_resume(void *ctx, h2_stream *stream)
 {
-    lua_State* L;
-
-    ap_lua_vm_spec *spec = params;
-
-    L = luaL_newstate();
-#ifdef AP_ENABLE_LUAJIT
-    luaopen_jit(L);
-#endif
-    luaL_openlibs(L);
-    if (spec->package_paths) {
-        munge_path(L, 
-                   "path", "?.lua", "./?.lua", 
-                   lifecycle_pool,
-                   spec->package_paths, 
-                   spec->file);
-    }
-    if (spec->package_cpaths) {
-        munge_path(L,
-                   "cpath", "?" AP_LUA_MODULE_EXT, "./?" AP_LUA_MODULE_EXT,
-                   lifecycle_pool,
-                   spec->package_cpaths,
-                   spec->file);
-    }
-
-    if (spec->cb) {
-        spec->cb(L, lifecycle_pool, spec->cb_arg);
-    }
-
-
-    if (spec->bytecode && spec->bytecode_len > 0) {
-        luaL_loadbuffer(L, spec->bytecode, spec->bytecode_len, spec->file);
-        lua_pcall(L, 0, LUA_MULTRET, 0);
-    }
-    else {
-        int rc;
-        ap_log_perror(APLOG_MARK, APLOG_DEBUG, 0, lifecycle_pool, APLOGNO(01481)
-            "loading lua file %s", spec->file);
-        rc = luaL_loadfile(L, spec->file);
-        if (rc != 0) {
-            ap_log_perror(APLOG_MARK, APLOG_ERR, 0, lifecycle_pool, APLOGNO(01482)
-                          "Error loading %s: %s", spec->file,
-                          rc == LUA_ERRMEM ? "memory allocation error"
-                                           : lua_tostring(L, 0));
-            return APR_EBADF;
+    h2_session *session = ctx;
+    apr_status_t status = APR_EAGAIN;
+    int rv;
+    apr_off_t len = 0;
+    int eos = 0;
+    h2_headers *headers;
+    
+    ap_assert(stream);
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
+                  "h2_stream(%ld-%d): on_resume", session->id, stream->id);
+        
+send_headers:
+    headers = NULL;
+    status = h2_stream_out_prepare(stream, &len, &eos, &headers);
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, session->c, 
+                  "h2_stream(%ld-%d): prepared len=%ld, eos=%d", 
+                  session->id, stream->id, (long)len, eos);
+    if (headers) {
+        status = on_stream_headers(session, stream, headers, len, eos);
+        if (status != APR_SUCCESS || stream->rst_error) {
+            return status;
         }
-        if ( lua_pcall(L, 0, LUA_MULTRET, 0) == LUA_ERRRUN ) {
-            ap_log_perror(APLOG_MARK, APLOG_ERR, 0, lifecycle_pool, APLOGNO(02613)
-                          "Error loading %s: %s", spec->file,
-                            lua_tostring(L, -1));
-            return APR_EBADF;
-        }
+        goto send_headers;
     }
-
-#ifdef AP_ENABLE_LUAJIT
-    loadjitmodule(L, lifecycle_pool);
-#endif
-    lua_pushlightuserdata(L, lifecycle_pool);
-    lua_setfield(L, LUA_REGISTRYINDEX, "Apache2.Wombat.pool");
-    *vm = L;
-
-    return APR_SUCCESS;
+    else if (status != APR_EAGAIN) {
+        if (!stream->has_response) {
+            int err = H2_STREAM_RST(stream, H2_ERR_PROTOCOL_ERROR);
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03466)
+                          "h2_stream(%ld-%d): no response, RST_STREAM, err=%d",
+                          session->id, stream->id, err);
+            nghttp2_submit_rst_stream(session->ngh2, NGHTTP2_FLAG_NONE,
+                                      stream->id, err);
+            return APR_SUCCESS;
+        } 
+        rv = nghttp2_session_resume_data(session->ngh2, stream->id);
+        session->have_written = 1;
+        ap_log_cerror(APLOG_MARK, nghttp2_is_fatal(rv)?
+                      APLOG_ERR : APLOG_DEBUG, 0, session->c,
+                      APLOGNO(02936) 
+                      "h2_stream(%ld-%d): resuming %s",
+                      session->id, stream->id, rv? nghttp2_strerror(rv) : "");
+    }
+    return status;
 }

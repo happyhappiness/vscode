@@ -1,2 +1,2 @@
-fprintf(stderr, "%s in %s %s: %s\n",
-		msg_type, typename(obj->type), describe_object(obj), err);
+printf("broken link from %7s %s\n",
+			   typename(parent->type), describe_object(parent));

@@ -1,2 +1,1 @@
-die("sha1 information is lacking or useless for submodule %s",
-				    name);
+error("sha1 mismatch %s", oid_to_hex(oid));

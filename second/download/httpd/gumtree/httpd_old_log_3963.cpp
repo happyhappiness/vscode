@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
-                         "proxy: No HTTP headers "
-                         "returned by %s (%s)", r->uri, r->method);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                            "could not open transfer log file %s.", fname);

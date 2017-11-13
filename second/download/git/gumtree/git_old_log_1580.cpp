@@ -1,1 +1,1 @@
-(fprintf(fp, "%s	%s\n", sha1_to_hex(sha1), path) <;
+error("copy-fd: write returned 0");

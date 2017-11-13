@@ -1,1 +1,0 @@
-io_printf(fd,"@ERROR: setgid failed\n");

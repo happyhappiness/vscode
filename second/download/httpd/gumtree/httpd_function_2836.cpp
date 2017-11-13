@@ -1,77 +1,119 @@
-static int make_secure_socket(apr_pool_t *pconf, const struct sockaddr_in *server,
-                              char* key, int mutual, server_rec *sconf)
+static void output_html_results(void)
 {
-    int s;
-    char addr[MAX_ADDRESS];
-    struct sslserveropts opts;
-    unsigned int optParam;
-    WSAPROTOCOL_INFO SecureProtoInfo;
+    long timetaken;
 
-    if (server->sin_addr.s_addr != htonl(INADDR_ANY))
-        apr_snprintf(addr, sizeof(addr), "address %s port %d",
-            inet_ntoa(server->sin_addr), ntohs(server->sin_port));
-    else
-        apr_snprintf(addr, sizeof(addr), "port %d", ntohs(server->sin_port));
+    endtime = apr_time_now();
+    timetaken = (long)((endtime - start) / 1000);
 
-    /* note that because we're about to slack we don't use psocket */
-    memset(&SecureProtoInfo, 0, sizeof(WSAPROTOCOL_INFO));
+    printf("\n\n<table %s>\n", tablestring);
+    printf("<tr %s><th colspan=2 %s>Server Software:</th>"
+       "<td colspan=2 %s>%s</td></tr>\n",
+       trstring, tdstring, tdstring, servername);
+    printf("<tr %s><th colspan=2 %s>Server Hostname:</th>"
+       "<td colspan=2 %s>%s</td></tr>\n",
+       trstring, tdstring, tdstring, hostname);
+    printf("<tr %s><th colspan=2 %s>Server Port:</th>"
+       "<td colspan=2 %s>%hu</td></tr>\n",
+       trstring, tdstring, tdstring, port);
+    printf("<tr %s><th colspan=2 %s>Document Path:</th>"
+       "<td colspan=2 %s>%s</td></tr>\n",
+       trstring, tdstring, tdstring, path);
+    printf("<tr %s><th colspan=2 %s>Document Length:</th>"
+       "<td colspan=2 %s>%" APR_SIZE_T_FMT " bytes</td></tr>\n",
+       trstring, tdstring, tdstring, doclen);
+    printf("<tr %s><th colspan=2 %s>Concurrency Level:</th>"
+       "<td colspan=2 %s>%d</td></tr>\n",
+       trstring, tdstring, tdstring, concurrency);
+    printf("<tr %s><th colspan=2 %s>Time taken for tests:</th>"
+       "<td colspan=2 %s>%" APR_INT64_T_FMT ".%03ld seconds</td></tr>\n",
+       trstring, tdstring, tdstring, apr_time_sec(timetaken),
+           (long)apr_time_usec(timetaken));
+    printf("<tr %s><th colspan=2 %s>Complete requests:</th>"
+       "<td colspan=2 %s>%ld</td></tr>\n",
+       trstring, tdstring, tdstring, done);
+    printf("<tr %s><th colspan=2 %s>Failed requests:</th>"
+       "<td colspan=2 %s>%ld</td></tr>\n",
+       trstring, tdstring, tdstring, bad);
+    if (bad)
+        printf("<tr %s><td colspan=4 %s >   (Connect: %d, Length: %d, Exceptions: %d)</td></tr>\n",
+           trstring, tdstring, err_conn, err_length, err_except);
+    if (err_response)
+        printf("<tr %s><th colspan=2 %s>Non-2xx responses:</th>"
+           "<td colspan=2 %s>%d</td></tr>\n",
+           trstring, tdstring, tdstring, err_response);
+    if (keepalive)
+        printf("<tr %s><th colspan=2 %s>Keep-Alive requests:</th>"
+           "<td colspan=2 %s>%ld</td></tr>\n",
+           trstring, tdstring, tdstring, doneka);
+    printf("<tr %s><th colspan=2 %s>Total transferred:</th>"
+       "<td colspan=2 %s>%ld bytes</td></tr>\n",
+       trstring, tdstring, tdstring, totalread);
+    if (posting > 0)
+        printf("<tr %s><th colspan=2 %s>Total POSTed:</th>"
+           "<td colspan=2 %s>%ld</td></tr>\n",
+           trstring, tdstring, tdstring, totalposted);
+    printf("<tr %s><th colspan=2 %s>HTML transferred:</th>"
+       "<td colspan=2 %s>%ld bytes</td></tr>\n",
+       trstring, tdstring, tdstring, totalbread);
 
-    SecureProtoInfo.iAddressFamily = AF_INET;
-    SecureProtoInfo.iSocketType = SOCK_STREAM;
-    SecureProtoInfo.iProtocol = IPPROTO_TCP;
-    SecureProtoInfo.iSecurityScheme = SECURITY_PROTOCOL_SSL;
-
-    s = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP,
-            (LPWSAPROTOCOL_INFO)&SecureProtoInfo, 0, 0);
-
-    if (s == INVALID_SOCKET) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
-                     "make_secure_socket: failed to get a socket for %s",
-                     addr);
-        return -1;
-    }
-
-    if (!mutual) {
-        optParam = SO_SSL_ENABLE | SO_SSL_SERVER;
-
-        if (WSAIoctl(s, SO_SSL_SET_FLAGS, (char *)&optParam,
-            sizeof(optParam), NULL, 0, NULL, NULL, NULL)) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
-                         "make_secure_socket: for %s, WSAIoctl: "
-                         "(SO_SSL_SET_FLAGS)", addr);
-            return -1;
+    /* avoid divide by zero */
+    if (timetaken) {
+        printf("<tr %s><th colspan=2 %s>Requests per second:</th>"
+           "<td colspan=2 %s>%.2f</td></tr>\n",
+           trstring, tdstring, tdstring, 1000 * (float) (done) / timetaken);
+        printf("<tr %s><th colspan=2 %s>Transfer rate:</th>"
+           "<td colspan=2 %s>%.2f kb/s received</td></tr>\n",
+           trstring, tdstring, tdstring, (float) (totalread) / timetaken);
+        if (posting > 0) {
+            printf("<tr %s><td colspan=2 %s>&nbsp;</td>"
+               "<td colspan=2 %s>%.2f kb/s sent</td></tr>\n",
+               trstring, tdstring, tdstring,
+               (float) (totalposted) / timetaken);
+            printf("<tr %s><td colspan=2 %s>&nbsp;</td>"
+               "<td colspan=2 %s>%.2f kb/s total</td></tr>\n",
+               trstring, tdstring, tdstring,
+               (float) (totalread + totalposted) / timetaken);
         }
     }
+    {
+        /* work out connection times */
+        long i;
+        apr_interval_time_t totalcon = 0, total = 0;
+        apr_interval_time_t mincon = AB_MAX, mintot = AB_MAX;
+        apr_interval_time_t maxcon = 0, maxtot = 0;
 
-    opts.cert = key;
-    opts.certlen = strlen(key);
-    opts.sidtimeout = 0;
-    opts.sidentries = 0;
-    opts.siddir = NULL;
-
-    if (WSAIoctl(s, SO_SSL_SET_SERVER, (char *)&opts, sizeof(opts),
-        NULL, 0, NULL, NULL, NULL) != 0) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
-                     "make_secure_socket: for %s, WSAIoctl: "
-                     "(SO_SSL_SET_SERVER)", addr);
-        return -1;
-    }
-
-    if (mutual) {
-        optParam = 0x07;  // SO_SSL_AUTH_CLIENT
-
-        if(WSAIoctl(s, SO_SSL_SET_FLAGS, (char*)&optParam,
-            sizeof(optParam), NULL, 0, NULL, NULL, NULL)) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
-                         "make_secure_socket: for %s, WSAIoctl: "
-                         "(SO_SSL_SET_FLAGS)", addr);
-            return -1;
+        for (i = 0; i < requests; i++) {
+            struct data s = stats[i];
+            mincon = ap_min(mincon, s.ctime);
+            mintot = ap_min(mintot, s.time);
+            maxcon = ap_max(maxcon, s.ctime);
+            maxtot = ap_max(maxtot, s.time);
+            totalcon += s.ctime;
+            total += s.time;
         }
+
+        if (requests > 0) { /* avoid division by zero (if 0 requests) */
+            printf("<tr %s><th %s colspan=4>Connnection Times (ms)</th></tr>\n",
+               trstring, tdstring);
+            printf("<tr %s><th %s>&nbsp;</th> <th %s>min</th>   <th %s>avg</th>   <th %s>max</th></tr>\n",
+               trstring, tdstring, tdstring, tdstring, tdstring);
+            printf("<tr %s><th %s>Connect:</th>"
+               "<td %s>%5" APR_TIME_T_FMT "</td>"
+               "<td %s>%5" APR_TIME_T_FMT "</td>"
+               "<td %s>%5" APR_TIME_T_FMT "</td></tr>\n",
+               trstring, tdstring, tdstring, mincon, tdstring, totalcon / requests, tdstring, maxcon);
+            printf("<tr %s><th %s>Processing:</th>"
+               "<td %s>%5" APR_TIME_T_FMT "</td>"
+               "<td %s>%5" APR_TIME_T_FMT "</td>"
+               "<td %s>%5" APR_TIME_T_FMT "</td></tr>\n",
+               trstring, tdstring, tdstring, mintot - mincon, tdstring,
+               (total / requests) - (totalcon / requests), tdstring, maxtot - maxcon);
+            printf("<tr %s><th %s>Total:</th>"
+               "<td %s>%5" APR_TIME_T_FMT "</td>"
+               "<td %s>%5" APR_TIME_T_FMT "</td>"
+               "<td %s>%5" APR_TIME_T_FMT "</td></tr>\n",
+               trstring, tdstring, tdstring, mintot, tdstring, total / requests, tdstring, maxtot);
+        }
+        printf("</table>\n");
     }
-
-    optParam = SO_TLS_UNCLEAN_SHUTDOWN;
-    WSAIoctl(s, SO_SSL_SET_FLAGS, (char *)&optParam, sizeof(optParam),
-             NULL, 0, NULL, NULL, NULL);
-
-    return s;
 }

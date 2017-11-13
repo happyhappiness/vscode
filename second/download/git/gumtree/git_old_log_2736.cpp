@@ -1,1 +1,1 @@
-error("Unable to create %s", git_HEAD);
+error("Unable to fix permissions on %s", lockpath);

@@ -1,24 +1,11 @@
-static char *get_symlink(const struct object_id *oid, const char *path)
+static int fsck_sha1(const unsigned char *sha1)
 {
-	char *data;
-	if (is_null_oid(oid)) {
-		/* The symlink is unknown to Git so read from the filesystem */
-		struct strbuf link = STRBUF_INIT;
-		if (has_symlinks) {
-			if (strbuf_readlink(&link, path, strlen(path)))
-				die(_("could not read symlink %s"), path);
-		} else if (strbuf_read_file(&link, path, 128))
-			die(_("could not read symlink file %s"), path);
-
-		data = strbuf_detach(&link, NULL);
-	} else {
-		enum object_type type;
-		unsigned long size;
-		data = read_sha1_file(oid->hash, &type, &size);
-		if (!data)
-			die(_("could not read object %s for symlink %s"),
-				oid_to_hex(oid), path);
+	struct object *obj = parse_object(sha1);
+	if (!obj) {
+		errors_found |= ERROR_OBJECT;
+		return error("%s: object corrupt or missing",
+			     sha1_to_hex(sha1));
 	}
-
-	return data;
+	obj->flags |= HAS_OBJ;
+	return fsck_obj(obj);
 }

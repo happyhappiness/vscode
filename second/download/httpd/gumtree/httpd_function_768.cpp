@@ -1,14 +1,53 @@
-int ssl_mutex_on(server_rec *s)
+static apr_status_t run_rewritemap_programs(server_rec *s, apr_pool_t *p)
 {
-    SSLModConfigRec *mc = myModConfig(s);
-    apr_status_t rv;
+    rewrite_server_conf *conf;
+    apr_hash_index_t *hi;
+    apr_status_t rc;
+    int lock_warning_issued = 0;
 
-    if (mc->nMutexMode == SSL_MUTEXMODE_NONE)
-        return TRUE;
-    if ((rv = apr_global_mutex_lock(mc->pMutex)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s,
-                     "Failed to acquire global mutex lock");
-        return FALSE;
+    conf = ap_get_module_config(s->module_config, &rewrite_module);
+
+    /*  If the engine isn't turned on,
+     *  don't even try to do anything.
+     */
+    if (conf->state == ENGINE_DISABLED) {
+        return APR_SUCCESS;
     }
-    return TRUE;
+
+    for (hi = apr_hash_first(p, conf->rewritemaps); hi; hi = apr_hash_next(hi)){
+        apr_file_t *fpin = NULL;
+        apr_file_t *fpout = NULL;
+        rewritemap_entry *map;
+        void *val;
+
+        apr_hash_this(hi, NULL, NULL, &val);
+        map = val;
+
+        if (map->type != MAPTYPE_PRG) {
+            continue;
+        }
+        if (!(map->argv[0]) || !*(map->argv[0]) || map->fpin || map->fpout) {
+            continue;
+        }
+
+        if (!lock_warning_issued && (!lockname || !*lockname)) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "mod_rewrite: Running external rewrite maps "
+                         "without defining a RewriteLock is DANGEROUS!");
+            ++lock_warning_issued;
+        }
+
+        rc = rewritemap_program_child(p, map->argv[0], map->argv,
+                                      &fpout, &fpin);
+        if (rc != APR_SUCCESS || fpin == NULL || fpout == NULL) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rc, s,
+                         "mod_rewrite: could not start RewriteMap "
+                         "program %s", map->checkfile);
+            return rc;
+        }
+        map->fpin  = fpin;
+        map->fpout = fpout;
+    }
+
+    return APR_SUCCESS;
 }

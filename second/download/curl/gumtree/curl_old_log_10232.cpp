@@ -1,9 +1,12 @@
 fputs(
-"              before sending keepalive probes and the time between  individual\n"
-"              keepalive probes. It is currently effective on operating systems\n"
-"              offering  the  TCP_KEEPIDLE  and  TCP_KEEPINTVL  socket  options\n"
-"              (meaning  Linux, recent AIX, HP-UX and more). This option has no\n"
-"              effect if --no-keepalive is used. (Added in 7.18.0)\n"
+"              need to specify it using the --url option,  and  not  by  simply\n"
+"              writing  the  URL  on its own line. So, it could look similar to\n"
+"              this:\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              url = \"http://curl.haxx.se/docs/\"\n"
+"\n"
+"              When curl is invoked, it always (unless -q is used) checks for a\n"
+"              default  config  file  and  uses it if found. The default config\n"
+"              file is checked for in the following places in this order:\n"
+"\n"
 , stdout);

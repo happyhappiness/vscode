@@ -1,7 +1,9 @@
-static struct commit *get_commit_reference(const unsigned char *sha1)
+void print_commit_list(struct commit_list *list,
+		       const char *format_cur,
+		       const char *format_last)
 {
-	struct commit *r = lookup_commit_reference(sha1);
-	if (!r)
-		die("Not a valid commit name %s", sha1_to_hex(sha1));
-	return r;
+	for ( ; list; list = list->next) {
+		const char *format = list->next ? format_cur : format_last;
+		printf(format, sha1_to_hex(list->item->object.sha1));
+	}
 }

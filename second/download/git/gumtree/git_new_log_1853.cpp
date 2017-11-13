@@ -1,1 +1,2 @@
-die(_("unable to parse commit %s"), oid_to_hex(&commit->object.oid));
+die("size_t overflow: %"PRIuMAX" * %"PRIuMAX,
+		    (uintmax_t)a, (uintmax_t)b);

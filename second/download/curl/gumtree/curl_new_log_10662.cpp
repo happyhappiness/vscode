@@ -1,12 +1,9 @@
 fputs(
-"                        specifies two separate 100-byte ranges(*)(H)\n"
+"              commands  as  RFC 959 defines to FTP servers, or one of the com-\n"
+"              mands listed below to SFTP servers.  This  option  can  be  used\n"
+"              multiple  times. When speaking to an FTP server, prefix the com-\n"
+"              mand with an asterisk (*) to make curl continue even if the com-\n"
+"              mand fails as by default curl will stop at first failure.\n"
 "\n"
-"       (*)  =  NOTE  that this will cause the server to reply with a multipart\n"
-"       response!\n"
-"\n"
-"       Only digit characters (0-9) are valid in the 'start' and 'stop'  fields\n"
-"       of  the 'start-stop' range syntax. If a non-digit character is given in\n"
-"       the range, the server's response will be unspecified, depending on  the\n"
-"       server's configuration.\n"
-"\n"
+"              SFTP  is a binary protocol. Unlike for FTP, curl interprets SFTP\n"
 , stdout);

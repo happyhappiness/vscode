@@ -1,30 +1,31 @@
-static int fsck_walk_tree(struct tree *tree, void *data, struct fsck_options *options)
+static int send_ref(const char *refname, const unsigned char *sha1, int flag, void *cb_data)
 {
-	struct tree_desc desc;
-	struct name_entry entry;
-	int res = 0;
+	static const char *capabilities = "multi_ack thin-pack side-band"
+		" side-band-64k ofs-delta shallow no-progress"
+		" include-tag multi_ack_detailed";
+	const char *refname_nons = strip_namespace(refname);
+	unsigned char peeled[20];
 
-	if (parse_tree(tree))
-		return -1;
+	if (mark_our_ref(refname, sha1))
+		return 0;
 
-	init_tree_desc(&desc, tree->buffer, tree->size);
-	while (tree_entry(&desc, &entry)) {
-		int result;
+	if (capabilities) {
+		struct strbuf symref_info = STRBUF_INIT;
 
-		if (S_ISGITLINK(entry.mode))
-			continue;
-		if (S_ISDIR(entry.mode))
-			result = options->walk(&lookup_tree(entry.sha1)->object, OBJ_TREE, data, options);
-		else if (S_ISREG(entry.mode) || S_ISLNK(entry.mode))
-			result = options->walk(&lookup_blob(entry.sha1)->object, OBJ_BLOB, data, options);
-		else {
-			result = error("in tree %s: entry %s has bad mode %.6o",
-					sha1_to_hex(tree->object.sha1), entry.path, entry.mode);
-		}
-		if (result < 0)
-			return result;
-		if (!res)
-			res = result;
+		format_symref_info(&symref_info, cb_data);
+		packet_write(1, "%s %s%c%s%s%s%s agent=%s\n",
+			     sha1_to_hex(sha1), refname_nons,
+			     0, capabilities,
+			     allow_tip_sha1_in_want ? " allow-tip-sha1-in-want" : "",
+			     stateless_rpc ? " no-done" : "",
+			     symref_info.buf,
+			     git_user_agent_sanitized());
+		strbuf_release(&symref_info);
+	} else {
+		packet_write(1, "%s %s\n", sha1_to_hex(sha1), refname_nons);
 	}
-	return res;
+	capabilities = NULL;
+	if (!peel_ref(refname, peeled))
+		packet_write(1, "%s %s^{}\n", sha1_to_hex(peeled), refname_nons);
+	return 0;
 }

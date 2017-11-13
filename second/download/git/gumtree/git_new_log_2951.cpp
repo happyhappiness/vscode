@@ -1,1 +1,1 @@
-die("%s is not a tree", oid_to_hex(hash));
+error_errno("unable to stat %s", sha1_to_hex(sha1));

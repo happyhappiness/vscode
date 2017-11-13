@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, c,
-                          H2_SSSN_MSG(session, "read enough, returning"));
+ap_log_error(APLOG_MARK, APLOG_ERR, rc, ap_server_conf,
+                                     APLOGNO(03094) "pollset remove failed");

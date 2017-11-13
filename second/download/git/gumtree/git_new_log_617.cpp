@@ -1,2 +1,2 @@
-die("git show-ref: bad ref %s (%s)", refname,
-		    oid_to_hex(oid));
+error(_("mainline was specified but commit %s is not a merge."),
+			oid_to_hex(&commit->object.oid));

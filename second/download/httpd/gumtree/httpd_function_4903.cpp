@@ -1,18 +1,38 @@
-static int table_do_fn_check_lengths(void *r_, const char *key,
-                                     const char *value)
+void modssl_init_stapling(server_rec *s, apr_pool_t *p, apr_pool_t *ptemp,
+                          modssl_ctx_t *mctx)
 {
-    request_rec *r = r_;
-    if (value == NULL || r->server->limit_req_fieldsize >= strlen(value) )
-        return 1;
+    SSL_CTX *ctx = mctx->ssl_ctx;
+    SSLModConfigRec *mc = myModConfig(s);
 
-    r->status = HTTP_BAD_REQUEST;
-    apr_table_setn(r->notes, "error-notes",
-                   apr_pstrcat(r->pool, "Size of a request header field "
-                               "after merging exceeds server limit.<br />"
-                               "\n<pre>\n",
-                               ap_escape_html(r->pool, key),
-                               "</pre>\n", NULL));
-    ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00560) "Request header "
-                  "exceeds LimitRequestFieldSize after merging: %s", key);
-    return 0;
+    if (mc->stapling_cache == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01958)
+                     "SSLStapling: no stapling cache available");
+        ssl_die();
+    }
+    if (ssl_stapling_mutex_init(s, ptemp) == FALSE) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01959)
+                     "SSLStapling: cannot initialise stapling mutex");
+        ssl_die();
+    }
+    /* Set some default values for parameters if they are not set */
+    if (mctx->stapling_resptime_skew == UNSET) {
+        mctx->stapling_resptime_skew = 60 * 5;
+    }
+    if (mctx->stapling_cache_timeout == UNSET) {
+        mctx->stapling_cache_timeout = 3600;
+    }
+    if (mctx->stapling_return_errors == UNSET) {
+        mctx->stapling_return_errors = TRUE;
+    }
+    if (mctx->stapling_fake_trylater == UNSET) {
+        mctx->stapling_fake_trylater = TRUE;
+    }
+    if (mctx->stapling_errcache_timeout == UNSET) {
+        mctx->stapling_errcache_timeout = 600;
+    }
+    if (mctx->stapling_responder_timeout == UNSET) {
+        mctx->stapling_responder_timeout = 10 * APR_USEC_PER_SEC;
+    }
+    SSL_CTX_set_tlsext_status_cb(ctx, stapling_cb);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01960) "OCSP stapling initialized");
 }

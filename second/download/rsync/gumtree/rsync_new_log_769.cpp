@@ -1,1 +1,1 @@
-fprintf(stderr, "Failed to parse config file: %s\n", config_file);
+out_of_memory("readfd_unbuffered");

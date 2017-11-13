@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Child %d: Unable to retrieve the start_mutex from the parent", my_pid);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "proxy: CONNECT: pre_connection setup failed (%d)", rc);

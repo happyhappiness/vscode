@@ -1,28 +1,13 @@
-int ref_transaction_prepare(struct ref_transaction *transaction,
-			    struct strbuf *err)
+static int error_failed_squash(struct commit *commit,
+	struct replay_opts *opts, int subject_len, const char *subject)
 {
-	struct ref_store *refs = transaction->ref_store;
-
-	switch (transaction->state) {
-	case REF_TRANSACTION_OPEN:
-		/* Good. */
-		break;
-	case REF_TRANSACTION_PREPARED:
-		die("BUG: prepare called twice on reference transaction");
-		break;
-	case REF_TRANSACTION_CLOSED:
-		die("BUG: prepare called on a closed reference transaction");
-		break;
-	default:
-		die("BUG: unexpected reference transaction state");
-		break;
-	}
-
-	if (getenv(GIT_QUARANTINE_ENVIRONMENT)) {
-		strbuf_addstr(err,
-			      _("ref updates forbidden inside quarantine environment"));
-		return -1;
-	}
-
-	return refs->be->transaction_prepare(refs, transaction, err);
+	if (rename(rebase_path_squash_msg(), rebase_path_message()))
+		return error(_("could not rename '%s' to '%s'"),
+			rebase_path_squash_msg(), rebase_path_message());
+	unlink(rebase_path_fixup_msg());
+	unlink(git_path("MERGE_MSG"));
+	if (copy_file(git_path("MERGE_MSG"), rebase_path_message(), 0666))
+		return error(_("could not copy '%s' to '%s'"),
+			     rebase_path_message(), git_path("MERGE_MSG"));
+	return error_with_patch(commit, subject, subject_len, opts, 1, 0);
 }

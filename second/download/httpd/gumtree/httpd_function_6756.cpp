@@ -1,130 +1,67 @@
-static int stream_reqbody_chunked(apr_pool_t *p,
-                                           request_rec *r,
-                                           proxy_conn_rec *p_conn,
-                                           conn_rec *origin,
-                                           apr_bucket_brigade *header_brigade,
-                                           apr_bucket_brigade *input_brigade)
+conn_rec *h2_slave_create(conn_rec *master, int slave_id, apr_pool_t *parent)
 {
-    int seen_eos = 0, rv = OK;
-    apr_size_t hdr_len;
-    apr_off_t bytes;
-    apr_status_t status;
-    apr_bucket_alloc_t *bucket_alloc = r->connection->bucket_alloc;
-    apr_bucket_brigade *bb;
-    apr_bucket *e;
+    apr_allocator_t *allocator;
+    apr_pool_t *pool;
+    conn_rec *c;
+    void *cfg;
+    
+    ap_assert(master);
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, master,
+                  "h2_conn(%ld): create slave", master->id);
+    
+    /* We create a pool with its own allocator to be used for
+     * processing a request. This is the only way to have the processing
+     * independant of its parent pool in the sense that it can work in
+     * another thread.
+     */
+    apr_allocator_create(&allocator);
+    apr_pool_create_ex(&pool, parent, NULL, allocator);
+    apr_pool_tag(pool, "h2_slave_conn");
+    apr_allocator_owner_set(allocator, pool);
 
-    add_te_chunked(p, bucket_alloc, header_brigade);
-    terminate_headers(bucket_alloc, header_brigade);
-
-    while (!APR_BUCKET_IS_EOS(APR_BRIGADE_FIRST(input_brigade)))
-    {
-        char chunk_hdr[20];  /* must be here due to transient bucket. */
-
-        /* If this brigade contains EOS, either stop or remove it. */
-        if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(input_brigade))) {
-            seen_eos = 1;
-
-            /* We can't pass this EOS to the output_filters. */
-            e = APR_BRIGADE_LAST(input_brigade);
-            apr_bucket_delete(e);
-        }
-
-        apr_brigade_length(input_brigade, 1, &bytes);
-
-        hdr_len = apr_snprintf(chunk_hdr, sizeof(chunk_hdr),
-                               "%" APR_UINT64_T_HEX_FMT CRLF,
-                               (apr_uint64_t)bytes);
-
-        ap_xlate_proto_to_ascii(chunk_hdr, hdr_len);
-        e = apr_bucket_transient_create(chunk_hdr, hdr_len,
-                                        bucket_alloc);
-        APR_BRIGADE_INSERT_HEAD(input_brigade, e);
-
-        /*
-         * Append the end-of-chunk CRLF
-         */
-        e = apr_bucket_immortal_create(ASCII_CRLF, 2, bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(input_brigade, e);
-
-        if (header_brigade) {
-            /* we never sent the header brigade, so go ahead and
-             * take care of that now
-             */
-            bb = header_brigade;
-
-            /*
-             * Save input_brigade in bb brigade. (At least) in the SSL case
-             * input_brigade contains transient buckets whose data would get
-             * overwritten during the next call of ap_get_brigade in the loop.
-             * ap_save_brigade ensures these buckets to be set aside.
-             * Calling ap_save_brigade with NULL as filter is OK, because
-             * bb brigade already has been created and does not need to get
-             * created by ap_save_brigade.
-             */
-            status = ap_save_brigade(NULL, &bb, &input_brigade, p);
-            if (status != APR_SUCCESS) {
-                return HTTP_INTERNAL_SERVER_ERROR;
-            }
-
-            header_brigade = NULL;
-        }
-        else {
-            bb = input_brigade;
-        }
-
-        /* The request is flushed below this loop with chunk EOS header */
-        rv = ap_proxy_pass_brigade(bucket_alloc, r, p_conn, origin, bb, 0);
-        if (rv != OK) {
-            return rv;
-        }
-
-        if (seen_eos) {
-            break;
-        }
-
-        status = ap_get_brigade(r->input_filters, input_brigade,
-                                AP_MODE_READBYTES, APR_BLOCK_READ,
-                                HUGE_STRING_LEN);
-
-        if (status != APR_SUCCESS) {
-            conn_rec *c = r->connection;
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02608)
-                          "read request body failed to %pI (%s)"
-                          " from %s (%s)", p_conn->addr,
-                          p_conn->hostname ? p_conn->hostname: "",
-                          c->client_ip, c->remote_host ? c->remote_host: "");
-            return HTTP_BAD_REQUEST;
-        }
+    c = (conn_rec *) apr_palloc(pool, sizeof(conn_rec));
+    if (c == NULL) {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, master, 
+                      APLOGNO(02913) "h2_task: creating conn");
+        return NULL;
+    }
+    
+    memcpy(c, master, sizeof(conn_rec));
+        
+    c->master                 = master;
+    c->pool                   = pool;   
+    c->conn_config            = ap_create_conn_config(pool);
+    c->notes                  = apr_table_make(pool, 5);
+    c->input_filters          = NULL;
+    c->output_filters         = NULL;
+    c->bucket_alloc           = apr_bucket_alloc_create(pool);
+    c->data_in_input_filters  = 0;
+    c->data_in_output_filters = 0;
+    c->clogging_input_filters = 1;
+    c->log                    = NULL;
+    c->log_id                 = apr_psprintf(pool, "%ld-%d", 
+                                             master->id, slave_id);
+    /* Simulate that we had already a request on this connection. */
+    c->keepalives             = 1;
+    /* We cannot install the master connection socket on the slaves, as
+     * modules mess with timeouts/blocking of the socket, with
+     * unwanted side effects to the master connection processing.
+     * Fortunately, since we never use the slave socket, we can just install
+     * a single, process-wide dummy and everyone is happy.
+     */
+    ap_set_module_config(c->conn_config, &core_module, dummy_socket);
+    /* TODO: these should be unique to this thread */
+    c->sbh                    = master->sbh;
+    /* TODO: not all mpm modules have learned about slave connections yet.
+     * copy their config from master to slave.
+     */
+    if (h2_conn_mpm_module()) {
+        cfg = ap_get_module_config(master->conn_config, h2_conn_mpm_module());
+        ap_set_module_config(c->conn_config, h2_conn_mpm_module(), cfg);
     }
 
-    if (header_brigade) {
-        /* we never sent the header brigade because there was no request body;
-         * send it now
-         */
-        bb = header_brigade;
-    }
-    else {
-        if (!APR_BRIGADE_EMPTY(input_brigade)) {
-            /* input brigade still has an EOS which we can't pass to the output_filters. */
-            e = APR_BRIGADE_LAST(input_brigade);
-            AP_DEBUG_ASSERT(APR_BUCKET_IS_EOS(e));
-            apr_bucket_delete(e);
-        }
-        bb = input_brigade;
-    }
-
-    e = apr_bucket_immortal_create(ASCII_ZERO ASCII_CRLF
-                                   /* <trailers> */
-                                   ASCII_CRLF,
-                                   5, bucket_alloc);
-    APR_BRIGADE_INSERT_TAIL(bb, e);
-
-    if (apr_table_get(r->subprocess_env, "proxy-sendextracrlf")) {
-        e = apr_bucket_immortal_create(ASCII_CRLF, 2, bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(bb, e);
-    }
-
-    /* Now we have headers-only, or the chunk EOS mark; flush it */
-    rv = ap_proxy_pass_brigade(bucket_alloc, r, p_conn, origin, bb, 1);
-    return rv;
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c, 
+                  "h2_task: creating conn, master=%ld, sid=%ld, logid=%s", 
+                  master->id, c->id, c->log_id);
+    return c;
 }

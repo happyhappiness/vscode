@@ -1,53 +1,39 @@
-static int handle_range_dir(
-	struct index_state *istate,
-	int k_start,
-	int k_end,
-	struct dir_entry *parent,
-	struct strbuf *prefix,
-	struct lazy_entry *lazy_entries,
-	struct dir_entry **dir_new_out)
+static int do_exec(const char *command_line)
 {
-	int rc, k;
-	int input_prefix_len = prefix->len;
-	struct dir_entry *dir_new;
+	const char *child_argv[] = { NULL, NULL };
+	int dirty, status;
 
-	dir_new = hash_dir_entry_with_parent_and_prefix(istate, parent, prefix);
+	fprintf(stderr, "Executing: %s\n", command_line);
+	child_argv[0] = command_line;
+	status = run_command_v_opt(child_argv, RUN_USING_SHELL);
 
-	strbuf_addch(prefix, '/');
+	/* force re-reading of the cache */
+	if (discard_cache() < 0 || read_cache() < 0)
+		return error(_("could not read index"));
 
-	/*
-	 * Scan forward in the index array for index entries having the same
-	 * path prefix (that are also in this directory).
-	 */
-	if (k_start + 1 >= k_end)
-		k = k_end;
-	else if (strncmp(istate->cache[k_start + 1]->name, prefix->buf, prefix->len) > 0)
-		k = k_start + 1;
-	else if (strncmp(istate->cache[k_end - 1]->name, prefix->buf, prefix->len) == 0)
-		k = k_end;
-	else {
-		int begin = k_start;
-		int end = k_end;
-		while (begin < end) {
-			int mid = (begin + end) >> 1;
-			int cmp = strncmp(istate->cache[mid]->name, prefix->buf, prefix->len);
-			if (cmp == 0) /* mid has same prefix; look in second part */
-				begin = mid + 1;
-			else if (cmp > 0) /* mid is past group; look in first part */
-				end = mid;
-			else
-				die("cache entry out of order");
-		}
-		k = begin;
+	dirty = require_clean_work_tree("rebase", NULL, 1, 1);
+
+	if (status) {
+		warning(_("execution failed: %s\n%s"
+			  "You can fix the problem, and then run\n"
+			  "\n"
+			  "  git rebase --continue\n"
+			  "\n"),
+			command_line,
+			dirty ? N_("and made changes to the index and/or the "
+				"working tree\n") : "");
+		if (status == 127)
+			/* command not found */
+			status = 1;
+	} else if (dirty) {
+		warning(_("execution succeeded: %s\nbut "
+			  "left changes to the index and/or the working tree\n"
+			  "Commit or stash your changes, and then run\n"
+			  "\n"
+			  "  git rebase --continue\n"
+			  "\n"), command_line);
+		status = 1;
 	}
 
-	/*
-	 * Recurse and process what we can of this subset [k_start, k).
-	 */
-	rc = handle_range_1(istate, k_start, k, dir_new, prefix, lazy_entries);
-
-	strbuf_setlen(prefix, input_prefix_len);
-
-	*dir_new_out = dir_new;
-	return rc;
+	return status;
 }

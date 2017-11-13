@@ -1,9 +1,9 @@
-static void *xcalloc(size_t num, size_t size)
+static char *xstrdup(const char *s)
 {
-    void *ret = calloc(num, size);
+    char *ret = strdup(s);
     if (ret == NULL) {
         fprintf(stderr, "Could not allocate memory (%"
-                APR_SIZE_T_FMT" bytes)\n", size*num);
+                APR_SIZE_T_FMT " bytes)\n", strlen(s));
         exit(1);
     }
     return ret;

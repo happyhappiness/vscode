@@ -1,54 +1,19 @@
-static void diagnose_invalid_index_path(int stage,
-					const char *prefix,
-					const char *filename)
+static void handle_bad_merge_base(void)
 {
-	const struct cache_entry *ce;
-	int pos;
-	unsigned namelen = strlen(filename);
-	unsigned fullnamelen;
-	char *fullname;
+	if (is_expected_rev(current_bad_oid)) {
+		char *bad_hex = oid_to_hex(current_bad_oid);
+		char *good_hex = join_sha1_array_hex(&good_revs, ' ');
 
-	if (!prefix)
-		prefix = "";
+		fprintf(stderr, "The merge base %s is bad.\n"
+			"This means the bug has been fixed "
+			"between %s and [%s].\n",
+			bad_hex, bad_hex, good_hex);
 
-	/* Wrong stage number? */
-	pos = cache_name_pos(filename, namelen);
-	if (pos < 0)
-		pos = -pos - 1;
-	if (pos < active_nr) {
-		ce = active_cache[pos];
-		if (ce_namelen(ce) == namelen &&
-		    !memcmp(ce->name, filename, namelen))
-			die("Path '%s' is in the index, but not at stage %d.\n"
-			    "Did you mean ':%d:%s'?",
-			    filename, stage,
-			    ce_stage(ce), filename);
+		exit(3);
 	}
 
-	/* Confusion between relative and absolute filenames? */
-	fullnamelen = namelen + strlen(prefix);
-	fullname = xmalloc(fullnamelen + 1);
-	strcpy(fullname, prefix);
-	strcat(fullname, filename);
-	pos = cache_name_pos(fullname, fullnamelen);
-	if (pos < 0)
-		pos = -pos - 1;
-	if (pos < active_nr) {
-		ce = active_cache[pos];
-		if (ce_namelen(ce) == fullnamelen &&
-		    !memcmp(ce->name, fullname, fullnamelen))
-			die("Path '%s' is in the index, but not '%s'.\n"
-			    "Did you mean ':%d:%s' aka ':%d:./%s'?",
-			    fullname, filename,
-			    ce_stage(ce), fullname,
-			    ce_stage(ce), filename);
-	}
-
-	if (file_exists(filename))
-		die("Path '%s' exists on disk, but not in the index.", filename);
-	if (errno == ENOENT || errno == ENOTDIR)
-		die("Path '%s' does not exist (neither on disk nor in the index).",
-		    filename);
-
-	free(fullname);
+	fprintf(stderr, "Some good revs are not ancestor of the bad rev.\n"
+		"git bisect cannot work properly in this case.\n"
+		"Maybe you mistake good and bad revs?\n");
+	exit(1);
 }

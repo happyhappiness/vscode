@@ -1,1 +1,1 @@
-out_of_memory("copy_section");
+fprintf(stderr, "Unknown logcode in rwrite(): %d [%s]\n", (int)code, who_am_i());

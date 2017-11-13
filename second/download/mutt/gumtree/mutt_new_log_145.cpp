@@ -1,1 +1,2 @@
-mutt_yesorno (tmp, MUTT_YES);
+(mutt_yesorno (_("S/MIME already selected. Clear & continue ? "),
+                              MUTT_YES);

@@ -28,6 +28,8 @@ def cluster_feature(z3_api):
     # build feature list
     index = 0
     for record in islice(records, 1, None):  # remove the table title
+        if int(record[my_constant.FETCH_LOG_ACTION_TYPE]) %2 == 0:
+            continue
         check_feature = json.loads(record[my_constant.ANALYZE_CHECK]) 
         variable_feature = json.loads(record[my_constant.ANALYZE_VARIABLE])
         # z3 feature
@@ -48,6 +50,8 @@ def cluster_feature(z3_api):
     records = csv.reader(read_file)
     index = 0
     for record in islice(records, 1, None):
+        if int(record[my_constant.FETCH_LOG_ACTION_TYPE]) %2 == 0:
+                continue
         record = record + [cluster_lists[index]]
         write_file_writer.writerow(record)
         index += 1
@@ -71,6 +75,8 @@ def cluster_edition():
     # build feature list
     index = 0
     for record in islice(records, 1, None):  # remove the table title
+        if int(record[my_constant.FETCH_LOG_ACTION_TYPE]) %2 == 0:
+            continue
         # old cdg feature
         edit_feature = json.loads(record[my_constant.ANALYZE_EDIT_FEATURE])
         feature_lists.append(edit_feature)
@@ -87,6 +93,8 @@ def cluster_edition():
     records = csv.reader(read_file)
     index = 0
     for record in islice(records, 1, None):
+        if int(record[my_constant.FETCH_LOG_ACTION_TYPE]) %2 == 0:
+            continue
         record = record + [cluster_lists[index]]
         write_file_writer.writerow(record)
         index += 1
@@ -110,6 +118,8 @@ def cluster_edition_and_feature(z3_api=None):
     # build feature list
     index = 0
     for record in islice(records, 1, None):  # remove the table title
+        if int(record[my_constant.FETCH_LOG_ACTION_TYPE]) %2 == 0:
+            continue
         # context feature
         check_feature = json.loads(record[my_constant.ANALYZE_CHECK])
         variable_feature = json.loads(record[my_constant.ANALYZE_VARIABLE])
@@ -133,6 +143,8 @@ def cluster_edition_and_feature(z3_api=None):
     records = csv.reader(read_file)
     index = 0
     for record in islice(records, 1, None):
+        if int(record[my_constant.FETCH_LOG_ACTION_TYPE]) %2 == 0:
+            continue
         record = record + [cluster_lists[index]]
         write_file_writer.writerow(record)
         index += 1

@@ -1,11 +1,11 @@
 fputs(
-"                             the time  the  server  needed  to  calculate  the\n"
-"                             result.\n"
+"                             tion that was requested. 0 means the verification\n"
+"                             was successful. (Added in 7.19.0)\n"
 "\n"
-"              time_total     The  total time, in seconds, that the full opera-\n"
-"                             tion lasted. The time will be displayed with mil-\n"
-"                             lisecond resolution.\n"
+"              time_appconnect\n"
+"                             The  time,  in  seconds,  it  took from the start\n"
+"                             until the SSL/SSH/etc  connect/handshake  to  the\n"
+"                             remote host was completed. (Added in 7.19.0)\n"
 "\n"
-"              url_effective  The URL that was fetched last. This is most mean-\n"
-"                             ingful if you've told curl  to  follow  location:\n"
+"              time_connect   The  time,  in  seconds,  it  took from the start\n"
 , stdout);

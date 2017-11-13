@@ -1,1 +1,2 @@
-fprintf(f,"-D, --devices            preserve devices (root only)\n");
+fprintf(FERROR,"write_int failed : %s\n",
+	    ret==-1?strerror(errno):"EOF");

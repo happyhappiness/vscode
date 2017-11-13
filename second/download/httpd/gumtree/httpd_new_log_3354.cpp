@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01274) "unknown parameter "
-                          "\"%s\" to tag exec in %s", tag, file);
+ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL, APLOGNO(02168)
+                    "setuid: unable to change to uid: %ld",
+                    (long) ap_unixd_config.user_id);

@@ -1,49 +1,65 @@
-static void load_tree(struct tree_entry *root)
+static int handle_change_delete(struct merge_options *o,
+				 const char *path, const char *old_path,
+				 const struct object_id *o_oid, int o_mode,
+				 const struct object_id *changed_oid,
+				 int changed_mode,
+				 const char *change_branch,
+				 const char *delete_branch,
+				 const char *change, const char *change_past)
 {
-	unsigned char *sha1 = root->versions[1].sha1;
-	struct object_entry *myoe;
-	struct tree_content *t;
-	unsigned long size;
-	char *buf;
-	const char *c;
+	char *alt_path = NULL;
+	const char *update_path = path;
+	int ret = 0;
 
-	root->tree = t = new_tree_content(8);
-	if (is_null_sha1(sha1))
-		return;
+	if (dir_in_way(path, !o->call_depth, 0)) {
+		update_path = alt_path = unique_path(o, path, change_branch);
+	}
 
-	myoe = find_object(sha1);
-	if (myoe && myoe->pack_id != MAX_PACK_ID) {
-		if (myoe->type != OBJ_TREE)
-			die("Not a tree: %s", sha1_to_hex(sha1));
-		t->delta_depth = myoe->depth;
-		buf = gfi_unpack_entry(myoe, &size);
-		if (!buf)
-			die("Can't load tree %s", sha1_to_hex(sha1));
+	if (o->call_depth) {
+		/*
+		 * We cannot arbitrarily accept either a_sha or b_sha as
+		 * correct; since there is no true "middle point" between
+		 * them, simply reuse the base version for virtual merge base.
+		 */
+		ret = remove_file_from_cache(path);
+		if (!ret)
+			ret = update_file(o, 0, o_oid, o_mode, update_path);
 	} else {
-		enum object_type type;
-		buf = read_sha1_file(sha1, &type, &size);
-		if (!buf || type != OBJ_TREE)
-			die("Can't load tree %s", sha1_to_hex(sha1));
+		if (!alt_path) {
+			if (!old_path) {
+				output(o, 1, _("CONFLICT (%s/delete): %s deleted in %s "
+				       "and %s in %s. Version %s of %s left in tree."),
+				       change, path, delete_branch, change_past,
+				       change_branch, change_branch, path);
+			} else {
+				output(o, 1, _("CONFLICT (%s/delete): %s deleted in %s "
+				       "and %s to %s in %s. Version %s of %s left in tree."),
+				       change, old_path, delete_branch, change_past, path,
+				       change_branch, change_branch, path);
+			}
+		} else {
+			if (!old_path) {
+				output(o, 1, _("CONFLICT (%s/delete): %s deleted in %s "
+				       "and %s in %s. Version %s of %s left in tree at %s."),
+				       change, path, delete_branch, change_past,
+				       change_branch, change_branch, path, alt_path);
+			} else {
+				output(o, 1, _("CONFLICT (%s/delete): %s deleted in %s "
+				       "and %s to %s in %s. Version %s of %s left in tree at %s."),
+				       change, old_path, delete_branch, change_past, path,
+				       change_branch, change_branch, path, alt_path);
+			}
+		}
+		/*
+		 * No need to call update_file() on path when change_branch ==
+		 * o->branch1 && !alt_path, since that would needlessly touch
+		 * path.  We could call update_file_flags() with update_cache=0
+		 * and update_wd=0, but that's a no-op.
+		 */
+		if (change_branch != o->branch1 || alt_path)
+			ret = update_file(o, 0, changed_oid, changed_mode, update_path);
 	}
+	free(alt_path);
 
-	c = buf;
-	while (c != (buf + size)) {
-		struct tree_entry *e = new_tree_entry();
-
-		if (t->entry_count == t->entry_capacity)
-			root->tree = t = grow_tree_content(t, t->entry_count);
-		t->entries[t->entry_count++] = e;
-
-		e->tree = NULL;
-		c = get_mode(c, &e->versions[1].mode);
-		if (!c)
-			die("Corrupt mode in %s", sha1_to_hex(sha1));
-		e->versions[0].mode = e->versions[1].mode;
-		e->name = to_atom(c, strlen(c));
-		c += e->name->str_len + 1;
-		hashcpy(e->versions[0].sha1, (unsigned char *)c);
-		hashcpy(e->versions[1].sha1, (unsigned char *)c);
-		c += 20;
-	}
-	free(buf);
+	return ret;
 }

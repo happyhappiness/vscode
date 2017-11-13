@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " Please read the documentation.");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                            "proxy: BALANCER: (%s). No workers in balancer",
+                            (*balancer)->name);

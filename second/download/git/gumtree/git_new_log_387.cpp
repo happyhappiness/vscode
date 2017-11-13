@@ -1,1 +1,1 @@
-die(_("error in sideband demultiplexer"));
+warning(_("--shallow-exclude is ignored in local clones; use file:// instead."));

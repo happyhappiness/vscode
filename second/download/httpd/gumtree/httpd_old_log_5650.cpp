@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c, APLOGNO(01974)
-                      "could not connect to OCSP responder '%s'",
-                      uri->hostinfo);
+fprintf(stderr,"Failed to %s the %s service.\n",
+               signal ? "restart" : "stop", mpm_display_name);

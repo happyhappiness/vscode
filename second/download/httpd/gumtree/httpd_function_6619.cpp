@@ -1,52 +1,56 @@
-static int proxy_balancer_post_request(proxy_worker *worker,
-                                       proxy_balancer *balancer,
-                                       request_rec *r,
-                                       proxy_server_conf *conf)
+static void map_link(link_ctx *ctx) 
 {
-
-    apr_status_t rv;
-
-    if ((rv = PROXY_THREAD_LOCK(balancer)) != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01173)
-                      "%s: Lock failed for post_request",
-                      balancer->s->name);
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    if (!apr_is_empty_array(balancer->errstatuses)) {
-        int i;
-        for (i = 0; i < balancer->errstatuses->nelts; i++) {
-            int val = ((int *)balancer->errstatuses->elts)[i];
-            if (r->status == val) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01174)
-                              "%s: Forcing worker (%s) into error state " 
-                              "due to status code %d matching 'failonstatus' "
-                              "balancer parameter",
-                              balancer->s->name, worker->s->name, val);
-                worker->s->status |= PROXY_WORKER_IN_ERROR;
-                worker->s->error_time = apr_time_now();
-                break;
+    if (ctx->link_start < ctx->link_end) {
+        char buffer[HUGE_STRING_LEN];
+        int need_len, link_len, buffer_len, prepend_p_server; 
+        const char *mapped;
+        
+        buffer[0] = '\0';
+        buffer_len = 0;
+        link_len = ctx->link_end - ctx->link_start;
+        need_len = link_len + 1;
+        prepend_p_server = (ctx->s[ctx->link_start] == '/'); 
+        if (prepend_p_server) {
+            /* common to use relative uris in link header, for mappings
+             * to work need to prefix the backend server uri */
+            need_len += ctx->psu_len;
+            strncpy(buffer, ctx->p_server_uri, sizeof(buffer));
+            buffer_len = ctx->psu_len;
+        }
+        if (need_len > sizeof(buffer)) {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, ctx->r, APLOGNO(03482) 
+                          "link_reverse_map uri too long, skipped: %s", ctx->s);
+            return;
+        }
+        strncpy(buffer + buffer_len, ctx->s + ctx->link_start, link_len);
+        buffer_len += link_len;
+        buffer[buffer_len] = '\0';
+        if (!prepend_p_server
+            && strcmp(ctx->real_backend_uri, ctx->p_server_uri)
+            && !strncmp(buffer, ctx->real_backend_uri, ctx->rbu_len)) {
+            /* the server uri and our local proxy uri we use differ, for mapping
+             * to work, we need to use the proxy uri */
+            int path_start = ctx->link_start + ctx->rbu_len;
+            link_len -= ctx->rbu_len;
+            strcpy(buffer, ctx->p_server_uri);
+            strncpy(buffer + ctx->psu_len, ctx->s + path_start, link_len);
+            buffer_len = ctx->psu_len + link_len;
+            buffer[buffer_len] = '\0';            
+        }
+        mapped = ap_proxy_location_reverse_map(ctx->r, ctx->conf, buffer);
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, ctx->r, 
+                      "reverse_map[%s] %s --> %s", ctx->p_server_uri, buffer, mapped);
+        if (mapped != buffer) {
+            if (prepend_p_server) {
+                if (ctx->server_uri == NULL) {
+                    ctx->server_uri = ap_construct_url(ctx->pool, "", ctx->r);
+                    ctx->su_len = (int)strlen(ctx->server_uri);
+                }
+                if (!strncmp(mapped, ctx->server_uri, ctx->su_len)) {
+                    mapped += ctx->su_len;
+                }
             }
+            subst_str(ctx, ctx->link_start, ctx->link_end, mapped);
         }
     }
-
-    if (balancer->failontimeout
-        && (apr_table_get(r->notes, "proxy_timedout")) != NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02460)
-                      "%s: Forcing worker (%s) into error state "
-                      "due to timeout and 'failonstatus' parameter being set",
-                       balancer->s->name, worker->s->name);
-        worker->s->status |= PROXY_WORKER_IN_ERROR;
-        worker->s->error_time = apr_time_now();
-
-    }
-
-    if ((rv = PROXY_THREAD_UNLOCK(balancer)) != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01175)
-                      "%s: Unlock failed for post_request", balancer->s->name);
-    }
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01176)
-                  "proxy_balancer_post_request for (%s)", balancer->s->name);
-
-    return OK;
 }

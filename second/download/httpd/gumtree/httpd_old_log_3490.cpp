@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "request_rec->dispatching %s -> apr table",
-                              name);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
+                     "scache_mc: error setting key '%s' "
+                     "with %d bytes of data", buf, nData);

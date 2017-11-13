@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Child %lu: Unable to access the start_mutex from the parent", my_pid);
+ap_rvputs(r, " </head>\n <body>\n", NULL);

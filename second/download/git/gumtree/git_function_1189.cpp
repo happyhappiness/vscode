@@ -1,63 +1,100 @@
-static void determine_author_info(struct strbuf *author_ident)
+const char *help_unknown_cmd(const char *cmd)
 {
-	char *name, *email, *date;
-	struct ident_split author;
-	char date_buf[64];
+	int i, n, best_similarity = 0;
+	struct cmdnames main_cmds, other_cmds;
 
-	name = getenv("GIT_AUTHOR_NAME");
-	email = getenv("GIT_AUTHOR_EMAIL");
-	date = getenv("GIT_AUTHOR_DATE");
+	memset(&main_cmds, 0, sizeof(main_cmds));
+	memset(&other_cmds, 0, sizeof(other_cmds));
+	memset(&aliases, 0, sizeof(aliases));
 
-	if (author_message) {
-		const char *a, *lb, *rb, *eol;
-		size_t len;
+	git_config(git_unknown_cmd_config, NULL);
 
-		a = strstr(author_message_buffer, "\nauthor ");
-		if (!a)
-			die(_("invalid commit: %s"), author_message);
+	load_command_list("git-", &main_cmds, &other_cmds);
 
-		lb = strchrnul(a + strlen("\nauthor "), '<');
-		rb = strchrnul(lb, '>');
-		eol = strchrnul(rb, '\n');
-		if (!*lb || !*rb || !*eol)
-			die(_("invalid commit: %s"), author_message);
+	add_cmd_list(&main_cmds, &aliases);
+	add_cmd_list(&main_cmds, &other_cmds);
+	QSORT(main_cmds.names, main_cmds.cnt, cmdname_compare);
+	uniq(&main_cmds);
 
-		if (lb == a + strlen("\nauthor "))
-			/* \nauthor <foo@example.com> */
-			name = xcalloc(1, 1);
-		else
-			name = xmemdupz(a + strlen("\nauthor "),
-					(lb - strlen(" ") -
-					 (a + strlen("\nauthor "))));
-		email = xmemdupz(lb + strlen("<"), rb - (lb + strlen("<")));
-		len = eol - (rb + strlen("> "));
-		date = xmalloc(len + 2);
-		*date = '@';
-		memcpy(date + 1, rb + strlen("> "), len);
-		date[len + 1] = '\0';
+	/* This abuses cmdname->len for levenshtein distance */
+	for (i = 0, n = 0; i < main_cmds.cnt; i++) {
+		int cmp = 0; /* avoid compiler stupidity */
+		const char *candidate = main_cmds.names[i]->name;
+
+		/*
+		 * An exact match means we have the command, but
+		 * for some reason exec'ing it gave us ENOENT; probably
+		 * it's a bad interpreter in the #! line.
+		 */
+		if (!strcmp(candidate, cmd))
+			die(_(bad_interpreter_advice), cmd, cmd);
+
+		/* Does the candidate appear in common_cmds list? */
+		while (n < ARRAY_SIZE(common_cmds) &&
+		       (cmp = strcmp(common_cmds[n].name, candidate)) < 0)
+			n++;
+		if ((n < ARRAY_SIZE(common_cmds)) && !cmp) {
+			/* Yes, this is one of the common commands */
+			n++; /* use the entry from common_cmds[] */
+			if (starts_with(candidate, cmd)) {
+				/* Give prefix match a very good score */
+				main_cmds.names[i]->len = 0;
+				continue;
+			}
+		}
+
+		main_cmds.names[i]->len =
+			levenshtein(cmd, candidate, 0, 2, 1, 3) + 1;
 	}
 
-	if (force_author) {
-		const char *lb = strstr(force_author, " <");
-		const char *rb = strchr(force_author, '>');
+	QSORT(main_cmds.names, main_cmds.cnt, levenshtein_compare);
 
-		if (!lb || !rb)
-			die(_("malformed --author parameter"));
-		name = xstrndup(force_author, lb - force_author);
-		email = xstrndup(lb + 2, rb - (lb + 2));
+	if (!main_cmds.cnt)
+		die(_("Uh oh. Your system reports no Git commands at all."));
+
+	/* skip and count prefix matches */
+	for (n = 0; n < main_cmds.cnt && !main_cmds.names[n]->len; n++)
+		; /* still counting */
+
+	if (main_cmds.cnt <= n) {
+		/* prefix matches with everything? that is too ambiguous */
+		best_similarity = SIMILARITY_FLOOR + 1;
+	} else {
+		/* count all the most similar ones */
+		for (best_similarity = main_cmds.names[n++]->len;
+		     (n < main_cmds.cnt &&
+		      best_similarity == main_cmds.names[n]->len);
+		     n++)
+			; /* still counting */
+	}
+	if (autocorrect && n == 1 && SIMILAR_ENOUGH(best_similarity)) {
+		const char *assumed = main_cmds.names[0]->name;
+		main_cmds.names[0] = NULL;
+		clean_cmdnames(&main_cmds);
+		fprintf_ln(stderr,
+			   _("WARNING: You called a Git command named '%s', "
+			     "which does not exist.\n"
+			     "Continuing under the assumption that you meant '%s'"),
+			cmd, assumed);
+		if (autocorrect > 0) {
+			fprintf_ln(stderr, _("in %0.1f seconds automatically..."),
+				(float)autocorrect/10.0);
+			sleep_millisec(autocorrect * 100);
+		}
+		return assumed;
 	}
 
-	if (force_date) {
-		if (parse_force_date(force_date, date_buf, sizeof(date_buf)))
-			die(_("invalid date format: %s"), force_date);
-		date = date_buf;
+	fprintf_ln(stderr, _("git: '%s' is not a git command. See 'git --help'."), cmd);
+
+	if (SIMILAR_ENOUGH(best_similarity)) {
+		fprintf_ln(stderr,
+			   Q_("\nThe most similar command is",
+			      "\nThe most similar commands are",
+			   n));
+
+		for (i = 0; i < n; i++)
+			fprintf(stderr, "\t%s\n", main_cmds.names[i]->name);
 	}
 
-	strbuf_addstr(author_ident, fmt_ident(name, email, date, IDENT_STRICT));
-	if (!split_ident_line(&author, author_ident->buf, author_ident->len) &&
-	    sane_ident_split(&author)) {
-		export_one("GIT_AUTHOR_NAME", author.name_begin, author.name_end, 0);
-		export_one("GIT_AUTHOR_EMAIL", author.mail_begin, author.mail_end, 0);
-		export_one("GIT_AUTHOR_DATE", author.date_begin, author.tz_end, '@');
-	}
+	exit(1);
 }

@@ -1,38 +1,86 @@
-static int module_list(int argc, const char **argv, const char *prefix)
+static void init_submodule(const char *path, const char *prefix, int quiet)
 {
-	int i;
-	struct pathspec pathspec;
-	struct module_list list = MODULE_LIST_INIT;
+	const struct submodule *sub;
+	struct strbuf sb = STRBUF_INIT;
+	char *upd = NULL, *url = NULL, *displaypath;
 
-	struct option module_list_options[] = {
-		OPT_STRING(0, "prefix", &prefix,
-			   N_("path"),
-			   N_("alternative anchor for relative paths")),
-		OPT_END()
-	};
+	/* Only loads from .gitmodules, no overlay with .git/config */
+	gitmodules_config();
 
-	const char *const git_submodule_helper_usage[] = {
-		N_("git submodule--helper list [--prefix=<path>] [<path>...]"),
-		NULL
-	};
+	if (prefix) {
+		strbuf_addf(&sb, "%s%s", prefix, path);
+		displaypath = strbuf_detach(&sb, NULL);
+	} else
+		displaypath = xstrdup(path);
 
-	argc = parse_options(argc, argv, prefix, module_list_options,
-			     git_submodule_helper_usage, 0);
+	sub = submodule_from_path(null_sha1, path);
 
-	if (module_list_compute(argc, argv, prefix, &pathspec, &list) < 0) {
-		printf("#unmatched\n");
-		return 1;
+	if (!sub)
+		die(_("No url found for submodule path '%s' in .gitmodules"),
+			displaypath);
+
+	/*
+	 * Copy url setting when it is not set yet.
+	 * To look up the url in .git/config, we must not fall back to
+	 * .gitmodules, so look it up directly.
+	 */
+	strbuf_reset(&sb);
+	strbuf_addf(&sb, "submodule.%s.url", sub->name);
+	if (git_config_get_string(sb.buf, &url)) {
+		url = xstrdup(sub->url);
+
+		if (!url)
+			die(_("No url found for submodule path '%s' in .gitmodules"),
+				displaypath);
+
+		/* Possibly a url relative to parent */
+		if (starts_with_dot_dot_slash(url) ||
+		    starts_with_dot_slash(url)) {
+			char *remoteurl, *relurl;
+			char *remote = get_default_remote();
+			struct strbuf remotesb = STRBUF_INIT;
+			strbuf_addf(&remotesb, "remote.%s.url", remote);
+			free(remote);
+
+			if (git_config_get_string(remotesb.buf, &remoteurl))
+				/*
+				 * The repository is its own
+				 * authoritative upstream
+				 */
+				remoteurl = xgetcwd();
+			relurl = relative_url(remoteurl, url, NULL);
+			strbuf_release(&remotesb);
+			free(remoteurl);
+			free(url);
+			url = relurl;
+		}
+
+		if (git_config_set_gently(sb.buf, url))
+			die(_("Failed to register url for submodule path '%s'"),
+			    displaypath);
+		if (!quiet)
+			fprintf(stderr,
+				_("Submodule '%s' (%s) registered for path '%s'\n"),
+				sub->name, url, displaypath);
 	}
 
-	for (i = 0; i < list.nr; i++) {
-		const struct cache_entry *ce = list.entries[i];
+	/* Copy "update" setting when it is not set yet */
+	strbuf_reset(&sb);
+	strbuf_addf(&sb, "submodule.%s.update", sub->name);
+	if (git_config_get_string(sb.buf, &upd) &&
+	    sub->update_strategy.type != SM_UPDATE_UNSPECIFIED) {
+		if (sub->update_strategy.type == SM_UPDATE_COMMAND) {
+			fprintf(stderr, _("warning: command update mode suggested for submodule '%s'\n"),
+				sub->name);
+			upd = xstrdup("none");
+		} else
+			upd = xstrdup(submodule_strategy_to_string(&sub->update_strategy));
 
-		if (ce_stage(ce))
-			printf("%06o %s U\t", ce->ce_mode, sha1_to_hex(null_sha1));
-		else
-			printf("%06o %s %d\t", ce->ce_mode, sha1_to_hex(ce->sha1), ce_stage(ce));
-
-		utf8_fprintf(stdout, "%s\n", ce->name);
+		if (git_config_set_gently(sb.buf, upd))
+			die(_("Failed to register update mode for submodule path '%s'"), displaypath);
 	}
-	return 0;
+	strbuf_release(&sb);
+	free(displaypath);
+	free(url);
+	free(upd);
 }

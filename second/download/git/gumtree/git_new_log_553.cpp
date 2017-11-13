@@ -1,1 +1,1 @@
-die("BUG: unhandled unmerged status %x", d->stagemask);
+die(_("%s failed"), cmd_name);

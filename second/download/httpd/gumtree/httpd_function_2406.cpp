@@ -1,35 +1,28 @@
-static int open_postfile(const char *pfile)
+static const char *set_threads_per_child (cmd_parms *cmd, void *dummy,
+                                          const char *arg)
 {
-    apr_file_t *postfd;
-    apr_finfo_t finfo;
-    apr_status_t rv;
-    char errmsg[120];
-
-    rv = apr_file_open(&postfd, pfile, APR_READ, APR_OS_DEFAULT, cntxt);
-    if (rv != APR_SUCCESS) {
-        fprintf(stderr, "ab: Could not open POST data file (%s): %s\n", pfile,
-                apr_strerror(rv, errmsg, sizeof errmsg));
-        return rv;
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
     }
 
-    rv = apr_file_info_get(&finfo, APR_FINFO_NORM, postfd);
-    if (rv != APR_SUCCESS) {
-        fprintf(stderr, "ab: Could not stat POST data file (%s): %s\n", pfile,
-                apr_strerror(rv, errmsg, sizeof errmsg));
-        return rv;
+    ap_threads_per_child = atoi(arg);
+    if (ap_threads_per_child > thread_limit) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
+                     "value of %d", ap_threads_per_child,
+                     thread_limit);
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "threads, lowering ThreadsPerChild to %d. To increase, please"
+                     " see the", thread_limit);
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     " ThreadLimit directive.");
+        ap_threads_per_child = thread_limit;
     }
-    postlen = (apr_size_t)finfo.size;
-    postdata = malloc(postlen);
-    if (!postdata) {
-        fprintf(stderr, "ab: Could not allocate POST data buffer\n");
-        return APR_ENOMEM;
+    else if (ap_threads_per_child < 1) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "WARNING: Require ThreadsPerChild > 0, setting to 1");
+        ap_threads_per_child = 1;
     }
-    rv = apr_file_read_full(postfd, postdata, postlen, NULL);
-    if (rv != APR_SUCCESS) {
-        fprintf(stderr, "ab: Could not read POST data file: %s\n",
-                apr_strerror(rv, errmsg, sizeof errmsg));
-        return rv;
-    }
-    apr_file_close(postfd);
-    return 0;
+    return NULL;
 }

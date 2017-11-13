@@ -1,4 +1,1 @@
-apr_file_printf(errfile,
-                            "Could not write the pid file '%s': %s" APR_EOL_STR,
-                            pidfilename, 
-                            apr_strerror(status, errmsg, sizeof errmsg));
+apr_file_printf(errfile, "apr_SHA1InitEBCDIC()->%d" NL, rv);

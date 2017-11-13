@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "auth_ldap authorize: require user: user's DN has not "
-                      "been defined; failing authorization");
+apr_file_printf(errfile, "total entries was %d, total entries now %d"
+                              APR_EOL_STR, (int)(s->etotal),
+                              (int)(s->entries));

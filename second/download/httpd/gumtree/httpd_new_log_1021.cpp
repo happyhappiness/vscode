@@ -1,1 +1,2 @@
-apr_file_printf(errfile, " -p  Do not encrypt the password (plaintext)." NL);
+ap_log_error(APLOG_MARK, APLOG_ERR, stat, ap_server_conf,
+                            "apr_socket_accept: (client socket)");

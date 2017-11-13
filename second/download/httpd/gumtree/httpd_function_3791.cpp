@@ -1,264 +1,298 @@
-static int balancer_handler(request_rec *r)
+static int cgi_handler(request_rec *r)
 {
-    void *sconf = r->server->module_config;
-    proxy_server_conf *conf = (proxy_server_conf *)
-        ap_get_module_config(sconf, &proxy_module);
-    proxy_balancer *balancer, *bsel = NULL;
-    proxy_worker *worker, *wsel = NULL;
-    proxy_worker **workers = NULL;
-    apr_table_t *params = apr_table_make(r->pool, 10);
-    int access_status;
-    int i, n;
-    const char *name;
+    int nph;
+    apr_size_t dbpos = 0;
+    const char *argv0;
+    const char *command;
+    const char **argv;
+    char *dbuf = NULL;
+    apr_file_t *script_out = NULL, *script_in = NULL, *script_err = NULL;
+    apr_bucket_brigade *bb;
+    apr_bucket *b;
+    int is_included;
+    int seen_eos, child_stopped_reading;
+    apr_pool_t *p;
+    cgi_server_conf *conf;
+    apr_status_t rv;
+    cgi_exec_info_t e_info;
+    conn_rec *c = r->connection;
 
-    /* is this for us? */
-    if (strcmp(r->handler, "balancer-manager"))
+    if(strcmp(r->handler, CGI_MAGIC_TYPE) && strcmp(r->handler, "cgi-script"))
         return DECLINED;
-    r->allowed = (AP_METHOD_BIT << M_GET);
-    if (r->method_number != M_GET)
-        return DECLINED;
 
-    if (r->args) {
-        char *args = apr_pstrdup(r->pool, r->args);
-        char *tok, *val;
-        while (args && *args) {
-            if ((val = ap_strchr(args, '='))) {
-                *val++ = '\0';
-                if ((tok = ap_strchr(val, '&')))
-                    *tok++ = '\0';
-                /*
-                 * Special case: workers are allowed path information
-                 */
-                if ((access_status = ap_unescape_url(val)) != OK)
-                    if (strcmp(args, "w") || (access_status !=  HTTP_NOT_FOUND))
-                        return access_status;
-                apr_table_setn(params, args, val);
-                args = tok;
-            }
-            else
-                return HTTP_BAD_REQUEST;
-        }
+    is_included = !strcmp(r->protocol, "INCLUDED");
+
+    p = r->main ? r->main->pool : r->pool;
+
+    argv0 = apr_filepath_name_get(r->filename);
+    nph = !(strncmp(argv0, "nph-", 4));
+    conf = ap_get_module_config(r->server->module_config, &cgi_module);
+
+    if (!(ap_allow_options(r) & OPT_EXECCGI) && !is_scriptaliased(r))
+        return log_scripterror(r, conf, HTTP_FORBIDDEN, 0,
+                               "Options ExecCGI is off in this directory");
+    if (nph && is_included)
+        return log_scripterror(r, conf, HTTP_FORBIDDEN, 0,
+                               "attempt to include NPH CGI script");
+
+    if (r->finfo.filetype == APR_NOFILE)
+        return log_scripterror(r, conf, HTTP_NOT_FOUND, 0,
+                               "script not found or unable to stat");
+    if (r->finfo.filetype == APR_DIR)
+        return log_scripterror(r, conf, HTTP_FORBIDDEN, 0,
+                               "attempt to invoke directory as script");
+
+    if ((r->used_path_info == AP_REQ_REJECT_PATH_INFO) &&
+        r->path_info && *r->path_info)
+    {
+        /* default to accept */
+        return log_scripterror(r, conf, HTTP_NOT_FOUND, 0,
+                               "AcceptPathInfo off disallows user's path");
     }
-    
-    /* Check that the supplied nonce matches this server's nonce;
-     * otherwise ignore all parameters, to prevent a CSRF attack. */
-    if (*balancer_nonce &&
-        ((name = apr_table_get(params, "nonce")) == NULL 
-        || strcmp(balancer_nonce, name) != 0)) {
-        apr_table_clear(params);
+/*
+    if (!ap_suexec_enabled) {
+        if (!ap_can_exec(&r->finfo))
+            return log_scripterror(r, conf, HTTP_FORBIDDEN, 0,
+                                   "file permissions deny server execution");
     }
 
-    if ((name = apr_table_get(params, "b")))
-        bsel = ap_proxy_get_balancer(r->pool, conf,
-            apr_pstrcat(r->pool, "balancer://", name, NULL));
-    if ((name = apr_table_get(params, "w"))) {
-        proxy_worker *ws;
+*/
+    ap_add_common_vars(r);
+    ap_add_cgi_vars(r);
 
-        ws = ap_proxy_get_worker(r->pool, conf, name);
-        if (bsel && ws) {
-            workers = (proxy_worker **)bsel->workers->elts;
-            for (n = 0; n < bsel->workers->nelts; n++) {
-                worker = *workers;
-                if (strcasecmp(worker->name, ws->name) == 0) {
-                    wsel = worker;
-                    break;
-                }
-                ++workers;
-            }
-        }
+    e_info.process_cgi = 1;
+    e_info.cmd_type    = APR_PROGRAM;
+    e_info.detached    = 0;
+    e_info.in_pipe     = APR_CHILD_BLOCK;
+    e_info.out_pipe    = APR_CHILD_BLOCK;
+    e_info.err_pipe    = APR_CHILD_BLOCK;
+    e_info.prog_type   = RUN_AS_CGI;
+    e_info.bb          = NULL;
+    e_info.ctx         = NULL;
+    e_info.next        = NULL;
+    e_info.addrspace   = 0;
+
+    /* build the command line */
+    if ((rv = cgi_build_command(&command, &argv, r, p, &e_info)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "don't know how to spawn child process: %s",
+                      r->filename);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
-    /* First set the params */
-    /*
-     * Note that it is not possible set the proxy_balancer because it is not
-     * in shared memory.
+
+    /* run the script in its own process */
+    if ((rv = run_cgi_child(&script_out, &script_in, &script_err,
+                            command, argv, r, p, &e_info)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "couldn't spawn child process: %s", r->filename);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    /* Transfer any put/post args, CERN style...
+     * Note that we already ignore SIGPIPE in the core server.
      */
-    if (wsel) {
-        const char *val;
-        if ((val = apr_table_get(params, "lf"))) {
-            int ival = atoi(val);
-            if (ival >= 1 && ival <= 100) {
-                wsel->s->lbfactor = ival;
-                if (bsel)
-                    recalc_factors(bsel);
+    bb = apr_brigade_create(r->pool, c->bucket_alloc);
+    seen_eos = 0;
+    child_stopped_reading = 0;
+    if (conf->logname) {
+        dbuf = apr_palloc(r->pool, conf->bufbytes + 1);
+        dbpos = 0;
+    }
+    do {
+        apr_bucket *bucket;
+
+        rv = ap_get_brigade(r->input_filters, bb, AP_MODE_READBYTES,
+                            APR_BLOCK_READ, HUGE_STRING_LEN);
+
+        if (rv != APR_SUCCESS) {
+            if (APR_STATUS_IS_TIMEUP(rv)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                              "Timeout during reading request entity data");
+                return HTTP_REQUEST_TIME_OUT;
             }
-        }
-        if ((val = apr_table_get(params, "wr"))) {
-            if (strlen(val) && strlen(val) < PROXY_WORKER_MAX_ROUTE_SIZ)
-                strcpy(wsel->s->route, val);
-            else
-                *wsel->s->route = '\0';
-        }
-        if ((val = apr_table_get(params, "rr"))) {
-            if (strlen(val) && strlen(val) < PROXY_WORKER_MAX_ROUTE_SIZ)
-                strcpy(wsel->s->redirect, val);
-            else
-                *wsel->s->redirect = '\0';
-        }
-        if ((val = apr_table_get(params, "dw"))) {
-            if (!strcasecmp(val, "Disable"))
-                wsel->s->status |= PROXY_WORKER_DISABLED;
-            else if (!strcasecmp(val, "Enable"))
-                wsel->s->status &= ~PROXY_WORKER_DISABLED;
-        }
-        if ((val = apr_table_get(params, "ls"))) {
-            int ival = atoi(val);
-            if (ival >= 0 && ival <= 99) {
-                wsel->s->lbset = ival;
-             }
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "Error reading request entity data");
+            return HTTP_INTERNAL_SERVER_ERROR;
         }
 
-    }
-    if (apr_table_get(params, "xml")) {
-        ap_set_content_type(r, "text/xml");
-        ap_rputs("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n", r);
-        ap_rputs("<httpd:manager xmlns:httpd=\"http://httpd.apache.org\">\n", r);
-        ap_rputs("  <httpd:balancers>\n", r);
-        balancer = (proxy_balancer *)conf->balancers->elts;
-        for (i = 0; i < conf->balancers->nelts; i++) {
-            ap_rputs("    <httpd:balancer>\n", r);
-            ap_rvputs(r, "      <httpd:name>", balancer->name, "</httpd:name>\n", NULL);
-            ap_rputs("      <httpd:workers>\n", r);
-            workers = (proxy_worker **)balancer->workers->elts;
-            for (n = 0; n < balancer->workers->nelts; n++) {
-                worker = *workers;
-                ap_rputs("        <httpd:worker>\n", r);
-                ap_rvputs(r, "          <httpd:scheme>", worker->scheme,
-                          "</httpd:scheme>\n", NULL);
-                ap_rvputs(r, "          <httpd:hostname>", worker->hostname,
-                          "</httpd:hostname>\n", NULL);
-               ap_rprintf(r, "          <httpd:loadfactor>%d</httpd:loadfactor>\n",
-                          worker->s->lbfactor);
-                ap_rputs("        </httpd:worker>\n", r);
-                ++workers;
-            }
-            ap_rputs("      </httpd:workers>\n", r);
-            ap_rputs("    </httpd:balancer>\n", r);
-            ++balancer;
-        }
-        ap_rputs("  </httpd:balancers>\n", r);
-        ap_rputs("</httpd:manager>", r);
-    }
-    else {
-        ap_set_content_type(r, "text/html; charset=ISO-8859-1");
-        ap_rputs(DOCTYPE_HTML_3_2
-                 "<html><head><title>Balancer Manager</title></head>\n", r);
-        ap_rputs("<body><h1>Load Balancer Manager for ", r);
-        ap_rvputs(r, ap_get_server_name(r), "</h1>\n\n", NULL);
-        ap_rvputs(r, "<dl><dt>Server Version: ",
-                  ap_get_server_description(), "</dt>\n", NULL);
-        ap_rvputs(r, "<dt>Server Built: ",
-                  ap_get_server_built(), "\n</dt></dl>\n", NULL);
-        balancer = (proxy_balancer *)conf->balancers->elts;
-        for (i = 0; i < conf->balancers->nelts; i++) {
+        for (bucket = APR_BRIGADE_FIRST(bb);
+             bucket != APR_BRIGADE_SENTINEL(bb);
+             bucket = APR_BUCKET_NEXT(bucket))
+        {
+            const char *data;
+            apr_size_t len;
 
-            ap_rputs("<hr />\n<h3>LoadBalancer Status for ", r);
-            ap_rvputs(r, balancer->name, "</h3>\n\n", NULL);
-            ap_rputs("\n\n<table border=\"0\" style=\"text-align: left;\"><tr>"
-                "<th>StickySession</th><th>Timeout</th><th>FailoverAttempts</th><th>Method</th>"
-                "</tr>\n<tr>", r);
-            if (balancer->sticky) {
-                if (strcmp(balancer->sticky, balancer->sticky_path)) {
-                    ap_rvputs(r, "<td>", balancer->sticky, " | ",
-                              balancer->sticky_path, NULL);
+            if (APR_BUCKET_IS_EOS(bucket)) {
+                seen_eos = 1;
+                break;
+            }
+
+            /* We can't do much with this. */
+            if (APR_BUCKET_IS_FLUSH(bucket)) {
+                continue;
+            }
+
+            /* If the child stopped, we still must read to EOS. */
+            if (child_stopped_reading) {
+                continue;
+            }
+
+            /* read */
+            apr_bucket_read(bucket, &data, &len, APR_BLOCK_READ);
+
+            if (conf->logname && dbpos < conf->bufbytes) {
+                int cursize;
+
+                if ((dbpos + len) > conf->bufbytes) {
+                    cursize = conf->bufbytes - dbpos;
                 }
                 else {
-                    ap_rvputs(r, "<td>", balancer->sticky, NULL);
+                    cursize = len;
                 }
+                memcpy(dbuf + dbpos, data, cursize);
+                dbpos += cursize;
             }
-            else {
-                ap_rputs("<td> - ", r);
-            }
-            ap_rprintf(r, "</td><td>%" APR_TIME_T_FMT "</td>",
-                apr_time_sec(balancer->timeout));
-            ap_rprintf(r, "<td>%d</td>\n", balancer->max_attempts);
-            ap_rprintf(r, "<td>%s</td>\n",
-                       balancer->lbmethod->name);
-            ap_rputs("</table>\n<br />", r);
-            ap_rputs("\n\n<table border=\"0\" style=\"text-align: left;\"><tr>"
-                "<th>Worker URL</th>"
-                "<th>Route</th><th>RouteRedir</th>"
-                "<th>Factor</th><th>Set</th><th>Status</th>"
-                "<th>Elected</th><th>To</th><th>From</th>"
-                "</tr>\n", r);
 
-            workers = (proxy_worker **)balancer->workers->elts;
-            for (n = 0; n < balancer->workers->nelts; n++) {
-                char fbuf[50];
-                worker = *workers;
-                ap_rvputs(r, "<tr>\n<td><a href=\"", r->uri, "?b=",
-                          balancer->name + sizeof("balancer://") - 1, "&w=",
-                          ap_escape_uri(r->pool, worker->name),
-                          "&nonce=", balancer_nonce, 
-                          "\">", NULL);
-                ap_rvputs(r, worker->name, "</a></td>", NULL);
-                ap_rvputs(r, "<td>", ap_escape_html(r->pool, worker->s->route),
-                          NULL);
-                ap_rvputs(r, "</td><td>",
-                          ap_escape_html(r->pool, worker->s->redirect), NULL);
-                ap_rprintf(r, "</td><td>%d</td>", worker->s->lbfactor);
-                ap_rprintf(r, "<td>%d</td><td>", worker->s->lbset);
-                if (worker->s->status & PROXY_WORKER_DISABLED)
-                   ap_rputs("Dis ", r);
-                if (worker->s->status & PROXY_WORKER_IN_ERROR)
-                   ap_rputs("Err ", r);
-                if (worker->s->status & PROXY_WORKER_STOPPED)
-                   ap_rputs("Stop ", r);
-                if (worker->s->status & PROXY_WORKER_HOT_STANDBY)
-                   ap_rputs("Stby ", r);
-                if (PROXY_WORKER_IS_USABLE(worker))
-                    ap_rputs("Ok", r);
-                if (!PROXY_WORKER_IS_INITIALIZED(worker))
-                    ap_rputs("-", r);
-                ap_rputs("</td>", r);
-                ap_rprintf(r, "<td>%" APR_SIZE_T_FMT "</td><td>", worker->s->elected);
-                ap_rputs(apr_strfsize(worker->s->transferred, fbuf), r);
-                ap_rputs("</td><td>", r);
-                ap_rputs(apr_strfsize(worker->s->read, fbuf), r);
-                ap_rputs("</td></tr>\n", r);
+            /* Keep writing data to the child until done or too much time
+             * elapses with no progress or an error occurs.
+             */
+            rv = apr_file_write_full(script_out, data, len, NULL);
 
-                ++workers;
+            if (rv != APR_SUCCESS) {
+                /* silly script stopped reading, soak up remaining message */
+                child_stopped_reading = 1;
             }
-            ap_rputs("</table>\n", r);
-            ++balancer;
         }
-        ap_rputs("<hr />\n", r);
-        if (wsel && bsel) {
-            ap_rputs("<h3>Edit worker settings for ", r);
-            ap_rvputs(r, wsel->name, "</h3>\n", NULL);
-            ap_rvputs(r, "<form method=\"GET\" action=\"", NULL);
-            ap_rvputs(r, r->uri, "\">\n<dl>", NULL);
-            ap_rputs("<table><tr><td>Load factor:</td><td><input name=\"lf\" type=text ", r);
-            ap_rprintf(r, "value=\"%d\"></td></tr>\n", wsel->s->lbfactor);
-            ap_rputs("<tr><td>LB Set:</td><td><input name=\"ls\" type=text ", r);
-            ap_rprintf(r, "value=\"%d\"></td></tr>\n", wsel->s->lbset);
-            ap_rputs("<tr><td>Route:</td><td><input name=\"wr\" type=text ", r);
-            ap_rvputs(r, "value=\"", ap_escape_html(r->pool, wsel->s->route),
-                      NULL);
-            ap_rputs("\"></td></tr>\n", r);
-            ap_rputs("<tr><td>Route Redirect:</td><td><input name=\"rr\" type=text ", r);
-            ap_rvputs(r, "value=\"", ap_escape_html(r->pool, wsel->s->redirect),
-                      NULL);
-            ap_rputs("\"></td></tr>\n", r);
-            ap_rputs("<tr><td>Status:</td><td>Disabled: <input name=\"dw\" value=\"Disable\" type=radio", r);
-            if (wsel->s->status & PROXY_WORKER_DISABLED)
-                ap_rputs(" checked", r);
-            ap_rputs("> | Enabled: <input name=\"dw\" value=\"Enable\" type=radio", r);
-            if (!(wsel->s->status & PROXY_WORKER_DISABLED))
-                ap_rputs(" checked", r);
-            ap_rputs("></td></tr>\n", r);
-            ap_rputs("<tr><td colspan=2><input type=submit value=\"Submit\"></td></tr>\n", r);
-            ap_rvputs(r, "</table>\n<input type=hidden name=\"w\" ",  NULL);
-            ap_rvputs(r, "value=\"", ap_escape_uri(r->pool, wsel->name), "\">\n", NULL);
-            ap_rvputs(r, "<input type=hidden name=\"b\" ", NULL);
-            ap_rvputs(r, "value=\"", bsel->name + sizeof("balancer://") - 1,
-                      "\">\n", NULL);
-            ap_rvputs(r, "<input type=hidden name=\"nonce\" value=\"", 
-                      balancer_nonce, "\">\n", NULL);
-            ap_rvputs(r, "</form>\n", NULL);
-            ap_rputs("<hr />\n", r);
-        }
-        ap_rputs(ap_psignature("",r), r);
-        ap_rputs("</body></html>\n", r);
+        apr_brigade_cleanup(bb);
     }
-    return OK;
+    while (!seen_eos);
+
+    if (conf->logname) {
+        dbuf[dbpos] = '\0';
+    }
+    /* Is this flush really needed? */
+    apr_file_flush(script_out);
+    apr_file_close(script_out);
+
+    AP_DEBUG_ASSERT(script_in != NULL);
+
+    apr_brigade_cleanup(bb);
+
+#if APR_FILES_AS_SOCKETS
+    apr_file_pipe_timeout_set(script_in, 0);
+    apr_file_pipe_timeout_set(script_err, 0);
+
+    b = cgi_bucket_create(r, script_in, script_err, c->bucket_alloc);
+    if (b == NULL)
+	return HTTP_INTERNAL_SERVER_ERROR;
+#else
+    b = apr_bucket_pipe_create(script_in, c->bucket_alloc);
+#endif
+    APR_BRIGADE_INSERT_TAIL(bb, b);
+    b = apr_bucket_eos_create(c->bucket_alloc);
+    APR_BRIGADE_INSERT_TAIL(bb, b);
+
+    /* Handle script return... */
+    if (!nph) {
+        const char *location;
+        char sbuf[MAX_STRING_LEN];
+        int ret;
+
+        if ((ret = ap_scan_script_header_err_brigade(r, bb, sbuf))) {
+            ret = log_script(r, conf, ret, dbuf, sbuf, bb, script_err);
+
+            /*
+             * ret could be HTTP_NOT_MODIFIED in the case that the CGI script
+             * does not set an explicit status and ap_meets_conditions, which
+             * is called by ap_scan_script_header_err_brigade, detects that
+             * the conditions of the requests are met and the response is
+             * not modified.
+             * In this case set r->status and return OK in order to prevent
+             * running through the error processing stack as this would
+             * break with mod_cache, if the conditions had been set by
+             * mod_cache itself to validate a stale entity.
+             * BTW: We circumvent the error processing stack anyway if the
+             * CGI script set an explicit status code (whatever it is) and
+             * the only possible values for ret here are:
+             *
+             * HTTP_NOT_MODIFIED          (set by ap_meets_conditions)
+             * HTTP_PRECONDITION_FAILED   (set by ap_meets_conditions)
+             * HTTP_INTERNAL_SERVER_ERROR (if something went wrong during the
+             * processing of the response of the CGI script, e.g broken headers
+             * or a crashed CGI process).
+             */
+            if (ret == HTTP_NOT_MODIFIED) {
+                r->status = ret;
+                return OK;
+            }
+
+            return ret;
+        }
+
+        location = apr_table_get(r->headers_out, "Location");
+
+        if (location && r->status == 200) {
+            /* For a redirect whether internal or not, discard any
+             * remaining stdout from the script, and log any remaining
+             * stderr output, as normal. */
+            discard_script_output(bb);
+            apr_brigade_destroy(bb);
+            apr_file_pipe_timeout_set(script_err, r->server->timeout);
+            log_script_err(r, script_err);
+        }
+
+        if (location && location[0] == '/' && r->status == 200) {
+            /* This redirect needs to be a GET no matter what the original
+             * method was.
+             */
+            r->method = apr_pstrdup(r->pool, "GET");
+            r->method_number = M_GET;
+
+            /* We already read the message body (if any), so don't allow
+             * the redirected request to think it has one.  We can ignore
+             * Transfer-Encoding, since we used REQUEST_CHUNKED_ERROR.
+             */
+            apr_table_unset(r->headers_in, "Content-Length");
+
+            ap_internal_redirect_handler(location, r);
+            return OK;
+        }
+        else if (location && r->status == 200) {
+            /* XX Note that if a script wants to produce its own Redirect
+             * body, it now has to explicitly *say* "Status: 302"
+             */
+            return HTTP_MOVED_TEMPORARILY;
+        }
+
+        rv = ap_pass_brigade(r->output_filters, bb);
+    }
+    else /* nph */ {
+        struct ap_filter_t *cur;
+
+        /* get rid of all filters up through protocol...  since we
+         * haven't parsed off the headers, there is no way they can
+         * work
+         */
+
+        cur = r->proto_output_filters;
+        while (cur && cur->frec->ftype < AP_FTYPE_CONNECTION) {
+            cur = cur->next;
+        }
+        r->output_filters = r->proto_output_filters = cur;
+
+        rv = ap_pass_brigade(r->output_filters, bb);
+    }
+
+    /* don't soak up script output if errors occurred writing it
+     * out...  otherwise, we prolong the life of the script when the
+     * connection drops or we stopped sending output for some other
+     * reason */
+    if (rv == APR_SUCCESS && !r->connection->aborted) {
+        apr_file_pipe_timeout_set(script_err, r->server->timeout);
+        log_script_err(r, script_err);
+    }
+
+    apr_file_close(script_err);
+
+    return OK;                      /* NOT r->status, even if it has changed. */
 }

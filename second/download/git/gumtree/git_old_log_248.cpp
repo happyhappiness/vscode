@@ -1,1 +1,1 @@
-printf(_("Updating %s..%s\n"), from, to);
+die(_("new file %s depends on old contents"), patch->new_name);

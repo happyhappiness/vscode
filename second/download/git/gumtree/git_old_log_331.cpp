@@ -1,1 +1,2 @@
-warning("LF will be replaced by CRLF in %s.\nThe file will have its original line endings in your working directory.", path);
+warning(_("truncating .rej filename to %.*s.rej"),
+			cnt - 1, patch->new_name);

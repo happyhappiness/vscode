@@ -1,1 +1,3 @@
-apr_file_printf(errfile, "password for user %s" NL, user);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv,
+                                 (const server_rec *) ap_server_conf,
+                                 "apr_pollset_poll: (listen)");

@@ -1,91 +1,178 @@
-void receive_file_entry(struct file_struct **fptr,
-			unsigned char flags,int f)
-{
-  static time_t last_time;
-  static mode_t last_mode;
-  static dev_t last_rdev;
-  static uid_t last_uid;
-  static gid_t last_gid;
-  static char lastname[MAXPATHLEN];
-  char thisname[MAXPATHLEN];
-  int l1=0,l2=0;
-  char *p;
-  struct file_struct *file;
+void recv_generator(char *fname,struct file_list *flist,int i,int f_out)
+{  
+  int fd;
+  struct stat st;
+  struct map_struct *buf;
+  struct sum_struct *s;
+  char sum[MD4_SUM_LENGTH];
+  int statret;
+  struct file_struct *file = &flist->files[i];
 
-  if (flags & SAME_NAME)
-    l1 = read_byte(f);
-  
-  if (flags & LONG_NAME)
-    l2 = read_int(f);
-  else
-    l2 = read_byte(f);
+  if (verbose > 2)
+    fprintf(FERROR,"recv_generator(%s,%d)\n",fname,i);
 
-  file = (struct file_struct *)malloc(sizeof(*file));
-  if (!file) out_of_memory("receive_file_entry");
-  bzero((char *)file,sizeof(*file));
-  (*fptr) = file;
+  statret = lstat(fname,&st);
 
-  strncpy(thisname,lastname,l1);
-  read_buf(f,&thisname[l1],l2);
-  thisname[l1+l2] = 0;
-
-  strncpy(lastname,thisname,MAXPATHLEN-1);
-  lastname[MAXPATHLEN-1] = 0;
-
-  clean_fname(thisname);
-
-  if ((p = strrchr(thisname,'/'))) {
-	  static char *lastdir;
-	  *p = 0;
-	  if (lastdir && strcmp(thisname, lastdir)==0) {
-		  file->dirname = lastdir;
-	  } else {
-		  file->dirname = strdup(thisname);
-		  lastdir = file->dirname;
-	  }
-	  file->basename = strdup(p+1);
-  } else {
-	  file->dirname = NULL;
-	  file->basename = strdup(thisname);
+  if (S_ISDIR(file->mode)) {
+    if (dry_run) return;
+    if (statret == 0 && !S_ISDIR(st.st_mode)) {
+      if (unlink(fname) != 0) {
+	fprintf(FERROR,"unlink %s : %s\n",fname,strerror(errno));
+	return;
+      }
+      statret = -1;
+    }
+    if (statret != 0 && mkdir(fname,file->mode) != 0 && errno != EEXIST)
+      fprintf(FERROR,"mkdir %s : %s\n",fname,strerror(errno));
+    if (set_perms(fname,file,NULL,0) && verbose) 
+      fprintf(FINFO,"%s/\n",fname);
+    return;
   }
 
-  if (!file->basename) out_of_memory("receive_file_entry 1");
-
-
-  file->length = read_longint(f);
-  file->modtime = (flags & SAME_TIME) ? last_time : (time_t)read_int(f);
-  file->mode = (flags & SAME_MODE) ? last_mode : (mode_t)read_int(f);
-  if (preserve_uid)
-    file->uid = (flags & SAME_UID) ? last_uid : (uid_t)read_int(f);
-  if (preserve_gid)
-    file->gid = (flags & SAME_GID) ? last_gid : (gid_t)read_int(f);
-  if (preserve_devices && IS_DEVICE(file->mode))
-    file->rdev = (flags & SAME_RDEV) ? last_rdev : (dev_t)read_int(f);
-
+#if SUPPORT_LINKS
   if (preserve_links && S_ISLNK(file->mode)) {
-    int l = read_int(f);
-    file->link = (char *)malloc(l+1);
-    if (!file->link) out_of_memory("receive_file_entry 2");
-    read_buf(f,file->link,l);
-    file->link[l] = 0;
-  }
-
-#if SUPPORT_HARD_LINKS
-  if (preserve_hard_links && S_ISREG(file->mode)) {
-    file->dev = read_int(f);
-    file->inode = read_int(f);
+    char lnk[MAXPATHLEN];
+    int l;
+    if (statret == 0) {
+      l = readlink(fname,lnk,MAXPATHLEN-1);
+      if (l > 0) {
+	lnk[l] = 0;
+	if (strcmp(lnk,file->link) == 0) {
+	  set_perms(fname,file,&st,1);
+	  return;
+	}
+      }
+    }
+    if (!dry_run) unlink(fname);
+    if (!dry_run && symlink(file->link,fname) != 0) {
+      fprintf(FERROR,"link %s -> %s : %s\n",
+	      fname,file->link,strerror(errno));
+    } else {
+      set_perms(fname,file,NULL,0);
+      if (verbose) 
+	fprintf(FINFO,"%s -> %s\n",
+		fname,file->link);
+    }
+    return;
   }
 #endif
-  
-  if (always_checksum) {
-	  file->sum = (char *)malloc(MD4_SUM_LENGTH);
-	  if (!file->sum) out_of_memory("md4 sum");
-	  read_buf(f,file->sum,csum_length);
+
+#ifdef HAVE_MKNOD
+  if (am_root && preserve_devices && IS_DEVICE(file->mode)) {
+    if (statret != 0 || 
+	st.st_mode != file->mode ||
+	st.st_rdev != file->rdev) {	
+      if (!dry_run) unlink(fname);
+      if (verbose > 2)
+	fprintf(FERROR,"mknod(%s,0%o,0x%x)\n",
+		fname,(int)file->mode,(int)file->rdev);
+      if (!dry_run && 
+	  mknod(fname,file->mode,file->rdev) != 0) {
+	fprintf(FERROR,"mknod %s : %s\n",fname,strerror(errno));
+      } else {
+	set_perms(fname,file,NULL,0);
+	if (verbose)
+	  fprintf(FINFO,"%s\n",fname);
+      }
+    } else {
+      set_perms(fname,file,&st,1);
+    }
+    return;
   }
-  
-  last_mode = file->mode;
-  last_rdev = file->rdev;
-  last_uid = file->uid;
-  last_gid = file->gid;
-  last_time = file->modtime;
+#endif
+
+  if (preserve_hard_links && check_hard_link(file)) {
+    if (verbose > 1)
+      fprintf(FINFO,"%s is a hard link\n",file->name);
+    return;
+  }
+
+  if (!S_ISREG(file->mode)) {
+    fprintf(FERROR,"skipping non-regular file %s\n",fname);
+    return;
+  }
+
+  if (statret == -1) {
+    if (errno == ENOENT) {
+      write_int(f_out,i);
+      if (!dry_run) send_sums(NULL,f_out);
+    } else {
+      if (verbose > 1)
+	fprintf(FERROR,"recv_generator failed to open %s\n",fname);
+    }
+    return;
+  }
+
+  if (!S_ISREG(st.st_mode)) {
+    /* its not a regular file on the receiving end, but it is on the
+       sending end. If its a directory then skip it (too dangerous to
+       do a recursive deletion??) otherwise try to unlink it */
+    if (S_ISDIR(st.st_mode)) {
+      fprintf(FERROR,"ERROR: %s is a directory\n",fname);
+      return;
+    }
+    if (unlink(fname) != 0) {
+      fprintf(FERROR,"%s : not a regular file (generator)\n",fname);
+      return;
+    }
+
+    /* now pretend the file didn't exist */
+    write_int(f_out,i);
+    if (!dry_run) send_sums(NULL,f_out);    
+    return;
+  }
+
+  if (update_only && st.st_mtime >= file->modtime) {
+    if (verbose > 1)
+      fprintf(FERROR,"%s is newer\n",fname);
+    return;
+  }
+
+  if (always_checksum && S_ISREG(st.st_mode)) {
+    file_checksum(fname,sum,st.st_size);
+  }
+
+  if (st.st_size == file->length &&
+      ((!ignore_times && st.st_mtime == file->modtime) ||
+       (always_checksum && S_ISREG(st.st_mode) && 	  
+	memcmp(sum,file->sum,csum_length) == 0))) {
+    set_perms(fname,file,&st,1);
+    return;
+  }
+
+  if (dry_run) {
+    write_int(f_out,i);
+    return;
+  }
+
+  /* open the file */  
+  fd = open(fname,O_RDONLY);
+
+  if (fd == -1) {
+    fprintf(FERROR,"failed to open %s : %s\n",fname,strerror(errno));
+    return;
+  }
+
+  if (st.st_size > 0) {
+    buf = map_file(fd,st.st_size);
+  } else {
+    buf = NULL;
+  }
+
+  if (verbose > 3)
+    fprintf(FERROR,"gen mapped %s of size %d\n",fname,(int)st.st_size);
+
+  s = generate_sums(buf,st.st_size,block_size);
+
+  if (verbose > 2)
+    fprintf(FERROR,"sending sums for %d\n",i);
+
+  write_int(f_out,i);
+  send_sums(s,f_out);
+  write_flush(f_out);
+
+  close(fd);
+  if (buf) unmap_file(buf);
+
+  free_sums(s);
 }

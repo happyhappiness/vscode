@@ -1,2 +1,1 @@
-error_buf(err, _("no such branch: '%s'"),
-					 branch->name);
+die(_("unknown error occured while reading the configuration files"));

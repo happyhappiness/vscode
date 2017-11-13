@@ -1,10 +1,11 @@
 fputs(
-"                     appended, resulting in name=urlencoded-file-content. Note\n"
-"                     that the name is expected to be URL-encoded already.\n"
-"       See also -d, --data and --data-raw. Added in 7.18.0.\n"
+"              incoming cookies, which may be handy if  you're  using  this  in\n"
+"              combination  with  the  -L, --location option or do multiple URL\n"
+"              transfers on the same invoke.\n"
 "\n"
-"       -d, --data <data>\n"
-"              (HTTP) Sends the specified data in a POST request  to  the  HTTP\n"
-"              server,  in  the  same  way  that a browser does when a user has\n"
-"              filled in an HTML form and presses the submit button. This  will\n"
+"              The file format of the file to read cookies from should be plain\n"
+"              HTTP  headers  (Set-Cookie style) or the Netscape/Mozilla cookie\n"
+"              file format.\n"
+"\n"
+"              The file specified with -b, --cookie is only used as  input.  No\n"
 , stdout);

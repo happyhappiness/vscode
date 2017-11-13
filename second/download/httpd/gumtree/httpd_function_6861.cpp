@@ -1,189 +1,138 @@
-static util_ldap_connection_t *
-            uldap_connection_find(request_rec *r,
-                                  const char *host, int port,
-                                  const char *binddn, const char *bindpw,
-                                  deref_options deref, int secure)
+static apr_status_t on_stream_headers(h2_session *session, h2_stream *stream,  
+                                      h2_headers *headers, apr_off_t len,
+                                      int eos)
 {
-    struct util_ldap_connection_t *l, *p; /* To traverse the linked list */
-    int secureflag = secure;
-    apr_time_t now = apr_time_now();
+    apr_status_t status = APR_SUCCESS;
+    int rv = 0;
 
-    util_ldap_state_t *st =
-        (util_ldap_state_t *)ap_get_module_config(r->server->module_config,
-        &ldap_module);
-    util_ldap_config_t *dc =
-        (util_ldap_config_t *) ap_get_module_config(r->per_dir_config, &ldap_module);
-
-#if APR_HAS_THREADS
-    /* mutex lock this function */
-    apr_thread_mutex_lock(st->mutex);
-#endif
-
-    if (secure < APR_LDAP_NONE) {
-        secureflag = st->secure;
+    ap_assert(session);
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
+                  "h2_stream(%ld-%d): on_headers", session->id, stream->id);
+    if (headers->status < 100) {
+        int err = H2_STREAM_RST(stream, headers->status);
+        rv = nghttp2_submit_rst_stream(session->ngh2, NGHTTP2_FLAG_NONE,
+                                       stream->id, err);
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, 
+                  "h2_stream(%ld-%d): unpexected header status %d, stream rst", 
+                  session->id, stream->id, headers->status);
+        goto leave;
     }
-
-    /* Search for an exact connection match in the list that is not
-     * being used.
-     */
-    for (l=st->connections,p=NULL; l; l=l->next) {
-#if APR_HAS_THREADS
-        if (APR_SUCCESS == apr_thread_mutex_trylock(l->lock)) {
-#endif
-        if (   (l->port == port) && (strcmp(l->host, host) == 0)
-            && ((!l->binddn && !binddn) || (l->binddn && binddn
-                                             && !strcmp(l->binddn, binddn)))
-            && ((!l->bindpw && !bindpw) || (l->bindpw && bindpw
-                                             && !strcmp(l->bindpw, bindpw)))
-            && (l->deref == deref) && (l->secure == secureflag)
-            && !compare_client_certs(dc->client_certs, l->client_certs))
-        {
-            if (st->connection_pool_ttl > 0) {
-                if (l->bound && (now - l->last_backend_conn) > st->connection_pool_ttl) {
-                    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
-                                  "Removing LDAP connection last used %" APR_TIME_T_FMT " seconds ago",
-                                  (now - l->last_backend_conn) / APR_USEC_PER_SEC);
-                    l->r = r;
-                    uldap_connection_unbind(l);
-                    /* Go ahead (by falling through) and use it, so we don't create more just to unbind some other old ones */
-                }
-                ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, 
-                              "Reuse %s LDC %pp", 
-                              l->bound ? "bound" : "unbound", l);
-            }
-            break;
-        }
-#if APR_HAS_THREADS
-            /* If this connection didn't match the criteria, then we
-             * need to unlock the mutex so it is available to be reused.
-             */
-            apr_thread_mutex_unlock(l->lock);
-        }
-#endif
-        p = l;
+    else if (stream->has_response) {
+        h2_ngheader *nh;
+        
+        nh = h2_util_ngheader_make(stream->pool, headers->headers);
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03072)
+                      "h2_stream(%ld-%d): submit %d trailers",
+                      session->id, (int)stream->id,(int) nh->nvlen);
+        rv = nghttp2_submit_trailer(session->ngh2, stream->id, nh->nv, nh->nvlen);
+        goto leave;
     }
-
-    /* If nothing found, search again, but we don't care about the
-     * binddn and bindpw this time.
-     */
-    if (!l) {
-        for (l=st->connections,p=NULL; l; l=l->next) {
-#if APR_HAS_THREADS
-            if (APR_SUCCESS == apr_thread_mutex_trylock(l->lock)) {
-
-#endif
-            if ((l->port == port) && (strcmp(l->host, host) == 0) &&
-                (l->deref == deref) && (l->secure == secureflag) &&
-                !compare_client_certs(dc->client_certs, l->client_certs))
-            {
-                if (st->connection_pool_ttl > 0) {
-                    if (l->bound && (now - l->last_backend_conn) > st->connection_pool_ttl) {
-                        ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
-                                "Removing LDAP connection last used %" APR_TIME_T_FMT " seconds ago",
-                                (now - l->last_backend_conn) / APR_USEC_PER_SEC);
-                        l->r = r;
-                        uldap_connection_unbind(l);
-                        /* Go ahead (by falling through) and use it, so we don't create more just to unbind some other old ones */
-                    }
-                    ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, 
-                                  "Reuse %s LDC %pp (will rebind)", 
-                                   l->bound ? "bound" : "unbound", l);
-                }
-
-                /* the bind credentials have changed */
-                l->must_rebind = 1;
-                util_ldap_strdup((char**)&(l->binddn), binddn);
-                util_ldap_strdup((char**)&(l->bindpw), bindpw);
-
-                break;
-            }
-#if APR_HAS_THREADS
-                /* If this connection didn't match the criteria, then we
-                 * need to unlock the mutex so it is available to be reused.
-                 */
-                apr_thread_mutex_unlock(l->lock);
-            }
-#endif
-            p = l;
+    else {
+        nghttp2_data_provider provider, *pprovider = NULL;
+        h2_ngheader *ngh;
+        apr_table_t *hout;
+        const char *note;
+        
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03073)
+                      "h2_stream(%ld-%d): submit response %d, REMOTE_WINDOW_SIZE=%u",
+                      session->id, stream->id, headers->status,
+                      (unsigned int)nghttp2_session_get_stream_remote_window_size(session->ngh2, stream->id));
+        
+        if (!eos || len > 0) {
+            memset(&provider, 0, sizeof(provider));
+            provider.source.fd = stream->id;
+            provider.read_callback = stream_data_cb;
+            pprovider = &provider;
         }
-    }
-
-/* artificially disable cache */
-/* l = NULL; */
-
-    /* If no connection was found after the second search, we
-     * must create one.
-     */
-    if (!l) {
-        apr_pool_t *newpool;
-        if (apr_pool_create(&newpool, NULL) != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01285)
-                          "util_ldap: Failed to create memory pool");
-#if APR_HAS_THREADS
-            apr_thread_mutex_unlock(st->mutex);
-#endif
-            return NULL;
-        }
-
-        /*
-         * Add the new connection entry to the linked list. Note that we
-         * don't actually establish an LDAP connection yet; that happens
-         * the first time authentication is requested.
+        
+        /* If this stream is not a pushed one itself,
+         * and HTTP/2 server push is enabled here,
+         * and the response HTTP status is not sth >= 400,
+         * and the remote side has pushing enabled,
+         * -> find and perform any pushes on this stream
+         *    *before* we submit the stream response itself.
+         *    This helps clients avoid opening new streams on Link
+         *    headers that get pushed right afterwards.
+         * 
+         * *) the response code is relevant, as we do not want to 
+         *    make pushes on 401 or 403 codes and friends. 
+         *    And if we see a 304, we do not push either
+         *    as the client, having this resource in its cache, might
+         *    also have the pushed ones as well.
          */
-
-        /* create the details of this connection in the new pool */
-        l = apr_pcalloc(newpool, sizeof(util_ldap_connection_t));
-        l->pool = newpool;
-        l->st = st;
-
-#if APR_HAS_THREADS
-        apr_thread_mutex_create(&l->lock, APR_THREAD_MUTEX_DEFAULT, l->pool);
-        apr_thread_mutex_lock(l->lock);
-#endif
-        l->bound = 0;
-        l->host = apr_pstrdup(l->pool, host);
-        l->port = port;
-        l->deref = deref;
-        util_ldap_strdup((char**)&(l->binddn), binddn);
-        util_ldap_strdup((char**)&(l->bindpw), bindpw);
-        l->ChaseReferrals = dc->ChaseReferrals;
-        l->ReferralHopLimit = dc->ReferralHopLimit;
-
-        /* The security mode after parsing the URL will always be either
-         * APR_LDAP_NONE (ldap://) or APR_LDAP_SSL (ldaps://).
-         * If the security setting is NONE, override it to the security
-         * setting optionally supplied by the admin using LDAPTrustedMode
-         */
-        l->secure = secureflag;
-
-        /* save away a copy of the client cert list that is presently valid */
-        l->client_certs = apr_array_copy_hdr(l->pool, dc->client_certs);
-
-        /* whether or not to keep this connection in the pool when it's returned */
-        l->keep = (st->connection_pool_ttl == 0) ? 0 : 1;
-
-        if (l->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) {
-            if (apr_pool_create(&(l->rebind_pool), l->pool) != APR_SUCCESS) {
-                ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01286)
-                              "util_ldap: Failed to create memory pool");
-#if APR_HAS_THREADS
-                apr_thread_mutex_unlock(st->mutex);
-#endif
-                return NULL;
-            }
+        if (!stream->initiated_on
+            && !stream->has_response
+            && stream->request && stream->request->method
+            && !strcmp("GET", stream->request->method)
+            && (headers->status < 400)
+            && (headers->status != 304)
+            && h2_session_push_enabled(session)) {
+            
+            h2_stream_submit_pushes(stream, headers);
         }
+        
+        if (!stream->pref_priority) {
+            stream->pref_priority = h2_stream_get_priority(stream, headers);
+        }
+        h2_session_set_prio(session, stream, stream->pref_priority);
+        
+        hout = headers->headers;
+        note = apr_table_get(headers->notes, H2_FILTER_DEBUG_NOTE);
+        if (note && !strcmp("on", note)) {
+            int32_t connFlowIn, connFlowOut;
 
-        if (p) {
-            p->next = l;
+            connFlowIn = nghttp2_session_get_effective_local_window_size(session->ngh2); 
+            connFlowOut = nghttp2_session_get_remote_window_size(session->ngh2);
+            hout = apr_table_clone(stream->pool, hout);
+            apr_table_setn(hout, "conn-flow-in", 
+                           apr_itoa(stream->pool, connFlowIn));
+            apr_table_setn(hout, "conn-flow-out", 
+                           apr_itoa(stream->pool, connFlowOut));
+        }
+        
+        if (headers->status == 103 
+            && !h2_config_geti(session->config, H2_CONF_EARLY_HINTS)) {
+            /* suppress sending this to the client, it might have triggered 
+             * pushes and served its purpose nevertheless */
+            rv = 0;
+            goto leave;
+        }
+        
+        ngh = h2_util_ngheader_make_res(stream->pool, headers->status, hout);
+        rv = nghttp2_submit_response(session->ngh2, stream->id,
+                                     ngh->nv, ngh->nvlen, pprovider);
+        stream->has_response = h2_headers_are_response(headers);
+        session->have_written = 1;
+        
+        if (stream->initiated_on) {
+            ++session->pushes_submitted;
         }
         else {
-            st->connections = l;
+            ++session->responses_submitted;
         }
     }
-
-#if APR_HAS_THREADS
-    apr_thread_mutex_unlock(st->mutex);
-#endif
-    l->r = r;
-    return l;
+    
+leave:
+    if (nghttp2_is_fatal(rv)) {
+        status = APR_EGENERAL;
+        dispatch_event(session, H2_SESSION_EV_PROTO_ERROR, rv, nghttp2_strerror(rv));
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, status, session->c,
+                      APLOGNO(02940) "submit_response: %s", 
+                      nghttp2_strerror(rv));
+    }
+    
+    ++session->unsent_submits;
+    
+    /* Unsent push promises are written immediately, as nghttp2
+     * 1.5.0 realizes internal stream data structures only on 
+     * send and we might need them for other submits. 
+     * Also, to conserve memory, we send at least every 10 submits
+     * so that nghttp2 does not buffer all outbound items too 
+     * long.
+     */
+    if (status == APR_SUCCESS 
+        && (session->unsent_promises || session->unsent_submits > 10)) {
+        status = h2_session_send(session);
+    }
+    return status;
 }

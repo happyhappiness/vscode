@@ -1,1 +1,1 @@
-fprintf(FERROR,"send_files starting\n");
+fprintf(FERROR,"skipping non-regular file %s\n",fname);

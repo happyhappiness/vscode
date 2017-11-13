@@ -1,1 +1,1 @@
-die(_("Integer value expected refname:rstrip=%s"), arg);
+error(_("invalid file: '%s'"), rebase_path_amend());

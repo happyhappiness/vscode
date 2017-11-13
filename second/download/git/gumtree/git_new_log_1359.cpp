@@ -1,1 +1,1 @@
-error("unable to open %s: %s", path->buf, strerror(errno));
+die("Couldn't JIT the PCRE2 pattern '%s', got '%d'\n", p->pattern, jitret);

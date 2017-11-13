@@ -1,1 +1,1 @@
-apr_file_printf(out, "Mutex %s: none\n", name);
+apr_file_printf(out, "Main ErrorLog: \"%s\"\n", tmp);

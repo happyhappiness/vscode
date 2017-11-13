@@ -1,20 +1,47 @@
-int os_init_job_environment(server_rec *server, const char *user_name, int one_process)
+static int fcgi_do_request(apr_pool_t *p, request_rec *r,
+                           proxy_conn_rec *conn,
+                           conn_rec *origin,
+                           proxy_dir_conf *conf,
+                           apr_uri_t *uri,
+                           char *url, char *server_portstr)
 {
-    bs2_ForkType            type = os_forktype(one_process);
-
-    /* We can be sure that no change to uid==0 is possible because of
-     * the checks in http_core.c:set_user()
-     */
-
-    if (one_process) {
-
-        type = forktype = bs2_noFORK;
-
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, server,
-                     "The debug mode of Apache should only "
-                     "be started by an unprivileged user!");
-        return 0;
+    /* Request IDs are arbitrary numbers that we assign to a
+     * single request. This would allow multiplex/pipelinig of 
+     * multiple requests to the same FastCGI connection, but 
+     * we don't support that, and always use a value of '1' to
+     * keep things simple. */
+    int request_id = 1; 
+    apr_status_t rv;
+   
+    /* Step 1: Send FCGI_BEGIN_REQUEST */
+    rv = send_begin_request(conn, request_id);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                     "proxy: FCGI: Failed Writing Request to %s:",
+                     server_portstr);
+        conn->close = 1;
+        return HTTP_SERVICE_UNAVAILABLE;
+    }
+    
+    /* Step 2: Send Environment via FCGI_PARAMS */
+    rv = send_environment(conn, r, request_id);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                     "proxy: FCGI: Failed writing Environment to %s:",
+                     server_portstr);
+        conn->close = 1;
+        return HTTP_SERVICE_UNAVAILABLE;
     }
 
-    return 0;
+    /* Step 3: Read records from the back end server and handle them. */
+    rv = dispatch(conn, r, request_id);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                     "proxy: FCGI: Error dispatching request to %s:",
+                     server_portstr);
+        conn->close = 1;
+        return HTTP_SERVICE_UNAVAILABLE;
+    }
+
+    return OK;
 }

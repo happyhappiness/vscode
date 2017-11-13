@@ -1,1 +1,1 @@
-out_of_memory("alloc_sanitize_path");
+io_printf(f_out, "@ERROR: protocol startup error\n");

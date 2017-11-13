@@ -1,1 +1,2 @@
-die(_("blob expected for %s '%s'"), sha1_to_hex(sha), path);
+error("RPC failed; result=%d, HTTP code = %ld",
+		      results->curl_result, results->http_code);

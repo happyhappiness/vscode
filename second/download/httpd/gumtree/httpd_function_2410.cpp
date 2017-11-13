@@ -1,63 +1,39 @@
-static proxy_worker *find_best_byrequests(proxy_balancer *balancer,
-                                request_rec *r)
+static const char *set_server_limit (cmd_parms *cmd, void *dummy, const char *arg)
 {
-    int i;
-    int total_factor = 0;
-    proxy_worker *worker;
-    proxy_worker *mycandidate = NULL;
-    int cur_lbset = 0;
-    int max_lbset = 0;
-    int checking_standby;
-    int checked_standby;
-    
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "proxy: Entering byrequests for BALANCER (%s)",
-                 balancer->name);
+    int tmp_server_limit;
 
-    /* First try to see if we have available candidate */
-    do {
-        checking_standby = checked_standby = 0;
-        while (!mycandidate && !checked_standby) {
-            worker = (proxy_worker *)balancer->workers->elts;
-            for (i = 0; i < balancer->workers->nelts; i++, worker++) {
-                if (!checking_standby) {    /* first time through */
-                    if (worker->s->lbset > max_lbset)
-                        max_lbset = worker->s->lbset;
-                }
-                if (worker->s->lbset > cur_lbset)
-                    continue;
-                if ( (checking_standby ? !PROXY_WORKER_IS_STANDBY(worker) : PROXY_WORKER_IS_STANDBY(worker)) )
-                    continue;
-                /* If the worker is in error state run
-                 * retry on that worker. It will be marked as
-                 * operational if the retry timeout is elapsed.
-                 * The worker might still be unusable, but we try
-                 * anyway.
-                 */
-                if (!PROXY_WORKER_IS_USABLE(worker))
-                    ap_proxy_retry_worker("BALANCER", worker, r->server);
-                /* Take into calculation only the workers that are
-                 * not in error state or not disabled.
-                 */
-                if (PROXY_WORKER_IS_USABLE(worker)) {
-                    worker->s->lbstatus += worker->s->lbfactor;
-                    total_factor += worker->s->lbfactor;
-                    if (!mycandidate || worker->s->lbstatus > mycandidate->s->lbstatus)
-                        mycandidate = worker;
-                }
-            }
-            checked_standby = checking_standby++;
-        }
-        cur_lbset++;
-    } while (cur_lbset <= max_lbset && !mycandidate);
-
-    if (mycandidate) {
-        mycandidate->s->lbstatus -= total_factor;
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: byrequests selected worker \"%s\" : busy %" APR_SIZE_T_FMT " : lbstatus %d",
-                     mycandidate->name, mycandidate->s->busy, mycandidate->s->lbstatus);
-
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
     }
 
-    return mycandidate;
+    tmp_server_limit = atoi(arg);
+    /* you cannot change ServerLimit across a restart; ignore
+     * any such attempts
+     */
+    if (first_server_limit &&
+        tmp_server_limit != server_limit) {
+        /* how do we log a message?  the error log is a bit bucket at this
+         * point; we'll just have to set a flag so that ap_mpm_run()
+         * logs a warning later
+         */
+        changed_limit_at_restart = 1;
+        return NULL;
+    }
+    server_limit = tmp_server_limit;
+
+    if (server_limit > MAX_SERVER_LIMIT) {
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                    "WARNING: ServerLimit of %d exceeds compile time limit "
+                    "of %d servers,", server_limit, MAX_SERVER_LIMIT);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                    " lowering ServerLimit to %d.", MAX_SERVER_LIMIT);
+       server_limit = MAX_SERVER_LIMIT;
+    }
+    else if (server_limit < 1) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "WARNING: Require ServerLimit > 0, setting to 1");
+        server_limit = 1;
+    }
+    return NULL;
 }

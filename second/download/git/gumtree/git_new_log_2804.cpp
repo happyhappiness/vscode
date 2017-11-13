@@ -1,1 +1,1 @@
-fputs(env_hint, stderr);
+die("HMAC error");

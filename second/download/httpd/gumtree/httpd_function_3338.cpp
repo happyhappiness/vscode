@@ -1,46 +1,34 @@
-static int connect_to_daemon(int *sdptr, request_rec *r,
-                             cgid_server_conf *conf)
+static int privileges_postconf(apr_pool_t *pconf, apr_pool_t *plog,
+                               apr_pool_t *ptemp, server_rec *s)
 {
-    int sd;
-    int connect_tries;
-    apr_interval_time_t sliding_timer;
+    priv_cfg *cfg;
+    server_rec *sp;
 
-    connect_tries = 0;
-    sliding_timer = 100000; /* 100 milliseconds */
-    while (1) {
-        ++connect_tries;
-        if ((sd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-            return log_scripterror(r, conf, HTTP_INTERNAL_SERVER_ERROR, errno,
-                                   "unable to create socket to cgi daemon");
+    /* if we have dtrace enabled, merge it into everything */
+    if (dtrace_enabled) {
+        for (sp = s; sp != NULL; sp = sp->next) {
+            cfg = ap_get_module_config(sp->module_config, &privileges_module);
+            CR_CHECK(priv_addset(cfg->priv, PRIV_DTRACE_KERNEL));
+            CR_CHECK(priv_addset(cfg->priv, PRIV_DTRACE_PROC));
+            CR_CHECK(priv_addset(cfg->priv, PRIV_DTRACE_USER));
+            CR_CHECK(priv_addset(cfg->child_priv, PRIV_DTRACE_KERNEL));
+            CR_CHECK(priv_addset(cfg->child_priv, PRIV_DTRACE_PROC));
+            CR_CHECK(priv_addset(cfg->child_priv, PRIV_DTRACE_USER));
         }
-        if (connect(sd, (struct sockaddr *)server_addr, server_addr_len) < 0) {
-            if (errno == ECONNREFUSED && connect_tries < DEFAULT_CONNECT_ATTEMPTS) {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, errno, r,
-                              "connect #%d to cgi daemon failed, sleeping before retry",
-                              connect_tries);
-                close(sd);
-                apr_sleep(sliding_timer);
-                if (sliding_timer < apr_time_from_sec(2)) {
-                    sliding_timer *= 2;
-                }
-            }
-            else {
-                close(sd);
-                return log_scripterror(r, conf, HTTP_SERVICE_UNAVAILABLE, errno,
-                                       "unable to connect to cgi daemon after multiple tries");
-            }
-        }
-        else {
-            apr_pool_cleanup_register(r->pool, (void *)((long)sd),
-                                      close_unix_socket, apr_pool_cleanup_null);
-            break; /* we got connected! */
-        }
-        /* gotta try again, but make sure the cgid daemon is still around */
-        if (kill(daemon_pid, 0) != 0) {
-            return log_scripterror(r, conf, HTTP_SERVICE_UNAVAILABLE, errno,
-                                   "cgid daemon is gone; is Apache terminating?");
-        }
+        CR_CHECK(priv_addset(priv_default, PRIV_DTRACE_KERNEL));
+        CR_CHECK(priv_addset(priv_default, PRIV_DTRACE_PROC));
+        CR_CHECK(priv_addset(priv_default, PRIV_DTRACE_USER));
     }
-    *sdptr = sd;
+
+    /* set up priv_setid for per-request use */
+    priv_setid = priv_allocset();
+    apr_pool_cleanup_register(pconf, NULL, privileges_term,
+                              apr_pool_cleanup_null);
+    priv_emptyset(priv_setid);
+    if (priv_addset(priv_setid, PRIV_PROC_SETID) == -1) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, errno, ptemp,
+                      "priv_addset");
+        return !OK;
+    }
     return OK;
 }

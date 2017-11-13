@@ -1,10 +1,12 @@
 fputs(
-"              ter is given in the range, the server's response will be unspec-\n"
-"              ified, depending on the server's configuration.\n"
+"              chgrp group file\n"
+"                     The  chgrp command sets the group ID of the file named by\n"
+"                     the file operand to the group ID specified by  the  group\n"
+"                     operand. The group operand is a decimal integer group ID.\n"
 "\n"
-"              You  should also be aware that many HTTP/1.1 servers do not have\n"
-"              this feature enabled, so that when you attempt to get  a  range,\n"
-"              you'll instead get the whole document.\n"
+"              chmod mode file\n"
+"                     The  chmod  command  modifies  the  file mode bits of the\n"
+"                     specified file. The mode operand is an octal integer mode\n"
+"                     number.\n"
 "\n"
-"              FTP  and  SFTP  range  downloads only support the simple 'start-\n"
 , stdout);

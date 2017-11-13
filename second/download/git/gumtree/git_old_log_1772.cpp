@@ -1,1 +1,1 @@
-die(_("Could not format %s."), todo_file);
+die("unable to generate checkdiff for %s", one->path);

@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                "map file %s, line %d syntax error: requires at "
-                "least two fields", r->uri, imap->line_number);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "we now have %u socache entries", subcache->idx_used);

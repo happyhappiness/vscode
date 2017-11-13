@@ -1,1 +1,4 @@
-error("file/directory conflict: %s, %s", name1, name2);
+printf("committer %s <%s@%s> %"PRItime" +0000\n",
+		   *author ? author : "nobody",
+		   *author ? author : "nobody",
+		   *uuid ? uuid : "local", timestamp);

@@ -1,1 +1,2 @@
-error(_("reading from '%s' beyond a symbolic link"), name);
+error("Unexpected line '%s', expected version",
+			     line ? line : "<flush packet>");

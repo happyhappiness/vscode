@@ -1,8 +1,10 @@
 fputs(
-"              (HTTP) Extra header to include in the request when sending  HTTP\n"
-"              to  a  server. You may specify any number of extra headers. Note\n"
-"              that if you should add a custom header that has the same name as\n"
-"              one  of  the  internal  ones curl would use, your externally set\n"
-"              header will be used instead of the internal one. This allows you\n"
-"              to  make  even  trickier  stuff than curl would normally do. You\n"
+"              Allows secure authentication, but non-encrypted  data  transfers\n"
+"              for  efficiency.   Fails the transfer if the server doesn't sup-\n"
+"              port SSL/TLS.  (Added in 7.16.0) that can still be used but will\n"
+"              be removed in a future version.\n"
+"\n"
+"       --form-string <name=string>\n"
+"              (HTTP)  Similar  to  --form except that the value string for the\n"
+"              named parameter is used literally. Leading '@' and  '<'  charac-\n"
 , stdout);

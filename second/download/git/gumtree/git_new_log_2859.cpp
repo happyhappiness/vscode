@@ -1,1 +1,1 @@
-die(_("base commit shouldn't be in revision list"));
+die(_("revision walk setup failed"));

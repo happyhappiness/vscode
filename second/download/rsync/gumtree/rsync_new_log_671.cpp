@@ -1,1 +1,1 @@
-fprintf(fp, "\n       ");
+io_printf(fd,"@RSYNCD: EXIT\n");

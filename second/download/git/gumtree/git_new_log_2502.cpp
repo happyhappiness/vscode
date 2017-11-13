@@ -1,2 +1,1 @@
-printf(" (%s) in %s\n", tag->tag,
-				describe_object(&tag->object));
+die(_("expected format: %%(align:<width>,<position>)"));

@@ -1,11 +1,11 @@
 fputs(
-"              you   disable  this  exponential  backoff  algorithm.  See  also\n"
-"              --retry-max-time to limit the total time  allowed  for  retries.\n"
-"              (Added in 7.12.3)\n"
+"              (SSL) Specify the path name to file containing what will be con-\n"
+"              sidered as random data. The data is  used  to  seed  the  random\n"
+"              engine for SSL connections.  See also the --egd-file option.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"       --raw  (HTTP) When used, it disables all internal HTTP decoding of con-\n"
+"              tent or transfer encodings and  instead  makes  them  passed  on\n"
+"              unaltered, raw. (Added in 7.16.2)\n"
 "\n"
-"       --retry-delay <seconds>\n"
-"              Make  curl  sleep  this  amount of time before each retry when a\n"
-"              transfer has failed with  a  transient  error  (it  changes  the\n"
+"       --remote-name-all\n"
 , stdout);

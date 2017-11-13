@@ -1,185 +1,325 @@
-static int create_process(apr_pool_t *p, HANDLE *child_proc, HANDLE *child_exit_event, 
-                          DWORD *child_pid)
+int
+ssl_expr_yyparse (YYPARSE_PARAM_ARG)
+    YYPARSE_PARAM_DECL
 {
-    /* These NEVER change for the lifetime of this parent 
-     */
-    static char **args = NULL;
-    static char pidbuf[28];
+    register int ssl_expr_yym, ssl_expr_yyn, ssl_expr_yystate;
+#if YYDEBUG
+    register const char *ssl_expr_yys;
 
-    apr_status_t rv;
-    apr_pool_t *ptemp;
-    apr_procattr_t *attr;
-    apr_proc_t new_child;
-    apr_file_t *child_out, *child_err;
-    HANDLE hExitEvent;
-    HANDLE waitlist[2];  /* see waitlist_e */
-    char *cmd;
-    char *cwd;
-    char **env;
-    int envc;
-
-    apr_pool_sub_make(&ptemp, p, NULL);
-
-    /* Build the command line. Should look something like this:
-     * C:/apache/bin/apache.exe -f ap_server_confname 
-     * First, get the path to the executable...
-     */
-    apr_procattr_create(&attr, ptemp);
-    apr_procattr_cmdtype_set(attr, APR_PROGRAM);
-    apr_procattr_detach_set(attr, 1);
-    if (((rv = apr_filepath_get(&cwd, 0, ptemp)) != APR_SUCCESS)
-           || ((rv = apr_procattr_dir_set(attr, cwd)) != APR_SUCCESS)) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Failed to get the current path");
+    if ((ssl_expr_yys = getenv("YYDEBUG")))
+    {
+        ssl_expr_yyn = *ssl_expr_yys;
+        if (ssl_expr_yyn >= '0' && ssl_expr_yyn <= '9')
+            ssl_expr_yydebug = ssl_expr_yyn - '0';
     }
+#endif
 
-    if (!args) {
-        /* Build the args array, only once since it won't change 
-         * for the lifetime of this parent process.
-         */
-        if ((rv = ap_os_proc_filepath(&cmd, ptemp))
-                != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, ERROR_BAD_PATHNAME, ap_server_conf,
-                         "Parent: Failed to get full path of %s", 
-                         ap_server_conf->process->argv[0]);
-            apr_pool_destroy(ptemp);
-            return -1;
+    ssl_expr_yynerrs = 0;
+    ssl_expr_yyerrflag = 0;
+    ssl_expr_yychar = (-1);
+
+    if (ssl_expr_yyss == NULL && ssl_expr_yygrowstack()) goto ssl_expr_yyoverflow;
+    ssl_expr_yyssp = ssl_expr_yyss;
+    ssl_expr_yyvsp = ssl_expr_yyvs;
+    *ssl_expr_yyssp = ssl_expr_yystate = 0;
+
+ssl_expr_yyloop:
+    if ((ssl_expr_yyn = ssl_expr_yydefred[ssl_expr_yystate])) goto ssl_expr_yyreduce;
+    if (ssl_expr_yychar < 0)
+    {
+        if ((ssl_expr_yychar = ssl_expr_yylex()) < 0) ssl_expr_yychar = 0;
+#if YYDEBUG
+        if (ssl_expr_yydebug)
+        {
+            ssl_expr_yys = 0;
+            if (ssl_expr_yychar <= YYMAXTOKEN) ssl_expr_yys = ssl_expr_yyname[ssl_expr_yychar];
+            if (!ssl_expr_yys) ssl_expr_yys = "illegal-symbol";
+            printf("%sdebug: state %d, reading %d (%s)\n",
+                    YYPREFIX, ssl_expr_yystate, ssl_expr_yychar, ssl_expr_yys);
         }
-        
-        args = malloc((ap_server_conf->process->argc + 1) * sizeof (char*));
-        memcpy(args + 1, ap_server_conf->process->argv + 1, 
-               (ap_server_conf->process->argc - 1) * sizeof (char*));
-        args[0] = malloc(strlen(cmd) + 1);
-        strcpy(args[0], cmd);
-        args[ap_server_conf->process->argc] = NULL;
+#endif
     }
-    else {
-        cmd = args[0];
+    if ((ssl_expr_yyn = ssl_expr_yysindex[ssl_expr_yystate]) && (ssl_expr_yyn += ssl_expr_yychar) >= 0 &&
+            ssl_expr_yyn <= YYTABLESIZE && ssl_expr_yycheck[ssl_expr_yyn] == ssl_expr_yychar)
+    {
+#if YYDEBUG
+        if (ssl_expr_yydebug)
+            printf("%sdebug: state %d, shifting to state %d\n",
+                    YYPREFIX, ssl_expr_yystate, ssl_expr_yytable[ssl_expr_yyn]);
+#endif
+        if (ssl_expr_yyssp >= ssl_expr_yysslim && ssl_expr_yygrowstack())
+        {
+            goto ssl_expr_yyoverflow;
+        }
+        *++ssl_expr_yyssp = ssl_expr_yystate = ssl_expr_yytable[ssl_expr_yyn];
+        *++ssl_expr_yyvsp = ssl_expr_yylval;
+        ssl_expr_yychar = (-1);
+        if (ssl_expr_yyerrflag > 0)  --ssl_expr_yyerrflag;
+        goto ssl_expr_yyloop;
     }
-
-    /* Create a pipe to send handles to the child */
-    if ((rv = apr_procattr_io_set(attr, APR_FULL_BLOCK, 
-                                  APR_NO_PIPE, APR_NO_PIPE)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                        "Parent: Unable to create child stdin pipe.");
-        apr_pool_destroy(ptemp);
-        return -1;
+    if ((ssl_expr_yyn = ssl_expr_yyrindex[ssl_expr_yystate]) && (ssl_expr_yyn += ssl_expr_yychar) >= 0 &&
+            ssl_expr_yyn <= YYTABLESIZE && ssl_expr_yycheck[ssl_expr_yyn] == ssl_expr_yychar)
+    {
+        ssl_expr_yyn = ssl_expr_yytable[ssl_expr_yyn];
+        goto ssl_expr_yyreduce;
     }
-
-    /* httpd-2.0/2.2 specific to work around apr_proc_create bugs */
-    /* set "NUL" as sysout for the child */
-    if (((rv = apr_file_open(&child_out, "NUL", APR_WRITE | APR_READ, APR_OS_DEFAULT,p)) 
-            != APR_SUCCESS) ||
-        ((rv = apr_procattr_child_out_set(attr, child_out, NULL))
-            != APR_SUCCESS)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
-                     "Parent: Could not set child process stdout");
+    if (ssl_expr_yyerrflag) goto ssl_expr_yyinrecovery;
+#if defined(lint) || defined(__GNUC__)
+    goto ssl_expr_yynewerror;
+#endif
+ssl_expr_yynewerror:
+    ssl_expr_yyerror("syntax error");
+#if defined(lint) || defined(__GNUC__)
+    goto ssl_expr_yyerrlab;
+#endif
+ssl_expr_yyerrlab:
+    ++ssl_expr_yynerrs;
+ssl_expr_yyinrecovery:
+    if (ssl_expr_yyerrflag < 3)
+    {
+        ssl_expr_yyerrflag = 3;
+        for (;;)
+        {
+            if ((ssl_expr_yyn = ssl_expr_yysindex[*ssl_expr_yyssp]) && (ssl_expr_yyn += YYERRCODE) >= 0 &&
+                    ssl_expr_yyn <= YYTABLESIZE && ssl_expr_yycheck[ssl_expr_yyn] == YYERRCODE)
+            {
+#if YYDEBUG
+                if (ssl_expr_yydebug)
+                    printf("%sdebug: state %d, error recovery shifting\
+ to state %d\n", YYPREFIX, *ssl_expr_yyssp, ssl_expr_yytable[ssl_expr_yyn]);
+#endif
+                if (ssl_expr_yyssp >= ssl_expr_yysslim && ssl_expr_yygrowstack())
+                {
+                    goto ssl_expr_yyoverflow;
+                }
+                *++ssl_expr_yyssp = ssl_expr_yystate = ssl_expr_yytable[ssl_expr_yyn];
+                *++ssl_expr_yyvsp = ssl_expr_yylval;
+                goto ssl_expr_yyloop;
+            }
+            else
+            {
+#if YYDEBUG
+                if (ssl_expr_yydebug)
+                    printf("%sdebug: error recovery discarding state %d\n",
+                            YYPREFIX, *ssl_expr_yyssp);
+#endif
+                if (ssl_expr_yyssp <= ssl_expr_yyss) goto ssl_expr_yyabort;
+                --ssl_expr_yyssp;
+                --ssl_expr_yyvsp;
+            }
+        }
     }
-    if (((rv = apr_file_open_stderr(&child_err, p))
-            != APR_SUCCESS) ||
-        ((rv = apr_procattr_child_err_set(attr, child_err, NULL))
-            != APR_SUCCESS)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
-                     "Parent: Could not set child process stderr");
+    else
+    {
+        if (ssl_expr_yychar == 0) goto ssl_expr_yyabort;
+#if YYDEBUG
+        if (ssl_expr_yydebug)
+        {
+            ssl_expr_yys = 0;
+            if (ssl_expr_yychar <= YYMAXTOKEN) ssl_expr_yys = ssl_expr_yyname[ssl_expr_yychar];
+            if (!ssl_expr_yys) ssl_expr_yys = "illegal-symbol";
+            printf("%sdebug: state %d, error recovery discards token %d (%s)\n",
+                    YYPREFIX, ssl_expr_yystate, ssl_expr_yychar, ssl_expr_yys);
+        }
+#endif
+        ssl_expr_yychar = (-1);
+        goto ssl_expr_yyloop;
     }
-
-    /* Create the child_ready_event */
-    waitlist[waitlist_ready] = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (!waitlist[waitlist_ready]) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Parent: Could not create ready event for child process");
-        apr_pool_destroy (ptemp);
-        return -1;
+ssl_expr_yyreduce:
+#if YYDEBUG
+    if (ssl_expr_yydebug)
+        printf("%sdebug: state %d, reducing by rule %d (%s)\n",
+                YYPREFIX, ssl_expr_yystate, ssl_expr_yyn, ssl_expr_yyrule[ssl_expr_yyn]);
+#endif
+    ssl_expr_yym = ssl_expr_yylen[ssl_expr_yyn];
+    ssl_expr_yyval = ssl_expr_yyvsp[1-ssl_expr_yym];
+    switch (ssl_expr_yyn)
+    {
+case 1:
+#line 84 "ssl_expr_parse.y"
+{ ssl_expr_info.expr = ssl_expr_yyvsp[0].exVal; }
+break;
+case 2:
+#line 87 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_True,  NULL, NULL); }
+break;
+case 3:
+#line 88 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_False, NULL, NULL); }
+break;
+case 4:
+#line 89 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_Not,   ssl_expr_yyvsp[0].exVal,   NULL); }
+break;
+case 5:
+#line 90 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_Or,    ssl_expr_yyvsp[-2].exVal,   ssl_expr_yyvsp[0].exVal);   }
+break;
+case 6:
+#line 91 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_And,   ssl_expr_yyvsp[-2].exVal,   ssl_expr_yyvsp[0].exVal);   }
+break;
+case 7:
+#line 92 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_Comp,  ssl_expr_yyvsp[0].exVal,   NULL); }
+break;
+case 8:
+#line 93 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_yyvsp[-1].exVal; }
+break;
+case 9:
+#line 96 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_EQ,  ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
+break;
+case 10:
+#line 97 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_NE,  ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
+break;
+case 11:
+#line 98 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_LT,  ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
+break;
+case 12:
+#line 99 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_LE,  ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
+break;
+case 13:
+#line 100 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_GT,  ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
+break;
+case 14:
+#line 101 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_GE,  ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
+break;
+case 15:
+#line 102 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_IN,  ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
+break;
+case 16:
+#line 103 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_REG, ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
+break;
+case 17:
+#line 104 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_NRE, ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
+break;
+case 18:
+#line 107 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_OidListElement, ssl_expr_yyvsp[-1].exVal, NULL); }
+break;
+case 19:
+#line 108 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_yyvsp[-1].exVal ; }
+break;
+case 20:
+#line 111 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_ListElement, ssl_expr_yyvsp[0].exVal, NULL); }
+break;
+case 21:
+#line 112 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_ListElement, ssl_expr_yyvsp[0].exVal, ssl_expr_yyvsp[-2].exVal);   }
+break;
+case 22:
+#line 115 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_Digit,  ssl_expr_yyvsp[0].cpVal, NULL); }
+break;
+case 23:
+#line 116 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_String, ssl_expr_yyvsp[0].cpVal, NULL); }
+break;
+case 24:
+#line 117 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_Var,    ssl_expr_yyvsp[-1].cpVal, NULL); }
+break;
+case 25:
+#line 118 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_yyvsp[0].exVal; }
+break;
+case 26:
+#line 121 "ssl_expr_parse.y"
+{
+                ap_regex_t *regex;
+                if ((regex = ap_pregcomp(ssl_expr_info.pool, ssl_expr_yyvsp[0].cpVal,
+                                         AP_REG_EXTENDED|AP_REG_NOSUB)) == NULL) {
+                    ssl_expr_error = "Failed to compile regular expression";
+                    YYERROR;
+                }
+                ssl_expr_yyval.exVal = ssl_expr_make(op_Regex, regex, NULL);
+            }
+break;
+case 27:
+#line 130 "ssl_expr_parse.y"
+{
+                ap_regex_t *regex;
+                if ((regex = ap_pregcomp(ssl_expr_info.pool, ssl_expr_yyvsp[0].cpVal,
+                                         AP_REG_EXTENDED|AP_REG_NOSUB|AP_REG_ICASE)) == NULL) {
+                    ssl_expr_error = "Failed to compile regular expression";
+                    YYERROR;
+                }
+                ssl_expr_yyval.exVal = ssl_expr_make(op_Regex, regex, NULL);
+            }
+break;
+case 28:
+#line 141 "ssl_expr_parse.y"
+{
+               ssl_expr *args = ssl_expr_make(op_ListElement, ssl_expr_yyvsp[-1].cpVal, NULL);
+               ssl_expr_yyval.exVal = ssl_expr_make(op_Func, "file", args);
+            }
+break;
+#line 563 "y.tab.c"
     }
-
-    /* Create the child_exit_event */
-    hExitEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (!hExitEvent) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Parent: Could not create exit event for child process");
-        apr_pool_destroy(ptemp);
-        CloseHandle(waitlist[waitlist_ready]);
-        return -1;
+    ssl_expr_yyssp -= ssl_expr_yym;
+    ssl_expr_yystate = *ssl_expr_yyssp;
+    ssl_expr_yyvsp -= ssl_expr_yym;
+    ssl_expr_yym = ssl_expr_yylhs[ssl_expr_yyn];
+    if (ssl_expr_yystate == 0 && ssl_expr_yym == 0)
+    {
+#if YYDEBUG
+        if (ssl_expr_yydebug)
+            printf("%sdebug: after reduction, shifting from state 0 to\
+ state %d\n", YYPREFIX, YYFINAL);
+#endif
+        ssl_expr_yystate = YYFINAL;
+        *++ssl_expr_yyssp = YYFINAL;
+        *++ssl_expr_yyvsp = ssl_expr_yyval;
+        if (ssl_expr_yychar < 0)
+        {
+            if ((ssl_expr_yychar = ssl_expr_yylex()) < 0) ssl_expr_yychar = 0;
+#if YYDEBUG
+            if (ssl_expr_yydebug)
+            {
+                ssl_expr_yys = 0;
+                if (ssl_expr_yychar <= YYMAXTOKEN) ssl_expr_yys = ssl_expr_yyname[ssl_expr_yychar];
+                if (!ssl_expr_yys) ssl_expr_yys = "illegal-symbol";
+                printf("%sdebug: state %d, reading %d (%s)\n",
+                        YYPREFIX, YYFINAL, ssl_expr_yychar, ssl_expr_yys);
+            }
+#endif
+        }
+        if (ssl_expr_yychar == 0) goto ssl_expr_yyaccept;
+        goto ssl_expr_yyloop;
     }
-
-    /* Build the env array */
-    for (envc = 0; _environ[envc]; ++envc) {
-        ;
+    if ((ssl_expr_yyn = ssl_expr_yygindex[ssl_expr_yym]) && (ssl_expr_yyn += ssl_expr_yystate) >= 0 &&
+            ssl_expr_yyn <= YYTABLESIZE && ssl_expr_yycheck[ssl_expr_yyn] == ssl_expr_yystate)
+        ssl_expr_yystate = ssl_expr_yytable[ssl_expr_yyn];
+    else
+        ssl_expr_yystate = ssl_expr_yydgoto[ssl_expr_yym];
+#if YYDEBUG
+    if (ssl_expr_yydebug)
+        printf("%sdebug: after reduction, shifting from state %d \
+to state %d\n", YYPREFIX, *ssl_expr_yyssp, ssl_expr_yystate);
+#endif
+    if (ssl_expr_yyssp >= ssl_expr_yysslim && ssl_expr_yygrowstack())
+    {
+        goto ssl_expr_yyoverflow;
     }
-    env = apr_palloc(ptemp, (envc + 2) * sizeof (char*));  
-    memcpy(env, _environ, envc * sizeof (char*));
-    apr_snprintf(pidbuf, sizeof(pidbuf), "AP_PARENT_PID=%i", parent_pid);
-    env[envc] = pidbuf;
-    env[envc + 1] = NULL;
-
-    rv = apr_proc_create(&new_child, cmd, args, env, attr, ptemp);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Failed to create the child process.");
-        apr_pool_destroy(ptemp);
-        CloseHandle(hExitEvent);
-        CloseHandle(waitlist[waitlist_ready]);
-        CloseHandle(new_child.hproc);
-        return -1;
-    }
-    apr_file_close(child_out);
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                 "Parent: Created child process %d", new_child.pid);
-
-    if (send_handles_to_child(ptemp, waitlist[waitlist_ready], hExitEvent,
-                              start_mutex, ap_scoreboard_shm,
-                              new_child.hproc, new_child.in)) {
-        /*
-         * This error is fatal, mop up the child and move on
-         * We toggle the child's exit event to cause this child 
-         * to quit even as it is attempting to start.
-         */
-        SetEvent(hExitEvent);
-        apr_pool_destroy(ptemp);
-        CloseHandle(hExitEvent);
-        CloseHandle(waitlist[waitlist_ready]);
-        CloseHandle(new_child.hproc);
-        return -1;
-    }
-
-    /* Important:
-     * Give the child process a chance to run before dup'ing the sockets.
-     * We have already set the listening sockets noninheritable, but if 
-     * WSADuplicateSocket runs before the child process initializes
-     * the listeners will be inherited anyway.
-     */
-    waitlist[waitlist_term] = new_child.hproc;
-    rv = WaitForMultipleObjects(2, waitlist, FALSE, INFINITE);
-    CloseHandle(waitlist[waitlist_ready]);
-    if (rv != WAIT_OBJECT_0) {
-        /* 
-         * Outch... that isn't a ready signal. It's dead, Jim!
-         */
-        SetEvent(hExitEvent);
-        apr_pool_destroy(ptemp);
-        CloseHandle(hExitEvent);
-        CloseHandle(new_child.hproc);
-        return -1;
-    }
-
-    if (send_listeners_to_child(ptemp, new_child.pid, new_child.in)) {
-        /*
-         * This error is fatal, mop up the child and move on
-         * We toggle the child's exit event to cause this child 
-         * to quit even as it is attempting to start.
-         */
-        SetEvent(hExitEvent);
-        apr_pool_destroy(ptemp);
-        CloseHandle(hExitEvent);
-        CloseHandle(new_child.hproc);
-        return -1;
-    }
-
-    apr_file_close(new_child.in);
-
-    *child_exit_event = hExitEvent;
-    *child_proc = new_child.hproc;
-    *child_pid = new_child.pid;
-
-    return 0;
+    *++ssl_expr_yyssp = ssl_expr_yystate;
+    *++ssl_expr_yyvsp = ssl_expr_yyval;
+    goto ssl_expr_yyloop;
+ssl_expr_yyoverflow:
+    ssl_expr_yyerror("yacc stack overflow");
+ssl_expr_yyabort:
+    return (1);
+ssl_expr_yyaccept:
+    return (0);
 }

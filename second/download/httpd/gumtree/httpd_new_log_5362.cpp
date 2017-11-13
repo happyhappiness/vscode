@@ -1,3 +1,8 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
-                         "h2_worker(%d): start task(%s)",
-                         h2_worker_get_id(worker), task->id);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0,
+                             ap_server_conf, APLOGNO(00289)
+                             "server seems busy, (you may need "
+                             "to increase StartServers, ThreadsPerChild "
+                             "or Min/MaxSpareThreads), "
+                             "spawning %d children, there are around %d idle "
+                             "threads, and %d total children", free_length,
+                             idle_thread_count, total_non_dead);

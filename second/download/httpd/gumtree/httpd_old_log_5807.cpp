@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, shed->c,
-                      "h2_ngn_shed(%ld): abort while pulling requests %s", 
-                      shed->c->id, ngn->id);
+ap_log_cerror(APLOG_MARK, APLOG_WARNING, APR_NOTFOUND, m->c,
+                              APLOGNO(02953) "h2_mplx(%ld): stream for response %d",
+                              m->id, response->stream_id);

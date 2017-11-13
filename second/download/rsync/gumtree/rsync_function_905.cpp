@@ -1,14 +1,29 @@
-void flist_ndx_push(flist_ndx_list *lp, int ndx)
+static void add_nocompress_suffixes(const char *str)
 {
-	struct flist_ndx_item *item;
+	char *buf, *t;
+	const char *f = str;
 
-	if (!(item = new(struct flist_ndx_item)))
-		out_of_memory("flist_ndx_push");
-	item->next = NULL;
-	item->ndx = ndx;
-	if (lp->tail)
-		lp->tail->next = item;
-	else
-		lp->head = item;
-	lp->tail = item;
+	if (!(buf = new_array(char, strlen(f) + 1)))
+		out_of_memory("add_nocompress_suffixes");
+
+	while (*f) {
+		if (*f == '/') {
+			f++;
+			continue;
+		}
+
+		t = buf;
+		do {
+			if (isUpper(f))
+				*t++ = toLower(f);
+			else
+				*t++ = *f;
+		} while (*++f != '/' && *f);
+		*t++ = '\0';
+
+		fprintf(stderr, "adding `%s'\n", buf);
+		add_suffix(&suftree, *buf, buf+1);
+	}
+
+	free(buf);
 }

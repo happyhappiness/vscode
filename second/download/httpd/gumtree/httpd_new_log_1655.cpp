@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                             "Copying local SGL of len %d for group %s into cache",
-                             tmp_local_sgl->len, dn);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Digest: invalid nc %s received - no nonce count allowed when qop=none",
+                          snc);

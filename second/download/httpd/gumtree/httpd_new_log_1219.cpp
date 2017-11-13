@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-            "proxy: BALANCER: (%s). Unlock failed for post_request",
-            balancer->name);
+apr_file_printf(errfile, "%s: cannot create file %s" NL,
+                                argv[0], pwfilename);

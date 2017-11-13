@@ -1,78 +1,53 @@
-int versioncmp(const char *s1, const char *s2)
+static void wt_porcelain_v2_print_tracking(struct wt_status *s)
 {
-	const unsigned char *p1 = (const unsigned char *) s1;
-	const unsigned char *p2 = (const unsigned char *) s2;
-	unsigned char c1, c2;
-	int state, diff;
+	struct branch *branch;
+	const char *base;
+	const char *branch_name;
+	struct wt_status_state state;
+	int ab_info, nr_ahead, nr_behind;
+	char eol = s->null_termination ? '\0' : '\n';
 
-	/*
-	 * Symbol(s)    0       [1-9]   others
-	 * Transition   (10) 0  (01) d  (00) x
-	 */
-	static const uint8_t next_state[] = {
-		/* state    x    d    0  */
-		/* S_N */  S_N, S_I, S_Z,
-		/* S_I */  S_N, S_I, S_I,
-		/* S_F */  S_N, S_F, S_F,
-		/* S_Z */  S_N, S_F, S_Z
-	};
+	memset(&state, 0, sizeof(state));
+	wt_status_get_state(&state, s->branch && !strcmp(s->branch, "HEAD"));
 
-	static const int8_t result_type[] = {
-		/* state   x/x  x/d  x/0  d/x  d/d  d/0  0/x  0/d  0/0  */
+	fprintf(s->fp, "# branch.oid %s%c",
+			(s->is_initial ? "(initial)" : sha1_to_hex(s->sha1_commit)),
+			eol);
 
-		/* S_N */  CMP, CMP, CMP, CMP, LEN, CMP, CMP, CMP, CMP,
-		/* S_I */  CMP, -1,  -1,  +1,  LEN, LEN, +1,  LEN, LEN,
-		/* S_F */  CMP, CMP, CMP, CMP, CMP, CMP, CMP, CMP, CMP,
-		/* S_Z */  CMP, +1,  +1,  -1,  CMP, CMP, -1,  CMP, CMP
-	};
+	if (!s->branch)
+		fprintf(s->fp, "# branch.head %s%c", "(unknown)", eol);
+	else {
+		if (!strcmp(s->branch, "HEAD")) {
+			fprintf(s->fp, "# branch.head %s%c", "(detached)", eol);
 
-	if (p1 == p2)
-		return 0;
+			if (state.rebase_in_progress || state.rebase_interactive_in_progress)
+				branch_name = state.onto;
+			else if (state.detached_from)
+				branch_name = state.detached_from;
+			else
+				branch_name = "";
+		} else {
+			branch_name = NULL;
+			skip_prefix(s->branch, "refs/heads/", &branch_name);
 
-	c1 = *p1++;
-	c2 = *p2++;
-	/* Hint: '0' is a digit too.  */
-	state = S_N + ((c1 == '0') + (isdigit (c1) != 0));
+			fprintf(s->fp, "# branch.head %s%c", branch_name, eol);
+		}
 
-	while ((diff = c1 - c2) == 0) {
-		if (c1 == '\0')
-			return diff;
+		/* Lookup stats on the upstream tracking branch, if set. */
+		branch = branch_get(branch_name);
+		base = NULL;
+		ab_info = (stat_tracking_info(branch, &nr_ahead, &nr_behind, &base) == 0);
+		if (base) {
+			base = shorten_unambiguous_ref(base, 0);
+			fprintf(s->fp, "# branch.upstream %s%c", base, eol);
+			free((char *)base);
 
-		state = next_state[state];
-		c1 = *p1++;
-		c2 = *p2++;
-		state += (c1 == '0') + (isdigit (c1) != 0);
+			if (ab_info)
+				fprintf(s->fp, "# branch.ab +%d -%d%c", nr_ahead, nr_behind, eol);
+		}
 	}
 
-	if (!initialized) {
-		const struct string_list *deprecated_prereleases;
-		initialized = 1;
-		prereleases = git_config_get_value_multi("versionsort.suffix");
-		deprecated_prereleases = git_config_get_value_multi("versionsort.prereleasesuffix");
-		if (prereleases) {
-			if (deprecated_prereleases)
-				warning("ignoring versionsort.prereleasesuffix because versionsort.suffix is set");
-		} else
-			prereleases = deprecated_prereleases;
-	}
-	if (prereleases && swap_prereleases(s1, s2, (const char *) p1 - s1 - 1,
-					    &diff))
-		return diff;
-
-	state = result_type[state * 3 + (((c2 == '0') + (isdigit (c2) != 0)))];
-
-	switch (state) {
-	case CMP:
-		return diff;
-
-	case LEN:
-		while (isdigit (*p1++))
-			if (!isdigit (*p2++))
-				return 1;
-
-		return isdigit (*p2) ? -1 : diff;
-
-	default:
-		return state;
-	}
+	free(state.branch);
+	free(state.onto);
+	free(state.detached_from);
 }

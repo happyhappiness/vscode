@@ -1,30 +1,24 @@
-static const char *parse_cmd_delete(struct strbuf *input, const char *next)
+static void parse_cmd_create(const char *next)
 {
-	char *refname;
-	unsigned char old_sha1[20];
-	int have_old;
+	struct strbuf ref = STRBUF_INIT;
+	struct strbuf newvalue = STRBUF_INIT;
+	struct ref_update *update;
 
-	refname = parse_refname(input, &next);
-	if (!refname)
-		die("delete: missing <ref>");
+	update = update_alloc();
+	update->have_old = 1;
 
-	if (parse_next_sha1(input, &next, old_sha1, "delete", refname,
-			    PARSE_SHA1_OLD)) {
-		have_old = 0;
-	} else {
-		if (is_null_sha1(old_sha1))
-			die("delete %s: zero <oldvalue>", refname);
-		have_old = 1;
-	}
+	if ((next = parse_first_arg(next, &ref)) != NULL && ref.buf[0])
+		update_store_ref_name(update, ref.buf);
+	else
+		die("create line missing <ref>");
 
-	if (*next != line_termination)
-		die("delete %s: extra input: %s", refname, next);
+	if ((next = parse_next_arg(next, &newvalue)) != NULL)
+		update_store_new_sha1(update, newvalue.buf);
+	else
+		die("create %s missing <newvalue>", ref.buf);
+	if (is_null_sha1(update->new_sha1))
+		die("create %s given zero new value", ref.buf);
 
-	ref_transaction_delete(transaction, refname, old_sha1,
-			       update_flags, have_old);
-
-	update_flags = 0;
-	free(refname);
-
-	return next;
+	if (next && *next)
+		die("create %s has extra input: %s", ref.buf, next);
 }

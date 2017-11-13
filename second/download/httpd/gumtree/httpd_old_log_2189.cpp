@@ -1,5 +1,3 @@
-ap_rputs("\n\n<table border=\"0\" style=\"text-align: left;\"><tr>"
-                "<th>Worker URL</th>"
-                "<th>Route</th><th>RouteRedir</th>"
-                "<th>Factor</th><th>Status</th>"
-                "</tr>\n", r);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                    " HARD_THREAD_LIMIT define in %s.",
+                    AP_MPM_HARD_LIMITS_FILE);

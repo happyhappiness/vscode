@@ -1,90 +1,37 @@
-static void finish_request(struct transfer_request *request)
+static int want_object_in_pack(const unsigned char *sha1,
+			       int exclude,
+			       struct packed_git **found_pack,
+			       off_t *found_offset)
 {
-	struct http_pack_request *preq;
-	struct http_object_request *obj_req;
+	struct packed_git *p;
 
-	request->curl_result = request->slot->curl_result;
-	request->http_code = request->slot->http_code;
-	request->slot = NULL;
+	if (!exclude && local && has_loose_object_nonlocal(sha1))
+		return 0;
 
-	/* Keep locks active */
-	check_locks();
+	*found_pack = NULL;
+	*found_offset = 0;
 
-	if (request->headers != NULL)
-		curl_slist_free_all(request->headers);
-
-	/* URL is reused for MOVE after PUT */
-	if (request->state != RUN_PUT) {
-		free(request->url);
-		request->url = NULL;
-	}
-
-	if (request->state == RUN_MKCOL) {
-		if (request->curl_result == CURLE_OK ||
-		    request->http_code == 405) {
-			remote_dir_exists[request->obj->sha1[0]] = 1;
-			start_put(request);
-		} else {
-			fprintf(stderr, "MKCOL %s failed, aborting (%d/%ld)\n",
-				sha1_to_hex(request->obj->sha1),
-				request->curl_result, request->http_code);
-			request->state = ABORTED;
-			aborted = 1;
-		}
-	} else if (request->state == RUN_PUT) {
-		if (request->curl_result == CURLE_OK) {
-			start_move(request);
-		} else {
-			fprintf(stderr,	"PUT %s failed, aborting (%d/%ld)\n",
-				sha1_to_hex(request->obj->sha1),
-				request->curl_result, request->http_code);
-			request->state = ABORTED;
-			aborted = 1;
-		}
-	} else if (request->state == RUN_MOVE) {
-		if (request->curl_result == CURLE_OK) {
-			if (push_verbosely)
-				fprintf(stderr, "    sent %s\n",
-					sha1_to_hex(request->obj->sha1));
-			request->obj->flags |= REMOTE;
-			release_request(request);
-		} else {
-			fprintf(stderr, "MOVE %s failed, aborting (%d/%ld)\n",
-				sha1_to_hex(request->obj->sha1),
-				request->curl_result, request->http_code);
-			request->state = ABORTED;
-			aborted = 1;
-		}
-	} else if (request->state == RUN_FETCH_LOOSE) {
-		obj_req = (struct http_object_request *)request->userData;
-
-		if (finish_http_object_request(obj_req) == 0)
-			if (obj_req->rename == 0)
-				request->obj->flags |= (LOCAL | REMOTE);
-
-		/* Try fetching packed if necessary */
-		if (request->obj->flags & LOCAL) {
-			release_http_object_request(obj_req);
-			release_request(request);
-		} else
-			start_fetch_packed(request);
-
-	} else if (request->state == RUN_FETCH_PACKED) {
-		int fail = 1;
-		if (request->curl_result != CURLE_OK) {
-			fprintf(stderr, "Unable to get pack file %s\n%s",
-				request->url, curl_errorstr);
-		} else {
-			preq = (struct http_pack_request *)request->userData;
-
-			if (preq) {
-				if (finish_http_pack_request(preq) == 0)
-					fail = 0;
-				release_http_pack_request(preq);
+	for (p = packed_git; p; p = p->next) {
+		off_t offset = find_pack_entry_one(sha1, p);
+		if (offset) {
+			if (!*found_pack) {
+				if (!is_pack_valid(p)) {
+					warning("packfile %s cannot be accessed", p->pack_name);
+					continue;
+				}
+				*found_offset = offset;
+				*found_pack = p;
 			}
+			if (exclude)
+				return 1;
+			if (incremental)
+				return 0;
+			if (local && !p->pack_local)
+				return 0;
+			if (ignore_packed_keep && p->pack_local && p->pack_keep)
+				return 0;
 		}
-		if (fail)
-			repo->can_update_info_refs = 0;
-		release_request(request);
 	}
+
+	return 1;
 }

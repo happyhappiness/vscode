@@ -1,251 +1,157 @@
-static int cache_url_handler(request_rec *r, int lookup)
+request_rec *ap_read_request(conn_rec *conn)
 {
-    apr_status_t rv;
-    const char *cc_in, *pragma, *auth;
-    apr_uri_t uri = r->parsed_uri;
-    char *url = r->unparsed_uri;
-    apr_size_t urllen;
-    char *path = uri.path;
-    const char *types;
-    cache_info *info = NULL;
-    cache_request_rec *cache;
-    cache_server_conf *conf;
+    request_rec *r;
+    apr_pool_t *p;
+    const char *expect;
+    int access_status;
+    apr_bucket_brigade *tmp_bb;
 
-    conf = (cache_server_conf *) ap_get_module_config(r->server->module_config,
-                                                      &cache_module);
+    apr_pool_create(&p, conn->pool);
+    r = apr_pcalloc(p, sizeof(request_rec));
+    r->pool            = p;
+    r->connection      = conn;
+    r->server          = conn->base_server;
 
-    /* we don't handle anything but GET */
-    if (r->method_number != M_GET) {
-        return DECLINED;
+    r->user            = NULL;
+    r->ap_auth_type    = NULL;
+
+    r->allowed_methods = ap_make_method_list(p, 2);
+
+    r->headers_in      = apr_table_make(r->pool, 25);
+    r->subprocess_env  = apr_table_make(r->pool, 25);
+    r->headers_out     = apr_table_make(r->pool, 12);
+    r->err_headers_out = apr_table_make(r->pool, 5);
+    r->notes           = apr_table_make(r->pool, 5);
+
+    r->request_config  = ap_create_request_config(r->pool);
+    /* Must be set before we run create request hook */
+
+    r->proto_output_filters = conn->output_filters;
+    r->output_filters  = r->proto_output_filters;
+    r->proto_input_filters = conn->input_filters;
+    r->input_filters   = r->proto_input_filters;
+    ap_run_create_request(r);
+    r->per_dir_config  = r->server->lookup_defaults;
+
+    r->sent_bodyct     = 0;                      /* bytect isn't for body */
+
+    r->read_length     = 0;
+    r->read_body       = REQUEST_NO_BODY;
+
+    r->status          = HTTP_REQUEST_TIME_OUT;  /* Until we get a request */
+    r->the_request     = NULL;
+
+    tmp_bb = apr_brigade_create(r->pool, r->connection->bucket_alloc);
+
+    /* Get the request... */
+    if (!read_request_line(r, tmp_bb)) {
+        if (r->status == HTTP_REQUEST_URI_TOO_LARGE) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "request failed: URI too long");
+            ap_send_error_response(r, 0);
+            ap_run_log_transaction(r);
+            apr_brigade_destroy(tmp_bb);
+            return r;
+        }
+
+        apr_brigade_destroy(tmp_bb);
+        return NULL;
     }
 
-    /*
-     * Which cache module (if any) should handle this request?
-     */
-    if (!(types = ap_cache_get_cachetype(r, conf, path))) {
-        return DECLINED;
-    }
-
-    urllen = strlen(url);
-    if (urllen > MAX_URL_LENGTH) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "cache: URL exceeds length threshold: %s", url);
-        return DECLINED;
-    }
-    /* DECLINE urls ending in / ??? EGP: why? */
-    if (url[urllen-1] == '/') {
-        return DECLINED;
-    }
-
-    /* make space for the per request config */
-    cache = (cache_request_rec *) ap_get_module_config(r->request_config, 
-                                                       &cache_module);
-    if (!cache) {
-        cache = apr_pcalloc(r->pool, sizeof(cache_request_rec));
-        ap_set_module_config(r->request_config, &cache_module, cache);
-    }
-
-    /* save away the type */
-    cache->types = types;
-
-    /*
-     * Are we allowed to serve cached info at all?
-     */
-
-    /* find certain cache controlling headers */
-    cc_in = apr_table_get(r->headers_in, "Cache-Control");
-    pragma = apr_table_get(r->headers_in, "Pragma");
-    auth = apr_table_get(r->headers_in, "Authorization");
-
-    /* first things first - does the request allow us to return
-     * cached information at all? If not, just decline the request.
-     *
-     * Note that there is a big difference between not being allowed
-     * to cache a request (no-store) and not being allowed to return
-     * a cached request without revalidation (max-age=0).
-     *
-     * Caching is forbidden under the following circumstances:
-     *
-     * - RFC2616 14.9.2 Cache-Control: no-store
-     * - Pragma: no-cache
-     * - Any requests requiring authorization.
-     */
-    if (conf->ignorecachecontrol == 1 && auth == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "incoming request is asking for a uncached version of "
-                     "%s, but we know better and are ignoring it", url);
+    if (!r->assbackwards) {
+        ap_get_mime_headers_core(r, tmp_bb);
+        if (r->status != HTTP_REQUEST_TIME_OUT) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "request failed: error reading the headers");
+            ap_send_error_response(r, 0);
+            ap_run_log_transaction(r);
+            apr_brigade_destroy(tmp_bb);
+            return r;
+        }
     }
     else {
-        if (ap_cache_liststr(NULL, cc_in, "no-store", NULL) ||
-            ap_cache_liststr(NULL, pragma, "no-cache", NULL) || (auth != NULL)) {
-            /* delete the previously cached file */
-            cache_remove_url(r, cache->types, url);
-
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "cache: no-store forbids caching of %s", url);
-            return DECLINED;
-        }
-    }
-
-    /*
-     * Try to serve this request from the cache.
-     *
-     * If no existing cache file
-     *   add cache_in filter
-     * If stale cache file
-     *   If conditional request
-     *     add cache_in filter
-     *   If non-conditional request
-     *     fudge response into a conditional
-     *     add cache_conditional filter
-     * If fresh cache file
-     *   clear filter stack
-     *   add cache_out filter
-     */
-
-    rv = cache_select_url(r, cache->types, url);
-    if (DECLINED == rv) {
-        if (!lookup) {
-            /* no existing cache file */
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "cache: no cache - add cache_in filter and DECLINE");
-            /* add cache_in filter to cache this request */
-            ap_add_output_filter_handle(cache_in_filter_handle, NULL, r,
-                                        r->connection);
-        }
-        return DECLINED;
-    }
-    else if (OK == rv) {
-        /* RFC2616 13.2 - Check cache object expiration */
-        cache->fresh = ap_cache_check_freshness(cache, r);
-        if (cache->fresh) {
-            /* fresh data available */
-            apr_bucket_brigade *out;
-            conn_rec *c = r->connection;
-
-            if (lookup) {
-                return OK;
-            }
-            rv = ap_meets_conditions(r);
-            if (rv != OK) {
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                             "cache: fresh cache - returning status %d", rv);
-                return rv;
-            }
-
+        if (r->header_only) {
             /*
-             * Not a conditionl request. Serve up the content 
+             * Client asked for headers only with HTTP/0.9, which doesn't send
+             * headers! Have to dink things just to make sure the error message
+             * comes through...
              */
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "cache: fresh cache - add cache_out filter and "
-                         "handle request");
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "client sent invalid HTTP/0.9 request: HEAD %s",
+                          r->uri);
+            r->header_only = 0;
+            r->status = HTTP_BAD_REQUEST;
+            ap_send_error_response(r, 0);
+            ap_run_log_transaction(r);
+            apr_brigade_destroy(tmp_bb);
+            return r;
+        }
+    }
 
-            /* We are in the quick handler hook, which means that no output
-             * filters have been set. So lets run the insert_filter hook.
-             */
-            ap_run_insert_filter(r);
-            ap_add_output_filter_handle(cache_out_filter_handle, NULL,
-                                        r, r->connection);
+    apr_brigade_destroy(tmp_bb);
 
-            /* kick off the filter stack */
-            out = apr_brigade_create(r->pool, c->bucket_alloc);
-            if (APR_SUCCESS
-                != (rv = ap_pass_brigade(r->output_filters, out))) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-                             "cache: error returned while trying to return %s "
-                             "cached data", 
-                             cache->type);
-                return rv;
-            }
-            return OK;
+    r->status = HTTP_OK;                         /* Until further notice. */
+
+    /* update what we think the virtual host is based on the headers we've
+     * now read. may update status.
+     */
+    ap_update_vhost_from_headers(r);
+
+    /* we may have switched to another server */
+    r->per_dir_config = r->server->lookup_defaults;
+
+    if ((!r->hostname && (r->proto_num >= HTTP_VERSION(1, 1)))
+        || ((r->proto_num == HTTP_VERSION(1, 1))
+            && !apr_table_get(r->headers_in, "Host"))) {
+        /*
+         * Client sent us an HTTP/1.1 or later request without telling us the
+         * hostname, either with a full URL or a Host: header. We therefore
+         * need to (as per the 1.1 spec) send an error.  As a special case,
+         * HTTP/1.1 mentions twice (S9, S14.23) that a request MUST contain
+         * a Host: header, and the server MUST respond with 400 if it doesn't.
+         */
+        r->status = HTTP_BAD_REQUEST;
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "client sent HTTP/1.1 request without hostname "
+                      "(see RFC2616 section 14.23): %s", r->uri);
+    }
+
+    if (r->status != HTTP_OK) {
+        ap_send_error_response(r, 0);
+        ap_run_log_transaction(r);
+        return r;
+    }
+
+    if (((expect = apr_table_get(r->headers_in, "Expect")) != NULL)
+        && (expect[0] != '\0')) {
+        /*
+         * The Expect header field was added to HTTP/1.1 after RFC 2068
+         * as a means to signal when a 100 response is desired and,
+         * unfortunately, to signal a poor man's mandatory extension that
+         * the server must understand or return 417 Expectation Failed.
+         */
+        if (strcasecmp(expect, "100-continue") == 0) {
+            r->expecting_100 = 1;
         }
         else {
-            if (!r->err_headers_out) {
-                r->err_headers_out = apr_table_make(r->pool, 3);
-            }
-            /* stale data available */
-            if (lookup) {
-                return DECLINED;
-            }
-
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "cache: stale cache - test conditional");
-            /* if conditional request */
-            if (ap_cache_request_is_conditional(r)) {
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
-                             r->server,
-                             "cache: conditional - add cache_in filter and "
-                             "DECLINE");
-                /* Why not add CACHE_CONDITIONAL? */
-                ap_add_output_filter_handle(cache_in_filter_handle, NULL,
-                                            r, r->connection);
-
-                return DECLINED;
-            }
-            /* else if non-conditional request */
-            else {
-                /* Temporarily hack this to work the way it had been. Its broken,
-                 * but its broken the way it was before. I'm working on figuring
-                 * out why the filter add in the conditional filter doesn't work. pjr
-                 *
-                 * info = &(cache->handle->cache_obj->info);
-                 *
-                 * Uncomment the above when the code in cache_conditional_filter_handle
-                 * is properly fixed...  pjr
-                 */
-                
-                /* fudge response into a conditional */
-                if (info && info->etag) {
-                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
-                                 r->server,
-                                 "cache: nonconditional - fudge conditional "
-                                 "by etag");
-                    /* if we have a cached etag */
-                    apr_table_set(r->headers_in, "If-None-Match", info->etag);
-                }
-                else if (info && info->lastmods) {
-                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
-                                 r->server,
-                                 "cache: nonconditional - fudge conditional "
-                                 "by lastmod");
-                    /* if we have a cached IMS */
-                    apr_table_set(r->headers_in, 
-                                  "If-Modified-Since", 
-                                  info->lastmods);
-                }
-                else {
-                    /* something else - pretend there was no cache */
-                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
-                                 r->server,
-                                 "cache: nonconditional - no cached "
-                                 "etag/lastmods - add cache_in and DECLINE");
-
-                    ap_add_output_filter_handle(cache_in_filter_handle, NULL,
-                                                r, r->connection);
-
-                    return DECLINED;
-                }
-                /* add cache_conditional filter */
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
-                             r->server,
-                             "cache: nonconditional - add cache_conditional "
-                             "and DECLINE");
-                ap_add_output_filter_handle(cache_conditional_filter_handle,
-                                            NULL, 
-                                            r, 
-                                            r->connection);
-
-                return DECLINED;
-            }
+            r->status = HTTP_EXPECTATION_FAILED;
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                          "client sent an unrecognized expectation value of "
+                          "Expect: %s", expect);
+            ap_send_error_response(r, 0);
+            ap_run_log_transaction(r);
+            return r;
         }
     }
-    else {
-        /* error */
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, 
-                     r->server,
-                     "cache: error returned while checking for cached file by "
-                     "%s cache", 
-                     cache->type);
-        return DECLINED;
+
+    ap_add_input_filter_handle(ap_http_input_filter_handle,
+                               NULL, r, r->connection);
+
+    if ((access_status = ap_run_post_read_request(r))) {
+        ap_die(access_status, r);
+        ap_run_log_transaction(r);
+        return NULL;
     }
+
+    return r;
 }

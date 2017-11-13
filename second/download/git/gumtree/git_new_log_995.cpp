@@ -1,1 +1,1 @@
-printf("  mtime: %d:%d\n", sd->sd_mtime.sec, sd->sd_mtime.nsec);
+error("Object %s already has a mark", oid_to_hex(&oid));

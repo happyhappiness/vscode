@@ -1,1 +1,2 @@
-get_ref(base_list[i], oid_to_hex(base_list[i]));
+die(_("No directory name could be guessed.\n"
+		      "Please specify a directory on the command line"));

@@ -1,52 +1,47 @@
-static authn_status get_realm_hash(request_rec *r, const char *user,
-                                   const char *realm, char **rethash)
+static apr_status_t dbd_construct(void **db, void *params, apr_pool_t *pool)
 {
-    authn_file_config_rec *conf = ap_get_module_config(r->per_dir_config,
-                                                       &authn_file_module);
-    ap_configfile_t *f;
-    char l[MAX_STRING_LEN];
-    apr_status_t status;
-    char *file_hash = NULL;
+    svr_cfg *svr = (svr_cfg*) params;
+    ap_dbd_t *rec = apr_pcalloc(pool, sizeof(ap_dbd_t));
+    apr_status_t rv = apr_dbd_get_driver(pool, svr->name, &rec->driver);
 
-    if (!conf->pwfile) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "AuthUserFile not specified in the configuration");
-        return AUTH_GENERAL_ERROR;
+/* Error-checking get_driver isn't necessary now (because it's done at
+ * config-time).  But in case that changes in future ...
+ */
+    switch (rv) {
+    case APR_ENOTIMPL:
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, pool,
+                      "DBD: driver for %s not available", svr->name);
+        return rv;
+    case APR_EDSOOPEN:
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, pool,
+                      "DBD: can't find driver for %s", svr->name);
+        return rv;
+    case APR_ESYMNOTFOUND:
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, pool,
+                      "DBD: driver for %s is invalid or corrupted", svr->name);
+        return rv;
+    default:
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, pool,
+                      "DBD: mod_dbd not compatible with apr in get_driver");
+        return rv;
+    case APR_SUCCESS:
+        break;
     }
 
-    status = ap_pcfg_openfile(&f, r->pool, conf->pwfile);
-
-    if (status != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                      "Could not open password file: %s", conf->pwfile);
-        return AUTH_GENERAL_ERROR;
+    rv = apr_dbd_open(rec->driver, pool, svr->params, &rec->handle);
+    switch (rv) {
+    case APR_EGENERAL:
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, pool,
+                      "DBD: Can't connect to %s[%s]", svr->name, svr->params);
+        return rv;
+    default:
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, pool,
+                      "DBD: mod_dbd not compatible with apr in open");
+        return rv;
+    case APR_SUCCESS:
+        break;
     }
-
-    while (!(ap_cfg_getline(l, MAX_STRING_LEN, f))) {
-        const char *rpw, *w, *x;
-
-        /* Skip # or blank lines. */
-        if ((l[0] == '#') || (!l[0])) {
-            continue;
-        }
-
-        rpw = l;
-        w = ap_getword(r->pool, &rpw, ':');
-        x = ap_getword(r->pool, &rpw, ':');
-
-        if (x && w && !strcmp(user, w) && !strcmp(realm, x)) {
-            /* Remember that this is a md5 hash of user:realm:password.  */
-            file_hash = ap_getword(r->pool, &rpw, ':');
-            break;
-        }
-    }
-    ap_cfg_closefile(f);
-
-    if (!file_hash) {
-        return AUTH_USER_NOT_FOUND;
-    }
-
-    *rethash = file_hash;
-
-    return AUTH_USER_FOUND;
+    *db = rec;
+    rv = dbd_prepared_init(pool, svr, rec);
+    return rv;
 }

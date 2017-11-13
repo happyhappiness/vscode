@@ -1,2 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, /* NO APLOGNO */
-                      "->03198: h2_stream(%ld-NULL): NULL", m->id);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00032)
+                                      "Symbolic link not allowed "
+                                      "or link target not accessible: %s",
+                                      r->filename);

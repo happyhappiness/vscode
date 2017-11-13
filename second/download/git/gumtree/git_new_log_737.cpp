@@ -1,1 +1,1 @@
-error(_("unable to parse remote unpack status: %s"), line);
+fprintf(stderr, "BUG: %s\n", msg);

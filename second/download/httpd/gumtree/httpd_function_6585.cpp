@@ -1,25 +1,10 @@
-static apr_status_t initialize_secret(server_rec *s)
-{
-    apr_status_t status;
-
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, APLOGNO(01757)
-                 "generating secret for digest authentication ...");
-
-#if APR_HAS_RANDOM
-    status = apr_generate_random_bytes(secret, sizeof(secret));
-#else
-#error APR random number support is missing; you probably need to install the truerand library.
-#endif
-
-    if (status != APR_SUCCESS) {
-        char buf[120];
-        ap_log_error(APLOG_MARK, APLOG_CRIT, status, s, APLOGNO(01758)
-                     "error generating secret: %s",
-                     apr_strerror(status, buf, sizeof(buf)));
-        return status;
-    }
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01759) "done");
-
-    return APR_SUCCESS;
+static int report_stream_iter(void *ctx, void *val) {
+    h2_mplx *m = ctx;
+    h2_stream *stream = val;
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
+                  "h2_mplx(%ld-%d): exists, started=%d, scheduled=%d, "
+                  "submitted=%d, suspended=%d", 
+                  m->id, stream->id, stream->started, stream->scheduled,
+                  stream->submitted, stream->suspended);
+    return 1;
 }

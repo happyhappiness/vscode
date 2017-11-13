@@ -1,1 +1,1 @@
-warning(_("the original commit '%s' has a gpg signature."), old_ref);
+die("Not a valid object name: '%s'", object_ref);

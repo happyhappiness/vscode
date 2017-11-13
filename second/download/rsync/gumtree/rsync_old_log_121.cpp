@@ -1,1 +1,1 @@
-fprintf(stderr,"nothing to do\n");
+fprintf(stderr,"getwd : %s\n",strerror(errno));

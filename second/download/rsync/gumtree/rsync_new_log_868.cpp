@@ -1,2 +1,4 @@
-fprintf(stderr, "Corrupt %s xattr attached to %s: \"%s\"\n",
-			XSTAT_ATTR, fname, buf);
+fprintf(stderr,
+			        "%s: %s\n",
+				poptBadOption(pc, POPT_BADOPTION_NOALIAS),
+				poptStrerror(opt));

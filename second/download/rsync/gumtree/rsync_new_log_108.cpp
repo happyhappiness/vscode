@@ -1,2 +1,1 @@
-fprintf(FERROR,"write_buf failed : %s\n",
-	    ret==-1?strerror(errno):"EOF");
+fprintf(FERROR,"protocol version mismatch - is your shell clean?\n");

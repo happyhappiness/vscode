@@ -1,11 +1,11 @@
 fputs(
-"              time_appconnect\n"
-"                             The time, in seconds,  it  took  from  the  start\n"
-"                             until  the  SSL/SSH/etc  connect/handshake to the\n"
-"                             remote host was completed. (Added in 7.19.0)\n"
+"              http_code      The numerical response code that was found in the\n"
+"                             last retrieved HTTP(S)  or  FTP(s)  transfer.  In\n"
+"                             7.18.2  the alias response_code was added to show\n"
+"                             the same info.\n"
 "\n"
-"              time_connect   The time, in seconds,  it  took  from  the  start\n"
-"                             until  the  TCP  connect  to  the remote host (or\n"
-"                             proxy) was completed.\n"
+"              http_connect   The numerical code that was  found  in  the  last\n"
+"                             response   (from  a  proxy)  to  a  curl  CONNECT\n"
+"                             request. (Added in 7.12.4)\n"
 "\n"
 , stdout);

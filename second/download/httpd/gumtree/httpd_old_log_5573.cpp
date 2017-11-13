@@ -1,6 +1,7 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
-                              "h2_task_output(%s): write without response "
-                              "for %s %s %s",
-                              output->task->id, output->task->request->method, 
-                              output->task->request->authority, 
-                              output->task->request->path);
+ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_WARNING,
+                             0, NULL,
+                             "macro '%s' (%s): "
+                            "argument name prefix conflict (%s #%d and %s #%d),"
+                             " be careful about your macro definition!",
+                             macro->name, macro->location,
+                             tab[i], i + 1, tab[j], j + 1);

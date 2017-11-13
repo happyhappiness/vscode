@@ -1,1 +1,1 @@
-out_of_memory("normalize_path");
+out_of_memory("flist_ndx_push");

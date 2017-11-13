@@ -1,1 +1,2 @@
-die_errno("Cannot come back to cwd");
+die(_("bad numeric config value '%s' for '%s' in %s: %s"),
+		    value, name, cf->name, reason);

@@ -1,2 +1,1 @@
-rprintf(FERROR,"chdir %s : %s\n",
-					dbuf,strerror(errno));
+fprintf(FINFO,"generate_files phase=%d\n",phase);

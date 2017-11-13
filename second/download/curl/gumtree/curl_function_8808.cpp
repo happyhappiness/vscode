@@ -1,19 +1,25 @@
-void tool_list_engines(CURL *curl)
+void tool_version_info(void)
 {
-  struct curl_slist *engines = NULL;
+  const char *const *proto;
 
-  /* Get the list of engines */
-  curl_easy_getinfo(curl, CURLINFO_SSL_ENGINES, &engines);
-
-  puts("Build-time engines:");
-  if(engines) {
-    for(; engines; engines = engines->next)
-      printf("  %s\n", engines->data);
+  printf(CURL_ID "%s\n", curl_version());
+  if(curlinfo->protocols) {
+    printf("Protocols: ");
+    for(proto = curlinfo->protocols; *proto; ++proto) {
+      printf("%s ", *proto);
+    }
+    puts(""); /* newline */
   }
-  else {
-    puts("  <none>");
+  if(curlinfo->features) {
+    unsigned int i;
+    printf("Features: ");
+    for(i = 0; i < sizeof(feats)/sizeof(feats[0]); i++) {
+      if(curlinfo->features & feats[i].bitmask)
+        printf("%s ", feats[i].name);
+    }
+#ifdef USE_METALINK
+    printf("Metalink ");
+#endif
+    puts(""); /* newline */
   }
-
-  /* Cleanup the list of engines */
-  curl_slist_free_all(engines);
 }

@@ -1,42 +1,64 @@
-static void show_pack_info(int stat_only)
+static void show_filemodify(struct diff_queue_struct *q,
+			    struct diff_options *options, void *data)
 {
-	int i, baseobjects = nr_objects - nr_ref_deltas - nr_ofs_deltas;
-	unsigned long *chain_histogram = NULL;
+	int i;
 
-	if (deepest_delta)
-		chain_histogram = xcalloc(deepest_delta, sizeof(unsigned long));
+	/*
+	 * Handle files below a directory first, in case they are all deleted
+	 * and the directory changes to a file or symlink.
+	 */
+	QSORT(q->queue, q->nr, depth_first);
 
-	for (i = 0; i < nr_objects; i++) {
-		struct object_entry *obj = &objects[i];
+	for (i = 0; i < q->nr; i++) {
+		struct diff_filespec *ospec = q->queue[i]->one;
+		struct diff_filespec *spec = q->queue[i]->two;
 
-		if (is_delta_type(obj->type))
-			chain_histogram[obj_stat[i].delta_depth - 1]++;
-		if (stat_only)
-			continue;
-		printf("%s %-6s %lu %lu %"PRIuMAX,
-		       sha1_to_hex(obj->idx.sha1),
-		       typename(obj->real_type), obj->size,
-		       (unsigned long)(obj[1].idx.offset - obj->idx.offset),
-		       (uintmax_t)obj->idx.offset);
-		if (is_delta_type(obj->type)) {
-			struct object_entry *bobj = &objects[obj_stat[i].base_object_no];
-			printf(" %u %s", obj_stat[i].delta_depth, sha1_to_hex(bobj->idx.sha1));
+		switch (q->queue[i]->status) {
+		case DIFF_STATUS_DELETED:
+			printf("D ");
+			print_path(spec->path);
+			putchar('\n');
+			break;
+
+		case DIFF_STATUS_COPIED:
+		case DIFF_STATUS_RENAMED:
+			printf("%c ", q->queue[i]->status);
+			print_path(ospec->path);
+			putchar(' ');
+			print_path(spec->path);
+			putchar('\n');
+
+			if (!oidcmp(&ospec->oid, &spec->oid) &&
+			    ospec->mode == spec->mode)
+				break;
+			/* fallthrough */
+
+		case DIFF_STATUS_TYPE_CHANGED:
+		case DIFF_STATUS_MODIFIED:
+		case DIFF_STATUS_ADDED:
+			/*
+			 * Links refer to objects in another repositories;
+			 * output the SHA-1 verbatim.
+			 */
+			if (no_data || S_ISGITLINK(spec->mode))
+				printf("M %06o %s ", spec->mode,
+				       sha1_to_hex(anonymize ?
+						   anonymize_sha1(spec->oid.hash) :
+						   spec->oid.hash));
+			else {
+				struct object *object = lookup_object(spec->oid.hash);
+				printf("M %06o :%d ", spec->mode,
+				       get_object_mark(object));
+			}
+			print_path(spec->path);
+			putchar('\n');
+			break;
+
+		default:
+			die("Unexpected comparison status '%c' for %s, %s",
+				q->queue[i]->status,
+				ospec->path ? ospec->path : "none",
+				spec->path ? spec->path : "none");
 		}
-		putchar('\n');
-	}
-
-	if (baseobjects)
-		printf_ln(Q_("non delta: %d object",
-			     "non delta: %d objects",
-			     baseobjects),
-			  baseobjects);
-	for (i = 0; i < deepest_delta; i++) {
-		if (!chain_histogram[i])
-			continue;
-		printf_ln(Q_("chain length = %d: %lu object",
-			     "chain length = %d: %lu objects",
-			     chain_histogram[i]),
-			  i + 1,
-			  chain_histogram[i]);
 	}
 }

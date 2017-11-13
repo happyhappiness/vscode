@@ -1,87 +1,61 @@
-static unsigned int __stdcall win9x_accept(void * dummy)
+static apr_status_t dbd_construct(void **db, void *params, apr_pool_t *pool)
 {
-    struct timeval tv;
-    fd_set main_fds;
-    int wait_time = 1;
-    SOCKET csd;
-    SOCKET nsd = INVALID_SOCKET;
-    int count_select_errors = 0;
-    int rc;
-    int clen;
-    ap_listen_rec *lr;
-    struct fd_set listenfds;
-#if APR_HAVE_IPV6
-    struct sockaddr_in6 sa_client;
-#else
-    struct sockaddr_in sa_client;
-#endif
+    svr_cfg *svr = (svr_cfg*) params;
+    ap_dbd_t *rec = apr_pcalloc(pool, sizeof(ap_dbd_t));
+    apr_status_t rv;
 
-    /* Setup the listeners
-     * ToDo: Use apr_poll()
-     */
-    FD_ZERO(&listenfds);
-    for (lr = ap_listeners; lr; lr = lr->next) {
-        if (lr->sd != NULL) {
-            apr_os_sock_get(&nsd, lr->sd);
-            FD_SET(nsd, &listenfds);
-            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                         "Child %d: Listening on port %d.", my_pid, lr->bind_addr->port);
-        }
+    /* this pool is mostly so dbd_close can destroy the prepared stmts */
+    rv = apr_pool_create(&rec->pool, pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, pool,
+                      "DBD: Failed to create memory pool");
     }
 
-    head_listener = ap_listeners;
-
-    while (!shutdown_in_progress) {
-        tv.tv_sec = wait_time;
-        tv.tv_usec = 0;
-        memcpy(&main_fds, &listenfds, sizeof(fd_set));
-
-        /* First parameter of select() is ignored on Windows */
-        rc = select(0, &main_fds, NULL, NULL, &tv);
-
-        if (rc == 0 || (rc == SOCKET_ERROR && APR_STATUS_IS_EINTR(apr_get_netos_error()))) {
-            count_select_errors = 0;    /* reset count of errors */
-            continue;
-        }
-        else if (rc == SOCKET_ERROR) {
-            /* A "real" error occurred, log it and increment the count of
-             * select errors. This count is used to ensure we don't go into
-             * a busy loop of continuous errors.
-             */
-            ap_log_error(APLOG_MARK, APLOG_INFO, apr_get_netos_error(), ap_server_conf,
-                         "select failed with error %d", apr_get_netos_error());
-            count_select_errors++;
-            if (count_select_errors > MAX_SELECT_ERRORS) {
-                shutdown_in_progress = 1;
-                ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_netos_error(), ap_server_conf,
-                             "Too many errors in select loop. Child process exiting.");
-                break;
-            }
-        } else {
-            ap_listen_rec *lr;
-
-            lr = find_ready_listener(&main_fds);
-            if (lr != NULL) {
-                /* fetch the native socket descriptor */
-                apr_os_sock_get(&nsd, lr->sd);
-            }
-        }
-
-        do {
-            clen = sizeof(sa_client);
-            csd = accept(nsd, (struct sockaddr *) &sa_client, &clen);
-        } while (csd < 0 && APR_STATUS_IS_EINTR(apr_get_netos_error()));
-
-        if (csd < 0) {
-            if (APR_STATUS_IS_ECONNABORTED(apr_get_netos_error())) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_netos_error(), ap_server_conf,
-                            "accept: (client socket)");
-            }
-        }
-        else {
-            add_job(csd);
-        }
+/* The driver is loaded at config time now, so this just checks a hash.
+ * If that changes, the driver DSO could be registered to unload against
+ * our pool, which is probably not what we want.  Error checking isn't
+ * necessary now, but in case that changes in the future ...
+ */
+    rv = apr_dbd_get_driver(rec->pool, svr->name, &rec->driver);
+    switch (rv) {
+    case APR_ENOTIMPL:
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
+                      "DBD: driver for %s not available", svr->name);
+        return rv;
+    case APR_EDSOOPEN:
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
+                      "DBD: can't find driver for %s", svr->name);
+        return rv;
+    case APR_ESYMNOTFOUND:
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
+                      "DBD: driver for %s is invalid or corrupted", svr->name);
+        return rv;
+    default:
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
+                      "DBD: mod_dbd not compatible with apr in get_driver");
+        return rv;
+    case APR_SUCCESS:
+        break;
     }
-    SetEvent(exit_event);
-    return 0;
+
+    rv = apr_dbd_open(rec->driver, rec->pool, svr->params, &rec->handle);
+    switch (rv) {
+    case APR_EGENERAL:
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
+                      "DBD: Can't connect to %s", svr->name);
+        return rv;
+    default:
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
+                      "DBD: mod_dbd not compatible with apr in open");
+        return rv;
+    case APR_SUCCESS:
+        break;
+    }
+    *db = rec;
+    rv = dbd_prepared_init(rec->pool, svr, rec);
+    if (rv != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
+                      "DBD: failed to initialise prepared SQL statements");
+    }
+    return rv;
 }

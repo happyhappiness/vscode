@@ -1,1 +1,1 @@
-out_of_memory("glob_expand");
+rprintf(FINFO,"generate_files phase=%d\n",phase);

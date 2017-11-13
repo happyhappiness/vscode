@@ -1,30 +1,16 @@
-static void init_curl_proxy_auth(CURL *result)
+static void parse_get_mark(const char *p)
 {
-	if (proxy_auth.username) {
-		if (!proxy_auth.password)
-			credential_fill(&proxy_auth);
-		set_proxyauth_name_password(result);
-	}
+	struct object_entry *oe = oe;
+	char output[42];
 
-	var_override(&http_proxy_authmethod, getenv("GIT_HTTP_PROXY_AUTHMETHOD"));
+	/* get-mark SP <object> LF */
+	if (*p != ':')
+		die("Not a mark: %s", p);
 
-#if LIBCURL_VERSION_NUM >= 0x070a07 /* CURLOPT_PROXYAUTH and CURLAUTH_ANY */
-	if (http_proxy_authmethod) {
-		int i;
-		for (i = 0; i < ARRAY_SIZE(proxy_authmethods); i++) {
-			if (!strcmp(http_proxy_authmethod, proxy_authmethods[i].name)) {
-				curl_easy_setopt(result, CURLOPT_PROXYAUTH,
-						proxy_authmethods[i].curlauth_param);
-				break;
-			}
-		}
-		if (i == ARRAY_SIZE(proxy_authmethods)) {
-			warning("unsupported proxy authentication method %s: using anyauth",
-					http_proxy_authmethod);
-			curl_easy_setopt(result, CURLOPT_PROXYAUTH, CURLAUTH_ANY);
-		}
-	}
-	else
-		curl_easy_setopt(result, CURLOPT_PROXYAUTH, CURLAUTH_ANY);
-#endif
+	oe = find_mark(parse_mark_ref_eol(p));
+	if (!oe)
+		die("Unknown mark: %s", command_buf.buf);
+
+	snprintf(output, sizeof(output), "%s\n", sha1_to_hex(oe->idx.sha1));
+	cat_blob_write(output, 41);
 }

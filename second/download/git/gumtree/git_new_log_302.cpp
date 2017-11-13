@@ -1,1 +1,0 @@
-die(_("--reflog option needs one branch name"));

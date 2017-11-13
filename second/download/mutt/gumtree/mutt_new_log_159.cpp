@@ -1,1 +1,1 @@
-state_puts ("\n", s);
+mutt_yesorno (tmp, MUTT_YES);

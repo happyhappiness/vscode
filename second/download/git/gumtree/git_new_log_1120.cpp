@@ -1,1 +1,1 @@
-die("BUG: unexpected reference transaction state");
+hashmap_init(&submodule_ref_stores, submodule_hash_cmp, 0);

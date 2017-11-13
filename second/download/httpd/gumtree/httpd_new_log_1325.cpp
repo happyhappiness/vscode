@@ -1,2 +1,3 @@
-ap_rvputs(r, ap_escape_html(r->pool, ap_get_server_name(r)),
-                  "</h1>\n\n", NULL);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                  "Faking HTTP Basic Auth header: \"Authorization: %s\"",
+                  auth_line);

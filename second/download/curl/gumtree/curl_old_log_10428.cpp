@@ -1,1 +1,1 @@
-warnf(config, "Illegally formatted input field!\n");
+warnf(config, "skip unknown form field: %s\n", unknown);

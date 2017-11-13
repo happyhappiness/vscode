@@ -1,2 +1,1 @@
-fprintf(stderr,"offset=%d sum=%08x\n",
-	      offset,sum);
+fprintf(stderr,"ERROR: destination must be a directory when copying more than 1 file\n");

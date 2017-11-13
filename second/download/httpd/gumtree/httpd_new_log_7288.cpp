@@ -1,7 +1,2 @@
-apr_file_printf(stderr_log,
-                    "[%s] [client %s] mod_ext_filter (%d)%pm: %s\n",
-                    time_str,
-                    r->useragent_ip,
-                    err,
-                    &err,
-                    description);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, APLOGNO(01456)
+                                  "rl: partition failed.");

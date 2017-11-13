@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, APLOGNO(02281)
-                     "Failed to lookup provider 'shm' for '%s'. Maybe you "
-                     "need to load mod_slotmem_shm?",
-                     AP_SLOTMEM_PROVIDER_GROUP);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, f->r, APLOGNO(01458)
+                      "couldn't create child process to run `%s'",
+                      ctx->filter->command);

@@ -1,9 +1,11 @@
 fputs(
-"              (for example POST or PUT), it will do the following request with\n"
-"              a GET if the HTTP response was 301, 302, or 303. If the response\n"
-"              code  was  any  other  3xx code, curl will re-send the following\n"
-"              request using the same unmodified method.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              You can tell curl to not change the non-GET  request  method  to\n"
-"              GET  after  a  30x  response  by using the dedicated options for\n"
+"       --krb <level>\n"
+"              (FTP) Enable Kerberos authentication and use. The level must  be\n"
+"              entered and should be one of 'clear', 'safe', 'confidential', or\n"
+"              'private'. Should you use a level that  is  not  one  of  these,\n"
+"              'private' will instead be used.\n"
+"\n"
+"              This  option  requires  a  library built with kerberos4 support.\n"
 , stdout);

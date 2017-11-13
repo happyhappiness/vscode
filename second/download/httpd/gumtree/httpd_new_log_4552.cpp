@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00498)
-                         "ServerLimit of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         server_limit, MAX_SERVER_LIMIT);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00937)
+                          "apr_socket_opt_set(APR_TCP_NODELAY): "
+                          "Failed to set");

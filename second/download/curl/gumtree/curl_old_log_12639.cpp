@@ -1,10 +1,11 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              The  given  offset  is  the  exact  number of bytes that will be\n"
+"              skipped, counting from the beginning of the source  file  before\n"
+"              it is transferred to the destination.  If used with uploads, the\n"
+"              FTP server command SIZE will not be used by curl.\n"
 "\n"
-"              (Added in 7.19.7)\n"
-"       -d, --data <data>\n"
-"              (HTTP)  Sends  the  specified data in a POST request to the HTTP\n"
-"              server, in the same way that a browser  does  when  a  user  has\n"
-"              filled  in an HTML form and presses the submit button. This will\n"
-"              cause curl to pass the data to the server using the content-type\n"
+"              Use \"-C -\" to tell curl to automatically find out  where/how  to\n"
+"              resume  the  transfer. It then uses the given output/input files\n"
+"              to figure that out.\n"
+"\n"
 , stdout);

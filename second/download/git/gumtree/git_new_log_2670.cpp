@@ -1,1 +1,1 @@
-die("BUG: ref_iterator_peel() called for reflog_iterator");
+printf("ref: %s\t%s\n", ref->symref, ref->name);

@@ -1,9 +1,10 @@
 fputs(
-"              tion-trusted  on how to change this. You can limit the amount of\n"
-"              redirects to follow by using the --max-redirs option.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              When curl follows a redirect and the request is not a plain  GET\n"
-"              (for example POST or PUT), it will do the following request with\n"
-"              a GET if the HTTP response was 301, 302, or 303. If the response\n"
-"              code  was  any  other  3xx code, curl will re-send the following\n"
+"       -l, --list-only\n"
+"              (FTP  POP3)  (FTP)  When  listing  an FTP directory, this switch\n"
+"              forces a name-only view. This is especially useful if  the  user\n"
+"              wants  to  machine-parse  the contents of an FTP directory since\n"
+"              the normal directory view doesn't use a standard look or format.\n"
+"              When used like this, the option causes a NLST command to be sent\n"
 , stdout);

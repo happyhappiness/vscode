@@ -1,1 +1,1 @@
-overflow_exit("receive_xattr");
+out_of_memory("match_gnums");

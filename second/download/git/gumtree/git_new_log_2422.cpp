@@ -1,1 +1,1 @@
-fputs(sha1_to_hex(sha1), fh);
+ref_array_clear(&array);

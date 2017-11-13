@@ -1,5 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING|APLOG_STARTUP, 0, cmd->server,
-                 APLOGNO(02559)
-                 "The SSLCertificateChainFile directive (%s:%d) is deprecated, "
-                 "SSLCertificateFile should be used instead",
-                 cmd->directive->filename, cmd->directive->line_num);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, APLOGNO(03198)
+                          "h2_mplx(%ld): waited %d sec for %d tasks", 
+                          m->id, i*wait_secs, (int)h2_ihash_count(m->shold));

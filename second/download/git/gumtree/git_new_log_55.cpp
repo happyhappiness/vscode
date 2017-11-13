@@ -1,1 +1,1 @@
-die(_("bad mergetag in commit '%s'"), ref);
+die_errno("unable to read from mktree");

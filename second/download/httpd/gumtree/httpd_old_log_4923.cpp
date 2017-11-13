@@ -1,4 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                              "dir_walk error, path_info %s is not relative "
-                              "to the filename path %s for uri %s",
-                              r->path_info, r->filename, r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_CRIT, status, r,
+                              "%s pcfg_openfile: unable to check htaccess file, "
+                              "ensure it is readable",
+                              filename);

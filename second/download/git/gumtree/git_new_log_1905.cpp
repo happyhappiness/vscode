@@ -1,2 +1,2 @@
-die(_("did not receive expected object %s"),
-			      oid_to_hex(&obj->oid));
+fprintf_ln(stderr,_("directory stat info does not "
+				    "change after adding a new file"));

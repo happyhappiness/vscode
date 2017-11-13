@@ -1,1 +1,1 @@
-die("helper %s does not support --signed=if-asked", name);
+error("couldn't set %s", lock->ref_name);

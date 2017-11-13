@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01063)
-                          "truncating environment to %d bytes and %d elements",
-                          (int)bodylen, i);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01064)
+                          "HEADER: %s %s", asc_line, hex_line);

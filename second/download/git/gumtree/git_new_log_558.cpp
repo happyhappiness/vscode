@@ -1,1 +1,1 @@
-error(_("cannot %s: You have unstaged changes."), _(action));
+print_verbose(args, _("Server supports multi_ack"));

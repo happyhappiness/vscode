@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, 
-                     "Init: loaded Crypto Device API `%s'", 
-                     mc->szCryptoDevice);
+ap_log_error(APLOG_MARK, APLOG_ERR, status, NULL,
+                     "ajp_ilink_receive() can't receive header");

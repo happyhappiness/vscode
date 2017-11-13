@@ -1,1 +1,1 @@
-die(_("format: %%(else) atom used more than once"));
+die("BUG: unknown error code");

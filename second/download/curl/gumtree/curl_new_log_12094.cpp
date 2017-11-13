@@ -1,9 +1,10 @@
 fputs(
-"              with  any  number of variables. The format can be specified as a\n"
-"              literal \"string\", or you can have curl read the  format  from  a\n"
-"              file  with  \"@filename\" and to tell curl to read the format from\n"
-"              stdin you write \"@-\".\n"
+"              If  you  use a Windows SSPI-enabled curl binary and perform Ker-\n"
+"              beros V5, Negotiate, NTLM or Digest authentication then you  can\n"
+"              tell  curl  to select the user name and password from your envi-\n"
+"              ronment by specifying a single colon with this option: \"-u :\".\n"
 "\n"
-"              The variables present in the output format will  be  substituted\n"
-"              by  the  value or text that curl thinks fit, as described below.\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -U, --proxy-user <user:password>\n"
 , stdout);

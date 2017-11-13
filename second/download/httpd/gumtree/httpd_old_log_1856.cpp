@@ -1,2 +1,4 @@
-ap_log_perror(file, line, APLOG_DEBUG, 0, l->pool, 
-                      "Releasing mutex %s:%d", l->file, l->line);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r,
+                      "Response header name '%s' contains invalid "
+                      "characters, aborting request",
+                      name);

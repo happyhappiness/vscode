@@ -1,129 +1,253 @@
-static int dbm_check_auth(request_rec *r)
+static int balancer_handler(request_rec *r)
 {
-    authz_dbm_config_rec *conf = ap_get_module_config(r->per_dir_config,
-                                                      &authz_dbm_module);
-    char *user = r->user;
-    int m = r->method_number;
-    const apr_array_header_t *reqs_arr = ap_requires(r);
-    require_line *reqs = reqs_arr ? (require_line *) reqs_arr->elts : NULL;
-    register int x;
-    const char *t;
-    char *w;
-    int required_group = 0;
-    const char *filegroup = NULL;
-    const char *orig_groups = NULL;
-    char *reason = NULL;
+    void *sconf = r->server->module_config;
+    proxy_server_conf *conf = (proxy_server_conf *)
+        ap_get_module_config(sconf, &proxy_module);
+    proxy_balancer *balancer, *bsel = NULL;
+    proxy_worker *worker, *wsel = NULL;
+    apr_table_t *params = apr_table_make(r->pool, 10);
+    int access_status;
+    int i, n;
+    const char *name;
 
-    if (!conf->grpfile) {
+    /* is this for us? */
+    if (strcmp(r->handler, "balancer-manager"))
         return DECLINED;
-    }
-
-    if (!reqs_arr) {
+    r->allowed = (AP_METHOD_BIT << M_GET);
+    if (r->method_number != M_GET)
         return DECLINED;
-    }
 
-    for (x = 0; x < reqs_arr->nelts; x++) {
-
-        if (!(reqs[x].method_mask & (AP_METHOD_BIT << m))) {
-            continue;
-        }
-
-        t = reqs[x].requirement;
-        w = ap_getword_white(r->pool, &t);
-
-        if (!strcasecmp(w, "file-group")) {
-            filegroup = apr_table_get(r->notes, AUTHZ_GROUP_NOTE);
-
-            if (!filegroup) {
-                /* mod_authz_owner is not present or not
-                 * authoritative. We are just a helper module for testing
-                 * group membership, so we don't care and decline.
+    if (r->args) {
+        char *args = apr_pstrdup(r->pool, r->args);
+        char *tok, *val;
+        while (args && *args) {
+            if ((val = ap_strchr(args, '='))) {
+                *val++ = '\0';
+                if ((tok = ap_strchr(val, '&')))
+                    *tok++ = '\0';
+                /*
+                 * Special case: workers are allowed path information
                  */
-                continue;
+                if ((access_status = ap_unescape_url(val)) != OK)
+                    if (strcmp(args, "w") || (access_status !=  HTTP_NOT_FOUND))
+                        return access_status;
+                apr_table_setn(params, args, val);
+                args = tok;
+            }
+            else
+                return HTTP_BAD_REQUEST;
+        }
+    }
+    
+    /* Check that the supplied nonce matches this server's nonce;
+     * otherwise ignore all parameters, to prevent a CSRF attack. */
+    if ((name = apr_table_get(params, "nonce")) == NULL 
+        || strcmp(balancer_nonce, name) != 0) {
+        apr_table_clear(params);
+    }
+
+    if ((name = apr_table_get(params, "b")))
+        bsel = ap_proxy_get_balancer(r->pool, conf,
+            apr_pstrcat(r->pool, "balancer://", name, NULL));
+    if ((name = apr_table_get(params, "w"))) {
+        proxy_worker *ws;
+
+        ws = ap_proxy_get_worker(r->pool, conf, name);
+        if (bsel && ws) {
+            worker = (proxy_worker *)bsel->workers->elts;
+            for (n = 0; n < bsel->workers->nelts; n++) {
+                if (strcasecmp(worker->name, ws->name) == 0) {
+                    wsel = worker;
+                    break;
+                }
+                ++worker;
             }
         }
-
-        if (!strcasecmp(w, "group") || filegroup) {
-            const char *realm = ap_auth_name(r);
-            const char *groups;
-            char *v;
-
-            /* remember that actually a group is required */
-            required_group = 1;
-
-            /* fetch group data from dbm file only once. */
-            if (!orig_groups) {
-                apr_status_t status;
-
-                status = get_dbm_grp(r, apr_pstrcat(r->pool, user, ":", realm,
-                                                    NULL),
-                                     user,
-                                     conf->grpfile, conf->dbmtype, &groups);
-
-                if (status != APR_SUCCESS) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                                  "could not open dbm (type %s) group access "
-                                  "file: %s", conf->dbmtype, conf->grpfile);
-                    return HTTP_INTERNAL_SERVER_ERROR;
-                }
-
-                if (groups == NULL) {
-                    /* no groups available, so exit immediately */
-                    reason = apr_psprintf(r->pool,
-                                          "user doesn't appear in DBM group "
-                                          "file (%s).", conf->grpfile);
-                    break;
-                }
-
-                orig_groups = groups;
+    }
+    /* First set the params */
+    /*
+     * Note that it is not possible set the proxy_balancer because it is not
+     * in shared memory.
+     */
+    if (wsel) {
+        const char *val;
+        if ((val = apr_table_get(params, "lf"))) {
+            int ival = atoi(val);
+            if (ival >= 1 && ival <= 100) {
+                wsel->s->lbfactor = ival;
+                if (bsel)
+                    recalc_factors(bsel);
             }
+        }
+        if ((val = apr_table_get(params, "wr"))) {
+            if (strlen(val) && strlen(val) < PROXY_WORKER_MAX_ROUTE_SIZ)
+                strcpy(wsel->s->route, val);
+            else
+                *wsel->s->route = '\0';
+        }
+        if ((val = apr_table_get(params, "rr"))) {
+            if (strlen(val) && strlen(val) < PROXY_WORKER_MAX_ROUTE_SIZ)
+                strcpy(wsel->s->redirect, val);
+            else
+                *wsel->s->redirect = '\0';
+        }
+        if ((val = apr_table_get(params, "dw"))) {
+            if (!strcasecmp(val, "Disable"))
+                wsel->s->status |= PROXY_WORKER_DISABLED;
+            else if (!strcasecmp(val, "Enable"))
+                wsel->s->status &= ~PROXY_WORKER_DISABLED;
+        }
+        if ((val = apr_table_get(params, "ls"))) {
+            int ival = atoi(val);
+            if (ival >= 0 && ival <= 99) {
+                wsel->s->lbset = ival;
+             }
+        }
 
-            if (filegroup) {
-                groups = orig_groups;
-                while (groups[0]) {
-                    v = ap_getword(r->pool, &groups, ',');
-                    if (!strcmp(v, filegroup)) {
-                        return OK;
-                    }
-                }
+    }
+    if (apr_table_get(params, "xml")) {
+        ap_set_content_type(r, "text/xml");
+        ap_rputs("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n", r);
+        ap_rputs("<httpd:manager xmlns:httpd=\"http://httpd.apache.org\">\n", r);
+        ap_rputs("  <httpd:balancers>\n", r);
+        balancer = (proxy_balancer *)conf->balancers->elts;
+        for (i = 0; i < conf->balancers->nelts; i++) {
+            ap_rputs("    <httpd:balancer>\n", r);
+            ap_rvputs(r, "      <httpd:name>", balancer->name, "</httpd:name>\n", NULL);
+            ap_rputs("      <httpd:workers>\n", r);
+            worker = (proxy_worker *)balancer->workers->elts;
+            for (n = 0; n < balancer->workers->nelts; n++) {
+                ap_rputs("        <httpd:worker>\n", r);
+                ap_rvputs(r, "          <httpd:scheme>", worker->scheme,
+                          "</httpd:scheme>\n", NULL);
+                ap_rvputs(r, "          <httpd:hostname>", worker->hostname,
+                          "</httpd:hostname>\n", NULL);
+               ap_rprintf(r, "          <httpd:loadfactor>%d</httpd:loadfactor>\n",
+                          worker->s->lbfactor);
+                ap_rputs("        </httpd:worker>\n", r);
+                ++worker;
+            }
+            ap_rputs("      </httpd:workers>\n", r);
+            ap_rputs("    </httpd:balancer>\n", r);
+            ++balancer;
+        }
+        ap_rputs("  </httpd:balancers>\n", r);
+        ap_rputs("</httpd:manager>", r);
+    }
+    else {
+        ap_set_content_type(r, "text/html; charset=ISO-8859-1");
+        ap_rputs(DOCTYPE_HTML_3_2
+                 "<html><head><title>Balancer Manager</title></head>\n", r);
+        ap_rputs("<body><h1>Load Balancer Manager for ", r);
+        ap_rvputs(r, ap_get_server_name(r), "</h1>\n\n", NULL);
+        ap_rvputs(r, "<dl><dt>Server Version: ",
+                  ap_get_server_description(), "</dt>\n", NULL);
+        ap_rvputs(r, "<dt>Server Built: ",
+                  ap_get_server_built(), "\n</dt></dl>\n", NULL);
+        balancer = (proxy_balancer *)conf->balancers->elts;
+        for (i = 0; i < conf->balancers->nelts; i++) {
 
-                if (conf->authoritative) {
-                    reason = apr_psprintf(r->pool,
-                                          "file group '%s' does not match.",
-                                          filegroup);
-                    break;
-                }
-
-                /* now forget the filegroup, thus alternatively require'd
-                   groups get a real chance */
-                filegroup = NULL;
+            ap_rputs("<hr />\n<h3>LoadBalancer Status for ", r);
+            ap_rvputs(r, balancer->name, "</h3>\n\n", NULL);
+            ap_rputs("\n\n<table border=\"0\" style=\"text-align: left;\"><tr>"
+                "<th>StickySession</th><th>Timeout</th><th>FailoverAttempts</th><th>Method</th>"
+                "</tr>\n<tr>", r);
+            if (balancer->sticky) {
+                ap_rvputs(r, "<td>", balancer->sticky, NULL);
             }
             else {
-                while (t[0]) {
-                    w = ap_getword_white(r->pool, &t);
-                    groups = orig_groups;
-                    while (groups[0]) {
-                        v = ap_getword(r->pool, &groups, ',');
-                        if (!strcmp(v, w)) {
-                            return OK;
-                        }
-                    }
-                }
+                ap_rputs("<td> - ", r);
             }
+            ap_rprintf(r, "</td><td>%" APR_TIME_T_FMT "</td>",
+                apr_time_sec(balancer->timeout));
+            ap_rprintf(r, "<td>%d</td>\n", balancer->max_attempts);
+            ap_rprintf(r, "<td>%s</td>\n",
+                       balancer->lbmethod->name);
+            ap_rputs("</table>\n<br />", r);
+            ap_rputs("\n\n<table border=\"0\" style=\"text-align: left;\"><tr>"
+                "<th>Worker URL</th>"
+                "<th>Route</th><th>RouteRedir</th>"
+                "<th>Factor</th><th>Set</th><th>Status</th>"
+                "<th>Elected</th><th>To</th><th>From</th>"
+                "</tr>\n", r);
+
+            worker = (proxy_worker *)balancer->workers->elts;
+            for (n = 0; n < balancer->workers->nelts; n++) {
+                char fbuf[50];
+                ap_rvputs(r, "<tr>\n<td><a href=\"", r->uri, "?b=",
+                          balancer->name + sizeof("balancer://") - 1, "&w=",
+                          ap_escape_uri(r->pool, worker->name),
+                          "&nonce=", balancer_nonce, 
+                          "\">", NULL);
+                ap_rvputs(r, worker->name, "</a></td>", NULL);
+                ap_rvputs(r, "<td>", ap_escape_html(r->pool, worker->s->route),
+                          NULL);
+                ap_rvputs(r, "</td><td>",
+                          ap_escape_html(r->pool, worker->s->redirect), NULL);
+                ap_rprintf(r, "</td><td>%d</td>", worker->s->lbfactor);
+                ap_rprintf(r, "<td>%d</td><td>", worker->s->lbset);
+                if (worker->s->status & PROXY_WORKER_DISABLED)
+                   ap_rputs("Dis ", r);
+                if (worker->s->status & PROXY_WORKER_IN_ERROR)
+                   ap_rputs("Err ", r);
+                if (worker->s->status & PROXY_WORKER_STOPPED)
+                   ap_rputs("Stop ", r);
+                if (worker->s->status & PROXY_WORKER_HOT_STANDBY)
+                   ap_rputs("Stby ", r);
+                if (PROXY_WORKER_IS_USABLE(worker))
+                    ap_rputs("Ok", r);
+                if (!PROXY_WORKER_IS_INITIALIZED(worker))
+                    ap_rputs("-", r);
+                ap_rputs("</td>", r);
+                ap_rprintf(r, "<td>%" APR_SIZE_T_FMT "</td><td>", worker->s->elected);
+                ap_rputs(apr_strfsize(worker->s->transferred, fbuf), r);
+                ap_rputs("</td><td>", r);
+                ap_rputs(apr_strfsize(worker->s->read, fbuf), r);
+                ap_rputs("</td></tr>\n", r);
+
+                ++worker;
+            }
+            ap_rputs("</table>\n", r);
+            ++balancer;
         }
+        ap_rputs("<hr />\n", r);
+        if (wsel && bsel) {
+            ap_rputs("<h3>Edit worker settings for ", r);
+            ap_rvputs(r, wsel->name, "</h3>\n", NULL);
+            ap_rvputs(r, "<form method=\"GET\" action=\"", NULL);
+            ap_rvputs(r, r->uri, "\">\n<dl>", NULL);
+            ap_rputs("<table><tr><td>Load factor:</td><td><input name=\"lf\" type=text ", r);
+            ap_rprintf(r, "value=\"%d\"></td></tr>\n", wsel->s->lbfactor);
+            ap_rputs("<tr><td>LB Set:</td><td><input name=\"ls\" type=text ", r);
+            ap_rprintf(r, "value=\"%d\"></td></tr>\n", wsel->s->lbset);
+            ap_rputs("<tr><td>Route:</td><td><input name=\"wr\" type=text ", r);
+            ap_rvputs(r, "value=\"", ap_escape_html(r->pool, wsel->s->route),
+                      NULL);
+            ap_rputs("\"></td></tr>\n", r);
+            ap_rputs("<tr><td>Route Redirect:</td><td><input name=\"rr\" type=text ", r);
+            ap_rvputs(r, "value=\"", ap_escape_html(r->pool, wsel->s->redirect),
+                      NULL);
+            ap_rputs("\"></td></tr>\n", r);
+            ap_rputs("<tr><td>Status:</td><td>Disabled: <input name=\"dw\" value=\"Disable\" type=radio", r);
+            if (wsel->s->status & PROXY_WORKER_DISABLED)
+                ap_rputs(" checked", r);
+            ap_rputs("> | Enabled: <input name=\"dw\" value=\"Enable\" type=radio", r);
+            if (!(wsel->s->status & PROXY_WORKER_DISABLED))
+                ap_rputs(" checked", r);
+            ap_rputs("></td></tr>\n", r);
+            ap_rputs("<tr><td colspan=2><input type=submit value=\"Submit\"></td></tr>\n", r);
+            ap_rvputs(r, "</table>\n<input type=hidden name=\"w\" ",  NULL);
+            ap_rvputs(r, "value=\"", ap_escape_uri(r->pool, wsel->name), "\">\n", NULL);
+            ap_rvputs(r, "<input type=hidden name=\"b\" ", NULL);
+            ap_rvputs(r, "value=\"", bsel->name + sizeof("balancer://") - 1,
+                      "\">\n", NULL);
+            ap_rvputs(r, "<input type=hidden name=\"nonce\" value=\"", 
+                      balancer_nonce, "\">\n", NULL);
+            ap_rvputs(r, "</form>\n", NULL);
+            ap_rputs("<hr />\n", r);
+        }
+        ap_rputs(ap_psignature("",r), r);
+        ap_rputs("</body></html>\n", r);
     }
-
-    /* No applicable "require group" for this method seen */
-    if (!required_group || !conf->authoritative) {
-        return DECLINED;
-    }
-
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                  "Authorization of user %s to access %s failed, reason: %s",
-                  r->user, r->uri,
-                  reason ? reason : "user is not part of the "
-                                    "'require'ed group(s).");
-
-    ap_note_auth_failure(r);
-    return HTTP_UNAUTHORIZED;
+    return OK;
 }

@@ -1,158 +1,104 @@
-static apr_status_t hm_file_update_stat(hm_ctx_t *ctx, hm_server_t *s, apr_pool_t *pool)
+static void ssl_filter_io_shutdown(ssl_filter_ctx_t *filter_ctx,
+                                   conn_rec *c, int abortive)
 {
-    apr_status_t rv;
-    apr_file_t *fp;
-    apr_file_t *fpin;
-    apr_time_t now;
-    apr_time_t fage;
-    apr_finfo_t fi;
-    int updated = 0;
-    char *path = apr_pstrcat(pool, ctx->storage_path, ".tmp.XXXXXX", NULL);
+    SSL *ssl = filter_ctx->pssl;
+    const char *type = "";
+    SSLConnRec *sslconn = myConnConfig(c);
+    int shutdown_type;
+    int loglevel = APLOG_DEBUG;
 
-
-    /* TODO: Update stats file (!) */
-    rv = apr_file_mktemp(&fp, path, APR_CREATE | APR_WRITE, pool);
-
-    if (rv) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Unable to open tmp file: %s", path);
-        return rv;
-    }
-    rv = apr_file_open(&fpin, ctx->storage_path, APR_READ|APR_BINARY|APR_BUFFERED,
-                       APR_OS_DEFAULT, pool);
-
-    now = apr_time_now();
-    if (rv == APR_SUCCESS) {
-        char *t;
-        apr_table_t *hbt = apr_table_make(pool, 10);
-        apr_bucket_alloc_t *ba = apr_bucket_alloc_create(pool);
-        apr_bucket_brigade *bb = apr_brigade_create(pool, ba);
-        apr_bucket_brigade *tmpbb = apr_brigade_create(pool, ba);
-        rv = apr_file_info_get(&fi, APR_FINFO_SIZE | APR_FINFO_MTIME, fpin);
-        if (rv) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                         "Heartmonitor: Unable to read file: %s", ctx->storage_path);
-            return rv;
-        }
-
-        /* Read the file and update the line corresponding to the node */
-        ba = apr_bucket_alloc_create(pool);
-        bb = apr_brigade_create(pool, ba);
-        apr_brigade_insert_file(bb, fpin, 0, fi.size, pool);
-        tmpbb = apr_brigade_create(pool, ba);
-        fage = apr_time_sec(now - fi.mtime);
-        do {
-            char buf[4096];
-            const char *ip;
-            apr_size_t bsize = sizeof(buf);
-            apr_brigade_cleanup(tmpbb);
-            if (APR_BRIGADE_EMPTY(bb)) {
-                break;
-            } 
-            rv = apr_brigade_split_line(tmpbb, bb,
-                                        APR_BLOCK_READ, sizeof(buf));
-       
-            if (rv) {
-                ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                             "Heartmonitor: Unable to read from file: %s", ctx->storage_path);
-                return rv;
-            }
-
-            apr_brigade_flatten(tmpbb, buf, &bsize);
-            if (bsize == 0) {
-                break;
-            }
-            buf[bsize - 1] = 0;
-            t = strchr(buf, ' ');
-            if (t) {
-                ip = apr_pstrndup(pool, buf, t - buf);
-            } else {
-                ip = NULL;
-            }
-            if (!ip || buf[0] == '#') {
-                /* copy things we can't process */
-                apr_file_printf(fp, "%s\n", buf);
-            } else if (strcmp(ip, s->ip) !=0 ) {
-                hm_server_t node; 
-                apr_time_t seen;
-                /* Update seen time according to the last file modification */
-                apr_table_clear(hbt);
-                qs_to_table(apr_pstrdup(pool, t), hbt, pool);
-                if (apr_table_get(hbt, "busy")) {
-                    node.busy = atoi(apr_table_get(hbt, "busy"));
-                } else {
-                    node.busy = 0;
-                }
-
-                if (apr_table_get(hbt, "ready")) {
-                    node.ready = atoi(apr_table_get(hbt, "ready"));
-                } else {
-                    node.ready = 0;
-                }
-
-                if (apr_table_get(hbt, "lastseen")) {
-                    node.seen = atoi(apr_table_get(hbt, "lastseen"));
-                } else {
-                    node.seen = SEEN_TIMEOUT; 
-                }
-                seen = fage + node.seen;
-
-                if (apr_table_get(hbt, "port")) {
-                    node.port = atoi(apr_table_get(hbt, "port"));
-                } else {
-                    node.port = 80; 
-                }
-                apr_file_printf(fp, "%s &ready=%u&busy=%u&lastseen=%u&port=%u\n",
-                                ip, node.ready, node.busy, (unsigned int) seen, node.port);
-            } else {
-                apr_time_t seen;
-                seen = apr_time_sec(now - s->seen);
-                apr_file_printf(fp, "%s &ready=%u&busy=%u&lastseen=%u&port=%u\n",
-                                s->ip, s->ready, s->busy, (unsigned int) seen, s->port);
-                updated = 1;
-            }
-        } while (1);
+    if (!ssl) {
+        return;
     }
 
-    if (!updated) {
-        apr_time_t seen;
-        seen = apr_time_sec(now - s->seen);
-        apr_file_printf(fp, "%s &ready=%u&busy=%u&lastseen=%u&port=%u\n",
-                        s->ip, s->ready, s->busy, (unsigned int) seen, s->port);
+    /*
+     * Now close the SSL layer of the connection. We've to take
+     * the TLSv1 standard into account here:
+     *
+     * | 7.2.1. Closure alerts
+     * |
+     * | The client and the server must share knowledge that the connection is
+     * | ending in order to avoid a truncation attack. Either party may
+     * | initiate the exchange of closing messages.
+     * |
+     * | close_notify
+     * |     This message notifies the recipient that the sender will not send
+     * |     any more messages on this connection. The session becomes
+     * |     unresumable if any connection is terminated without proper
+     * |     close_notify messages with level equal to warning.
+     * |
+     * | Either party may initiate a close by sending a close_notify alert.
+     * | Any data received after a closure alert is ignored.
+     * |
+     * | Each party is required to send a close_notify alert before closing
+     * | the write side of the connection. It is required that the other party
+     * | respond with a close_notify alert of its own and close down the
+     * | connection immediately, discarding any pending writes. It is not
+     * | required for the initiator of the close to wait for the responding
+     * | close_notify alert before closing the read side of the connection.
+     *
+     * This means we've to send a close notify message, but haven't to wait
+     * for the close notify of the client. Actually we cannot wait for the
+     * close notify of the client because some clients (including Netscape
+     * 4.x) don't send one, so we would hang.
+     */
+
+    /*
+     * exchange close notify messages, but allow the user
+     * to force the type of handshake via SetEnvIf directive
+     */
+    if (abortive) {
+        shutdown_type = SSL_SENT_SHUTDOWN|SSL_RECEIVED_SHUTDOWN;
+        type = "abortive";
+        loglevel = APLOG_INFO;
+    }
+    else switch (sslconn->shutdown_type) {
+      case SSL_SHUTDOWN_TYPE_UNCLEAN:
+        /* perform no close notify handshake at all
+           (violates the SSL/TLS standard!) */
+        shutdown_type = SSL_SENT_SHUTDOWN|SSL_RECEIVED_SHUTDOWN;
+        type = "unclean";
+        break;
+      case SSL_SHUTDOWN_TYPE_ACCURATE:
+        /* send close notify and wait for clients close notify
+           (standard compliant, but usually causes connection hangs) */
+        shutdown_type = 0;
+        type = "accurate";
+        break;
+      default:
+        /*
+         * case SSL_SHUTDOWN_TYPE_UNSET:
+         * case SSL_SHUTDOWN_TYPE_STANDARD:
+         */
+        /* send close notify, but don't wait for clients close notify
+           (standard compliant and safe, so it's the DEFAULT!) */
+        shutdown_type = SSL_RECEIVED_SHUTDOWN;
+        type = "standard";
+        break;
     }
 
-    rv = apr_file_flush(fp);
-    if (rv) {
-      ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                   "Heartmonitor: Unable to flush file: %s", path);
-      return rv;
+    SSL_set_shutdown(ssl, shutdown_type);
+    SSL_smart_shutdown(ssl);
+
+    /* and finally log the fact that we've closed the connection */
+    if (APLOG_C_IS_LEVEL(c, loglevel)) {
+        ap_log_cerror(APLOG_MARK, loglevel, 0, c,
+                      "Connection closed to child %ld with %s shutdown "
+                      "(server %s)",
+                      c->id, type, ssl_util_vhostid(c->pool, mySrvFromConn(c)));
     }
 
-    rv = apr_file_close(fp);
-    if (rv) {
-      ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                   "Heartmonitor: Unable to close file: %s", path);
-      return rv;
+    /* deallocate the SSL connection */
+    if (sslconn->client_cert) {
+        X509_free(sslconn->client_cert);
+        sslconn->client_cert = NULL;
     }
-  
-    rv = apr_file_perms_set(path,
-                            APR_FPROT_UREAD | APR_FPROT_GREAD |
-                            APR_FPROT_WREAD);
-    if (rv && rv != APR_INCOMPLETE) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Unable to set file permssions on %s",
-                     path);
-        return rv;
+    SSL_free(ssl);
+    sslconn->ssl = NULL;
+    filter_ctx->pssl = NULL; /* so filters know we've been shutdown */
+
+    if (abortive) {
+        /* prevent any further I/O */
+        c->aborted = 1;
     }
-
-    rv = apr_file_rename(path, ctx->storage_path, pool);
-
-    if (rv) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Unable to move file: %s -> %s", path,
-                     ctx->storage_path);
-        return rv;
-    }
-
-    return APR_SUCCESS;
 }

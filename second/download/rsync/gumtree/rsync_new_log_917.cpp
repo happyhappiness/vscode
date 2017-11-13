@@ -1,1 +1,1 @@
-out_of_memory("set_env_str");
+out_of_memory("set_env_num");

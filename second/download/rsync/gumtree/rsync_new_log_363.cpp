@@ -1,1 +1,1 @@
-fprintf(FINFO,"generator wrote %ld\n",(long)write_total());
+fprintf(FINFO,"recv_generator(%s,%d)\n",fname,i);

@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rv, c,
-                      "apr_socket_opt_set(APR_TCP_NODELAY)");
+ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, r->server,
+                 "proxy: HTTP: canonicalising URL %s", url);

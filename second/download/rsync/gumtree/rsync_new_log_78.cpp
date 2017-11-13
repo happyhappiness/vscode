@@ -1,1 +1,1 @@
-fprintf(stderr,"protocol version mismatch - is your shell clean?\n");
+fprintf(stderr,"rmdir %s : %s\n",f->name,strerror(errno));

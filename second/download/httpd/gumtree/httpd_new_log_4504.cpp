@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00460)
-                     "sigaction(" AP_SIG_GRACEFUL_STOP_STRING ")");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00914)
+                             "%s/", inet_ntoa(This->addr));

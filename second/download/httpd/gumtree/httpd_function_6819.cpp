@@ -1,169 +1,134 @@
-int ssl_pphrase_Handle_CB(char *buf, int bufsize, int verify, void *srv)
+static int on_frame_recv_cb(nghttp2_session *ng2s,
+                            const nghttp2_frame *frame,
+                            void *userp)
 {
-    SSLModConfigRec *mc;
-    server_rec *s;
-    apr_pool_t *p;
-    apr_array_header_t *aPassPhrase;
-    SSLSrvConfigRec *sc;
-    int *pnPassPhraseCur;
-    char **cppPassPhraseCur;
-    char *cpVHostID;
-    char *cpAlgoType;
-    int *pnPassPhraseDialog;
-    int *pnPassPhraseDialogCur;
-    BOOL *pbPassPhraseDialogOnce;
-    char *cpp;
-    int len = -1;
-
-    mc = myModConfig((server_rec *)srv);
-
-    /*
-     * Reconnect to the context of ssl_phrase_Handle()
-     */
-    s                      = myCtxVarGet(mc,  1, server_rec *);
-    p                      = myCtxVarGet(mc,  2, apr_pool_t *);
-    aPassPhrase            = myCtxVarGet(mc,  3, apr_array_header_t *);
-    pnPassPhraseCur        = myCtxVarGet(mc,  4, int *);
-    cppPassPhraseCur       = myCtxVarGet(mc,  5, char **);
-    cpVHostID              = myCtxVarGet(mc,  6, char *);
-    cpAlgoType             = myCtxVarGet(mc,  7, char *);
-    pnPassPhraseDialog     = myCtxVarGet(mc,  8, int *);
-    pnPassPhraseDialogCur  = myCtxVarGet(mc,  9, int *);
-    pbPassPhraseDialogOnce = myCtxVarGet(mc, 10, BOOL *);
-    sc                     = mySrvConfig(s);
-
-    (*pnPassPhraseDialog)++;
-    (*pnPassPhraseDialogCur)++;
-
-    /*
-     * When remembered pass phrases are available use them...
-     */
-    if ((cpp = pphrase_array_get(aPassPhrase, *pnPassPhraseCur)) != NULL) {
-        apr_cpystrn(buf, cpp, bufsize);
-        len = strlen(buf);
-        return len;
+    h2_session *session = (h2_session *)userp;
+    apr_status_t status = APR_SUCCESS;
+    h2_stream *stream;
+    
+    if (APLOGcdebug(session->c)) {
+        char buffer[256];
+        
+        h2_util_frame_print(frame, buffer, sizeof(buffer)/sizeof(buffer[0]));
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03066)
+                      "h2_session(%ld): recv FRAME[%s], frames=%ld/%ld (r/s)",
+                      session->id, buffer, (long)session->frames_received,
+                     (long)session->frames_sent);
     }
 
-    /*
-     * Builtin or Pipe dialog
-     */
-    if (sc->server->pphrase_dialog_type == SSL_PPTYPE_BUILTIN
-          || sc->server->pphrase_dialog_type == SSL_PPTYPE_PIPE) {
-        char *prompt;
-        int i;
-
-        if (sc->server->pphrase_dialog_type == SSL_PPTYPE_PIPE) {
-            if (!readtty) {
-                ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01965)
-                             "Init: Creating pass phrase dialog pipe child "
-                             "'%s'", sc->server->pphrase_dialog_path);
-                if (ssl_pipe_child_create(p, sc->server->pphrase_dialog_path)
-                        != APR_SUCCESS) {
-                    ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01966)
-                                 "Init: Failed to create pass phrase pipe '%s'",
-                                 sc->server->pphrase_dialog_path);
-                    PEMerr(PEM_F_PEM_DEF_CALLBACK,PEM_R_PROBLEMS_GETTING_PASSWORD);
-                    memset(buf, 0, (unsigned int)bufsize);
-                    return (-1);
+    ++session->frames_received;
+    switch (frame->hd.type) {
+        case NGHTTP2_HEADERS:
+            /* This can be HEADERS for a new stream, defining the request,
+             * or HEADER may come after DATA at the end of a stream as in
+             * trailers */
+            stream = get_stream(session, frame->hd.stream_id);
+            if (stream) {
+                int eos = (frame->hd.flags & NGHTTP2_FLAG_END_STREAM);
+                
+                if (h2_stream_is_scheduled(stream)) {
+                    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
+                                  "h2_stream(%ld-%d): TRAILER, eos=%d", 
+                                  session->id, frame->hd.stream_id, eos);
+                    if (eos) {
+                        status = h2_stream_close_input(stream);
+                    }
+                }
+                else {
+                    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
+                                  "h2_stream(%ld-%d): HEADER, eos=%d", 
+                                  session->id, frame->hd.stream_id, eos);
+                    status = stream_schedule(session, stream, eos);
                 }
             }
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01967)
-                         "Init: Requesting pass phrase via piped dialog");
-        }
-        else { /* sc->server->pphrase_dialog_type == SSL_PPTYPE_BUILTIN */
-#ifdef WIN32
-            PEMerr(PEM_F_PEM_DEF_CALLBACK,PEM_R_PROBLEMS_GETTING_PASSWORD);
-            memset(buf, 0, (unsigned int)bufsize);
-            return (-1);
-#else
-            /*
-             * stderr has already been redirected to the error_log.
-             * rather than attempting to temporarily rehook it to the terminal,
-             * we print the prompt to stdout before EVP_read_pw_string turns
-             * off tty echo
-             */
-            apr_file_open_stdout(&writetty, p);
-
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01968)
-                         "Init: Requesting pass phrase via builtin terminal "
-                         "dialog");
-#endif
-        }
-
-        /*
-         * The first time display a header to inform the user about what
-         * program he actually speaks to, which module is responsible for
-         * this terminal dialog and why to the hell he has to enter
-         * something...
-         */
-        if (*pnPassPhraseDialog == 1) {
-            apr_file_printf(writetty, "%s mod_ssl (Pass Phrase Dialog)\n",
-                            AP_SERVER_BASEVERSION);
-            apr_file_printf(writetty, "Some of your private key files are encrypted for security reasons.\n");
-            apr_file_printf(writetty, "In order to read them you have to provide the pass phrases.\n");
-        }
-        if (*pbPassPhraseDialogOnce) {
-            *pbPassPhraseDialogOnce = FALSE;
-            apr_file_printf(writetty, "\n");
-            apr_file_printf(writetty, "Server %s (%s)\n", cpVHostID, cpAlgoType);
-        }
-
-        /*
-         * Emulate the OpenSSL internal pass phrase dialog
-         * (see crypto/pem/pem_lib.c:def_callback() for details)
-         */
-        prompt = "Enter pass phrase:";
-
-        for (;;) {
-            apr_file_puts(prompt, writetty);
-            if (sc->server->pphrase_dialog_type == SSL_PPTYPE_PIPE) {
-                i = pipe_get_passwd_cb(buf, bufsize, "", FALSE);
+            else {
+                status = APR_EINVAL;
             }
-            else { /* sc->server->pphrase_dialog_type == SSL_PPTYPE_BUILTIN */
-                i = EVP_read_pw_string(buf, bufsize, "", FALSE);
+            break;
+        case NGHTTP2_DATA:
+            stream = get_stream(session, frame->hd.stream_id);
+            if (stream) {
+                int eos = (frame->hd.flags & NGHTTP2_FLAG_END_STREAM);
+                ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
+                              "h2_stream(%ld-%d): DATA, len=%ld, eos=%d", 
+                              session->id, frame->hd.stream_id, 
+                              (long)frame->hd.length, eos);
+                if (eos) {
+                    status = h2_stream_close_input(stream);
+                }
             }
-            if (i != 0) {
-                PEMerr(PEM_F_PEM_DEF_CALLBACK,PEM_R_PROBLEMS_GETTING_PASSWORD);
-                memset(buf, 0, (unsigned int)bufsize);
-                return (-1);
+            else {
+                status = APR_EINVAL;
             }
-            len = strlen(buf);
-            if (len < 1)
-                apr_file_printf(writetty, "Apache:mod_ssl:Error: Pass phrase empty (needs to be at least 1 character).\n");
-            else
-                break;
-        }
+            break;
+        case NGHTTP2_PRIORITY:
+            session->reprioritize = 1;
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                          "h2_session:  stream(%ld-%d): PRIORITY frame "
+                          " weight=%d, dependsOn=%d, exclusive=%d", 
+                          session->id, (int)frame->hd.stream_id,
+                          frame->priority.pri_spec.weight,
+                          frame->priority.pri_spec.stream_id,
+                          frame->priority.pri_spec.exclusive);
+            break;
+        case NGHTTP2_WINDOW_UPDATE:
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                          "h2_session:  stream(%ld-%d): WINDOW_UPDATE "
+                          "incr=%d", 
+                          session->id, (int)frame->hd.stream_id,
+                          frame->window_update.window_size_increment);
+            break;
+        case NGHTTP2_RST_STREAM:
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03067)
+                          "h2_session(%ld-%d): RST_STREAM by client, errror=%d",
+                          session->id, (int)frame->hd.stream_id,
+                          (int)frame->rst_stream.error_code);
+            stream = get_stream(session, frame->hd.stream_id);
+            if (stream && stream->initiated_on) {
+                ++session->pushes_reset;
+            }
+            else {
+                ++session->streams_reset;
+            }
+            break;
+        case NGHTTP2_GOAWAY:
+            if (frame->goaway.error_code == 0 
+                && frame->goaway.last_stream_id == ((1u << 31) - 1)) {
+                /* shutdown notice. Should not come from a client... */
+                session->remote.accepting = 0;
+            }
+            else {
+                session->remote.accepted_max = frame->goaway.last_stream_id;
+                dispatch_event(session, H2_SESSION_EV_REMOTE_GOAWAY, 
+                               frame->goaway.error_code, NULL);
+            }
+            break;
+        default:
+            if (APLOGctrace2(session->c)) {
+                char buffer[256];
+                
+                h2_util_frame_print(frame, buffer,
+                                    sizeof(buffer)/sizeof(buffer[0]));
+                ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                              "h2_session: on_frame_rcv %s", buffer);
+            }
+            break;
     }
 
-    /*
-     * Filter program
-     */
-    else if (sc->server->pphrase_dialog_type == SSL_PPTYPE_FILTER) {
-        const char *cmd = sc->server->pphrase_dialog_path;
-        const char **argv = apr_palloc(p, sizeof(char *) * 4);
-        char *result;
-
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01969)
-                     "Init: Requesting pass phrase from dialog filter "
-                     "program (%s)", cmd);
-
-        argv[0] = cmd;
-        argv[1] = cpVHostID;
-        argv[2] = cpAlgoType;
-        argv[3] = NULL;
-
-        result = ssl_util_readfilter(s, p, cmd, argv);
-        apr_cpystrn(buf, result, bufsize);
-        len = strlen(buf);
+    if (status != APR_SUCCESS) {
+        int rv;
+        
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
+                      APLOGNO(02923) 
+                      "h2_session: stream(%ld-%d): error handling frame",
+                      session->id, (int)frame->hd.stream_id);
+        rv = nghttp2_submit_rst_stream(ng2s, NGHTTP2_FLAG_NONE,
+                                       frame->hd.stream_id,
+                                       NGHTTP2_INTERNAL_ERROR);
+        if (nghttp2_is_fatal(rv)) {
+            return NGHTTP2_ERR_CALLBACK_FAILURE;
+        }
     }
-
-    /*
-     * Ok, we now have the pass phrase, so give it back
-     */
-    *cppPassPhraseCur = apr_pstrdup(p, buf);
-
-    /*
-     * And return its length to OpenSSL...
-     */
-    return (len);
+    
+    return 0;
 }

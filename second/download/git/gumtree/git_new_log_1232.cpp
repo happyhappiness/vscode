@@ -1,1 +1,0 @@
-die("'%s' does not appear to be a git repository", service_dir);

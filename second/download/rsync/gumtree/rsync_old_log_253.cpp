@@ -1,1 +1,1 @@
-out_of_memory("receive_file_entry");
+fprintf(stderr,"Error reading %d bytes : %s\n",len,strerror(errno));

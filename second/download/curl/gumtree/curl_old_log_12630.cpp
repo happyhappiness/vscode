@@ -1,9 +1,10 @@
 fputs(
-"              after a completed operation. Curl writes all cookies  previously\n"
-"              read  from a specified file as well as all cookies received from\n"
-"              remote server(s). If no cookies are known, no data will be writ-\n"
-"              ten.  The  file  will  be written using the Netscape cookie file\n"
-"              format. If you set the file name to  a  single  dash,  \"-\",  the\n"
-"              cookies will be written to stdout.\n"
+"       -b, --cookie <name=data>\n"
+"              (HTTP) Pass the data to the HTTP server as a cookie. It is  sup-\n"
+"              posedly  the data previously received from the server in a \"Set-\n"
+"              Cookie:\" line.  The data should be in the format  \"NAME1=VALUE1;\n"
+"              NAME2=VALUE2\".\n"
 "\n"
+"              If  no  '=' symbol is used in the line, it is treated as a file-\n"
+"              name to use to read previously stored cookie lines  from,  which\n"
 , stdout);

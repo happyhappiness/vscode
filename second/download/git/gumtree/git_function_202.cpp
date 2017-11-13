@@ -1,28 +1,45 @@
-static char *prepare_initial(struct scoreboard *sb)
+int cmd_symbolic_ref(int argc, const char **argv, const char *prefix)
 {
-	int i;
-	const char *final_commit_name = NULL;
-	struct rev_info *revs = sb->revs;
+	int quiet = 0, delete = 0, shorten = 0, ret = 0;
+	const char *msg = NULL;
+	struct option options[] = {
+		OPT__QUIET(&quiet,
+			N_("suppress error message for non-symbolic (detached) refs")),
+		OPT_BOOL('d', "delete", &delete, N_("delete symbolic ref")),
+		OPT_BOOL(0, "short", &shorten, N_("shorten ref output")),
+		OPT_STRING('m', NULL, &msg, N_("reason"), N_("reason of the update")),
+		OPT_END(),
+	};
 
-	/*
-	 * There must be one and only one negative commit, and it must be
-	 * the boundary.
-	 */
-	for (i = 0; i < revs->pending.nr; i++) {
-		struct object *obj = revs->pending.objects[i].item;
-		if (!(obj->flags & UNINTERESTING))
-			continue;
-		obj = deref_tag(obj, NULL, 0);
-		if (obj->type != OBJ_COMMIT)
-			die("Non commit %s?", revs->pending.objects[i].name);
-		if (sb->final)
-			die("More than one commit to dig down to %s and %s?",
-			    revs->pending.objects[i].name,
-			    final_commit_name);
-		sb->final = (struct commit *) obj;
-		final_commit_name = revs->pending.objects[i].name;
+	git_config(git_default_config, NULL);
+	argc = parse_options(argc, argv, prefix, options,
+			     git_symbolic_ref_usage, 0);
+	if (msg && !*msg)
+		die("Refusing to perform update with empty message");
+
+	if (delete) {
+		if (argc != 1)
+			usage_with_options(git_symbolic_ref_usage, options);
+		ret = check_symref(argv[0], 1, 0, 0);
+		if (ret)
+			die("Cannot delete %s, not a symbolic ref", argv[0]);
+		if (!strcmp(argv[0], "HEAD"))
+			die("deleting '%s' is not allowed", argv[0]);
+		return delete_ref(argv[0], NULL, REF_NODEREF);
 	}
-	if (!final_commit_name)
-		die("No commit to dig down to?");
-	return xstrdup(final_commit_name);
+
+	switch (argc) {
+	case 1:
+		ret = check_symref(argv[0], quiet, shorten, 1);
+		break;
+	case 2:
+		if (!strcmp(argv[0], "HEAD") &&
+		    !starts_with(argv[1], "refs/"))
+			die("Refusing to point HEAD outside of refs/");
+		ret = !!create_symref(argv[0], argv[1], msg);
+		break;
+	default:
+		usage_with_options(git_symbolic_ref_usage, options);
+	}
+	return ret;
 }

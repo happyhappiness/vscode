@@ -1,2 +1,1 @@
-warning("ignoring %s; cannot handle more than %d refs",
-			refname, MAX_REVS);
+error("%s: %s", new_name, strerror(errno));

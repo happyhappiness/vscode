@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "%s is not executable; ensure interpreted scripts have "
-                      "\"#!\" first line", *cmd);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                                      "Zlib error %d inflating data (%s)", zRC,
+                                      ctx->stream.msg);

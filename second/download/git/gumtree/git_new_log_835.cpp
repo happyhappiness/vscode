@@ -1,1 +1,1 @@
-die(_("could not create directories for %s"), gitfile_sb.buf);
+fprintf(out, "%s\n", oid_to_hex(oid));

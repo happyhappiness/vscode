@@ -1,11 +1,9 @@
 fputs(
-"              option is used and the server  sends  an  unsupported  encoding,\n"
-"              curl will report an error.\n"
-"\n"
-"       --connect-timeout <seconds>\n"
-"              Maximum  time  in  seconds  that  you allow curl's connection to\n"
-"              take.  This only limits the connection phase, so  if  curl  con-\n"
-"              nects  within the given period it will continue - if not it will\n"
-"              exit.  Since version 7.32.0, this option accepts decimal values.\n"
+"              after a completed operation. Curl writes all cookies  previously\n"
+"              read  from a specified file as well as all cookies received from\n"
+"              remote server(s). If no cookies are known, no data will be writ-\n"
+"              ten.  The  file  will  be written using the Netscape cookie file\n"
+"              format. If you set the file name to  a  single  dash,  \"-\",  the\n"
+"              cookies will be written to stdout.\n"
 "\n"
 , stdout);

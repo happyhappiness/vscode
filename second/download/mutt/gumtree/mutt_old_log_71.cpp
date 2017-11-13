@@ -1,1 +1,1 @@
-(mutt_yesorno (prompt, 1);
+state_attach_puts (_("[-- The following data is signed --]\n\n"), s);

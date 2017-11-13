@@ -1,11 +1,10 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              the  file  to  read cookies from should be plain HTTP headers or\n"
+"              the Netscape/Mozilla cookie file format.\n"
 "\n"
-"       -B, --use-ascii\n"
-"              (FTP/LDAP)  Enable  ASCII  transfer.  For  FTP, this can also be\n"
-"              enforced by using an URL that ends with \";type=A\".  This  option\n"
-"              causes data sent to stdout to be in text mode for win32 systems.\n"
+"              NOTE that the file specified with -b, --cookie is only  used  as\n"
+"              input.  No cookies will be stored in the file. To store cookies,\n"
+"              use the -c, --cookie-jar option or you could even save the  HTTP\n"
+"              headers to a file using -D, --dump-header!\n"
 "\n"
-"       --basic\n"
-"              (HTTP)  Tells curl to use HTTP Basic authentication. This is the\n"
 , stdout);

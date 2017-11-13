@@ -1,8 +1,11 @@
 fputs(
-"              one  of  the  internal  ones curl would use, your externally set\n"
-"              header will be used instead of the internal one. This allows you\n"
-"              to  make  even  trickier  stuff than curl would normally do. You\n"
-"              should not replace internally set headers without  knowing  per-\n"
-"              fectly well what you're doing. Remove an internal header by giv-\n"
-"              ing a replacement without content  on  the  right  side  of  the\n"
+"              ssl-ccc-mode for other modes.  (Added in 7.16.1)\n"
+"\n"
+"       --ftp-ssl-ccc-mode [active/passive]\n"
+"              (FTP)  Use  CCC  (Clear  Command Channel) Sets the CCC mode. The\n"
+"              passive mode will not initiate the shutdown,  but  instead  wait\n"
+"              for the server to do it, and will not reply to the shutdown from\n"
+"              the server. The active mode initiates the shutdown and waits for\n"
+"              a reply from the server.  (Added in 7.16.2)\n"
+"\n"
 , stdout);

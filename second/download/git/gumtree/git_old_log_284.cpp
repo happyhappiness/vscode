@@ -1,1 +1,1 @@
-error(_("Must specify a notes ref to merge"));
+fprintf(stderr, "Falling back to three-way merge...\n");

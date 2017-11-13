@@ -1,11 +1,10 @@
 fputs(
-"       --disable-epsv\n"
-"              (FTP)  (FTP)  Tell  curl  to disable the use of the EPSV command\n"
-"              when doing passive FTP  transfers.  Curl  will  normally  always\n"
-"              first  attempt to use EPSV before PASV, but with this option, it\n"
-"              will not try using EPSV.\n"
+"                     This  will  make  curl  load  data  from  the  given file\n"
+"                     (including any newlines), URL-encode that data  and  pass\n"
+"                     it  on  in  the  POST.  The  name part gets an equal sign\n"
+"                     appended, resulting in name=urlencoded-file-content. Note\n"
+"                     that the name is expected to be URL-encoded already.\n"
+"       See also -d, --data and --data-raw. Added in 7.18.0.\n"
 "\n"
-"              --epsv can be used to explicitly enable EPSV again and --no-epsv\n"
-"              is an alias for --disable-epsv.\n"
-"\n"
+"       -d, --data <data>\n"
 , stdout);

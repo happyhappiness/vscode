@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server,
-                         "Couldn't change owner of unix domain socket %s",
-                         sockname);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "parent waiting for child");

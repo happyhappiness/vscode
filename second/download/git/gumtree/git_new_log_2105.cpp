@@ -1,2 +1,2 @@
-die(_("No directory name could be guessed.\n"
-		      "Please specify a directory on the command line"));
+die("BUG: local ref %s is outside of refs/notes/",
+			    o.local_ref);

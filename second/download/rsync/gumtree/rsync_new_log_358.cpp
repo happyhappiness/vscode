@@ -1,1 +1,1 @@
-fprintf(FINFO,"sender finished %s\n",fname);
+fprintf(FERROR,"rmdir(%s) : %s\n", fname, strerror(errno));

@@ -1,46 +1,37 @@
-static apr_status_t on_stream_resume(void *ctx, h2_stream *stream)
+apr_status_t h2_mplx_in_read(h2_mplx *m, apr_read_type_e block,
+                             int stream_id, apr_bucket_brigade *bb, 
+                             apr_table_t *trailers,
+                             struct apr_thread_cond_t *iowait)
 {
-    h2_session *session = ctx;
-    apr_status_t status = APR_EAGAIN;
-    int rv;
-    apr_off_t len = 0;
-    int eos = 0;
-    h2_headers *headers;
+    apr_status_t status; 
+    int acquired;
     
-    ap_assert(stream);
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
-                  "h2_stream(%ld-%d): on_resume", session->id, stream->id);
-        
-send_headers:
-    headers = NULL;
-    status = h2_stream_out_prepare(stream, &len, &eos, &headers);
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, session->c, 
-                  "h2_stream(%ld-%d): prepared len=%ld, eos=%d", 
-                  session->id, stream->id, (long)len, eos);
-    if (headers) {
-        status = on_stream_headers(session, stream, headers, len, eos);
-        if (status != APR_SUCCESS || stream->rst_error) {
-            return status;
+    AP_DEBUG_ASSERT(m);
+    if ((status = enter_mutex(m, &acquired)) == APR_SUCCESS) {
+        h2_io *io = h2_io_set_get(m->stream_ios, stream_id);
+        if (io && !io->orphaned) {
+            H2_MPLX_IO_IN(APLOG_TRACE2, m, io, "h2_mplx_in_read_pre");
+            
+            h2_io_signal_init(io, H2_IO_READ, m->stream_timeout, iowait);
+            status = h2_io_in_read(io, bb, -1, trailers);
+            while (APR_STATUS_IS_EAGAIN(status) 
+                   && !is_aborted(m, &status)
+                   && block == APR_BLOCK_READ) {
+                ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, m->c,
+                              "h2_mplx(%ld-%d): wait on in data (BLOCK_READ)", 
+                              m->id, stream_id);
+                status = h2_io_signal_wait(m, io);
+                if (status == APR_SUCCESS) {
+                    status = h2_io_in_read(io, bb, -1, trailers);
+                }
+            }
+            H2_MPLX_IO_IN(APLOG_TRACE2, m, io, "h2_mplx_in_read_post");
+            h2_io_signal_exit(io);
         }
-        goto send_headers;
-    }
-    else if (status != APR_EAGAIN) {
-        if (!stream->has_response) {
-            int err = H2_STREAM_RST(stream, H2_ERR_PROTOCOL_ERROR);
-            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03466)
-                          "h2_stream(%ld-%d): no response, RST_STREAM, err=%d",
-                          session->id, stream->id, err);
-            nghttp2_submit_rst_stream(session->ngh2, NGHTTP2_FLAG_NONE,
-                                      stream->id, err);
-            return APR_SUCCESS;
-        } 
-        rv = nghttp2_session_resume_data(session->ngh2, stream->id);
-        session->have_written = 1;
-        ap_log_cerror(APLOG_MARK, nghttp2_is_fatal(rv)?
-                      APLOG_ERR : APLOG_DEBUG, 0, session->c,
-                      APLOGNO(02936) 
-                      "h2_stream(%ld-%d): resuming %s",
-                      session->id, stream->id, rv? nghttp2_strerror(rv) : "");
+        else {
+            status = APR_EOF;
+        }
+        leave_mutex(m, acquired);
     }
     return status;
 }

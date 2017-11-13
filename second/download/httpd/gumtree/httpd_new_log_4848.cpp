@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00302)
-                         "WARNING: ServerLimit of %d not allowed, "
-                         "increasing to 1.", server_limit);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c, APLOGNO(01972)
+                      "could not resolve address of OCSP responder %s",
+                      uri->hostinfo);

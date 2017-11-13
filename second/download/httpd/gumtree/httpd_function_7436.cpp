@@ -1,70 +1,45 @@
-static authz_status group_check_authorization(request_rec *r,
-                                              const char *require_args,
-                                              const void *parsed_require_args)
+static authz_status host_check_authorization(request_rec *r,
+                                             const char *require_line,
+                                             const void *parsed_require_line)
 {
-    authz_groupfile_config_rec *conf = ap_get_module_config(r->per_dir_config,
-            &authz_groupfile_module);
-    char *user = r->user;
-
-    const char *err = NULL;
-    const ap_expr_info_t *expr = parsed_require_args;
-    const char *require;
-
     const char *t, *w;
-    apr_table_t *grpstatus = NULL;
-    apr_status_t status;
+    const char *remotehost = NULL;
+    int remotehost_is_ip;
 
-    if (!user) {
-        return AUTHZ_DENIED_NO_USER;
+    remotehost = ap_get_remote_host(r->connection,
+                                    r->per_dir_config,
+                                    REMOTE_DOUBLE_REV,
+                                    &remotehost_is_ip);
+
+    if ((remotehost == NULL) || remotehost_is_ip) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01753)
+                      "access check of '%s' to %s failed, reason: unable to get the "
+                      "remote host name", require_line, r->uri);
     }
+    else {
+        const char *err = NULL;
+        const ap_expr_info_t *expr = parsed_require_line;
+        const char *require;
 
-    /* If there is no group file - then we are not
-     * configured. So decline.
-     */
-    if (!(conf->groupfile)) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01664)
-                        "No group file was specified in the configuration");
-        return AUTHZ_DENIED;
-    }
+        require = ap_expr_str_exec(r, expr, &err);
+        if (err) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02593)
+                          "authz_host authorize: require host: Can't "
+                          "evaluate require expression: %s", err);
+            return AUTHZ_DENIED;
+        }
 
-    status = groups_for_user(r->pool, user, conf->groupfile,
-                                &grpstatus);
-
-    if (status != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01665)
-                        "Could not open group file: %s",
-                        conf->groupfile);
-        return AUTHZ_DENIED;
-    }
-
-    if (apr_is_empty_table(grpstatus)) {
-        /* no groups available, so exit immediately */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01666)
-                      "Authorization of user %s to access %s failed, reason: "
-                      "user doesn't appear in group file (%s).",
-                      r->user, r->uri, conf->groupfile);
-        return AUTHZ_DENIED;
-    }
-
-    require = ap_expr_str_exec(r, expr, &err);
-    if (err) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02592)
-                      "authz_groupfile authorize: require group: Can't "
-                      "evaluate require expression: %s", err);
-        return AUTHZ_DENIED;
-    }
-
-    t = require;
-    while ((w = ap_getword_conf(r->pool, &t)) && w[0]) {
-        if (apr_table_get(grpstatus, w)) {
-            return AUTHZ_GRANTED;
+        /* The 'host' provider will allow the configuration to specify a list of
+            host names to check rather than a single name.  This is different
+            from the previous host based syntax. */
+        t = require;
+        while ((w = ap_getword_conf(r->pool, &t)) && w[0]) {
+            if (in_domain(w, remotehost)) {
+                return AUTHZ_GRANTED;
+            }
         }
     }
 
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01667)
-                    "Authorization of user %s to access %s failed, reason: "
-                    "user is not part of the 'require'ed group(s).",
-                    r->user, r->uri);
-
+    /* authz_core will log the require line and the result at DEBUG */
     return AUTHZ_DENIED;
 }

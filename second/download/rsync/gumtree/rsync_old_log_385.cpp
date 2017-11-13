@@ -1,1 +1,1 @@
-fprintf(FINFO,"skipping directory %s\n",fname);
+fprintf(FERROR,"redoing %s(%d)\n",fname,i);

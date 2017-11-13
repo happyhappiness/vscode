@@ -1,69 +1,31 @@
-static struct file_struct *make_file(char *fname)
+static void delete_files(struct file_list *flist)
 {
-  static struct file_struct file;
-  struct stat st;
-  char sum[SUM_LENGTH];
+  struct file_list *local_file_list;
+  char *dot=".";
+  int i, j;
+  char *last_name=NULL;
 
-  bzero(sum,SUM_LENGTH);
+  if (cvs_exclude)
+    add_cvs_excludes();
 
-  if (link_stat(fname,&st) != 0) {
-    fprintf(FERROR,"%s: %s\n",
-	    fname,strerror(errno));
-    return NULL;
+  for (j=0;j<flist->count;j++) {
+	  if (!S_ISDIR(flist->files[j].mode)) continue;
+	  if (strcmp(flist->files[j].name,".")==0) continue;
+	  if (last_name &&
+	      flist->files[j].name[strlen(last_name)] == '/' &&
+	      strncmp(flist->files[j].name,last_name, strlen(last_name))==0)
+		  continue;
+	  last_name = flist->files[j].name;
+	  if (verbose > 1)
+		  fprintf(FINFO,"deleting in %s\n", last_name);
+	  if (!(local_file_list = send_file_list(-1,1,&last_name)))
+		  return;
+
+	  for (i=local_file_list->count-1;i>=0;i--) {
+		  if (!local_file_list->files[i].name) continue;
+		  if (-1 == flist_find(flist,&local_file_list->files[i])) {
+			  delete_one(&local_file_list->files[i]);
+		  }    
+	  }
   }
-
-  if (S_ISDIR(st.st_mode) && !recurse) {
-    fprintf(FERROR,"skipping directory %s\n",fname);
-    return NULL;
-  }
-
-  if (one_file_system && st.st_dev != filesystem_dev)
-    return NULL;
-
-  if (!match_file_name(fname,&st))
-    return NULL;
-
-  if (verbose > 2)
-    fprintf(FERROR,"make_file(%s)\n",fname);
-
-  bzero((char *)&file,sizeof(file));
-
-  file.name = strdup(fname);
-  file.modtime = st.st_mtime;
-  file.length = st.st_size;
-  file.mode = st.st_mode;
-  file.uid = st.st_uid;
-  file.gid = st.st_gid;
-  file.dev = st.st_dev;
-  file.inode = st.st_ino;
-#ifdef HAVE_ST_RDEV
-  file.rdev = st.st_rdev;
-#endif
-
-#if SUPPORT_LINKS
-  if (S_ISLNK(st.st_mode)) {
-    int l;
-    char lnk[MAXPATHLEN];
-    if ((l=readlink(fname,lnk,MAXPATHLEN-1)) == -1) {
-      fprintf(FERROR,"readlink %s : %s\n",fname,strerror(errno));
-      return NULL;
-    }
-    lnk[l] = 0;
-    file.link = strdup(lnk);
-  }
-#endif
-
-  if (always_checksum && S_ISREG(st.st_mode)) {
-    file_checksum(fname,file.sum,st.st_size);
-  }       
-
-  if (flist_dir)
-    file.dir = strdup(flist_dir);
-  else
-    file.dir = NULL;
-
-  if (!S_ISDIR(st.st_mode))
-    total_size += st.st_size;
-
-  return &file;
 }

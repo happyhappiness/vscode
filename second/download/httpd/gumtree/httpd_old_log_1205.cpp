@@ -1,0 +1,1 @@
+apr_file_printf(errfile, "%s: -c and -n options conflict\n", argv[0]);

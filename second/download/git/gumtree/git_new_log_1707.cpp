@@ -1,1 +1,1 @@
-fprintf_ln(stderr, _("Preparing %s (identifier %s)"), path, name);
+warning(_("--dissociate given, but there is no --reference"));

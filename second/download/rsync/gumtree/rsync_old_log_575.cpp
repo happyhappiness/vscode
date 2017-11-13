@@ -1,1 +1,1 @@
-fprintf(FERROR, "inflate returned %d (%d bytes)\n", r, n);
+fprintf(FINFO,"recv_files phase=%d\n",phase);

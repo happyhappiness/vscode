@@ -1,10 +1,9 @@
 puts(
-"          stituted  by the value or text that curl thinks fit, as\n"
-"          described  below.  All  variables  are  specified  like\n"
-"          %{variable_name}  and  to  output  a  normal % you just\n"
-"          write them like %%. You can output a newline  by  using\n"
-"          \\n,  a carriage return with \\r and a tab space with \\t.\n"
-"\n"
-"          NOTE:  The  %-letter  is  a  special  letter   in   the\n"
-"          win32-environment,  where  all occurrences of % must be\n"
+"          Makes curl scan the .netrc  file  in  the  user's  home\n"
+"          directory  for  login  name and password. This is typi�\n"
+"          cally used for ftp on unix. If  used  with  http,  curl\n"
+"          will enable user authentication. See netrc(4) or ftp(1)\n"
+"          for details on the file format. Curl will not  complain\n"
+"          if  that  file  hasn't the right permissions (it should\n"
+"          not be world nor group readable). The environment vari�\n"
 );

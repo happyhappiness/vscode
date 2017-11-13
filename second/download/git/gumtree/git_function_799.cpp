@@ -1,14 +1,26 @@
-static int fsck_handle_reflog_ent(unsigned char *osha1, unsigned char *nsha1,
-		const char *email, unsigned long timestamp, int tz,
-		const char *message, void *cb_data)
+static void show_one(const char *refname, const struct object_id *oid)
 {
-	const char *refname = cb_data;
+	const char *hex;
+	struct object_id peeled;
 
-	if (verbose)
-		fprintf(stderr, "Checking reflog %s->%s\n",
-			sha1_to_hex(osha1), sha1_to_hex(nsha1));
+	if (!has_sha1_file(oid->hash))
+		die("git show-ref: bad ref %s (%s)", refname,
+		    oid_to_hex(oid));
 
-	fsck_handle_reflog_sha1(refname, osha1, 0);
-	fsck_handle_reflog_sha1(refname, nsha1, timestamp);
-	return 0;
+	if (quiet)
+		return;
+
+	hex = find_unique_abbrev(oid->hash, abbrev);
+	if (hash_only)
+		printf("%s\n", hex);
+	else
+		printf("%s %s\n", hex, refname);
+
+	if (!deref_tags)
+		return;
+
+	if (!peel_ref(refname, peeled.hash)) {
+		hex = find_unique_abbrev(peeled.hash, abbrev);
+		printf("%s %s^{}\n", hex, refname);
+	}
 }

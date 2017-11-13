@@ -1,1 +1,1 @@
-state_puts (" ", s);
+state_puts (_("A policy requirement was not met\n"), s);

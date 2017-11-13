@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, s, 
-                     "INIT global mutex %s in child %d ", st->lock_file, getpid());
+apr_file_printf(errfile, "%s: unable to update file %s\n", 
+                        argv[0], argv[1]);

@@ -1,1 +1,3 @@
-die("submodule--helper push-check requires at least 1 argument");
+logerror("Could not listen to %s: %s",
+			 ip2str(AF_INET, (struct sockaddr *)&sin, sizeof(sin)),
+			 strerror(errno));

@@ -1,2 +1,1 @@
-log_scripterror(r, conf, HTTP_SERVICE_UNAVAILABLE, connect_errno, 
-                                   apr_pstrcat(r->pool, APLOGNO(02833) "ScriptSock ", sockname, " does not exist", NULL));
+ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00199) "sigaction(SIGHUP)");

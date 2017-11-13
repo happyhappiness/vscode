@@ -1,1 +1,1 @@
-printf("%s %s\n", oid_to_hex(note_oid), oid_to_hex(object_oid));
+die(_("cannot read existing object info %s"), sha1_to_hex(sha1));

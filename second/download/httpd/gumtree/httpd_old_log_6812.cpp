@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, pServ, APLOGNO(02249)
-                             "unencrypted %s private key - pass phrase not "
-                             "required", an);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
+                      "h2_stream(%ld-%d): handled, closing", 
+                      session->id, (int)stream->id);

@@ -1,96 +1,60 @@
-static int stapling_cb(SSL *ssl, void *arg)
+static void dump_header_to_log(request_rec *r, unsigned char fheader[],
+                               apr_size_t length)
 {
-    conn_rec *conn      = (conn_rec *)SSL_get_app_data(ssl);
-    server_rec *s       = mySrvFromConn(conn);
-    SSLSrvConfigRec *sc = mySrvConfig(s);
-    SSLConnRec *sslconn = myConnConfig(conn);
-    modssl_ctx_t *mctx  = myCtxConfig(sslconn, sc);
-    certinfo *cinf = NULL;
-    OCSP_RESPONSE *rsp = NULL;
-    int rv;
-    BOOL ok;
+#ifdef FCGI_DUMP_HEADERS
+    apr_size_t posn = 0;
+    char asc_line[20];
+    char hex_line[60];
+    int i = 0;
 
-    if (sc->server->stapling_enabled != TRUE) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "stapling_cb: OCSP Stapling disabled");
-        return SSL_TLSEXT_ERR_NOACK;
-    }
+    memset(asc_line, 0, sizeof(asc_line));
+    memset(hex_line, 0, sizeof(hex_line));
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "stapling_cb: OCSP Stapling callback called");
+    while (posn < length) {
+        unsigned char c = fheader[posn]; 
 
-    cinf = stapling_get_cert_info(s, mctx, ssl);
-    if (cinf == NULL) {
-        return SSL_TLSEXT_ERR_NOACK;
-    }
+        if (i >= 20) {
+            i = 0;
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "stapling_cb: retrieved cached certificate data");
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "HEADER: %s %s", asc_line, hex_line);
 
-    /* Check to see if we already have a response for this certificate */
-    stapling_mutex_on(s);
-
-    rv = stapling_get_cached_response(s, &rsp, &ok, cinf, conn->pool);
-    if (rv == FALSE) {
-        stapling_mutex_off(s);
-        return SSL_TLSEXT_ERR_ALERT_FATAL;
-    }
-
-    if (rsp) {
-        /* see if response is acceptable */
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "stapling_cb: retrieved cached response");
-        rv = stapling_check_response(s, mctx, cinf, rsp, NULL);
-        if (rv == SSL_TLSEXT_ERR_ALERT_FATAL) {
-            OCSP_RESPONSE_free(rsp);
-            stapling_mutex_off(s);
-            return SSL_TLSEXT_ERR_ALERT_FATAL;
+            memset(asc_line, 0, sizeof(asc_line));
+            memset(hex_line, 0, sizeof(hex_line));
         }
-        else if (rv == SSL_TLSEXT_ERR_NOACK) {
-            /* Error in response. If this error was not present when it was
-             * stored (i.e. response no longer valid) then it can be
-             * renewed straight away.
-             *
-             * If the error *was* present at the time it was stored then we
-             * don't renew the response straight away we just wait for the
-             * cached response to expire.
-             */
-            if (ok) {
-                OCSP_RESPONSE_free(rsp);
-                rsp = NULL;
-            }
-            else if (!mctx->stapling_return_errors) {
-                OCSP_RESPONSE_free(rsp);
-                stapling_mutex_off(s);
-                return SSL_TLSEXT_ERR_NOACK;
-            }
+
+        if (isprint(c)) {
+            asc_line[i] = c;
         }
-    }
-
-    if (rsp == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "stapling_cb: renewing cached response");
-        rv = stapling_renew_response(s, mctx, ssl, cinf, &rsp, conn->pool);
-
-        if (rv == FALSE) {
-            stapling_mutex_off(s);
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                         "stapling_cb: fatal error");
-            return SSL_TLSEXT_ERR_ALERT_FATAL;
+        else {
+            asc_line[i] = '.';
         }
+
+        if ((c >> 4) >= 10) {
+            hex_line[i * 3] = 'a' + ((c >> 4) - 10);
+        }
+        else {
+            hex_line[i * 3] = '0' + (c >> 4);
+        }
+
+        if ((c & 0x0F) >= 10) {
+            hex_line[i * 3 + 1] = 'a' + ((c & 0x0F) - 10);
+        }
+        else {
+            hex_line[i * 3 + 1] = '0' + (c & 0xF);
+        }
+
+        hex_line[i * 3 + 2] = ' ';
+
+        i++;
+        posn++;
     }
-    stapling_mutex_off(s);
 
-    if (rsp) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "stapling_cb: setting response");
-        if (!stapling_set_response(ssl, rsp))
-            return SSL_TLSEXT_ERR_ALERT_FATAL;
-        return SSL_TLSEXT_ERR_OK;
+    if (i != 1) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, "HEADER: %s %s",
+                     asc_line, hex_line);
     }
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "stapling_cb: no response available");
 
-    return SSL_TLSEXT_ERR_NOACK;
-
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, "HEADER: -EOH-");
+#endif
 }

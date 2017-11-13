@@ -1,377 +1,189 @@
-static void output_directories(struct ent **ar, int n,
-                               autoindex_config_rec *d, request_rec *r,
-                               apr_int32_t autoindex_opts, char keyid,
-                               char direction, const char *colargs)
+static apr_status_t store_body(cache_handle_t *h, request_rec *r, apr_bucket_brigade *b)
 {
-    int x;
-    apr_size_t rv;
-    char *name = r->uri;
-    char *tp;
-    int static_columns = !!(autoindex_opts & SUPPRESS_COLSORT);
-    apr_pool_t *scratch;
-    int name_width;
-    int desc_width;
-    char *name_scratch;
-    char *pad_scratch;
-    char *breakrow = "";
+    apr_status_t rv;
+    cache_object_t *obj = h->cache_obj;
+    cache_object_t *tobj = NULL;
+    mem_cache_object_t *mobj = (mem_cache_object_t*) obj->vobj;
+    apr_read_type_e eblock = APR_BLOCK_READ;
+    apr_bucket *e;
+    char *cur;
 
-    apr_pool_create(&scratch, r->pool);
-    if (name[0] == '\0') {
-        name = "/";
-    }
+    if (mobj->type == CACHE_TYPE_FILE) {
+        apr_file_t *file = NULL;
+        int fd = 0;
+        int other = 0;
+        int eos = 0;
 
-    name_width = d->name_width;
-    desc_width = d->desc_width;
-
-    if ((autoindex_opts & (FANCY_INDEXING | TABLE_INDEXING))
-                        == FANCY_INDEXING) {
-        if (d->name_adjust == K_ADJUST) {
-            for (x = 0; x < n; x++) {
-                int t = strlen(ar[x]->name);
-                if (t > name_width) {
-                    name_width = t;
-                }
-            }
-        }
-
-        if (d->desc_adjust == K_ADJUST) {
-            for (x = 0; x < n; x++) {
-                if (ar[x]->desc != NULL) {
-                    int t = strlen(ar[x]->desc);
-                    if (t > desc_width) {
-                        desc_width = t;
-                    }
-                }
-            }
-        }
-    }
-    name_scratch = apr_palloc(r->pool, name_width + 1);
-    pad_scratch = apr_palloc(r->pool, name_width + 1);
-    memset(pad_scratch, ' ', name_width);
-    pad_scratch[name_width] = '\0';
-
-    if (autoindex_opts & TABLE_INDEXING) {
-        int cols = 1;
-        ap_rputs("<table><tr>", r);
-        if (!(autoindex_opts & SUPPRESS_ICON)) {
-            ap_rputs("<th>", r);
-            if ((tp = find_default_icon(d, "^^BLANKICON^^"))) {
-                ap_rvputs(r, "<img src=\"", ap_escape_html(scratch, tp),
-                             "\" alt=\"[ICO]\"", NULL);
-                if (d->icon_width) {
-                    ap_rprintf(r, " width=\"%d\"", d->icon_width);
-                }
-                if (d->icon_height) {
-                    ap_rprintf(r, " height=\"%d\"", d->icon_height);
-                }
-
-                if (autoindex_opts & EMIT_XHTML) {
-                    ap_rputs(" /", r);
-                }
-                ap_rputs("></th>", r);
-            }
-            else {
-                ap_rputs("&nbsp;</th>", r);
-            }
-
-            ++cols;
-        }
-        ap_rputs("<th>", r);
-        emit_link(r, "Name", K_NAME, keyid, direction,
-                  colargs, static_columns);
-        if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-            ap_rputs("</th><th>", r);
-            emit_link(r, "Last modified", K_LAST_MOD, keyid, direction,
-                      colargs, static_columns);
-            ++cols;
-        }
-        if (!(autoindex_opts & SUPPRESS_SIZE)) {
-            ap_rputs("</th><th>", r);
-            emit_link(r, "Size", K_SIZE, keyid, direction,
-                      colargs, static_columns);
-            ++cols;
-        }
-        if (!(autoindex_opts & SUPPRESS_DESC)) {
-            ap_rputs("</th><th>", r);
-            emit_link(r, "Description", K_DESC, keyid, direction,
-                      colargs, static_columns);
-            ++cols;
-        }
-        if (!(autoindex_opts & SUPPRESS_RULES)) {
-            breakrow = apr_psprintf(r->pool,
-                                    "<tr><th colspan=\"%d\">"
-                                    "<hr%s></th></tr>\n", cols,
-                                    (autoindex_opts & EMIT_XHTML) ? " /" : "");
-        }
-        ap_rvputs(r, "</th></tr>", breakrow, NULL);
-    }
-    else if (autoindex_opts & FANCY_INDEXING) {
-        ap_rputs("<pre>", r);
-        if (!(autoindex_opts & SUPPRESS_ICON)) {
-            if ((tp = find_default_icon(d, "^^BLANKICON^^"))) {
-                ap_rvputs(r, "<img src=\"", ap_escape_html(scratch, tp),
-                             "\" alt=\"Icon \"", NULL);
-                if (d->icon_width) {
-                    ap_rprintf(r, " width=\"%d\"", d->icon_width);
-                }
-                if (d->icon_height) {
-                    ap_rprintf(r, " height=\"%d\"", d->icon_height);
-                }
-
-                if (autoindex_opts & EMIT_XHTML) {
-                    ap_rputs(" /", r);
-                }
-                ap_rputs("> ", r);
-            }
-            else {
-                ap_rputs("      ", r);
-            }
-        }
-        emit_link(r, "Name", K_NAME, keyid, direction,
-                  colargs, static_columns);
-        ap_rputs(pad_scratch + 4, r);
-        /*
-         * Emit the guaranteed-at-least-one-space-between-columns byte.
+        /* We can cache an open file descriptor if:
+         * - the brigade contains one and only one file_bucket &&
+         * - the brigade is complete &&
+         * - the file_bucket is the last data bucket in the brigade
          */
-        ap_rputs(" ", r);
-        if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-            emit_link(r, "Last modified", K_LAST_MOD, keyid, direction,
-                      colargs, static_columns);
-            ap_rputs("      ", r);
-        }
-        if (!(autoindex_opts & SUPPRESS_SIZE)) {
-            emit_link(r, "Size", K_SIZE, keyid, direction,
-                      colargs, static_columns);
-            ap_rputs("  ", r);
-        }
-        if (!(autoindex_opts & SUPPRESS_DESC)) {
-            emit_link(r, "Description", K_DESC, keyid, direction,
-                      colargs, static_columns);
-        }
-        if (!(autoindex_opts & SUPPRESS_RULES)) {
-            ap_rputs("<hr", r);
-            if (autoindex_opts & EMIT_XHTML) {
-                ap_rputs(" /", r);
+        for (e = APR_BRIGADE_FIRST(b);
+             e != APR_BRIGADE_SENTINEL(b);
+             e = APR_BUCKET_NEXT(e))
+        {
+            if (APR_BUCKET_IS_EOS(e)) {
+                eos = 1;
             }
-            ap_rputs(">", r);
-        }
-        else {
-            ap_rputc('\n', r);
-        }
-    }
-    else {
-        ap_rputs("<ul>", r);
-    }
-
-    for (x = 0; x < n; x++) {
-        char *anchor, *t, *t2;
-        int nwidth;
-
-        apr_pool_clear(scratch);
-
-        t = ar[x]->name;
-        anchor = ap_escape_html(scratch, ap_os_escape_path(scratch, t, 0));
-
-        if (!x && t[0] == '/') {
-            t2 = "Parent Directory";
-        }
-        else {
-            t2 = t;
-        }
-
-        if (autoindex_opts & TABLE_INDEXING) {
-            ap_rputs("<tr>", r);
-            if (!(autoindex_opts & SUPPRESS_ICON)) {
-                ap_rputs("<td valign=\"top\">", r);
-                if (autoindex_opts & ICONS_ARE_LINKS) {
-                    ap_rvputs(r, "<a href=\"", anchor, "\">", NULL);
-                }
-                if ((ar[x]->icon) || d->default_icon) {
-                    ap_rvputs(r, "<img src=\"",
-                              ap_escape_html(scratch,
-                                             ar[x]->icon ? ar[x]->icon
-                                                         : d->default_icon),
-                              "\" alt=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
-                              "]\"", NULL);
-                    if (d->icon_width) {
-                        ap_rprintf(r, " width=\"%d\"", d->icon_width);
-                    }
-                    if (d->icon_height) {
-                        ap_rprintf(r, " height=\"%d\"", d->icon_height);
-                    }
-
-                    if (autoindex_opts & EMIT_XHTML) {
-                        ap_rputs(" /", r);
-                    }
-                    ap_rputs(">", r);
-                }
-                else {
-                    ap_rputs("&nbsp;", r);
-                }
-                if (autoindex_opts & ICONS_ARE_LINKS) {
-                    ap_rputs("</a></td>", r);
-                }
-                else {
-                    ap_rputs("</td>", r);
-                }
-            }
-            if (d->name_adjust == K_ADJUST) {
-                ap_rvputs(r, "<td><a href=\"", anchor, "\">",
-                          ap_escape_html(scratch, t2), "</a>", NULL);
+            else if (APR_BUCKET_IS_FILE(e)) {
+                apr_bucket_file *a = e->data;
+                fd++;
+                file = a->fd;
             }
             else {
-                nwidth = strlen(t2);
-                if (nwidth > name_width) {
-                  memcpy(name_scratch, t2, name_width - 3);
-                  name_scratch[name_width - 3] = '.';
-                  name_scratch[name_width - 2] = '.';
-                  name_scratch[name_width - 1] = '>';
-                  name_scratch[name_width] = 0;
-                  t2 = name_scratch;
-                  nwidth = name_width;
-                }
-                ap_rvputs(r, "<td><a href=\"", anchor, "\">",
-                          ap_escape_html(scratch, t2),
-                          "</a>", pad_scratch + nwidth, NULL);
+                other++;
             }
-            if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-                if (ar[x]->lm != -1) {
-                    char time_str[MAX_STRING_LEN];
-                    apr_time_exp_t ts;
-                    apr_time_exp_lt(&ts, ar[x]->lm);
-                    apr_strftime(time_str, &rv, MAX_STRING_LEN,
-                                 "</td><td align=\"right\">%d-%b-%Y %H:%M  ",
-                                 &ts);
-                    ap_rputs(time_str, r);
-                }
-                else {
-                    ap_rputs("</td><td>&nbsp;", r);
-                }
-            }
-            if (!(autoindex_opts & SUPPRESS_SIZE)) {
-                char buf[5];
-                ap_rvputs(r, "</td><td align=\"right\">",
-                          apr_strfsize(ar[x]->size, buf), NULL);
-            }
-            if (!(autoindex_opts & SUPPRESS_DESC)) {
-                if (ar[x]->desc) {
-                    if (d->desc_adjust == K_ADJUST) {
-                        ap_rvputs(r, "</td><td>", ar[x]->desc, NULL);
-                    }
-                    else {
-                        ap_rvputs(r, "</td><td>",
-                                  terminate_description(d, ar[x]->desc,
-                                                        autoindex_opts,
-                                                        desc_width), NULL);
-                    }
-                }
-                else {
-                    ap_rputs("</td><td>&nbsp;", r);
-                }
-            }
-            ap_rputs("</td></tr>\n", r);
         }
-        else if (autoindex_opts & FANCY_INDEXING) {
-            if (!(autoindex_opts & SUPPRESS_ICON)) {
-                if (autoindex_opts & ICONS_ARE_LINKS) {
-                    ap_rvputs(r, "<a href=\"", anchor, "\">", NULL);
-                }
-                if ((ar[x]->icon) || d->default_icon) {
-                    ap_rvputs(r, "<img src=\"",
-                              ap_escape_html(scratch,
-                                             ar[x]->icon ? ar[x]->icon
-                                                         : d->default_icon),
-                              "\" alt=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
-                              "]\"", NULL);
-                    if (d->icon_width) {
-                        ap_rprintf(r, " width=\"%d\"", d->icon_width);
-                    }
-                    if (d->icon_height) {
-                        ap_rprintf(r, " height=\"%d\"", d->icon_height);
-                    }
+        if (fd == 1 && !other && eos) {
+            apr_file_t *tmpfile;
+            const char *name;
+            /* Open a new XTHREAD handle to the file */
+            apr_file_name_get(&name, file);
+            mobj->flags = ((APR_SENDFILE_ENABLED & apr_file_flags_get(file))
+                           | APR_READ | APR_BINARY | APR_XTHREAD | APR_FILE_NOCLEANUP);
+            rv = apr_file_open(&tmpfile, name, mobj->flags,
+                               APR_OS_DEFAULT, r->pool);
+            if (rv != APR_SUCCESS) {
+                return rv;
+            }
+            apr_file_inherit_unset(tmpfile);
+            apr_os_file_get(&(mobj->fd), tmpfile);
 
-                    if (autoindex_opts & EMIT_XHTML) {
-                        ap_rputs(" /", r);
-                    }
-                    ap_rputs(">", r);
-                }
-                else {
-                    ap_rputs("     ", r);
-                }
-                if (autoindex_opts & ICONS_ARE_LINKS) {
-                    ap_rputs("</a> ", r);
-                }
-                else {
-                    ap_rputc(' ', r);
-                }
-            }
-            nwidth = strlen(t2);
-            if (nwidth > name_width) {
-                memcpy(name_scratch, t2, name_width - 3);
-                name_scratch[name_width - 3] = '.';
-                name_scratch[name_width - 2] = '.';
-                name_scratch[name_width - 1] = '>';
-                name_scratch[name_width] = 0;
-                t2 = name_scratch;
-                nwidth = name_width;
-            }
-            ap_rvputs(r, "<a href=\"", anchor, "\">",
-                      ap_escape_html(scratch, t2),
-                      "</a>", pad_scratch + nwidth, NULL);
-            /*
-             * The blank before the storm.. er, before the next field.
-             */
-            ap_rputs(" ", r);
-            if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-                if (ar[x]->lm != -1) {
-                    char time_str[MAX_STRING_LEN];
-                    apr_time_exp_t ts;
-                    apr_time_exp_lt(&ts, ar[x]->lm);
-                    apr_strftime(time_str, &rv, MAX_STRING_LEN,
-                                "%d-%b-%Y %H:%M  ", &ts);
-                    ap_rputs(time_str, r);
-                }
-                else {
-                    /*Length="22-Feb-1998 23:42  " (see 4 lines above) */
-                    ap_rputs("                   ", r);
-                }
-            }
-            if (!(autoindex_opts & SUPPRESS_SIZE)) {
-                char buf[5];
-                ap_rputs(apr_strfsize(ar[x]->size, buf), r);
-                ap_rputs("  ", r);
-            }
-            if (!(autoindex_opts & SUPPRESS_DESC)) {
-                if (ar[x]->desc) {
-                    ap_rputs(terminate_description(d, ar[x]->desc,
-                                                   autoindex_opts,
-                                                   desc_width), r);
-                }
-            }
-            ap_rputc('\n', r);
+            /* Open for business */
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                         "mem_cache: Cached file: %s with key: %s", name, obj->key);
+            obj->complete = 1;
+            return APR_SUCCESS;
         }
-        else {
-            ap_rvputs(r, "<li><a href=\"", anchor, "\"> ",
-                      ap_escape_html(scratch, t2),
-                      "</a></li>\n", NULL);
+
+        /* Content not suitable for fd caching. Cache in-memory instead. */
+        mobj->type = CACHE_TYPE_HEAP;
+    }
+
+    /*
+     * FD cacheing is not enabled or the content was not
+     * suitable for fd caching.
+     */
+    if (mobj->m == NULL) {
+        mobj->m = malloc(mobj->m_len);
+        if (mobj->m == NULL) {
+            return APR_ENOMEM;
         }
+        obj->count = 0;
     }
-    if (autoindex_opts & TABLE_INDEXING) {
-        ap_rvputs(r, breakrow, "</table>\n", NULL);
-    }
-    else if (autoindex_opts & FANCY_INDEXING) {
-        if (!(autoindex_opts & SUPPRESS_RULES)) {
-            ap_rputs("<hr", r);
-            if (autoindex_opts & EMIT_XHTML) {
-                ap_rputs(" /", r);
+    cur = (char*) mobj->m + obj->count;
+
+    /* Iterate accross the brigade and populate the cache storage */
+    for (e = APR_BRIGADE_FIRST(b);
+         e != APR_BRIGADE_SENTINEL(b);
+         e = APR_BUCKET_NEXT(e))
+    {
+        const char *s;
+        apr_size_t len;
+
+        if (APR_BUCKET_IS_EOS(e)) {
+            const char *cl_header = apr_table_get(r->headers_out, "Content-Length");
+            if (cl_header) {
+                apr_int64_t cl = apr_atoi64(cl_header);
+                if ((errno == 0) && (obj->count != cl)) {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                                 "mem_cache: URL %s didn't receive complete response, not caching",
+                                 h->cache_obj->key);
+                    return APR_EGENERAL;
+                }
             }
-            ap_rputs("></pre>\n", r);
+            if (mobj->m_len > obj->count) {
+                /* Caching a streamed response. Reallocate a buffer of the
+                 * correct size and copy the streamed response into that
+                 * buffer */
+                mobj->m = realloc(mobj->m, obj->count);
+                if (!mobj->m) {
+                    return APR_ENOMEM;
+                }
+
+                /* Now comes the crufty part... there is no way to tell the
+                 * cache that the size of the object has changed. We need
+                 * to remove the object, update the size and re-add the
+                 * object, all under protection of the lock.
+                 */
+                if (sconf->lock) {
+                    apr_thread_mutex_lock(sconf->lock);
+                }
+                /* Has the object been ejected from the cache?
+                 */
+                tobj = (cache_object_t *) cache_find(sconf->cache_cache, obj->key);
+                if (tobj == obj) {
+                    /* Object is still in the cache, remove it, update the len field then
+                     * replace it under protection of sconf->lock.
+                     */
+                    cache_remove(sconf->cache_cache, obj);
+                    /* For illustration, cache no longer has reference to the object
+                     * so decrement the refcount
+                     * apr_atomic_dec32(&obj->refcount);
+                     */
+                    mobj->m_len = obj->count;
+
+                    cache_insert(sconf->cache_cache, obj);
+                    /* For illustration, cache now has reference to the object, so
+                     * increment the refcount
+                     * apr_atomic_inc32(&obj->refcount);
+                     */
+                }
+                else if (tobj) {
+                    /* Different object with the same key found in the cache. Doing nothing
+                     * here will cause the object refcount to drop to 0 in decrement_refcount
+                     * and the object will be cleaned up.
+                     */
+
+                } else {
+                    /* Object has been ejected from the cache, add it back to the cache */
+                    mobj->m_len = obj->count;
+                    cache_insert(sconf->cache_cache, obj);
+                    apr_atomic_inc32(&obj->refcount);
+                }
+
+                if (sconf->lock) {
+                    apr_thread_mutex_unlock(sconf->lock);
+                }
+            }
+            /* Open for business */
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                         "mem_cache: Cached url: %s", obj->key);
+            obj->complete = 1;
+            break;
         }
-        else {
-            ap_rputs("</pre>\n", r);
+        rv = apr_bucket_read(e, &s, &len, eblock);
+        if (rv != APR_SUCCESS) {
+            return rv;
         }
+        if (len) {
+            /* Check for buffer (max_streaming_buffer_size) overflow  */
+           if ((obj->count + len) > mobj->m_len) {
+               ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                            "mem_cache: URL %s exceeds the MCacheMaxStreamingBuffer (%" APR_SIZE_T_FMT ") limit and will not be cached.", 
+                            obj->key, mobj->m_len);
+               return APR_ENOMEM;
+           }
+           else {
+               memcpy(cur, s, len);
+               cur+=len;
+               obj->count+=len;
+           }
+        }
+        /* This should not fail, but if it does, we are in BIG trouble
+         * cause we just stomped all over the heap.
+         */
+        AP_DEBUG_ASSERT(obj->count <= mobj->m_len);
     }
-    else {
-        ap_rputs("</ul>\n", r);
+    if (r->connection->aborted && !obj->complete) {
+        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                     "mem_cache: Discarding body for URL %s "
+                     "because client connection was aborted.",
+                     obj->key);
+        /* No need to cleanup - obj->complete unset, so
+         * decrement_refcount will discard the object */
+        return APR_EGENERAL;
     }
+    return APR_SUCCESS;
 }

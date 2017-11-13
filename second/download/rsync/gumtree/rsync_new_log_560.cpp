@@ -1,2 +1,1 @@
-rprintf(FERROR,"send_files failed to open %s: %s\n",
-			  fname,strerror(errno));
+rprintf(FINFO,"sending sums for %d\n",i);

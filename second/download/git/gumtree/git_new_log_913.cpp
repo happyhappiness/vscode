@@ -1,1 +1,1 @@
-die(_("'%s' not recognized as a git repository"), git_dir);
+die("BUG: child->real_type != OBJ_REF_DELTA");

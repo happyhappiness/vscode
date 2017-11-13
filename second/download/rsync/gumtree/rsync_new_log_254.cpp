@@ -1,1 +1,2 @@
-out_of_memory("receive_file_entry 2");
+fprintf(stderr,"write_int failed : %s\n",
+	    ret==-1?strerror(errno):"EOF");

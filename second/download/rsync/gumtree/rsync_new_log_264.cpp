@@ -1,1 +1,1 @@
-fprintf(FINFO,"deleting in %s\n", name);
+fprintf(FERROR,"%s : not a regular file (generator)\n",fname);

@@ -1,34 +1,20 @@
-static int shmcb_subcache_remove(server_rec *s, SHMCBHeader *header,
-                                 SHMCBSubcache *subcache,
-                                 const unsigned char *id,
-                                 unsigned int idlen)
+static const char *util_ldap_set_opcache_ttl(cmd_parms *cmd, void *dummy,
+                                             const char *ttl)
 {
-    unsigned int pos;
-    unsigned int loop = 0;
+    util_ldap_state_t *st =
+        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config,
+                                                  &ldap_module);
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
 
-    pos = subcache->idx_pos;
-    while (loop < subcache->idx_used) {
-        SHMCBIndex *idx = SHMCB_INDEX(subcache, pos);
-
-        /* Only consider 'idx' if the id matches, and the "removed"
-         * flag isn't set. */
-        if (!idx->removed && idx->id_len == idlen
-            && shmcb_cyclic_memcmp(header->subcache_data_size,
-                                   SHMCB_DATA(header, subcache),
-                                   idx->data_pos, id, idx->id_len) == 0) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "possible match at idx=%d, data=%d", pos, idx->data_pos);
-
-            /* Found the matching entry, remove it quietly. */
-            idx->removed = 1;
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "shmcb_subcache_remove removing matching entry");
-            return 0;
-        }
-        /* Increment */
-        loop++;
-        pos = SHMCB_CYCLIC_INCREMENT(pos, 1, header->index_num);
+    if (err != NULL) {
+        return err;
     }
 
-    return -1; /* failure */
+    st->compare_cache_ttl = atol(ttl) * 1000000;
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                 "[%" APR_PID_T_FMT "] ldap cache: Setting operation cache TTL"
+                 " to %ld microseconds.", getpid(), st->compare_cache_ttl);
+
+    return NULL;
 }

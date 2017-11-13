@@ -1,1 +1,1 @@
-(mutt_yesorno (_("Warning: This alias name may not work.  Fix it?"), MUTT_YES);
+printf ("fpr:::::::::%s:\n", p->fingerprint);

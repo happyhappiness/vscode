@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(00917)
-                                 "connect to remote machine %s blocked: "
-                                 "IP %s matched", uri_addr->hostname, conf_ip);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03073)
+                      "h2_stream(%ld-%d): submit response %d",
+                      session->id, stream->id, response->http_status);

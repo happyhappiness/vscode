@@ -1,2 +1,1 @@
-die(_("No url found for submodule path '%s' in .gitmodules"),
-				displaypath);
+die("could not open input");

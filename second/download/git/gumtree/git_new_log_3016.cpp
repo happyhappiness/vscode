@@ -1,1 +1,0 @@
-error(_("cannot abort from a branch yet to be born"));

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "File does not exist: %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "leaving socache_shmcb_store successfully");

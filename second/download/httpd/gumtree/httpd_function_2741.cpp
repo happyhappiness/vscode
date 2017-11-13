@@ -1,214 +1,189 @@
-static authz_status ldapgroup_check_authorization(request_rec *r,
-                                             const char *require_args)
+static int create_process(apr_pool_t *p, HANDLE *child_proc, HANDLE *child_exit_event,
+                          DWORD *child_pid)
 {
-    int result = 0;
-    authn_ldap_request_t *req =
-        (authn_ldap_request_t *)ap_get_module_config(r->request_config, &authnz_ldap_module);
-    authn_ldap_config_t *sec =
-        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
+    /* These NEVER change for the lifetime of this parent
+     */
+    static char **args = NULL;
+    static char **env = NULL;
+    static char pidbuf[28];
 
-    util_ldap_connection_t *ldc = NULL;
+    apr_status_t rv;
+    apr_pool_t *ptemp;
+    apr_procattr_t *attr;
+    apr_proc_t new_child;
+    apr_file_t *child_out, *child_err;
+    HANDLE hExitEvent;
+    HANDLE waitlist[2];  /* see waitlist_e */
+    char *cmd;
+    char *cwd;
 
-    const char *t;
+    apr_pool_create_ex(&ptemp, p, NULL, NULL);
 
-    char filtbuf[FILTER_LENGTH];
-    const char *dn = NULL;
-    struct mod_auth_ldap_groupattr_entry_t *ent;
-    int i;
-
-    if (!r->user) {
-        return AUTHZ_DENIED_NO_USER;
+    /* Build the command line. Should look something like this:
+     * C:/apache/bin/apache.exe -f ap_server_confname
+     * First, get the path to the executable...
+     */
+    apr_procattr_create(&attr, ptemp);
+    apr_procattr_cmdtype_set(attr, APR_PROGRAM);
+    apr_procattr_detach_set(attr, 1);
+    if (((rv = apr_filepath_get(&cwd, 0, ptemp)) != APR_SUCCESS)
+           || ((rv = apr_procattr_dir_set(attr, cwd)) != APR_SUCCESS)) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Parent: Failed to get the current path");
     }
 
-    if (!sec->have_ldap_url) {
-        return AUTHZ_DENIED;
-    }
+    if (!args) {
+        /* Build the args array, only once since it won't change
+         * for the lifetime of this parent process.
+         */
+        if ((rv = ap_os_proc_filepath(&cmd, ptemp))
+                != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, ERROR_BAD_PATHNAME, ap_server_conf,
+                         "Parent: Failed to get full path of %s",
+                         ap_server_conf->process->argv[0]);
+            apr_pool_destroy(ptemp);
+            return -1;
+        }
 
-    if (sec->host) {
-        ldc = get_connection_for_authz(r, LDAP_COMPARE); /* for the top-level group only */
-        apr_pool_cleanup_register(r->pool, ldc,
-                                  authnz_ldap_cleanup_connection_close,
-                                  apr_pool_cleanup_null);
+        args = malloc((ap_server_conf->process->argc + 1) * sizeof (char*));
+        memcpy(args + 1, ap_server_conf->process->argv + 1,
+               (ap_server_conf->process->argc - 1) * sizeof (char*));
+        args[0] = malloc(strlen(cmd) + 1);
+        strcpy(args[0], cmd);
+        args[ap_server_conf->process->argc] = NULL;
     }
     else {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                      "auth_ldap authorize: no sec->host - weird...?");
-        return AUTHZ_DENIED;
+        cmd = args[0];
     }
 
-    /*
-     * If there are no elements in the group attribute array, the default should be
-     * member and uniquemember; populate the array now.
+    /* Create a pipe to send handles to the child */
+    if ((rv = apr_procattr_io_set(attr, APR_FULL_BLOCK,
+                                  APR_NO_PIPE, APR_NO_PIPE)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                        "Parent: Unable to create child stdin pipe.");
+        apr_pool_destroy(ptemp);
+        return -1;
+    }
+
+    /* httpd-2.0/2.2 specific to work around apr_proc_create bugs */
+    if (((rv = apr_file_open_stdout(&child_out, p))
+            != APR_SUCCESS) ||
+        ((rv = apr_procattr_child_out_set(attr, child_out, NULL))
+            != APR_SUCCESS)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                     "Parent: Could not set child process stdout");
+    }
+    if (((rv = apr_file_open_stderr(&child_err, p))
+            != APR_SUCCESS) ||
+        ((rv = apr_procattr_child_err_set(attr, child_err, NULL))
+            != APR_SUCCESS)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                     "Parent: Could not set child process stderr");
+    }
+
+    /* Create the child_ready_event */
+    waitlist[waitlist_ready] = CreateEvent(NULL, TRUE, FALSE, NULL);
+    if (!waitlist[waitlist_ready]) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Parent: Could not create ready event for child process");
+        apr_pool_destroy (ptemp);
+        return -1;
+    }
+
+    /* Create the child_exit_event */
+    hExitEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+    if (!hExitEvent) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Parent: Could not create exit event for child process");
+        apr_pool_destroy(ptemp);
+        CloseHandle(waitlist[waitlist_ready]);
+        return -1;
+    }
+
+    if (!env)
+    {
+        /* Build the env array, only once since it won't change
+         * for the lifetime of this parent process.
+         */
+        int envc;
+        for (envc = 0; _environ[envc]; ++envc) {
+            ;
+        }
+        env = malloc((envc + 2) * sizeof (char*));
+        memcpy(env, _environ, envc * sizeof (char*));
+        apr_snprintf(pidbuf, sizeof(pidbuf), "AP_PARENT_PID=%i", parent_pid);
+        env[envc] = pidbuf;
+        env[envc + 1] = NULL;
+    }
+
+    rv = apr_proc_create(&new_child, cmd, args, env, attr, ptemp);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Parent: Failed to create the child process.");
+        apr_pool_destroy(ptemp);
+        CloseHandle(hExitEvent);
+        CloseHandle(waitlist[waitlist_ready]);
+        CloseHandle(new_child.hproc);
+        return -1;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                 "Parent: Created child process %d", new_child.pid);
+
+    if (send_handles_to_child(ptemp, waitlist[waitlist_ready], hExitEvent,
+                              start_mutex, ap_scoreboard_shm,
+                              new_child.hproc, new_child.in)) {
+        /*
+         * This error is fatal, mop up the child and move on
+         * We toggle the child's exit event to cause this child
+         * to quit even as it is attempting to start.
+         */
+        SetEvent(hExitEvent);
+        apr_pool_destroy(ptemp);
+        CloseHandle(hExitEvent);
+        CloseHandle(waitlist[waitlist_ready]);
+        CloseHandle(new_child.hproc);
+        return -1;
+    }
+
+    /* Important:
+     * Give the child process a chance to run before dup'ing the sockets.
+     * We have already set the listening sockets noninheritable, but if
+     * WSADuplicateSocket runs before the child process initializes
+     * the listeners will be inherited anyway.
      */
-    if (sec->groupattr->nelts == 0) {
-        struct mod_auth_ldap_groupattr_entry_t *grp;
-#if APR_HAS_THREADS
-        apr_thread_mutex_lock(sec->lock);
-#endif
-        grp = apr_array_push(sec->groupattr);
-        grp->name = "member";
-        grp = apr_array_push(sec->groupattr);
-        grp->name = "uniqueMember";
-#if APR_HAS_THREADS
-        apr_thread_mutex_unlock(sec->lock);
-#endif
+    waitlist[waitlist_term] = new_child.hproc;
+    rv = WaitForMultipleObjects(2, waitlist, FALSE, INFINITE);
+    CloseHandle(waitlist[waitlist_ready]);
+    if (rv != WAIT_OBJECT_0) {
+        /*
+         * Outch... that isn't a ready signal. It's dead, Jim!
+         */
+        SetEvent(hExitEvent);
+        apr_pool_destroy(ptemp);
+        CloseHandle(hExitEvent);
+        CloseHandle(new_child.hproc);
+        return -1;
     }
 
-    /*
-     * If there are no elements in the sub group classes array, the default
-     * should be groupOfNames and groupOfUniqueNames; populate the array now.
-     */
-    if (sec->subgroupclasses->nelts == 0) {
-        struct mod_auth_ldap_groupattr_entry_t *grp;
-#if APR_HAS_THREADS
-        apr_thread_mutex_lock(sec->lock);
-#endif
-        grp = apr_array_push(sec->subgroupclasses);
-        grp->name = "groupOfNames";
-        grp = apr_array_push(sec->subgroupclasses);
-        grp->name = "groupOfUniqueNames";
-#if APR_HAS_THREADS
-        apr_thread_mutex_unlock(sec->lock);
-#endif
+    if (send_listeners_to_child(ptemp, new_child.pid, new_child.in)) {
+        /*
+         * This error is fatal, mop up the child and move on
+         * We toggle the child's exit event to cause this child
+         * to quit even as it is attempting to start.
+         */
+        SetEvent(hExitEvent);
+        apr_pool_destroy(ptemp);
+        CloseHandle(hExitEvent);
+        CloseHandle(new_child.hproc);
+        return -1;
     }
 
-    /*
-     * If we have been authenticated by some other module than mod_auth_ldap,
-     * the req structure needed for authorization needs to be created
-     * and populated with the userid and DN of the account in LDAP
-     */
+    apr_file_close(new_child.in);
 
-    if (!strlen(r->user)) {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-            "ldap authorize: Userid is blank, AuthType=%s",
-            r->ap_auth_type);
-    }
+    *child_exit_event = hExitEvent;
+    *child_proc = new_child.hproc;
+    *child_pid = new_child.pid;
 
-    if(!req) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-            "ldap authorize: Creating LDAP req structure");
-
-        /* Build the username filter */
-        authn_ldap_build_filter(filtbuf, r, r->user, NULL, sec);
-
-        /* Search for the user DN */
-        result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
-             sec->scope, sec->attributes, filtbuf, &dn, &(req->vals));
-
-        /* Search failed, log error and return failure */
-        if(result != LDAP_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                "auth_ldap authorise: User DN not found, %s", ldc->reason);
-            return AUTHZ_DENIED;
-        }
-
-        req = (authn_ldap_request_t *)apr_pcalloc(r->pool,
-            sizeof(authn_ldap_request_t));
-        ap_set_module_config(r->request_config, &authnz_ldap_module, req);
-        req->dn = apr_pstrdup(r->pool, dn);
-        req->user = r->user;
-    }
-
-    ent = (struct mod_auth_ldap_groupattr_entry_t *) sec->groupattr->elts;
-
-    if (sec->group_attrib_is_dn) {
-        if (req->dn == NULL || strlen(req->dn) == 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "auth_ldap authorize: require group: user's DN has "
-                          "not been defined; failing authorization for user %s",
-                          r->user);
-            return AUTHZ_DENIED;
-        }
-    }
-    else {
-        if (req->user == NULL || strlen(req->user) == 0) {
-            /* We weren't called in the authentication phase, so we didn't have a
-             * chance to set the user field. Do so now. */
-            req->user = r->user;
-        }
-    }
-
-    t = require_args;
-
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "auth_ldap authorize: require group: testing for group "
-                  "membership in \"%s\"",
-                  t);
-
-    for (i = 0; i < sec->groupattr->nelts; i++) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "auth_ldap authorize: require group: testing for %s: "
-                      "%s (%s)",
-                      ent[i].name,
-                      sec->group_attrib_is_dn ? req->dn : req->user, t);
-
-        result = util_ldap_cache_compare(r, ldc, sec->url, t, ent[i].name,
-                             sec->group_attrib_is_dn ? req->dn : req->user);
-        switch(result) {
-            case LDAP_COMPARE_TRUE: {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "auth_ldap authorize: require group: "
-                              "authorization successful (attribute %s) "
-                              "[%s][%d - %s]",
-                              ent[i].name, ldc->reason, result,
-                              ldap_err2string(result));
-                set_request_vars(r, LDAP_AUTHZ);
-                return AUTHZ_GRANTED;
-            }
-            case LDAP_NO_SUCH_ATTRIBUTE: 
-            case LDAP_COMPARE_FALSE: {
-                /* nested groups need searches and compares, so grab a new handle */
-                authnz_ldap_cleanup_connection_close(ldc);
-                apr_pool_cleanup_kill(r->pool, ldc,authnz_ldap_cleanup_connection_close);
-
-                ldc = get_connection_for_authz(r, LDAP_COMPARE_AND_SEARCH);
-                apr_pool_cleanup_register(r->pool, ldc,
-                                          authnz_ldap_cleanup_connection_close,
-                                          apr_pool_cleanup_null);
-
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                               "auth_ldap authorise: require group \"%s\": "
-                               "failed [%s][%d - %s], checking sub-groups",
-                               t, ldc->reason, result, ldap_err2string(result));
-
-                result = util_ldap_cache_check_subgroups(r, ldc, sec->url, t, ent[i].name,
-                                                         sec->group_attrib_is_dn ? req->dn : req->user,
-                                                         sec->sgAttributes[0] ? sec->sgAttributes : default_attributes,
-                                                         sec->subgroupclasses,
-                                                         0, sec->maxNestingDepth);
-                if(result == LDAP_COMPARE_TRUE) {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                  "auth_ldap authorise: require group "
-                                  "(sub-group): authorisation successful "
-                                  "(attribute %s) [%s][%d - %s]",
-                                  ent[i].name, ldc->reason, result,
-                                  ldap_err2string(result));
-                    set_request_vars(r, LDAP_AUTHZ);
-                    return AUTHZ_GRANTED;
-                }
-                else {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                  "auth_ldap authorise: require group "
-                                  "(sub-group) \"%s\": authorisation failed "
-                                  "[%s][%d - %s]",
-                                  t, ldc->reason, result,
-                                  ldap_err2string(result));
-                }
-                break;
-            }
-            default: {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "auth_ldap authorize: require group \"%s\": "
-                              "authorization failed [%s][%d - %s]",
-                              t, ldc->reason, result, ldap_err2string(result));
-            }
-        }
-    }
-
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "auth_ldap authorize group: authorization denied for "
-                  "user %s to %s",
-                  r->user, r->uri);
-
-    return AUTHZ_DENIED;
+    return 0;
 }

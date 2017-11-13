@@ -1,9 +1,12 @@
 fputs(
-"              www.notlocal.com.  (Added in 7.19.4).\n"
+"       --no-keepalive\n"
+"              Disables the use of keepalive messages on the TCP connection, as\n"
+"              by default curl enables them.\n"
 "\n"
-"       --connect-to <host:port:connect-to-host:connect-to-port>\n"
-"              For  a  request  to the given \"host:port\" pair, connect to \"con-\n"
-"              nect-to-host:connect-to-port\"  instead.   This  is  suitable  to\n"
-"              direct  the  request  at  a  specific server, e.g. at a specific\n"
-"              cluster node in a cluster of servers.  This option is only  used\n"
+"              Note that this is the negated option name  documented.  You  can\n"
+"              thus use --keepalive to enforce keepalive.\n"
+"\n"
+"       --no-sessionid\n"
+"              (SSL)  Disable curl's use of SSL session-ID caching.  By default\n"
+"              all transfers are done using the cache. Note that while  nothing\n"
 , stdout);

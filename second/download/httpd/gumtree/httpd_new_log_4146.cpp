@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01891)
-                "No SSL Certificate set [hint: SSLCertificateFile]");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, APLOGNO(01031)
+                     "ajp_ilink_receive() received bad header");

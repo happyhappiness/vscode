@@ -1,1 +1,1 @@
-die("corrupt MERGE_RR");
+vwritef(child_err, "error: ", err, params);

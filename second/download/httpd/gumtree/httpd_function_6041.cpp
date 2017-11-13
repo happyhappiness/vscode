@@ -1,29 +1,78 @@
-static apr_status_t send_out(h2_task *task, apr_bucket_brigade* bb, int block)
+apr_status_t h2_push_diary_digest_set(h2_push_diary *diary, const char *authority, 
+                                      const char *data, apr_size_t len)
 {
-    apr_off_t written, left;
-    apr_status_t status;
+    gset_decoder decoder;
+    unsigned char log2n, log2p;
+    apr_size_t N, i;
+    apr_pool_t *pool = diary->entries->pool;
+    h2_push_diary_entry e;
+    apr_status_t status = APR_SUCCESS;
+    
+    if (len < 2) {
+        /* at least this should be there */
+        return APR_EINVAL;
+    }
+    log2n = data[0];
+    log2p = data[1];
+    diary->mask_bits = log2n + log2p;
+    if (diary->mask_bits > 64) {
+        /* cannot handle */
+        return APR_ENOTIMPL;
+    }
+    
+    /* whatever is in the digest, it replaces the diary entries */
+    apr_array_clear(diary->entries);
+    if (!authority || !strcmp("*", authority)) {
+        diary->authority = NULL;
+    }
+    else if (!diary->authority || strcmp(diary->authority, authority)) {
+        diary->authority = apr_pstrdup(diary->entries->pool, authority);
+    }
 
-    apr_brigade_length(bb, 0, &written);
-    H2_TASK_OUT_LOG(APLOG_TRACE2, task, bb, "h2_task send_out");
-    /* engines send unblocking */
-    status = h2_beam_send(task->output.beam, bb, 
-                          block? APR_BLOCK_READ : APR_NONBLOCK_READ);
-    if (APR_STATUS_IS_EAGAIN(status)) {
-        apr_brigade_length(bb, 0, &left);
-        written -= left;
-        status = APR_SUCCESS;
+    N = h2_log2inv(log2n + log2p);
+
+    decoder.diary    = diary;
+    decoder.pool     = pool;
+    decoder.log2p    = log2p;
+    decoder.data     = (const unsigned char*)data;
+    decoder.datalen  = len;
+    decoder.offset   = 1;
+    decoder.bit      = 8;
+    decoder.last_val = 0;
+    
+    diary->N = N;
+    /* Determine effective N we use for storage */
+    if (!N) {
+        /* a totally empty cache digest. someone tells us that she has no
+         * entries in the cache at all. Use our own preferences for N+mask 
+         */
+        diary->N = diary->NMax;
+        return APR_SUCCESS;
     }
-    if (status == APR_SUCCESS) {
-        if (h2_task_logio_add_bytes_out) {
-            h2_task_logio_add_bytes_out(task->c, written);
+    else if (N > diary->NMax) {
+        /* Store not more than diary is configured to hold. We open us up
+         * to DOS attacks otherwise. */
+        diary->N = diary->NMax;
+    }
+    
+    /* Intentional no APLOGNO */
+    ap_log_perror(APLOG_MARK, GCSLOG_LEVEL, 0, pool,
+                  "h2_push_diary_digest_set: N=%d, log2n=%d, "
+                  "diary->mask_bits=%d, dec.log2p=%d", 
+                  (int)diary->N, (int)log2n, diary->mask_bits, 
+                  (int)decoder.log2p);
+                  
+    for (i = 0; i < diary->N; ++i) {
+        if (gset_decode_next(&decoder, &e.hash) != APR_SUCCESS) {
+            /* the data may have less than N values */
+            break;
         }
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, task->c, 
-                      "h2_task(%s): send_out done", task->id);
+        h2_push_diary_append(diary, &e);
     }
-    else {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, task->c,
-                      "h2_task(%s): send_out (%ld bytes)", 
-                      task->id, (long)written);
-    }
+    
+    /* Intentional no APLOGNO */
+    ap_log_perror(APLOG_MARK, GCSLOG_LEVEL, 0, pool,
+                  "h2_push_diary_digest_set: diary now with %d entries, mask_bits=%d", 
+                  (int)diary->entries->nelts, diary->mask_bits);
     return status;
 }

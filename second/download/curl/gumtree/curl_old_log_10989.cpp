@@ -1,11 +1,9 @@
 fputs(
-"              http_code      The numerical response code that was found in the\n"
-"                             last  retrieved  HTTP(S)  or  FTP(s) transfer. In\n"
-"                             7.18.2 the alias response_code was added to  show\n"
-"                             the same info.\n"
-"\n"
-"              http_connect   The  numerical  code  that  was found in the last\n"
-"                             response  (from  a  proxy)  to  a  curl   CONNECT\n"
-"                             request. (Added in 7.12.4)\n"
-"\n"
+"              this  URL  is written, use the -o, --output or the -O, --remote-\n"
+"              name options.\n"
+"       -v, --verbose\n"
+"              Be more  verbose/talkative  during  the  operation.  Useful  for\n"
+"              debugging  and  seeing  what's going on \"under the hood\". A line\n"
+"              starting with '>' means \"header data\" sent by  curl,  '<'  means\n"
+"              \"header  data\"  received by curl that is hidden in normal cases,\n"
 , stdout);

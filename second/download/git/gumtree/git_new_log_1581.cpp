@@ -1,1 +1,2 @@
-die_errno(_("failed to read %s"), path.buf);
+error("copy-fd: write returned %s",
+				     strerror(errno));

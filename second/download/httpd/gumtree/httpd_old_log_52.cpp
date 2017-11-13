@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "%s: username contains illegal character '%c'\n",
-                argv[0], *arg);
+apr_file_printf(errfile,
+            "On Windows, NetWare and TPF systems the '-m' flag is used by default.\n");

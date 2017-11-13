@@ -1,2 +1,2 @@
-printf("dangling %s %s\n", typename(obj->type),
-			       oid_to_hex(&obj->oid));
+die("Duplicate entry when writing index: %s",
+			    sha1_to_hex(object->sha1));

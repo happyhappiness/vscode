@@ -1,1 +1,5 @@
-die(_("invalid date format: %s"), force_date);
+printf("%s %d %d %d\n",
+	       hex,
+	       ent->s_lno + 1,
+	       ent->lno + 1,
+	       ent->num_lines);

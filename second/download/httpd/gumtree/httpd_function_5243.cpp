@@ -1,148 +1,77 @@
-apr_status_t h2_session_process(h2_session *session)
+void get_handles_from_parent(server_rec *s, HANDLE *child_exit_event,
+                             apr_proc_mutex_t **child_start_mutex,
+                             apr_shm_t **scoreboard_shm)
 {
-    apr_status_t status = APR_SUCCESS;
-    int rv = 0;
-    apr_interval_time_t wait_micros = 0;
-    static const int MAX_WAIT_MICROS = 200 * 1000;
-    
-    /* Start talking to the client. Apart from protocol meta data,
-     * we mainly will see new http/2 streams opened by the client, which
-     * basically are http requests we need to dispatch.
-     *
-     * There will be bursts of new streams, to be served concurrently,
-     * followed by long pauses of no activity.
-     *
-     * Since the purpose of http/2 is to allow siumultaneous streams, we
-     * need to dispatch the handling of each stream into a separate worker
-     * thread, keeping this thread open for sending responses back as
-     * soon as they arrive.
-     * At the same time, we need to continue reading new frames from
-     * our client, which may be meta (WINDOWS_UPDATEs, PING, SETTINGS) or
-     * new streams.
-     *
-     * As long as we have streams open in this session, we cannot really rest
-     * since there are two conditions to wait on: 1. new data from the client,
-     * 2. new data from the open streams to send back.
-     *
-     * Only when we have no more streams open, can we do a blocking read
-     * on our connection.
-     *
-     * TODO: implement graceful GO_AWAY after configurable idle time
+    HANDLE hScore;
+    HANDLE ready_event;
+    HANDLE os_start;
+    DWORD BytesRead;
+    void *sb_shared;
+    apr_status_t rv;
+
+    /* *** We now do this was back in winnt_rewrite_args
+     * pipe = GetStdHandle(STD_INPUT_HANDLE);
      */
-    
-    ap_update_child_status_from_conn(session->c->sbh, SERVER_BUSY_READ, 
-                                     session->c);
+    if (!ReadFile(pipe, &ready_event, sizeof(HANDLE),
+                  &BytesRead, (LPOVERLAPPED) NULL)
+        || (BytesRead != sizeof(HANDLE))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %d: Unable to retrieve the ready event from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
 
-    if (APLOGctrace2(session->c)) {
-        ap_filter_t *filter = session->c->input_filters;
-        while (filter) {
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
-                          "h2_conn(%ld), has connection filter %s",
-                          session->id, filter->frec->name);
-            filter = filter->next;
-        }
-    }
-    
-    status = h2_session_start(session, &rv);
-    
-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
-                  "h2_session(%ld): starting on %s:%d", session->id,
-                  session->c->base_server->defn_name,
-                  session->c->local_addr->port);
-    if (status != APR_SUCCESS) {
-        h2_session_abort(session, status, rv);
-        h2_session_destroy(session);
-        return status;
-    }
-    
-    while (!h2_session_is_done(session)) {
-        int have_written = 0;
-        int have_read = 0;
-        int got_streams;
-        
-        status = h2_session_write(session, wait_micros);
-        if (status == APR_SUCCESS) {
-            have_written = 1;
-            wait_micros = 0;
-        }
-        else if (status == APR_EAGAIN) {
-            /* nop */
-        }
-        else if (status == APR_TIMEUP) {
-            wait_micros *= 2;
-            if (wait_micros > MAX_WAIT_MICROS) {
-                wait_micros = MAX_WAIT_MICROS;
-            }
-        }
-        else {
-            ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, session->c,
-                          "h2_session(%ld): writing, terminating",
-                          session->id);
-            h2_session_abort(session, status, 0);
-            break;
-        }
-        
-        /* We would like to do blocking reads as often as possible as they
-         * are more efficient in regard to server resources.
-         * We can do them under the following circumstances:
-         * - we have no open streams and therefore have nothing to write
-         * - we have just started the session and are waiting for the first
-         *   two frames to come in. There will always be at least 2 frames as
-         *   * h2 will send SETTINGS and SETTINGS-ACK
-         *   * h2c will count the header settings as one frame and we
-         *     submit our settings and need the ACK.
-         */
-        got_streams = !h2_stream_set_is_empty(session->streams);
-        status = h2_session_read(session, 
-                                 (!got_streams 
-                                  || session->frames_received <= 1)?
-                                 APR_BLOCK_READ : APR_NONBLOCK_READ);
-        switch (status) {
-            case APR_SUCCESS:       /* successful read, reset our idle timers */
-                have_read = 1;
-                wait_micros = 0;
-                break;
-            case APR_EAGAIN:              /* non-blocking read, nothing there */
-                break;
-            case APR_EBADF:               /* connection is not there any more */
-            case APR_EOF:
-            case APR_ECONNABORTED:
-            case APR_ECONNRESET:
-            case APR_TIMEUP:                       /* blocked read, timed out */
-                ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, session->c,
-                              "h2_session(%ld): reading",
-                              session->id);
-                h2_session_abort(session, status, 0);
-                break;
-            default:
-                ap_log_cerror( APLOG_MARK, APLOG_INFO, status, session->c,
-                              APLOGNO(02950) 
-                              "h2_session(%ld): error reading, terminating",
-                              session->id);
-                h2_session_abort(session, status, 0);
-                break;
-        }
-        
-        if (!have_read && !have_written
-            && !h2_stream_set_is_empty(session->streams)) {
-            /* Nothing to read or write, we have streams, but
-             * the have no data yet ready to be delivered. Slowly
-             * back off to give others a chance to do their work.
-             */
-            if (wait_micros == 0) {
-                wait_micros = 10;
-            }
-        }
-    }
-    
-    ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, session->c,
-                  "h2_session(%ld): done", session->id);
-    
-    ap_update_child_status_from_conn(session->c->sbh, SERVER_CLOSING, 
-                                     session->c);
+    SetEvent(ready_event);
+    CloseHandle(ready_event);
 
-    h2_session_close(session);
-    h2_session_destroy(session);
-    
-    return DONE;
+    if (!ReadFile(pipe, child_exit_event, sizeof(HANDLE),
+                  &BytesRead, (LPOVERLAPPED) NULL)
+        || (BytesRead != sizeof(HANDLE))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %d: Unable to retrieve the exit event from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
+
+    if (!ReadFile(pipe, &os_start, sizeof(os_start),
+                  &BytesRead, (LPOVERLAPPED) NULL)
+        || (BytesRead != sizeof(os_start))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %d: Unable to retrieve the start_mutex from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
+    *child_start_mutex = NULL;
+    if ((rv = apr_os_proc_mutex_put(child_start_mutex, &os_start, s->process->pool))
+            != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Child %d: Unable to access the start_mutex from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
+
+    if (!ReadFile(pipe, &hScore, sizeof(hScore),
+                  &BytesRead, (LPOVERLAPPED) NULL)
+        || (BytesRead != sizeof(hScore))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %d: Unable to retrieve the scoreboard from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
+    *scoreboard_shm = NULL;
+    if ((rv = apr_os_shm_put(scoreboard_shm, &hScore, s->process->pool))
+            != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Child %d: Unable to access the scoreboard from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
+
+    rv = ap_reopen_scoreboard(s->process->pool, scoreboard_shm, 1);
+    if (rv || !(sb_shared = apr_shm_baseaddr_get(*scoreboard_shm))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
+                     "Child %d: Unable to reopen the scoreboard from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
+    /* We must 'initialize' the scoreboard to relink all the
+     * process-local pointer arrays into the shared memory block.
+     */
+    ap_init_scoreboard(sb_shared);
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                 "Child %d: Retrieved our scoreboard from the parent.", my_pid);
 }

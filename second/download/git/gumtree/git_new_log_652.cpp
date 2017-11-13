@@ -1,2 +1,1 @@
-error(_("please fix this using "
-				       "'git rebase --edit-todo'."));
+error(_("can't revert as initial commit"));

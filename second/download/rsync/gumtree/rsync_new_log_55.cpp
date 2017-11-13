@@ -1,1 +1,1 @@
-fprintf(stderr,"mktemp %s failed\n",fnametmp);
+fprintf(am_server?stderr:stdout,"%s\n",fname);

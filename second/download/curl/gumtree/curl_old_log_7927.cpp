@@ -1,10 +1,11 @@
 fputs(
-"              ing with the HTTP server.  The specified request  will  be  used\n"
-"              instead  of  the  method otherwise used (which defaults to GET).\n"
-"              Read the HTTP 1.1 specification for  details  and  explanations.\n"
-"              Common  additional  HTTP  requests  include  PUT and DELETE, but\n"
-"              related technologies like WebDAV offers PROPFIND, COPY, MOVE and\n"
-"              more.\n"
+"              col://  prefix  to  specify  alternative  proxy  protocols.  Use\n"
+"              socks4://,  socks4a://,  socks5://  or socks5h:// to request the\n"
+"              specific SOCKS  version  to  be  used.  No  protocol  specified,\n"
+"              http:// and all others will be treated as HTTP proxies.\n"
 "\n"
-"              Normally  you  don't  need  this option. All sorts of GET, HEAD,\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -X, --request <command>\n"
+"              (HTTP) Specifies a custom request method to use when communicat-\n"
 , stdout);

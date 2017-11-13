@@ -1,229 +1,93 @@
-static int cache_quick_handler(request_rec *r, int lookup)
+static BOOL shmcb_subcache_store(server_rec *s, SHMCBHeader *header,
+                                 SHMCBSubcache *subcache, 
+                                 UCHAR *data, unsigned int data_len,
+                                 UCHAR *id, time_t expiry)
 {
-    apr_status_t rv;
-    const char *auth;
-    cache_provider_list *providers;
-    cache_request_rec *cache;
-    apr_bucket_brigade *out;
-    ap_filter_t *next;
-    ap_filter_rec_t *cache_out_handle;
-    cache_server_conf *conf;
+    unsigned int new_offset, new_idx;
+    SHMCBIndex *idx;
 
-    /* Delay initialization until we know we are handling a GET */
-    if (r->method_number != M_GET) {
-        return DECLINED;
+    /* Sanity check the input */
+    if ((data_len > header->subcache_data_size) || (data_len > SSL_SESSION_MAX_DER)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "inserting session larger (%d) than subcache data area (%d)",
+                     data_len, header->subcache_data_size);
+        return FALSE;
     }
 
-    conf = (cache_server_conf *) ap_get_module_config(r->server->module_config,
-                                                      &cache_module);
+    /* If there are entries to expire, ditch them first. */
+    shmcb_subcache_expire(s, header, subcache);
 
-    /* only run if the quick handler is enabled */
-    if (!conf->quick) {
-        return DECLINED;
-    }
+    /* Loop until there is enough space to insert */
+    if (header->subcache_data_size - subcache->data_used < data_len
+        || subcache->idx_used == header->index_num) {
+        unsigned int loop = 0;
 
-    /*
-     * Which cache module (if any) should handle this request?
-     */
-    if (!(providers = ap_cache_get_providers(r, conf, r->parsed_uri))) {
-        return DECLINED;
-    }
+        idx = SHMCB_INDEX(subcache, subcache->idx_pos);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "about to force-expire, subcache: idx_used=%d, "
+                     "data_used=%d", subcache->idx_used, subcache->data_used);
+        do {
+            SHMCBIndex *idx2;
 
-    /* make space for the per request config */
-    cache = (cache_request_rec *) ap_get_module_config(r->request_config,
-                                                       &cache_module);
-    if (!cache) {
-        cache = apr_pcalloc(r->pool, sizeof(cache_request_rec));
-        cache->size = -1;
-        ap_set_module_config(r->request_config, &cache_module, cache);
-    }
-
-    /* save away the possible providers */
-    cache->providers = providers;
-
-    /*
-     * Are we allowed to serve cached info at all?
-     */
-
-    /* find certain cache controlling headers */
-    auth = apr_table_get(r->headers_in, "Authorization");
-
-    /* First things first - does the request allow us to return
-     * cached information at all? If not, just decline the request.
-     */
-    if (auth) {
-        return DECLINED;
-    }
-
-    /*
-     * Try to serve this request from the cache.
-     *
-     * If no existing cache file (DECLINED)
-     *   add cache_save filter
-     * If cached file (OK)
-     *   clear filter stack
-     *   add cache_out filter
-     *   return OK
-     */
-    rv = cache_select(r);
-    if (rv != OK) {
-        if (rv == DECLINED) {
-            if (!lookup) {
-
-                /* try to obtain a cache lock at this point. if we succeed,
-                 * we are the first to try and cache this url. if we fail,
-                 * it means someone else is already trying to cache this
-                 * url, and we should just let the request through to the
-                 * backend without any attempt to cache. this stops
-                 * duplicated simultaneous attempts to cache an entity.
-                 */
-                rv = ap_cache_try_lock(conf, r, NULL);
-                if (APR_SUCCESS == rv) {
-
-                    /*
-                     * Add cache_save filter to cache this request. Choose
-                     * the correct filter by checking if we are a subrequest
-                     * or not.
-                     */
-                    if (r->main) {
-                        ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
-                                r->server,
-                                "Adding CACHE_SAVE_SUBREQ filter for %s",
-                                r->uri);
-                        ap_add_output_filter_handle(cache_save_subreq_filter_handle,
-                                NULL, r, r->connection);
-                    }
-                    else {
-                        ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
-                                r->server, "Adding CACHE_SAVE filter for %s",
-                                r->uri);
-                        ap_add_output_filter_handle(cache_save_filter_handle,
-                                NULL, r, r->connection);
-                    }
-
-                    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
-                            "Adding CACHE_REMOVE_URL filter for %s",
-                            r->uri);
-
-                    /* Add cache_remove_url filter to this request to remove a
-                     * stale cache entry if needed. Also put the current cache
-                     * request rec in the filter context, as the request that
-                     * is available later during running the filter may be
-                     * different due to an internal redirect.
-                     */
-                    cache->remove_url_filter =
-                        ap_add_output_filter_handle(cache_remove_url_filter_handle,
-                                cache, r, r->connection);
-                }
-                else {
-                    ap_log_error(APLOG_MARK, APLOG_DEBUG, rv,
-                                 r->server, "Cache locked for url, not caching "
-                                 "response: %s", r->uri);
-                }
+            /* Adjust the indexes by one */
+            subcache->idx_pos = SHMCB_CYCLIC_INCREMENT(subcache->idx_pos, 1,
+                                                       header->index_num);
+            subcache->idx_used--;
+            if (!subcache->idx_used) {
+                /* There's nothing left */
+                subcache->data_used = 0;
+                break;
             }
-            else {
-                if (cache->stale_headers) {
-                    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
-                                 r->server, "Restoring request headers for %s",
-                                 r->uri);
+            /* Adjust the data */
+            idx2 = SHMCB_INDEX(subcache, subcache->idx_pos);
+            subcache->data_used -= SHMCB_CYCLIC_SPACE(idx->data_pos, idx2->data_pos,
+                                                      header->subcache_data_size);
+            subcache->data_pos = idx2->data_pos;
+            /* Stats */
+            header->stat_scrolled++;
+            /* Loop admin */
+            idx = idx2;
+            loop++;
+        } while (header->subcache_data_size - subcache->data_used < data_len);
 
-                    r->headers_in = cache->stale_headers;
-                }
-
-                /* Delete our per-request configuration. */
-                ap_set_module_config(r->request_config, &cache_module, NULL);
-            }
-        }
-        else {
-            /* error */
-            ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-                         "cache: error returned while checking for cached "
-                         "file by '%s' cache", cache->provider_name);
-        }
-        return DECLINED;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "finished force-expire, subcache: idx_used=%d, "
+                     "data_used=%d", subcache->idx_used, subcache->data_used);
     }
 
-    /* if we are a lookup, we are exiting soon one way or another; Restore
-     * the headers. */
-    if (lookup) {
-        if (cache->stale_headers) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
-                         "Restoring request headers.");
-            r->headers_in = cache->stale_headers;
-        }
-
-        /* Delete our per-request configuration. */
-        ap_set_module_config(r->request_config, &cache_module, NULL);
-    }
-
-    rv = ap_meets_conditions(r);
-    if (rv != OK) {
-        /* If we are a lookup, we have to return DECLINED as we have no
-         * way of knowing if we will be able to serve the content.
-         */
-        if (lookup) {
-            return DECLINED;
-        }
-
-        /* Return cached status. */
-        return rv;
-    }
-
-    /* If we're a lookup, we can exit now instead of serving the content. */
-    if (lookup) {
-        return OK;
-    }
-
-    /* Serve up the content */
-
-    /* We are in the quick handler hook, which means that no output
-     * filters have been set. So lets run the insert_filter hook.
-     */
-    ap_run_insert_filter(r);
-
-    /*
-     * Add cache_out filter to serve this request. Choose
-     * the correct filter by checking if we are a subrequest
-     * or not.
-     */
-    if (r->main) {
-        cache_out_handle = cache_out_subreq_filter_handle;
-    }
-    else {
-        cache_out_handle = cache_out_filter_handle;
-    }
-    ap_add_output_filter_handle(cache_out_handle, NULL, r, r->connection);
-
-    /*
-     * Remove all filters that are before the cache_out filter. This ensures
-     * that we kick off the filter stack with our cache_out filter being the
-     * first in the chain. This make sense because we want to restore things
-     * in the same manner as we saved them.
-     * There may be filters before our cache_out filter, because
+    /* HERE WE ASSUME THAT THE NEW SESSION SHOULD GO ON THE END! I'M NOT
+     * CHECKING WHETHER IT SHOULD BE GENUINELY "INSERTED" SOMEWHERE.
      *
-     * 1. We call ap_set_content_type during cache_select. This causes
-     *    Content-Type specific filters to be added.
-     * 2. We call the insert_filter hook. This causes filters e.g. like
-     *    the ones set with SetOutputFilter to be added.
+     * We either fix that, or find out at a "higher" (read "mod_ssl")
+     * level whether it is possible to have distinct session caches for
+     * any attempted tomfoolery to do with different session timeouts.
+     * Knowing in advance that we can have a cache-wide constant timeout
+     * would make this stuff *MUCH* more efficient. Mind you, it's very
+     * efficient right now because I'm ignoring this problem!!!
      */
-    next = r->output_filters;
-    while (next && (next->frec != cache_out_handle)) {
-        ap_remove_output_filter(next);
-        next = next->next;
-    }
-
-    /* kick off the filter stack */
-    out = apr_brigade_create(r->pool, r->connection->bucket_alloc);
-    rv = ap_pass_brigade(r->output_filters, out);
-    if (rv != APR_SUCCESS) {
-        if (rv != AP_FILTER_ERROR) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-                         "cache: error returned while trying to return %s "
-                         "cached data",
-                         cache->provider_name);
-        }
-        return rv;
-    }
-
-    return OK;
+    /* Insert the data */
+    new_offset = SHMCB_CYCLIC_INCREMENT(subcache->data_pos, subcache->data_used,
+                                        header->subcache_data_size);
+    shmcb_cyclic_ntoc_memcpy(header->subcache_data_size,
+                             SHMCB_DATA(header, subcache), new_offset,
+                             data, data_len);
+    subcache->data_used += data_len;
+    /* Insert the index */
+    new_idx = SHMCB_CYCLIC_INCREMENT(subcache->idx_pos, subcache->idx_used,
+                                     header->index_num);
+    idx = SHMCB_INDEX(subcache, new_idx);
+    idx->expires = expiry;
+    idx->data_pos = new_offset;
+    idx->data_used = data_len;
+    idx->s_id2 = id[1];
+    idx->removed = 0;
+    subcache->idx_used++;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "insert happened at idx=%d, data=%d", new_idx, new_offset);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "finished insert, subcache: idx_pos/idx_used=%d/%d, "
+                 "data_pos/data_used=%d/%d",
+                 subcache->idx_pos, subcache->idx_used,
+                 subcache->data_pos, subcache->data_used);
+    return TRUE;
 }

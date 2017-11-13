@@ -1,22 +1,94 @@
-static void register_hooks(apr_pool_t *p)
+static apr_size_t find_directive(ssi_ctx_t *ctx, const char *data,
+                                 apr_size_t len, char ***store,
+                                 apr_size_t **store_len)
 {
-    ap_hook_process_connection(ap_process_http_connection,NULL,NULL,
-			       APR_HOOK_REALLY_LAST);
-    ap_hook_map_to_storage(ap_send_http_trace,NULL,NULL,APR_HOOK_MIDDLE);
-    ap_hook_http_method(http_method,NULL,NULL,APR_HOOK_REALLY_LAST);
-    ap_hook_default_port(http_port,NULL,NULL,APR_HOOK_REALLY_LAST);
-    ap_hook_create_request(http_create_request, NULL, NULL, APR_HOOK_REALLY_LAST);
-    ap_http_input_filter_handle =
-        ap_register_input_filter("HTTP_IN", ap_http_filter,
-                                 NULL, AP_FTYPE_PROTOCOL);
-    ap_http_header_filter_handle =
-        ap_register_output_filter("HTTP_HEADER", ap_http_header_filter, 
-                                  NULL, AP_FTYPE_PROTOCOL);
-    ap_chunk_filter_handle =
-        ap_register_output_filter("CHUNK", chunk_filter,
-                                  NULL, AP_FTYPE_TRANSCODE);
-    ap_byterange_filter_handle =
-        ap_register_output_filter("BYTERANGE", ap_byterange_filter,
-                                  NULL, AP_FTYPE_PROTOCOL);
-    ap_method_registry_init(p);
+    const char *p = data;
+    const char *ep = data + len;
+    apr_size_t pos;
+
+    switch (ctx->state) {
+    case PARSE_DIRECTIVE:
+        while (p < ep && !apr_isspace(*p)) {
+            /* we have to consider the case of missing space between directive
+             * and end_seq (be somewhat lenient), e.g. <!--#printenv-->
+             */
+            if (*p == *ctx->ctx->end_seq) {
+                ctx->state = PARSE_DIRECTIVE_TAIL;
+                ctx->ctx->parse_pos = 1;
+                ++p;
+                return (p - data);
+            }
+            ++p;
+        }
+
+        if (p < ep) { /* found delimiter whitespace */
+            ctx->state = PARSE_DIRECTIVE_POSTNAME;
+            *store = &ctx->directive;
+            *store_len = &ctx->ctx->directive_length;
+        }
+
+        break;
+
+    case PARSE_DIRECTIVE_TAIL:
+        pos = ctx->ctx->parse_pos;
+
+        while (p < ep && pos < ctx->end_seq_len &&
+               *p == ctx->ctx->end_seq[pos]) {
+            ++p;
+            ++pos;
+        }
+
+        /* full match, we're done */
+        if (pos == ctx->end_seq_len) {
+            ctx->state = PARSE_DIRECTIVE_POSTTAIL;
+            *store = &ctx->directive;
+            *store_len = &ctx->ctx->directive_length;
+            break;
+        }
+
+        /* partial match, the buffer is too small to match fully */
+        if (p == ep) {
+            ctx->ctx->parse_pos = pos;
+            break;
+        }
+
+        /* no match. continue normal parsing */
+        ctx->state = PARSE_DIRECTIVE;
+        return 0;
+
+    case PARSE_DIRECTIVE_POSTTAIL:
+        ctx->state = PARSE_EXECUTE;
+        ctx->ctx->directive_length -= ctx->end_seq_len;
+        /* continue immediately with the next state */
+
+    case PARSE_DIRECTIVE_POSTNAME:
+        if (PARSE_DIRECTIVE_POSTNAME == ctx->state) {
+            ctx->state = PARSE_PRE_ARG;
+        }
+        ctx->argc = 0;
+        ctx->argv = NULL;
+
+        if (!ctx->ctx->directive_length) {
+            ctx->error = 1;
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, "missing directive "
+                          "name in parsed document %s", ctx->r->filename);
+        }
+        else {
+            char *sp = ctx->directive;
+            char *sep = ctx->directive + ctx->ctx->directive_length;
+
+            /* normalize directive name */
+            for (; sp < sep; ++sp) {
+                *sp = apr_tolower(*sp);
+            }
+        }
+
+        return 0;
+
+    default:
+        /* get a rid of a gcc warning about unhandled enumerations */
+        break;
+    }
+
+    return (p - data);
 }

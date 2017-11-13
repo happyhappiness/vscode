@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01556)
-                MODNAME ": subrequest lookup for %s", sub_filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00593)
+                      "Depth must be \"0\" or \"infinity\" for COPY or MOVE.");

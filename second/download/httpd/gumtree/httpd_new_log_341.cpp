@@ -1,1 +1,1 @@
-apr_table_get(r->headers_in, "Cache-Control");
+apr_err("apr_pollset_create failed", status);

@@ -1,1 +1,1 @@
-die("BUG: have_old is true but old_sha1 is NULL");
+die("Not a tree: %s", oid_to_hex(oid));

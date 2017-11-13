@@ -1,91 +1,97 @@
-static int fold_one_header (FILE *fp, const char *tag, const char *value,
-			      const char *pfx, int wraplen, int flags)
+int mutt_write_mime_header (BODY *a, FILE *f)
 {
-  const char *p = value, *next, *sp;
-  char buf[HUGE_STRING] = "";
-  int first = 1, enc, col = 0, w, l = 0, fold;
+  PARAMETER *p;
+  char buffer[STRING];
+  char *t;
+  char *fn;
+  int len;
+  int tmplen;
+  int encode;
+  
+  fprintf (f, "Content-Type: %s/%s", TYPE (a), a->subtype);
 
-  dprint(4,(debugfile,"mwoh: pfx=[%s], tag=[%s], flags=%d value=[%s]\n",
-	    pfx, tag, flags, value));
-
-  if (tag && *tag && fprintf (fp, "%s%s: ", NONULL (pfx), tag) < 0)
-    return -1;
-  col = mutt_strlen (tag) + (tag && *tag ? 2 : 0) + mutt_strlen (pfx);
-
-  while (p && *p)
+  if (a->parameter)
   {
-    fold = 0;
+    len = 25 + mutt_strlen (a->subtype); /* approximate len. of content-type */
 
-    /* find the next word and place it in `buf'. it may start with
-     * whitespace we can fold before */
-    next = find_word (p);
-    l = MIN(sizeof (buf) - 1, next - p);
-    memcpy (buf, p, l);
-    buf[l] = 0;
-
-    /* determine width: character cells for display, bytes for sending
-     * (we get pure ascii only) */
-    w = my_width (buf, col, flags);
-    enc = mutt_strncmp (buf, "=?", 2) == 0;
-
-    dprint(5,(debugfile,"mwoh: word=[%s], col=%d, w=%d, next=[0x0%x]\n",
-	      buf, col, w, *next));
-
-    /* insert a folding \n before the current word's lwsp except for
-     * header name, first word on a line (word longer than wrap width)
-     * and encoded words */
-    if (!first && !enc && col && col + w >= wraplen)
+    for(p = a->parameter; p; p = p->next)
     {
-      col = mutt_strlen (pfx);
-      fold = 1;
-      if (fprintf (fp, "\n%s", NONULL(pfx)) <= 0)
-	return -1;
-    }
+      char *tmp;
+      
+      if(!p->value)
+	continue;
+      
+      fputc (';', f);
 
-    /* print the actual word; for display, ignore leading ws for word
-     * and fold with tab for readability */
-    if ((flags & CH_DISPLAY) && fold)
-    {
-      char *p = buf;
-      while (*p && (*p == ' ' || *p == '\t'))
+      buffer[0] = 0;
+      tmp = safe_strdup (p->value);
+      encode = rfc2231_encode_string (&tmp);
+      rfc822_cat (buffer, sizeof (buffer), tmp, MimeSpecials);
+
+      /* Dirty hack to make messages readable by Outlook Express 
+       * for the Mac: force quotes around the boundary parameter
+       * even when they aren't needed.
+       */
+
+      if (!ascii_strcasecmp (p->attribute, "boundary") && !strcmp (buffer, tmp))
+	snprintf (buffer, sizeof (buffer), "\"%s\"", tmp);
+
+      safe_free ((void **)&tmp);
+
+      tmplen = mutt_strlen (buffer) + mutt_strlen (p->attribute) + 1;
+
+      if (len + tmplen + 2 > 76)
       {
-	p++;
-	col--;
+	fputs ("\n\t", f);
+	len = tmplen + 8;
       }
-      if (fputc ('\t', fp) == EOF)
-	return -1;
-      if (print_val (fp, pfx, p, flags, col) < 0)
-	return -1;
-      col += 8;
-    }
-    else if (print_val (fp, pfx, buf, flags, col) < 0)
-      return -1;
-    col += w;
+      else
+      {
+	fputc (' ', f);
+	len += tmplen + 1;
+      }
 
-    /* if the current word ends in \n, ignore all its trailing spaces
-     * and reset column; this prevents us from putting only spaces (or
-     * even none) on a line if the trailing spaces are located at our
-     * current line width
-     * XXX this covers ASCII space only, for display we probably
-     * XXX want something like iswspace() here */
-    sp = next;
-    while (*sp && (*sp == ' ' || *sp == '\t'))
-      sp++;
-    if (*sp == '\n')
-    {
-      next = sp;
-      col = 0;
-    }
+      fprintf (f, "%s%s=%s", p->attribute, encode ? "*" : "", buffer);
 
-    p = next;
-    first = 0;
+    }
   }
 
-  /* if we have printed something but didn't \n-terminate it, do it
-   * except the last word we printed ended in \n already */
-  if (col && buf[l - 1] != '\n')
-    if (putc ('\n', fp) == EOF)
-      return -1;
+  fputc ('\n', f);
 
-  return 0;
+  if (a->description)
+    fprintf(f, "Content-Description: %s\n", a->description);
+
+  fprintf (f, "Content-Disposition: %s", DISPOSITION (a->disposition));
+
+  if (a->use_disp)
+  {
+    if(!(fn = a->d_filename))
+      fn = a->filename;
+    
+    if (fn)
+    {
+      char *tmp;
+
+      /* Strip off the leading path... */
+      if ((t = strrchr (fn, '/')))
+	t++;
+      else
+	t = fn;
+      
+      buffer[0] = 0;
+      tmp = safe_strdup (t);
+      encode = rfc2231_encode_string (&tmp);
+      rfc822_cat (buffer, sizeof (buffer), tmp, MimeSpecials);
+      safe_free ((void **)&tmp);
+      fprintf (f, "; filename%s=%s", encode ? "*" : "", buffer);
+    }
+  }
+
+  fputc ('\n', f);
+
+  if (a->encoding != ENC7BIT)
+    fprintf(f, "Content-Transfer-Encoding: %s\n", ENCODING (a->encoding));
+
+  /* Do NOT add the terminator here!!! */
+  return (ferror (f) ? -1 : 0);
 }

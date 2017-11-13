@@ -1,1 +1,1 @@
-die("index file corrupt");
+opendir(git_path("objects/17"));

@@ -1,9 +1,11 @@
 fputs(
-"              When  curl is used to do multiple transfers on the command line,\n"
-"              it will attempt to operate on each given URL,  one  by  one.  By\n"
-"              default,  it will ignore errors if there are more URLs given and\n"
-"              the last URL's  success  will  determine  the  error  code  curl\n"
-"              returns.  So  early failures will be \"hidden\" by subsequent suc-\n"
-"              cessful transfers.\n"
+"              details on the default config file search path.\n"
 "\n"
+"       --dns-interface <interface>\n"
+"              (DNS) Tell curl to send outgoing DNS  requests  through  <inter-\n"
+"              face>.  This  option is a counterpart to --interface (which does\n"
+"              not affect DNS). The supplied string must be an  interface  name\n"
+"              (not an address).\n"
+"\n"
+"              See  also  --dns-ipv4-addr  and --dns-ipv6-addr. --dns-interface\n"
 , stdout);

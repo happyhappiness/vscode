@@ -1,5 +1,3 @@
-ap_log_error(APLOG_MARK, rv == APR_SUCCESS ? APLOG_DEBUG : APLOG_ERR,
-                     rv, ap_server_conf, APLOGNO(02611)
-                     "create: apr_shm_create(%s) %s",
-                     fname ? fname : "",
-                     rv == APR_SUCCESS ? "succeeded" : "failed");
+ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, /* NO APLOGNO */
+                  H2_STRM_MSG(stream, "unexpected, started=%d, scheduled=%d, ready=%d"), 
+                  !!stream->task, stream->scheduled, h2_stream_is_ready(stream));

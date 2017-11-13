@@ -1,22 +1,25 @@
-static int init_sizeof_ioinfo()
+static void update_refs_stdin(void)
 {
-	int istty, wastty;
-	/* don't init twice */
-	if (sizeof_ioinfo)
-		return sizeof_ioinfo >= 256;
+	struct strbuf cmd = STRBUF_INIT;
 
-	sizeof_ioinfo = sizeof(ioinfo);
-	wastty = isatty(1);
-	while (sizeof_ioinfo < 256) {
-		/* toggle FDEV flag, check isatty, then toggle back */
-		_pioinfo(1)->osflags ^= FDEV;
-		istty = isatty(1);
-		_pioinfo(1)->osflags ^= FDEV;
-		/* return if we found the correct size */
-		if (istty != wastty)
-			return 0;
-		sizeof_ioinfo += sizeof(void*);
-	}
-	error("Tweaking file descriptors doesn't work with this MSVCRT.dll");
-	return 1;
+	/* Read each line dispatch its command */
+	while (strbuf_getline(&cmd, stdin, line_termination) != EOF)
+		if (!cmd.buf[0])
+			die("empty command in input");
+		else if (isspace(*cmd.buf))
+			die("whitespace before command: %s", cmd.buf);
+		else if (starts_with(cmd.buf, "update "))
+			parse_cmd_update(cmd.buf + 7);
+		else if (starts_with(cmd.buf, "create "))
+			parse_cmd_create(cmd.buf + 7);
+		else if (starts_with(cmd.buf, "delete "))
+			parse_cmd_delete(cmd.buf + 7);
+		else if (starts_with(cmd.buf, "verify "))
+			parse_cmd_verify(cmd.buf + 7);
+		else if (starts_with(cmd.buf, "option "))
+			parse_cmd_option(cmd.buf + 7);
+		else
+			die("unknown command: %s", cmd.buf);
+
+	strbuf_release(&cmd);
 }

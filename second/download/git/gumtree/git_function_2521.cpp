@@ -1,48 +1,89 @@
-static void show_killed_files(struct dir_struct *dir)
+static void read_loose_refs(const char *dirname, struct ref_dir *dir)
 {
-	int i;
-	for (i = 0; i < dir->nr; i++) {
-		struct dir_entry *ent = dir->entries[i];
-		char *cp, *sp;
-		int pos, len, killed = 0;
+	struct ref_cache *refs = dir->ref_cache;
+	DIR *d;
+	struct dirent *de;
+	int dirnamelen = strlen(dirname);
+	struct strbuf refname;
+	struct strbuf path = STRBUF_INIT;
+	size_t path_baselen;
 
-		for (cp = ent->name; cp - ent->name < ent->len; cp = sp + 1) {
-			sp = strchr(cp, '/');
-			if (!sp) {
-				/* If ent->name is prefix of an entry in the
-				 * cache, it will be killed.
-				 */
-				pos = cache_name_pos(ent->name, ent->len);
-				if (0 <= pos)
-					die("bug in show-killed-files");
-				pos = -pos - 1;
-				while (pos < active_nr &&
-				       ce_stage(active_cache[pos]))
-					pos++; /* skip unmerged */
-				if (active_nr <= pos)
-					break;
-				/* pos points at a name immediately after
-				 * ent->name in the cache.  Does it expect
-				 * ent->name to be a directory?
-				 */
-				len = ce_namelen(active_cache[pos]);
-				if ((ent->len < len) &&
-				    !strncmp(active_cache[pos]->name,
-					     ent->name, ent->len) &&
-				    active_cache[pos]->name[ent->len] == '/')
-					killed = 1;
-				break;
-			}
-			if (0 <= cache_name_pos(ent->name, sp - ent->name)) {
-				/* If any of the leading directories in
-				 * ent->name is registered in the cache,
-				 * ent->name will be killed.
-				 */
-				killed = 1;
-				break;
-			}
-		}
-		if (killed)
-			show_dir_entry(tag_killed, dir->entries[i]);
+	if (*refs->name)
+		strbuf_git_path_submodule(&path, refs->name, "%s", dirname);
+	else
+		strbuf_git_path(&path, "%s", dirname);
+	path_baselen = path.len;
+
+	d = opendir(path.buf);
+	if (!d) {
+		strbuf_release(&path);
+		return;
 	}
+
+	strbuf_init(&refname, dirnamelen + 257);
+	strbuf_add(&refname, dirname, dirnamelen);
+
+	while ((de = readdir(d)) != NULL) {
+		unsigned char sha1[20];
+		struct stat st;
+		int flag;
+
+		if (de->d_name[0] == '.')
+			continue;
+		if (ends_with(de->d_name, ".lock"))
+			continue;
+		strbuf_addstr(&refname, de->d_name);
+		strbuf_addstr(&path, de->d_name);
+		if (stat(path.buf, &st) < 0) {
+			; /* silently ignore */
+		} else if (S_ISDIR(st.st_mode)) {
+			strbuf_addch(&refname, '/');
+			add_entry_to_dir(dir,
+					 create_dir_entry(refs, refname.buf,
+							  refname.len, 1));
+		} else {
+			int read_ok;
+
+			if (*refs->name) {
+				hashclr(sha1);
+				flag = 0;
+				read_ok = !resolve_gitlink_ref(refs->name,
+							       refname.buf, sha1);
+			} else {
+				read_ok = !read_ref_full(refname.buf,
+							 RESOLVE_REF_READING,
+							 sha1, &flag);
+			}
+
+			if (!read_ok) {
+				hashclr(sha1);
+				flag |= REF_ISBROKEN;
+			} else if (is_null_sha1(sha1)) {
+				/*
+				 * It is so astronomically unlikely
+				 * that NULL_SHA1 is the SHA-1 of an
+				 * actual object that we consider its
+				 * appearance in a loose reference
+				 * file to be repo corruption
+				 * (probably due to a software bug).
+				 */
+				flag |= REF_ISBROKEN;
+			}
+
+			if (check_refname_format(refname.buf,
+						 REFNAME_ALLOW_ONELEVEL)) {
+				if (!refname_is_safe(refname.buf))
+					die("loose refname is dangerous: %s", refname.buf);
+				hashclr(sha1);
+				flag |= REF_BAD_NAME | REF_ISBROKEN;
+			}
+			add_entry_to_dir(dir,
+					 create_ref_entry(refname.buf, sha1, flag, 0));
+		}
+		strbuf_setlen(&refname, dirnamelen);
+		strbuf_setlen(&path, path_baselen);
+	}
+	strbuf_release(&refname);
+	strbuf_release(&path);
+	closedir(d);
 }

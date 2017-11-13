@@ -1,2 +1,2 @@
-warnf(config, "Keep-alive functionality somewhat crippled due to "
-                "missing support in your operating system!\n");
+warnf(config,
+              "--libcurl option was disabled at build-time!\n");

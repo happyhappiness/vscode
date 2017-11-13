@@ -1,1 +1,2 @@
-warnf(config->global, "curl_mime_headers failed!\n");
+warnf(config->global,
+          "Field encoder not allowed here: %s\n", encoder);

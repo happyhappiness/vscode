@@ -1,2 +1,2 @@
-io_printf(fd,"@ERROR: failed to open lock file %s : %s\n",
-				  lp_lock_file(), strerror(errno));
+fprintf(FERROR,"EOF in map_ptr! (offset=%d len=%d nread=%d errno=%d)\n",
+		  (int)offset, len, nread, errno);

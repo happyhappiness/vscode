@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00321)
-                         "StartServers of %d not allowed, increasing to 1",
-                         ap_daemons_to_start);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02218)
+                     "ssl_stapling_init_cert: no responder URL");

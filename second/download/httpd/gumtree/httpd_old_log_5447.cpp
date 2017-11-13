@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
-                      "h2_mplx(%ld): task(%d) done", m->id, stream_id);
+ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r,
+                      "configuration error:  couldn't %s: %s", phase, r->uri);

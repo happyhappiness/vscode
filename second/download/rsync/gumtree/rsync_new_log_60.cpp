@@ -1,1 +1,1 @@
-fprintf(f,"-x, --one-file-system    don't cross filesystem boundaries\n");
+fprintf(am_server?stderr:stdout,"done\n");

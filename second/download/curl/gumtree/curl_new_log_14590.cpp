@@ -1,9 +1,11 @@
 fputs(
-"                             until  the file transfer was just about to begin.\n"
-"                             This includes all pre-transfer commands and nego-\n"
-"                             tiations that are specific to the particular pro-\n"
-"                             tocol(s) involved.\n"
+"              num_redirects  Number  of  redirects  that  were followed in the\n"
+"                             request. (Added in 7.12.3)\n"
 "\n"
-"              time_redirect  The time, in seconds, it took for all redirection\n"
-"                             steps  include  name lookup, connect, pretransfer\n"
+"              proxy_ssl_verify_result\n"
+"                             The result of the HTTPS proxy's SSL peer certifi-\n"
+"                             cate verification that was requested. 0 means the\n"
+"                             verification was successful. (Added in 7.52.0)\n"
+"\n"
+"              redirect_url   When an HTTP request was made without -L to  fol-\n"
 , stdout);

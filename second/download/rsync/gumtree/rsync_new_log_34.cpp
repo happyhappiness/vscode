@@ -1,1 +1,1 @@
-fprintf(stderr,"chdir %s : %s\n",name,strerror(errno));
+fprintf(stderr,"mkdir %s : %s\n",name,strerror(errno));

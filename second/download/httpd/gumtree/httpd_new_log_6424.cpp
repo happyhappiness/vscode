@@ -1,5 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00028)
-                                  "No authentication done but request not "
-                                  "allowed without authentication for %s. "
-                                  "Authentication not configured?",
-                                  r->uri);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                          "h2_session(%ld): NO_IO event, %d streams open", 
+                          session->id, session->open_streams);

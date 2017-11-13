@@ -1,1 +1,1 @@
-die(_("revision walk setup failed"));
+error(_("invalid mode on line %d: %s"), linenr, line);

@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "proxy: FD: Failed to connect to '%s'",
-                      url);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+                                 "Cannot get media parameter.");

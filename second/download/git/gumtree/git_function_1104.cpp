@@ -1,20 +1,8 @@
-static void die_inside_submodule_path(struct pathspec_item *item)
+static void files_assert_main_repository(struct files_ref_store *refs,
+					 const char *caller)
 {
-	int i;
+	if (refs->store_flags & REF_STORE_MAIN)
+		return;
 
-	for (i = 0; i < active_nr; i++) {
-		struct cache_entry *ce = active_cache[i];
-		int ce_len = ce_namelen(ce);
-
-		if (!S_ISGITLINK(ce->ce_mode))
-			continue;
-
-		if (item->len < ce_len ||
-		    !(item->match[ce_len] == '/' || item->match[ce_len] == '\0') ||
-		    memcmp(ce->name, item->match, ce_len))
-			continue;
-
-		die(_("Pathspec '%s' is in submodule '%.*s'"),
-		    item->original, ce_len, ce->name);
-	}
+	die("BUG: operation %s only allowed for main ref store", caller);
 }

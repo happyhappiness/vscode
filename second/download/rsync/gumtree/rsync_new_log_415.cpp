@@ -1,2 +1,1 @@
-rprintf(FERROR,"write_longint failed : %s\n",
-			ret==-1?strerror(errno):"EOF");
+rprintf(FINFO,"clearing exclude list\n");

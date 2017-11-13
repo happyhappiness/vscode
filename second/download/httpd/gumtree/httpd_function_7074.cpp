@@ -1,70 +1,45 @@
-static authz_status lua_authz_check(request_rec *r, const char *require_line,
-                                    const void *parsed_require_line)
+static int proxy_balancer_post_request(proxy_worker *worker,
+                                       proxy_balancer *balancer,
+                                       request_rec *r,
+                                       proxy_server_conf *conf)
 {
-    apr_pool_t *pool;
-    ap_lua_vm_spec *spec;
-    lua_State *L;
-    ap_lua_server_cfg *server_cfg = ap_get_module_config(r->server->module_config,
-                                                         &lua_module);
-    const ap_lua_dir_cfg *cfg = ap_get_module_config(r->per_dir_config,
-                                                     &lua_module);
-    const lua_authz_provider_spec *prov_spec = parsed_require_line;
-    int result;
-    int nargs = 0;
 
-    spec = create_vm_spec(&pool, r, cfg, server_cfg, prov_spec->file_name,
-                          NULL, 0, prov_spec->function_name, "authz provider");
+    apr_status_t rv;
 
-    L = ap_lua_get_lua_state(pool, spec);
-    if (L == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02314)
-                      "Unable to compile VM for authz provider %s", prov_spec->name);
-        return AUTHZ_GENERAL_ERROR;
+    if ((rv = PROXY_THREAD_LOCK(balancer)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01173)
+                      "%s: Lock failed for post_request",
+                      balancer->s->name);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
-    lua_getglobal(L, prov_spec->function_name);
-    if (!lua_isfunction(L, -1)) {
-        ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(02319)
-                      "Unable to find function %s in %s",
-                      prov_spec->function_name, prov_spec->file_name);
-        return AUTHZ_GENERAL_ERROR;
-    }
-    ap_lua_run_lua_request(L, r);
-    if (prov_spec->args) {
+
+    if (!apr_is_empty_array(balancer->errstatuses)) {
         int i;
-        if (!lua_checkstack(L, prov_spec->args->nelts)) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02315)
-                          "Error: authz provider %s: too many arguments", prov_spec->name);
-            return AUTHZ_GENERAL_ERROR;
+        for (i = 0; i < balancer->errstatuses->nelts; i++) {
+            int val = ((int *)balancer->errstatuses->elts)[i];
+            if (r->status == val) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01174)
+                              "%s: Forcing worker (%s) into error state " 
+                              "due to status code %d matching 'failonstatus' "
+                              "balancer parameter",
+                              balancer->s->name, worker->s->name, val);
+                worker->s->status |= PROXY_WORKER_IN_ERROR;
+                worker->s->error_time = apr_time_now();
+                break;
+            }
         }
-        for (i = 0; i < prov_spec->args->nelts; i++) {
-            const char *arg = APR_ARRAY_IDX(prov_spec->args, i, const char *);
-            lua_pushstring(L, arg);
-        }
-        nargs = prov_spec->args->nelts;
     }
-    if (lua_pcall(L, 1 + nargs, 1, 0)) {
-        const char *err = lua_tostring(L, -1);
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02316)
-                      "Error executing authz provider %s: %s", prov_spec->name, err);
-        return AUTHZ_GENERAL_ERROR;
+
+    if ((rv = PROXY_THREAD_UNLOCK(balancer)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01175)
+                      "%s: Unlock failed for post_request", balancer->s->name);
     }
-    if (!lua_isnumber(L, -1)) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02317)
-                      "Error: authz provider %s did not return integer", prov_spec->name);
-        return AUTHZ_GENERAL_ERROR;
-    }
-    result = lua_tointeger(L, -1);
-    switch (result) {
-        case AUTHZ_DENIED:
-        case AUTHZ_GRANTED:
-        case AUTHZ_NEUTRAL:
-        case AUTHZ_GENERAL_ERROR:
-        case AUTHZ_DENIED_NO_USER:
-            return result;
-        default:
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02318)
-                          "Error: authz provider %s: invalid return value %d",
-                          prov_spec->name, result);
-    }
-    return AUTHZ_GENERAL_ERROR;
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01176)
+                  "proxy_balancer_post_request for (%s)", balancer->s->name);
+
+    if (worker && worker->s->busy)
+        worker->s->busy--;
+
+    return OK;
+
 }

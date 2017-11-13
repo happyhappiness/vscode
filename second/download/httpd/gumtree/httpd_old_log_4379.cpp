@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "stapling_cb: OCSP Stapling callback called");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                         "proxy: FCGI: Error parsing script headers");

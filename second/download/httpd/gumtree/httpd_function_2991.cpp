@@ -1,106 +1,110 @@
-static void socache_dbm_expire(ap_socache_instance_t *ctx, server_rec *s)
+static authz_status ldapdn_check_authorization(request_rec *r,
+                                             const char *require_args)
 {
-    apr_dbm_t *dbm;
-    apr_datum_t dbmkey;
-    apr_datum_t dbmval;
-    apr_time_t expiry;
-    int elts = 0;
-    int deleted = 0;
-    int expired;
-    apr_datum_t *keylist;
-    int keyidx;
-    int i;
-    apr_time_t now;
-    apr_status_t rv;
+    int result = 0;
+    authn_ldap_request_t *req =
+        (authn_ldap_request_t *)ap_get_module_config(r->request_config, &authnz_ldap_module);
+    authn_ldap_config_t *sec =
+        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
 
-    /*
-     * make sure the expiration for still not-accessed
-     * socache entries is done only from time to time
-     */
-    now = apr_time_now();
+    util_ldap_connection_t *ldc = NULL;
 
-    if (now < ctx->last_expiry + ctx->expiry_interval) {
-        return;
+    const char *t;
+
+    char filtbuf[FILTER_LENGTH];
+    const char *dn = NULL;
+
+    if (!sec->have_ldap_url) {
+        return AUTHZ_DENIED;
     }
 
-    ctx->last_expiry = now;
-
-    /*
-     * Here we have to be very carefully: Not all DBM libraries are
-     * smart enough to allow one to iterate over the elements and at the
-     * same time delete expired ones. Some of them get totally crazy
-     * while others have no problems. So we have to do it the slower but
-     * more safe way: we first iterate over all elements and remember
-     * those which have to be expired. Then in a second pass we delete
-     * all those expired elements. Additionally we reopen the DBM file
-     * to be really safe in state.
-     */
-
-#define KEYMAX 1024
-
-    for (;;) {
-        /* allocate the key array in a memory sub pool */
-        apr_pool_clear(ctx->pool);
-
-        if ((keylist = apr_palloc(ctx->pool, sizeof(dbmkey)*KEYMAX)) == NULL) {
-            break;
-        }
-
-        /* pass 1: scan DBM database */
-        keyidx = 0;
-        if ((rv = apr_dbm_open(&dbm, ctx->data_file, APR_DBM_RWCREATE,
-                               DBM_FILE_MODE, ctx->pool)) != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00811)
-                         "Cannot open socache DBM file `%s' for "
-                         "scanning",
-                         ctx->data_file);
-            break;
-        }
-        apr_dbm_firstkey(dbm, &dbmkey);
-        while (dbmkey.dptr != NULL) {
-            elts++;
-            expired = FALSE;
-            apr_dbm_fetch(dbm, dbmkey, &dbmval);
-            if (dbmval.dsize <= sizeof(apr_time_t) || dbmval.dptr == NULL)
-                expired = TRUE;
-            else {
-                memcpy(&expiry, dbmval.dptr, sizeof(apr_time_t));
-                if (expiry <= now)
-                    expired = TRUE;
-            }
-            if (expired) {
-                if ((keylist[keyidx].dptr = apr_pmemdup(ctx->pool, dbmkey.dptr, dbmkey.dsize)) != NULL) {
-                    keylist[keyidx].dsize = dbmkey.dsize;
-                    keyidx++;
-                    if (keyidx == KEYMAX)
-                        break;
-                }
-            }
-            apr_dbm_nextkey(dbm, &dbmkey);
-        }
-        apr_dbm_close(dbm);
-
-        /* pass 2: delete expired elements */
-        if (apr_dbm_open(&dbm, ctx->data_file, APR_DBM_RWCREATE,
-                         DBM_FILE_MODE, ctx->pool) != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00812)
-                         "Cannot re-open socache DBM file `%s' for "
-                         "expiring",
-                         ctx->data_file);
-            break;
-        }
-        for (i = 0; i < keyidx; i++) {
-            apr_dbm_delete(dbm, keylist[i]);
-            deleted++;
-        }
-        apr_dbm_close(dbm);
-
-        if (keyidx < KEYMAX)
-            break;
+    if (sec->host) {
+        ldc = get_connection_for_authz(r, LDAP_SEARCH); /* _comparedn is a searche */
+        apr_pool_cleanup_register(r->pool, ldc,
+                                  authnz_ldap_cleanup_connection_close,
+                                  apr_pool_cleanup_null);
+    }
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorize: no sec->host - weird...?", getpid());
+        return AUTHZ_DENIED;
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00813)
-                 "DBM socache expiry: "
-                 "old: %d, new: %d, removed: %d",
-                 elts, elts-deleted, deleted);
+    /*
+     * If we have been authenticated by some other module than mod_auth_ldap,
+     * the req structure needed for authorization needs to be created
+     * and populated with the userid and DN of the account in LDAP
+     */
+
+    /* Check that we have a userid to start with */
+    if (!r->user) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+            "access to %s failed, reason: no authenticated user", r->uri);
+        return AUTHZ_DENIED;
+    }
+
+    if (!strlen(r->user)) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+            "ldap authorize: Userid is blank, AuthType=%s",
+            r->ap_auth_type);
+    }
+
+    if(!req) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+            "ldap authorize: Creating LDAP req structure");
+
+        /* Build the username filter */
+        authn_ldap_build_filter(filtbuf, r, r->user, NULL, sec);
+
+        /* Search for the user DN */
+        result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
+             sec->scope, sec->attributes, filtbuf, &dn, &(req->vals));
+
+        /* Search failed, log error and return failure */
+        if(result != LDAP_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                "auth_ldap authorise: User DN not found, %s", ldc->reason);
+            return AUTHZ_DENIED;
+        }
+
+        req = (authn_ldap_request_t *)apr_pcalloc(r->pool,
+            sizeof(authn_ldap_request_t));
+        ap_set_module_config(r->request_config, &authnz_ldap_module, req);
+        req->dn = apr_pstrdup(r->pool, dn);
+        req->user = r->user;
+    }
+
+    t = require_args;
+
+    if (req->dn == NULL || strlen(req->dn) == 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorize: "
+                      "require dn: user's DN has not been defined; failing authorization",
+                      getpid());
+        return AUTHZ_DENIED;
+    }
+
+    result = util_ldap_cache_comparedn(r, ldc, sec->url, req->dn, t, sec->compare_dn_on_server);
+    switch(result) {
+        case LDAP_COMPARE_TRUE: {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "[%" APR_PID_T_FMT "] auth_ldap authorize: "
+                          "require dn: authorization successful", getpid());
+            set_request_vars(r, LDAP_AUTHZ);
+            return AUTHZ_GRANTED;
+        }
+        default: {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "[%" APR_PID_T_FMT "] auth_ldap authorize: "
+                          "require dn \"%s\": LDAP error [%s][%s]",
+                          getpid(), t, ldc->reason, ldap_err2string(result));
+        }
+    }
+
+
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "[%" APR_PID_T_FMT "] auth_ldap authorize dn: authorization denied for user %s to %s",
+                  getpid(), r->user, r->uri);
+
+    return AUTHZ_DENIED;
 }

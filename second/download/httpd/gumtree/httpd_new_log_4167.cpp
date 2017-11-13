@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02238)
-                "Unable to configure %s server private key", type);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE8, 0, r,
+                         "ajp_handle_cping_cpong: Done");

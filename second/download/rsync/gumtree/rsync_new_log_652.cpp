@@ -1,1 +1,1 @@
-fprintf(stderr, "==> execvp(%s) argv[%d]:", argv[0], argc);
+fprintf(stderr,"failed to create pid file %s\n", pid_file);

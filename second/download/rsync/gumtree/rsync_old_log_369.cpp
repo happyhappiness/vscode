@@ -1,0 +1,1 @@
+fprintf(FERROR,"%s is newer\n",fname);

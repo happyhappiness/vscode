@@ -1,1 +1,1 @@
-error("Unable to open %s for writing", lockpath);
+error("Unable to write to %s", lockpath);

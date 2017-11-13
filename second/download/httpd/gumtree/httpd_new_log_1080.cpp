@@ -1,2 +1,1 @@
-fprintf(stderr, "Warning: Plain text passwords aren't supported by the "
-                    "server on this platform!\n");
+fprintf(f, "0x%02x", *tables++);

@@ -1,1 +1,1 @@
-fputs(c_context, stdout);
+die(_("BUG: reopen a lockfile that is still open"));

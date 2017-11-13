@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, APLOGNO(01827)
-                "the key type is not known");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01553)
+                    MODNAME ": couldn't spawn uncompress process: %s", r->uri);

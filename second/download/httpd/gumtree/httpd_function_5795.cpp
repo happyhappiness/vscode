@@ -1,37 +1,57 @@
-apr_status_t h2_mplx_out_close(h2_mplx *m, int stream_id)
+int h2_is_acceptable_connection(conn_rec *c, int require_all) 
 {
-    apr_status_t status;
-    int acquired;
-    
-    AP_DEBUG_ASSERT(m);
-    if ((status = enter_mutex(m, &acquired)) == APR_SUCCESS) {
-        h2_io *io = h2_io_set_get(m->stream_ios, stream_id);
-        if (io && !io->orphaned) {
-            if (!io->response && !io->rst_error) {
-                /* In case a close comes before a response was created,
-                 * insert an error one so that our streams can properly
-                 * reset.
-                 */
-                h2_response *r = h2_response_die(stream_id, APR_EGENERAL, 
-                                                 io->request, m->pool);
-                status = out_open(m, stream_id, r, NULL, NULL, NULL);
-                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, m->c,
-                              "h2_mplx(%ld-%d): close, no response, no rst", 
-                              m->id, io->id);
+    int is_tls = h2_h2_is_tls(c);
+    const h2_config *cfg = h2_config_get(c);
+
+    if (is_tls && h2_config_geti(cfg, H2_CONF_MODERN_TLS_ONLY) > 0) {
+        /* Check TLS connection for modern TLS parameters, as defined in
+         * RFC 7540 and https://wiki.mozilla.org/Security/Server_Side_TLS#Modern_compatibility
+         */
+        apr_pool_t *pool = c->pool;
+        server_rec *s = c->base_server;
+        char *val;
+        
+        if (!opt_ssl_var_lookup) {
+            /* unable to check */
+            return 0;
+        }
+        
+        /* Need Tlsv1.2 or higher, rfc 7540, ch. 9.2
+         */
+        val = opt_ssl_var_lookup(pool, s, c, NULL, (char*)"SSL_PROTOCOL");
+        if (val && *val) {
+            if (strncmp("TLS", val, 3) 
+                || !strcmp("TLSv1", val) 
+                || !strcmp("TLSv1.1", val)) {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                          "h2_h2(%ld): tls protocol not suitable: %s", 
+                          (long)c->id, val);
+                return 0;
             }
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, m->c,
-                          "h2_mplx(%ld-%d): close with eor=%s", 
-                          m->id, io->id, io->eor? "yes" : "no");
-            status = h2_io_out_close(io);
-            H2_MPLX_IO_OUT(APLOG_TRACE2, m, io, "h2_mplx_out_close");
-            io_out_consumed_signal(m, io);
-            
-            have_out_data_for(m, stream_id);
         }
-        else {
-            status = APR_ECONNABORTED;
+        else if (require_all) {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                          "h2_h2(%ld): tls protocol is indetermined", (long)c->id);
+            return 0;
         }
-        leave_mutex(m, acquired);
+
+        /* Check TLS cipher blacklist
+         */
+        val = opt_ssl_var_lookup(pool, s, c, NULL, (char*)"SSL_CIPHER");
+        if (val && *val) {
+            const char *source;
+            if (cipher_is_blacklisted(val, &source)) {
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                              "h2_h2(%ld): tls cipher %s blacklisted by %s", 
+                              (long)c->id, val, source);
+                return 0;
+            }
+        }
+        else if (require_all) {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                          "h2_h2(%ld): tls cipher is indetermined", (long)c->id);
+            return 0;
+        }
     }
-    return status;
+    return 1;
 }

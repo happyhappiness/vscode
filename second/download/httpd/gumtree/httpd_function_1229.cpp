@@ -1,53 +1,90 @@
-static authn_status check_password(request_rec *r, const char *user,
-                                   const char *password)
+static apr_status_t store_body(cache_handle_t *h, request_rec *r,
+                               apr_bucket_brigade *bb)
 {
-    authn_file_config_rec *conf = ap_get_module_config(r->per_dir_config,
-                                                       &authn_file_module);
-    ap_configfile_t *f;
-    char l[MAX_STRING_LEN];
-    apr_status_t status;
-    char *file_password = NULL;
+    apr_bucket *e;
+    apr_status_t rv;
+    disk_cache_object_t *dobj = (disk_cache_object_t *) h->cache_obj->vobj;
+    disk_cache_conf *conf = ap_get_module_config(r->server->module_config,
+                                                 &disk_cache_module);
 
-    if (!conf->pwfile) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "AuthUserFile not specified in the configuration");
-        return AUTH_GENERAL_ERROR;
+    /* We write to a temp file and then atomically rename the file over
+     * in file_cache_el_final().
+     */
+    if (!dobj->tfd) {
+        rv = apr_file_mktemp(&dobj->tfd, dobj->tempfile,
+                             APR_CREATE | APR_WRITE | APR_BINARY |
+                             APR_BUFFERED | APR_EXCL, r->pool);
+        if (rv != APR_SUCCESS) {
+            return rv;
+        }
+        dobj->file_size = 0;
     }
 
-    status = ap_pcfg_openfile(&f, r->pool, conf->pwfile);
-
-    if (status != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                      "Could not open password file: %s", conf->pwfile);
-        return AUTH_GENERAL_ERROR;
+    for (e = APR_BRIGADE_FIRST(bb);
+         e != APR_BRIGADE_SENTINEL(bb);
+         e = APR_BUCKET_NEXT(e))
+    {
+        const char *str;
+        apr_size_t length, written;
+        rv = apr_bucket_read(e, &str, &length, APR_BLOCK_READ);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                         "cache_disk: Error when reading bucket for URL %s",
+                         h->cache_obj->key);
+            /* Remove the intermediate cache file and return non-APR_SUCCESS */
+            file_cache_errorcleanup(dobj, r);
+            return rv;
+        }
+        rv = apr_file_write_full(dobj->tfd, str, length, &written);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                         "cache_disk: Error when writing cache file for URL %s",
+                         h->cache_obj->key);
+            /* Remove the intermediate cache file and return non-APR_SUCCESS */
+            file_cache_errorcleanup(dobj, r);
+            return rv;
+        }
+        dobj->file_size += written;
+        if (dobj->file_size > conf->maxfs) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache_disk: URL %s failed the size check "
+                         "(%" APR_OFF_T_FMT ">%" APR_SIZE_T_FMT ")",
+                         h->cache_obj->key, dobj->file_size, conf->maxfs);
+            /* Remove the intermediate cache file and return non-APR_SUCCESS */
+            file_cache_errorcleanup(dobj, r);
+            return APR_EGENERAL;
+        }
     }
 
-    while (!(ap_cfg_getline(l, MAX_STRING_LEN, f))) {
-        const char *rpw, *w;
-
-        /* Skip # or blank lines. */
-        if ((l[0] == '#') || (!l[0])) {
-            continue;
+    /* Was this the final bucket? If yes, close the temp file and perform
+     * sanity checks.
+     */
+    if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(bb))) {
+        if (r->connection->aborted || r->no_cache) {
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                         "disk_cache: Discarding body for URL %s "
+                         "because connection has been aborted.",
+                         h->cache_obj->key);
+            /* Remove the intermediate cache file and return non-APR_SUCCESS */
+            file_cache_errorcleanup(dobj, r);
+            return APR_EGENERAL;
+        }
+        if (dobj->file_size < conf->minfs) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache_disk: URL %s failed the size check "
+                         "(%" APR_OFF_T_FMT "<%" APR_SIZE_T_FMT ")",
+                         h->cache_obj->key, dobj->file_size, conf->minfs);
+            /* Remove the intermediate cache file and return non-APR_SUCCESS */
+            file_cache_errorcleanup(dobj, r);
+            return APR_EGENERAL;
         }
 
-        rpw = l;
-        w = ap_getword(r->pool, &rpw, ':');
-
-        if (!strcmp(user, w)) {
-            file_password = ap_getword(r->pool, &rpw, ':');
-            break;
-        }
-    }
-    ap_cfg_closefile(f);
-
-    if (!file_password) {
-        return AUTH_USER_NOT_FOUND;
+        /* All checks were fine. Move tempfile to final destination */
+        /* Link to the perm file, and close the descriptor */
+        file_cache_el_final(dobj, r);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "disk_cache: Body for URL %s cached.",  dobj->name);
     }
 
-    status = apr_password_validate(password, file_password);
-    if (status != APR_SUCCESS) {
-        return AUTH_DENIED;
-    }
-
-    return AUTH_GRANTED;
+    return APR_SUCCESS;
 }

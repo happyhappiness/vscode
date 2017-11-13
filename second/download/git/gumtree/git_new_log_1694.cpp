@@ -1,1 +1,1 @@
-objreport(obj, "error", err);
+error("%s", err.buf);

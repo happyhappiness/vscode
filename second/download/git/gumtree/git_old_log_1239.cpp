@@ -1,1 +1,1 @@
-die_errno("unable to get current working directory");
+printf("num get patch: %d\n", num_get_patch);

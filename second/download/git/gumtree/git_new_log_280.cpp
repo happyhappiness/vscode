@@ -1,1 +1,0 @@
-die(_("could not find commit from NOTES_MERGE_PARTIAL."));

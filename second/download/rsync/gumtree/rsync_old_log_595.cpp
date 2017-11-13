@@ -1,0 +1,1 @@
+fprintf(FERROR,"receive_sums failed\n");

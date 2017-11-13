@@ -1,1 +1,1 @@
-fprintf(FERROR,"%s : %s\n",fname,strerror(errno));
+fprintf(FERROR,"calling match_sums %s\n",fname);

@@ -1,97 +1,83 @@
-int cmd_pull(int argc, const char **argv, const char *prefix)
+int cmd_receive_pack(int argc, const char **argv, const char *prefix)
 {
-	const char *repo, **refspecs;
-	struct sha1_array merge_heads = SHA1_ARRAY_INIT;
-	unsigned char orig_head[GIT_SHA1_RAWSZ], curr_head[GIT_SHA1_RAWSZ];
-	unsigned char rebase_fork_point[GIT_SHA1_RAWSZ];
+	int advertise_refs = 0;
+	struct command *commands;
+	struct sha1_array shallow = SHA1_ARRAY_INIT;
+	struct sha1_array ref = SHA1_ARRAY_INIT;
+	struct shallow_info si;
 
-	if (!getenv("GIT_REFLOG_ACTION"))
-		set_reflog_message(argc, argv);
+	struct option options[] = {
+		OPT__QUIET(&quiet, N_("quiet")),
+		OPT_HIDDEN_BOOL(0, "stateless-rpc", &stateless_rpc, NULL),
+		OPT_HIDDEN_BOOL(0, "advertise-refs", &advertise_refs, NULL),
+		OPT_HIDDEN_BOOL(0, "reject-thin-pack-for-testing", &reject_thin, NULL),
+		OPT_END()
+	};
 
-	argc = parse_options(argc, argv, prefix, pull_options, pull_usage, 0);
+	packet_trace_identity("receive-pack");
 
-	parse_repo_refspecs(argc, argv, &repo, &refspecs);
+	argc = parse_options(argc, argv, prefix, options, receive_pack_usage, 0);
 
-	if (!opt_ff)
-		opt_ff = xstrdup_or_null(config_get_ff());
+	if (argc > 1)
+		usage_msg_opt(_("Too many arguments."), receive_pack_usage, options);
+	if (argc == 0)
+		usage_msg_opt(_("You must specify a directory."), receive_pack_usage, options);
 
-	if (opt_rebase < 0)
-		opt_rebase = config_get_rebase();
+	service_dir = argv[0];
 
-	git_config(git_pull_config, NULL);
+	setup_path();
 
-	if (read_cache_unmerged())
-		die_resolve_conflict("Pull");
+	if (!enter_repo(service_dir, 0))
+		die("'%s' does not appear to be a git repository", service_dir);
 
-	if (file_exists(git_path("MERGE_HEAD")))
-		die_conclude_merge();
+	git_config(receive_pack_config, NULL);
+	if (cert_nonce_seed)
+		push_cert_nonce = prepare_push_cert_nonce(service_dir, time(NULL));
 
-	if (get_sha1("HEAD", orig_head))
-		hashclr(orig_head);
+	if (0 <= transfer_unpack_limit)
+		unpack_limit = transfer_unpack_limit;
+	else if (0 <= receive_unpack_limit)
+		unpack_limit = receive_unpack_limit;
 
-	if (!opt_rebase && opt_autostash != -1)
-		die(_("--[no-]autostash option is only valid with --rebase."));
-
-	if (opt_rebase) {
-		int autostash = config_autostash;
-		if (opt_autostash != -1)
-			autostash = opt_autostash;
-
-		if (is_null_sha1(orig_head) && !is_cache_unborn())
-			die(_("Updating an unborn branch with changes added to the index."));
-
-		if (!autostash)
-			die_on_unclean_work_tree(prefix);
-
-		if (get_rebase_fork_point(rebase_fork_point, repo, *refspecs))
-			hashclr(rebase_fork_point);
+	if (advertise_refs || !stateless_rpc) {
+		write_head_info();
 	}
-
-	if (run_fetch(repo, refspecs))
-		return 1;
-
-	if (opt_dry_run)
+	if (advertise_refs)
 		return 0;
 
-	if (get_sha1("HEAD", curr_head))
-		hashclr(curr_head);
+	if ((commands = read_head_info(&shallow)) != NULL) {
+		const char *unpack_status = NULL;
 
-	if (!is_null_sha1(orig_head) && !is_null_sha1(curr_head) &&
-			hashcmp(orig_head, curr_head)) {
-		/*
-		 * The fetch involved updating the current branch.
-		 *
-		 * The working tree and the index file are still based on
-		 * orig_head commit, but we are merging into curr_head.
-		 * Update the working tree to match curr_head.
-		 */
-
-		warning(_("fetch updated the current branch head.\n"
-			"fast-forwarding your working tree from\n"
-			"commit %s."), sha1_to_hex(orig_head));
-
-		if (checkout_fast_forward(orig_head, curr_head, 0))
-			die(_("Cannot fast-forward your working tree.\n"
-				"After making sure that you saved anything precious from\n"
-				"$ git diff %s\n"
-				"output, run\n"
-				"$ git reset --hard\n"
-				"to recover."), sha1_to_hex(orig_head));
+		prepare_shallow_info(&si, &shallow);
+		if (!si.nr_ours && !si.nr_theirs)
+			shallow_update = 0;
+		if (!delete_only(commands)) {
+			unpack_status = unpack_with_sideband(&si);
+			update_shallow_info(commands, &si, &ref);
+		}
+		execute_commands(commands, unpack_status, &si);
+		if (pack_lockfile)
+			unlink_or_warn(pack_lockfile);
+		if (report_status)
+			report(commands, unpack_status);
+		run_receive_hook(commands, "post-receive", 1);
+		run_update_post_hook(commands);
+		if (auto_gc) {
+			const char *argv_gc_auto[] = {
+				"gc", "--auto", "--quiet", NULL,
+			};
+			int opt = RUN_GIT_CMD | RUN_COMMAND_STDOUT_TO_STDERR;
+			close_all_packs();
+			run_command_v_opt(argv_gc_auto, opt);
+		}
+		if (auto_update_server_info)
+			update_server_info(0);
+		clear_shallow_info(&si);
 	}
-
-	get_merge_heads(&merge_heads);
-
-	if (!merge_heads.nr)
-		die_no_merge_candidates(repo, refspecs);
-
-	if (is_null_sha1(orig_head)) {
-		if (merge_heads.nr > 1)
-			die(_("Cannot merge multiple branches into empty head."));
-		return pull_into_void(*merge_heads.sha1, curr_head);
-	} else if (opt_rebase) {
-		if (merge_heads.nr > 1)
-			die(_("Cannot rebase onto multiple branches."));
-		return run_rebase(curr_head, *merge_heads.sha1, rebase_fork_point);
-	} else
-		return run_merge();
+	if (use_sideband)
+		packet_flush(1);
+	sha1_array_clear(&shallow);
+	sha1_array_clear(&ref);
+	free((void *)push_cert_nonce);
+	return 0;
 }

@@ -1,1 +1,1 @@
-printf ("\nConfigure options: %s\n", configure_options);
+puts (cc_version);

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                             "Parent: Child process exited successfully.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                    "Encountered FakeBasicAuth spoof: %s", username);

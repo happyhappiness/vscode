@@ -1,16 +1,28 @@
-static void copyright(void)
+apr_status_t h2_workers_register(h2_workers *workers, struct h2_mplx *m)
 {
-    if (!use_html) {
-        printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1706008 $>");
-        printf("Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
-        printf("Licensed to The Apache Software Foundation, http://www.apache.org/\n");
-        printf("\n");
+    apr_status_t status = apr_thread_mutex_lock(workers->lock);
+    if (status == APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, status, workers->s,
+                     "h2_workers: register mplx(%ld)", m->id);
+        if (in_list(workers, m)) {
+            status = APR_EAGAIN;
+        }
+        else {
+            H2_MPLX_LIST_INSERT_TAIL(&workers->mplxs, m);
+            status = APR_SUCCESS;
+        }
+        
+        if (workers->idle_worker_count > 0) { 
+            apr_thread_cond_signal(workers->mplx_added);
+        }
+        else if (workers->worker_count < workers->max_size) {
+            ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
+                         "h2_workers: got %d worker, adding 1", 
+                         workers->worker_count);
+            add_worker(workers);
+        }
+        
+        apr_thread_mutex_unlock(workers->lock);
     }
-    else {
-        printf("<p>\n");
-        printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1706008 $");
-        printf(" Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
-        printf(" Licensed to The Apache Software Foundation, http://www.apache.org/<br>\n");
-        printf("</p>\n<p>\n");
-    }
+    return status;
 }

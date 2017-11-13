@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03064)
-                      "h2_stream(%ld-%d): on_data_chunk for unknown stream",
-                      session->id, (int)stream_id);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, r ? r->connection : c, APLOGNO(00082)
+                  "an unknown filter was not added: %s", name);

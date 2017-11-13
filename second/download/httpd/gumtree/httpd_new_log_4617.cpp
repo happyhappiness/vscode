@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00226)
-            "caught SIGTERM, shutting down");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01851)
+                      "failed to acquire database connection");

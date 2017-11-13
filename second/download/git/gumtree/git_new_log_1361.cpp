@@ -1,2 +1,1 @@
-die_errno("failed to write to %s",
-				  shallow_lock->filename.buf);
+die("Couldn't allocate PCRE2 match context");

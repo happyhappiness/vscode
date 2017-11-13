@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s, APLOGNO(00426)
-                         "Parent: SetEvent for child process %pp failed.",
-                         event_handles[CHILD_HANDLE]);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02227)
+                          "Failed to set r->user to '%s'", dc->szUserName);

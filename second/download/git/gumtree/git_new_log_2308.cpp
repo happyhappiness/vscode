@@ -1,1 +1,1 @@
-error_errno("poll failed resuming");
+die("--reverse and --first-parent together require specified latest commit");

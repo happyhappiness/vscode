@@ -1,113 +1,113 @@
-static const char *mod_auth_ldap_parse_url(cmd_parms *cmd,
-                                    void *config,
-                                    const char *url,
-                                    const char *mode)
+int main(int argc, char **argv)
 {
-    int rc;
-    apr_ldap_url_desc_t *urld;
-    apr_ldap_err_t *result;
+int i;
+FILE *f;
+const unsigned char *tables = pcre_maketables();
 
-    authn_ldap_config_t *sec = config;
+if (argc != 2)
+  {
+  fprintf(stderr, "dftables: one filename argument is required\n");
+  return 1;
+  }
 
-    rc = apr_ldap_url_parse(cmd->pool, url, &(urld), &(result));
-    if (rc != APR_SUCCESS) {
-        return result->reason;
-    }
-    sec->url = apr_pstrdup(cmd->pool, url);
+f = fopen(argv[1], "w");
+if (f == NULL)
+  {
+  fprintf(stderr, "dftables: failed to open %s for writing\n", argv[1]);
+  return 1;
+  }
 
-    /* Set all the values, or at least some sane defaults */
-    if (sec->host) {
-        char *p = apr_palloc(cmd->pool, strlen(sec->host) + strlen(urld->lud_host) + 2);
-        strcpy(p, urld->lud_host);
-        strcat(p, " ");
-        strcat(p, sec->host);
-        sec->host = p;
-    }
-    else {
-        sec->host = urld->lud_host? apr_pstrdup(cmd->pool, urld->lud_host) : "localhost";
-    }
-    sec->basedn = urld->lud_dn? apr_pstrdup(cmd->pool, urld->lud_dn) : "";
-    if (urld->lud_attrs && urld->lud_attrs[0]) {
-        int i = 1;
-        while (urld->lud_attrs[i]) {
-            i++;
-        }
-        sec->attributes = apr_pcalloc(cmd->pool, sizeof(char *) * (i+1));
-        i = 0;
-        while (urld->lud_attrs[i]) {
-            sec->attributes[i] = apr_pstrdup(cmd->pool, urld->lud_attrs[i]);
-            i++;
-        }
-        sec->attribute = sec->attributes[0];
-    }
-    else {
-        sec->attribute = "uid";
-    }
+/* There are two fprintf() calls here, because gcc in pedantic mode complains
+about the very long string otherwise. */
 
-    sec->scope = urld->lud_scope == LDAP_SCOPE_ONELEVEL ?
-        LDAP_SCOPE_ONELEVEL : LDAP_SCOPE_SUBTREE;
+fprintf(f,
+  "/*************************************************\n"
+  "*      Perl-Compatible Regular Expressions       *\n"
+  "*************************************************/\n\n"
+  "/* This file is automatically written by the dftables auxiliary \n"
+  "program. If you edit it by hand, you might like to edit the Makefile to \n"
+  "prevent its ever being regenerated.\n\n");
+fprintf(f,
+  "This file is #included in the compilation of pcre.c to build the default\n"
+  "character tables which are used when no tables are passed to the compile\n"
+  "function. */\n\n"
+  "static unsigned char pcre_default_tables[] = {\n\n"
+  "/* This table is a lower casing table. */\n\n");
 
-    if (urld->lud_filter) {
-        if (urld->lud_filter[0] == '(') {
-            /*
-             * Get rid of the surrounding parens; later on when generating the
-             * filter, they'll be put back.
-             */
-            sec->filter = apr_pstrdup(cmd->pool, urld->lud_filter+1);
-            sec->filter[strlen(sec->filter)-1] = '\0';
-        }
-        else {
-            sec->filter = apr_pstrdup(cmd->pool, urld->lud_filter);
-        }
-    }
-    else {
-        sec->filter = "objectclass=*";
-    }
+fprintf(f, "  ");
+for (i = 0; i < 256; i++)
+  {
+  if ((i & 7) == 0 && i != 0) fprintf(f, "\n  ");
+  fprintf(f, "%3d", *tables++);
+  if (i != 255) fprintf(f, ",");
+  }
+fprintf(f, ",\n\n");
 
-    if (mode) {
-        if (0 == strcasecmp("NONE", mode)) {
-            sec->secure = APR_LDAP_NONE;
-        }
-        else if (0 == strcasecmp("SSL", mode)) {
-            sec->secure = APR_LDAP_SSL;
-        }
-        else if (0 == strcasecmp("TLS", mode) || 0 == strcasecmp("STARTTLS", mode)) {
-            sec->secure = APR_LDAP_STARTTLS;
-        }
-        else {
-            return "Invalid LDAP connection mode setting: must be one of NONE, "
-                   "SSL, or TLS/STARTTLS";
-        }
-    }
+fprintf(f, "/* This table is a case flipping table. */\n\n");
 
-      /* "ldaps" indicates secure ldap connections desired
-      */
-    if (strncasecmp(url, "ldaps", 5) == 0)
+fprintf(f, "  ");
+for (i = 0; i < 256; i++)
+  {
+  if ((i & 7) == 0 && i != 0) fprintf(f, "\n  ");
+  fprintf(f, "%3d", *tables++);
+  if (i != 255) fprintf(f, ",");
+  }
+fprintf(f, ",\n\n");
+
+fprintf(f,
+  "/* This table contains bit maps for various character classes.\n"
+  "Each map is 32 bytes long and the bits run from the least\n"
+  "significant end of each byte. The classes that have their own\n"
+  "maps are: space, xdigit, digit, upper, lower, word, graph\n"
+  "print, punct, and cntrl. Other classes are built from combinations. */\n\n");
+
+fprintf(f, "  ");
+for (i = 0; i < cbit_length; i++)
+  {
+  if ((i & 7) == 0 && i != 0)
     {
-        sec->secure = APR_LDAP_SSL;
-        sec->port = urld->lud_port? urld->lud_port : LDAPS_PORT;
+    if ((i & 31) == 0) fprintf(f, "\n");
+    fprintf(f, "\n  ");
     }
-    else
+  fprintf(f, "0x%02x", *tables++);
+  if (i != cbit_length - 1) fprintf(f, ",");
+  }
+fprintf(f, ",\n\n");
+
+fprintf(f,
+  "/* This table identifies various classes of character by individual bits:\n"
+  "  0x%02x   white space character\n"
+  "  0x%02x   letter\n"
+  "  0x%02x   decimal digit\n"
+  "  0x%02x   hexadecimal digit\n"
+  "  0x%02x   alphanumeric or '_'\n"
+  "  0x%02x   regular expression metacharacter or binary zero\n*/\n\n",
+  ctype_space, ctype_letter, ctype_digit, ctype_xdigit, ctype_word,
+  ctype_meta);
+
+fprintf(f, "  ");
+for (i = 0; i < 256; i++)
+  {
+  if ((i & 7) == 0 && i != 0)
     {
-        sec->port = urld->lud_port? urld->lud_port : LDAP_PORT;
+    fprintf(f, " /* ");
+    if (isprint(i-8)) fprintf(f, " %c -", i-8);
+      else fprintf(f, "%3d-", i-8);
+    if (isprint(i-1)) fprintf(f, " %c ", i-1);
+      else fprintf(f, "%3d", i-1);
+    fprintf(f, " */\n  ");
     }
+  fprintf(f, "0x%02x", *tables++);
+  if (i != 255) fprintf(f, ",");
+  }
 
-    sec->have_ldap_url = 1;
+fprintf(f, "};/* ");
+if (isprint(i-8)) fprintf(f, " %c -", i-8);
+  else fprintf(f, "%3d-", i-8);
+if (isprint(i-1)) fprintf(f, " %c ", i-1);
+  else fprintf(f, "%3d", i-1);
+fprintf(f, " */\n\n/* End of chartables.c */\n");
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
-                 cmd->server, "[%" APR_PID_T_FMT "] auth_ldap url parse: `%s', Host: %s, Port: %d, DN: %s, attrib: %s, scope: %s, filter: %s, connection mode: %s",
-                 getpid(),
-                 url,
-                 urld->lud_host,
-                 urld->lud_port,
-                 urld->lud_dn,
-                 urld->lud_attrs? urld->lud_attrs[0] : "(null)",
-                 (urld->lud_scope == LDAP_SCOPE_SUBTREE? "subtree" :
-                  urld->lud_scope == LDAP_SCOPE_BASE? "base" :
-                  urld->lud_scope == LDAP_SCOPE_ONELEVEL? "onelevel" : "unknown"),
-                 urld->lud_filter,
-                 sec->secure == APR_LDAP_SSL  ? "using SSL": "not using SSL"
-                 );
-
-    return NULL;
+fclose(f);
+return 0;
 }

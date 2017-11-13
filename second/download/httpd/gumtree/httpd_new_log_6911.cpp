@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, stream->session->c, 
-                          H2_STRM_MSG(stream, "input drain returned"));
+ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, stream->session->c, 
+                  H2_STRM_MSG(stream, "destroy"));

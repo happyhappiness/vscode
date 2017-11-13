@@ -1,46 +1,73 @@
-static void usage(FILE *f)
+static int writefd(int fd,char *buf,int len)
 {
-  fprintf(f,"rsync version %s Copyright Andrew Tridgell and Paul Mackerras\n\n",
-	  VERSION);
-  fprintf(f,"Usage:\t%s [options] src user@host:dest\nOR",RSYNC_NAME);
-  fprintf(f,"\t%s [options] user@host:src dest\n\n",RSYNC_NAME);
-  fprintf(f,"Options:\n");
-  fprintf(f,"-v, --verbose            increase verbosity\n");
-  fprintf(f,"-c, --checksum           always checksum\n");
-  fprintf(f,"-a, --archive            archive mode (same as -rlptDog)\n");
-  fprintf(f,"-r, --recursive          recurse into directories\n");
-  fprintf(f,"-R, --relative           use relative path names\n");
-  fprintf(f,"-b, --backup             make backups (default ~ extension)\n");
-  fprintf(f,"-u, --update             update only (don't overwrite newer files)\n");
-  fprintf(f,"-l, --links              preserve soft links\n");
-  fprintf(f,"-L, --copy-links         treat soft links like regular files\n");
-  fprintf(f,"-H, --hard-links         preserve hard links\n");
-  fprintf(f,"-p, --perms              preserve permissions\n");
-  fprintf(f,"-o, --owner              preserve owner (root only)\n");
-  fprintf(f,"-g, --group              preserve group\n");
-  fprintf(f,"-D, --devices            preserve devices (root only)\n");
-  fprintf(f,"-t, --times              preserve times\n");  
-  fprintf(f,"-S, --sparse             handle sparse files efficiently\n");
-  fprintf(f,"-n, --dry-run            show what would have been transferred\n");
-  fprintf(f,"-W, --whole-file         copy whole files, no incremental checks\n");
-  fprintf(f,"-x, --one-file-system    don't cross filesystem boundaries\n");
-  fprintf(f,"-B, --block-size SIZE    checksum blocking size\n");  
-  fprintf(f,"-e, --rsh COMMAND        specify rsh replacement\n");
-  fprintf(f,"    --rsync-path PATH    specify path to rsync on the remote machine\n");
-  fprintf(f,"-C, --cvs-exclude        auto ignore files in the same way CVS does\n");
-  fprintf(f,"    --delete             delete files that don't exist on the sending side\n");
-  fprintf(f,"    --force              force deletion of directories even if not empty\n");
-  fprintf(f,"    --numeric-ids        don't map uid/gid values by user/group name\n");
-  fprintf(f,"    --timeout TIME       set IO timeout in seconds\n");
-  fprintf(f,"-I, --ignore-times       don't exclude files that match length and time\n");
-  fprintf(f,"-T  --temp-dir DIR       create temporary files in directory DIR\n");
-  fprintf(f,"-z, --compress           compress file data\n");
-  fprintf(f,"    --exclude FILE       exclude file FILE\n");
-  fprintf(f,"    --exclude-from FILE  exclude files listed in FILE\n");
-  fprintf(f,"    --suffix SUFFIX      override backup suffix\n");  
-  fprintf(f,"    --version            print version number\n");  
+  int total = 0;
+  fd_set w_fds, r_fds;
+  int fd_count, count, got_select=0;
+  struct timeval tv;
 
-  fprintf(f,"\n");
-  fprintf(f,"the backup suffix defaults to %s\n",BACKUP_SUFFIX);
-  fprintf(f,"the block size defaults to %d\n",BLOCK_SIZE);  
+  if (buffer_f_in == -1) 
+    return write(fd,buf,len);
+
+  while (total < len) {
+    int ret = write(fd,buf+total,len-total);
+
+    if (ret == 0) return total;
+
+    if (ret == -1 && !(errno == EWOULDBLOCK || errno == EAGAIN)) 
+      return -1;
+
+    if (ret == -1 && got_select) {
+	    /* hmmm, we got a write select on the fd and then failed to write.
+	       Why doesn't that mean that the fd is dead? It doesn't on some
+	       systems it seems (eg. IRIX) */
+	    u_sleep(1000);
+#if 0
+	    fprintf(FERROR,"write exception\n");
+	    exit_cleanup(1);
+#endif
+    }
+
+    got_select = 0;
+
+
+    if (ret == -1) {
+      read_check(buffer_f_in);
+
+      fd_count = fd+1;
+      FD_ZERO(&w_fds);
+      FD_ZERO(&r_fds);
+      FD_SET(fd,&w_fds);
+      if (buffer_f_in != -1) {
+	      FD_SET(buffer_f_in,&r_fds);
+	      if (buffer_f_in > fd) 
+		      fd_count = buffer_f_in+1;
+      }
+
+      tv.tv_sec = BLOCKING_TIMEOUT;
+      tv.tv_usec = 0;
+      count = select(fd_count,buffer_f_in == -1? NULL: &r_fds,
+		     &w_fds,NULL,&tv);
+      if (count == -1 && errno != EINTR) {
+	      if (verbose > 1) 
+		      fprintf(FERROR,"select error: %s\n", strerror(errno));
+	      exit_cleanup(1);
+      }
+
+      if (count == 0) {
+	      check_timeout();
+	      continue;
+      }
+      
+      if (FD_ISSET(fd, &w_fds)) {
+	      got_select = 1;
+      }
+    } else {
+      total += ret;
+    }
+  }
+
+  if (io_timeout)
+	  last_io = time(NULL);
+
+  return total;
 }

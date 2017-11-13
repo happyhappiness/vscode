@@ -1,1 +1,1 @@
-fprintf(stderr, "                    This implies -n 50000\n");
+fprintf(stderr, "    -s timeout      Seconds to max. wait for each response\n");

@@ -1,11 +1,10 @@
 fputs(
-"              If a download is slower than this given speed (in bytes per sec-\n"
-"              ond)  for  speed-time seconds it gets aborted. speed-time is set\n"
-"              with -y and is 30 if not set.\n"
+"              (HTTP) Specifies a custom request method to use when communicat-\n"
+"              ing with the HTTP server.  The specified request method will  be\n"
+"              used  instead  of  the  method otherwise used (which defaults to\n"
+"              GET). Read the HTTP 1.1 specification for details  and  explana-\n"
+"              tions.  Common  additional HTTP requests include PUT and DELETE,\n"
+"              but related technologies like WebDAV offers PROPFIND, COPY, MOVE\n"
+"              and more.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -z, --time-cond <date expression>|<file>\n"
-"              (HTTP/FTP) Request a file that has been modified later than  the\n"
-"              given  time  and date, or one that has been modified before that\n"
 , stdout);

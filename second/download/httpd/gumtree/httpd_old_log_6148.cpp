@@ -1,3 +1,6 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, m->c,
-                      "h2_mplx(%ld-%d): beaming file %s, tx_avail %d", 
-                      m->id, beam->id, beam->tag, m->tx_handles_reserved);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
+                              "h2_task_output(%s): write without response "
+                              "for %s %s %s",
+                              output->task->id, output->task->request->method, 
+                              output->task->request->authority, 
+                              output->task->request->path);

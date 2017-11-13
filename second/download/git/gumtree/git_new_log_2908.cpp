@@ -1,1 +1,1 @@
-error_errno("lstat(%s)", ce->name);
+error_errno("readlink(%s)", elem->path);

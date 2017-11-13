@@ -1,30 +1,40 @@
-static void dav_propdb_close(dav_db *db)
+static const char *set_shmem_size(cmd_parms *cmd, void *config,
+                                  const char *size_str)
 {
+    char *endptr;
+    long  size, min;
 
-    if (db->ns_table_dirty) {
-        dav_propdb_metadata m;
-        apr_datum_t key;
-        apr_datum_t value;
-        dav_error *err;
-
-        key.dptr = DAV_GDBM_NS_KEY;
-        key.dsize = DAV_GDBM_NS_KEY_LEN;
-
-        value.dptr = db->ns_table.buf;
-        value.dsize = db->ns_table.cur_len;
-
-        /* fill in the metadata that we store into the prop db. */
-        m.major = DAV_DBVSN_MAJOR;
-        m.minor = db->version;          /* ### keep current minor version? */
-        m.ns_count = htons(db->ns_count);
-
-        memcpy(db->ns_table.buf, &m, sizeof(m));
-
-        err = dav_dbm_store(db, key, value);
-        if (err != NULL)
-            ap_log_error(APLOG_MARK, APLOG_WARNING, err->aprerr, ap_server_conf,
-                         APLOGNO(00577) "Error writing propdb: %s", err->desc);
+    size = strtol(size_str, &endptr, 10);
+    while (apr_isspace(*endptr)) endptr++;
+    if (*endptr == '\0' || *endptr == 'b' || *endptr == 'B') {
+        ;
+    }
+    else if (*endptr == 'k' || *endptr == 'K') {
+        size *= 1024;
+    }
+    else if (*endptr == 'm' || *endptr == 'M') {
+        size *= 1048576;
+    }
+    else {
+        return apr_pstrcat(cmd->pool, "Invalid size in AuthDigestShmemSize: ",
+                          size_str, NULL);
     }
 
-    dav_dbm_close(db);
+    min = sizeof(*client_list) + sizeof(client_entry*) + sizeof(client_entry);
+    if (size < min) {
+        return apr_psprintf(cmd->pool, "size in AuthDigestShmemSize too small: "
+                           "%ld < %ld", size, min);
+    }
+
+    shmem_size  = size;
+    num_buckets = (size - sizeof(*client_list)) /
+                  (sizeof(client_entry*) + HASH_DEPTH * sizeof(client_entry));
+    if (num_buckets == 0) {
+        num_buckets = 1;
+    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                 "Digest: Set shmem-size: %" APR_SIZE_T_FMT ", num-buckets: %ld", 
+                 shmem_size, num_buckets);
+
+    return NULL;
 }

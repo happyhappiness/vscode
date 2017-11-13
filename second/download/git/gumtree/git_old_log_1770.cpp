@@ -1,2 +1,1 @@
-error(_("cannot read %s: %s"), filename, ferror(f) ?
-			strerror(errno) : _("unexpected end of file"));
+die("unable to generate diff for %s", one->path);

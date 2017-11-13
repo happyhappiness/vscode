@@ -1,8 +1,15 @@
-puts(" -c/--cookie-jar <file> Write all cookies to this file after operation (H)\n"
-       " -C/--continue-at <offset> Specify absolute resume offset\n"
-       " -d/--data <data>   HTTP POST data (H)\n"
-       "    --data-ascii <data>   HTTP POST ASCII data (H)\n"
-       "    --data-binary <data>  HTTP POST binary data (H)\n"
-       " -D/--dump-header <file> Write the headers to this file\n"
-       "    --egd-file <file> EGD socket path for random data (SSL)\n"
-       " -e/--referer       Referer page (H)");
+puts(
+"  passwords, so therefor most unix programs won't read this file unless it is\n"
+"  only readable by yourself (curl doesn't care though).\n"
+"\n"
+"  Curl supports .netrc files if told so (using the -n/--netrc option). This is\n"
+"  not restricted to only ftp, but curl can use it for all protocols where\n"
+"  authentication is used.\n"
+"\n"
+"  A very simple .netrc file could look something like:\n"
+"\n"
+"        machine curl.haxx.se login iamdaniel password mysecret\n"
+"\n"
+"CUSTOM OUTPUT\n"
+"\n"
+);

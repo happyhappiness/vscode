@@ -1,1 +1,1 @@
-die("git_all_attrs died");
+die_errno("Could not change back to '%s'", cwd.buf);

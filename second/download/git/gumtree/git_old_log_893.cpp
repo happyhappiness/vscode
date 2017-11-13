@@ -1,2 +1,1 @@
-error("unable to restore logfile %s from "TMP_RENAMED_LOG": %s",
-			oldrefname, strerror(errno));
+die("Could not run 'git status --porcelain -uall --ignore-submodules=none' in submodule %s", path);

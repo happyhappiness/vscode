@@ -1,234 +1,223 @@
-static int event_check_config(apr_pool_t *p, apr_pool_t *plog,
-                              apr_pool_t *ptemp, server_rec *s)
+static int uldap_connection_init(request_rec *r,
+                                 util_ldap_connection_t *ldc)
 {
-    int startup = 0;
-
-    /* the reverse of pre_config, we want this only the first time around */
-    if (retained->module_loads == 1) {
-        startup = 1;
-    }
-
-    if (server_limit > MAX_SERVER_LIMIT) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00497)
-                         "WARNING: ServerLimit of %d exceeds compile-time "
-                         "limit of", server_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d servers, decreasing to %d.",
-                         MAX_SERVER_LIMIT, MAX_SERVER_LIMIT);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00498)
-                         "ServerLimit of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         server_limit, MAX_SERVER_LIMIT);
-        }
-        server_limit = MAX_SERVER_LIMIT;
-    }
-    else if (server_limit < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00499)
-                         "WARNING: ServerLimit of %d not allowed, "
-                         "increasing to 1.", server_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00500)
-                         "ServerLimit of %d not allowed, increasing to 1",
-                         server_limit);
-        }
-        server_limit = 1;
-    }
-
-    /* you cannot change ServerLimit across a restart; ignore
-     * any such attempts
+    int rc = 0, ldap_option = 0;
+    int version  = LDAP_VERSION3;
+    apr_ldap_err_t *result = NULL;
+#ifdef LDAP_OPT_NETWORK_TIMEOUT
+    struct timeval connectionTimeout = {0};
+#endif
+    util_ldap_state_t *st =
+        (util_ldap_state_t *)ap_get_module_config(r->server->module_config,
+        &ldap_module);
+    int have_client_certs = !apr_is_empty_array(ldc->client_certs);
+#if !APR_HAS_SOLARIS_LDAPSDK
+    /*
+     * Normally we enable SSL/TLS with apr_ldap_set_option(), except
+     * with Solaris LDAP, where this is broken.
      */
-    if (!retained->first_server_limit) {
-        retained->first_server_limit = server_limit;
-    }
-    else if (server_limit != retained->first_server_limit) {
-        /* don't need a startup console version here */
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00501)
-                     "changing ServerLimit to %d from original value of %d "
-                     "not allowed during restart",
-                     server_limit, retained->first_server_limit);
-        server_limit = retained->first_server_limit;
-    }
-
-    if (thread_limit > MAX_THREAD_LIMIT) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00502)
-                         "WARNING: ThreadLimit of %d exceeds compile-time "
-                         "limit of", thread_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d threads, decreasing to %d.",
-                         MAX_THREAD_LIMIT, MAX_THREAD_LIMIT);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00503)
-                         "ThreadLimit of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         thread_limit, MAX_THREAD_LIMIT);
-        }
-        thread_limit = MAX_THREAD_LIMIT;
-    }
-    else if (thread_limit < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00504)
-                         "WARNING: ThreadLimit of %d not allowed, "
-                         "increasing to 1.", thread_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00505)
-                         "ThreadLimit of %d not allowed, increasing to 1",
-                         thread_limit);
-        }
-        thread_limit = 1;
-    }
-
-    /* you cannot change ThreadLimit across a restart; ignore
-     * any such attempts
+    int secure = APR_LDAP_NONE;
+#else
+    /*
+     * With Solaris LDAP, we enable TSL via the secure argument
+     * to apr_ldap_init(). This requires a fix from apr-util >= 1.4.0.
+     *
+     * Just in case client certificates ever get supported, we
+     * handle those as with the other LDAP SDKs.
      */
-    if (!retained->first_thread_limit) {
-        retained->first_thread_limit = thread_limit;
-    }
-    else if (thread_limit != retained->first_thread_limit) {
-        /* don't need a startup console version here */
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00506)
-                     "changing ThreadLimit to %d from original value of %d "
-                     "not allowed during restart",
-                     thread_limit, retained->first_thread_limit);
-        thread_limit = retained->first_thread_limit;
-    }
+    int secure = have_client_certs ? APR_LDAP_NONE : ldc->secure;
+#endif
 
-    if (threads_per_child > thread_limit) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00507)
-                         "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
-                         "of", threads_per_child);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d threads, decreasing to %d.",
-                         thread_limit, thread_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " To increase, please see the ThreadLimit "
-                         "directive.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00508)
-                         "ThreadsPerChild of %d exceeds ThreadLimit "
-                         "of %d, decreasing to match",
-                         threads_per_child, thread_limit);
-        }
-        threads_per_child = thread_limit;
-    }
-    else if (threads_per_child < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00509)
-                         "WARNING: ThreadsPerChild of %d not allowed, "
-                         "increasing to 1.", threads_per_child);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00510)
-                         "ThreadsPerChild of %d not allowed, increasing to 1",
-                         threads_per_child);
-        }
-        threads_per_child = 1;
-    }
-
-    if (max_workers < threads_per_child) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00511)
-                         "WARNING: MaxRequestWorkers of %d is less than "
-                         "ThreadsPerChild of", max_workers);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d, increasing to %d.  MaxRequestWorkers must be at "
-                         "least as large",
-                         threads_per_child, threads_per_child);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " as the number of threads in a single server.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00512)
-                         "MaxRequestWorkers of %d is less than ThreadsPerChild "
-                         "of %d, increasing to match",
-                         max_workers, threads_per_child);
-        }
-        max_workers = threads_per_child;
-    }
-
-    ap_daemons_limit = max_workers / threads_per_child;
-
-    if (max_workers % threads_per_child) {
-        int tmp_max_workers = ap_daemons_limit * threads_per_child;
-
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00513)
-                         "WARNING: MaxRequestWorkers of %d is not an integer "
-                         "multiple of", max_workers);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " ThreadsPerChild of %d, decreasing to nearest "
-                         "multiple %d,", threads_per_child,
-                         tmp_max_workers);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " for a maximum of %d servers.",
-                         ap_daemons_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00514)
-                         "MaxRequestWorkers of %d is not an integer multiple "
-                         "of ThreadsPerChild of %d, decreasing to nearest "
-                         "multiple %d", max_workers, threads_per_child,
-                         tmp_max_workers);
-        }
-        max_workers = tmp_max_workers;
-    }
-
-    if (ap_daemons_limit > server_limit) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00515)
-                         "WARNING: MaxRequestWorkers of %d would require %d "
-                         "servers and ", max_workers, ap_daemons_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " would exceed ServerLimit of %d, decreasing to %d.",
-                         server_limit, server_limit * threads_per_child);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " To increase, please see the ServerLimit "
-                         "directive.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00516)
-                         "MaxRequestWorkers of %d would require %d servers and "
-                         "exceed ServerLimit of %d, decreasing to %d",
-                         max_workers, ap_daemons_limit, server_limit,
-                         server_limit * threads_per_child);
-        }
-        ap_daemons_limit = server_limit;
-    }
-
-    /* ap_daemons_to_start > ap_daemons_limit checked in ap_mpm_run() */
-    if (ap_daemons_to_start < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00517)
-                         "WARNING: StartServers of %d not allowed, "
-                         "increasing to 1.", ap_daemons_to_start);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00518)
-                         "StartServers of %d not allowed, increasing to 1",
-                         ap_daemons_to_start);
-        }
-        ap_daemons_to_start = 1;
-    }
-
-    if (min_spare_threads < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00519)
-                         "WARNING: MinSpareThreads of %d not allowed, "
-                         "increasing to 1", min_spare_threads);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " to avoid almost certain server failure.");
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " Please read the documentation.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00520)
-                         "MinSpareThreads of %d not allowed, increasing to 1",
-                         min_spare_threads);
-        }
-        min_spare_threads = 1;
-    }
-
-    /* max_spare_threads < min_spare_threads + threads_per_child
-     * checked in ap_mpm_run()
+    /* Since the host will include a port if the default port is not used,
+     * always specify the default ports for the port parameter.  This will
+     * allow a host string that contains multiple hosts the ability to mix
+     * some hosts with ports and some without. All hosts which do not
+     * specify a port will use the default port.
      */
+    apr_ldap_init(r->pool, &(ldc->ldap),
+                  ldc->host,
+                  APR_LDAP_SSL == ldc->secure ? LDAPS_PORT : LDAP_PORT,
+                  secure, &(result));
 
-    return OK;
+    if (NULL == result) {
+        /* something really bad happened */
+        ldc->bound = 0;
+        if (NULL == ldc->reason) {
+            ldc->reason = "LDAP: ldap initialization failed";
+        }
+        return(APR_EGENERAL);
+    }
+
+    if (result->rc) {
+        ldc->reason = result->reason;
+        ldc->bound = 0;
+        return result->rc;
+    }
+
+    if (NULL == ldc->ldap)
+    {
+        ldc->bound = 0;
+        if (NULL == ldc->reason) {
+            ldc->reason = "LDAP: ldap initialization failed";
+        }
+        else {
+            ldc->reason = result->reason;
+        }
+        return(result->rc);
+    }
+
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "LDC %pp init", ldc);
+
+    if (ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) {
+        /* Now that we have an ldap struct, add it to the referral list for rebinds. */
+        rc = apr_ldap_rebind_add(ldc->rebind_pool, ldc->ldap, ldc->binddn, ldc->bindpw);
+        if (rc != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server, APLOGNO(01277)
+                    "LDAP: Unable to add rebind cross reference entry. Out of memory?");
+            uldap_connection_unbind(ldc);
+            ldc->reason = "LDAP: Unable to add rebind cross reference entry.";
+            return(rc);
+        }
+    }
+
+    /* always default to LDAP V3 */
+    ldap_set_option(ldc->ldap, LDAP_OPT_PROTOCOL_VERSION, &version);
+
+    /* set client certificates */
+    if (have_client_certs) {
+        apr_ldap_set_option(r->pool, ldc->ldap, APR_LDAP_OPT_TLS_CERT,
+                            ldc->client_certs, &(result));
+        if (LDAP_SUCCESS != result->rc) {
+            uldap_connection_unbind( ldc );
+            ldc->reason = result->reason;
+            return(result->rc);
+        }
+    }
+
+    /* switch on SSL/TLS */
+    if (APR_LDAP_NONE != ldc->secure
+#if APR_HAS_SOLARIS_LDAPSDK
+        /* See comments near apr_ldap_init() above */
+        && have_client_certs
+#endif
+       ) {
+        apr_ldap_set_option(r->pool, ldc->ldap,
+                            APR_LDAP_OPT_TLS, &ldc->secure, &(result));
+        if (LDAP_SUCCESS != result->rc) {
+            uldap_connection_unbind( ldc );
+            ldc->reason = result->reason;
+            return(result->rc);
+        }
+    }
+
+    /* Set the alias dereferencing option */
+    ldap_option = ldc->deref;
+    ldap_set_option(ldc->ldap, LDAP_OPT_DEREF, &ldap_option);
+
+    if (ldc->ChaseReferrals != AP_LDAP_CHASEREFERRALS_SDKDEFAULT) {
+        /* Set options for rebind and referrals. */
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, APLOGNO(01278)
+                "LDAP: Setting referrals to %s.",
+                ((ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) ? "On" : "Off"));
+        apr_ldap_set_option(r->pool, ldc->ldap,
+                APR_LDAP_OPT_REFERRALS,
+                (void *)((ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) ?
+                    LDAP_OPT_ON : LDAP_OPT_OFF),
+                &(result));
+        if (result->rc != LDAP_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, APLOGNO(01279)
+                    "Unable to set LDAP_OPT_REFERRALS option to %s: %d.",
+                    ((ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) ? "On" : "Off"),
+                    result->rc);
+            result->reason = "Unable to set LDAP_OPT_REFERRALS.";
+            ldc->reason = result->reason;
+            uldap_connection_unbind(ldc);
+            return(result->rc);
+        }
+    }
+
+    if (ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) {
+        if ((ldc->ReferralHopLimit != AP_LDAP_HOPLIMIT_UNSET) && ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) {
+            /* Referral hop limit - only if referrals are enabled and a hop limit is explicitly requested */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, APLOGNO(01280)
+                    "Setting referral hop limit to %d.",
+                    ldc->ReferralHopLimit);
+            apr_ldap_set_option(r->pool, ldc->ldap,
+                    APR_LDAP_OPT_REFHOPLIMIT,
+                    (void *)&ldc->ReferralHopLimit,
+                    &(result));
+            if (result->rc != LDAP_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, APLOGNO(01281)
+                        "Unable to set LDAP_OPT_REFHOPLIMIT option to %d: %d.",
+                        ldc->ReferralHopLimit,
+                        result->rc);
+                result->reason = "Unable to set LDAP_OPT_REFHOPLIMIT.";
+                ldc->reason = result->reason;
+                uldap_connection_unbind(ldc);
+                return(result->rc);
+            }
+        }
+    }
+
+/*XXX All of the #ifdef's need to be removed once apr-util 1.2 is released */
+#ifdef APR_LDAP_OPT_VERIFY_CERT
+    apr_ldap_set_option(r->pool, ldc->ldap, APR_LDAP_OPT_VERIFY_CERT,
+                        &(st->verify_svr_cert), &(result));
+#else
+#if defined(LDAPSSL_VERIFY_SERVER)
+    if (st->verify_svr_cert) {
+        result->rc = ldapssl_set_verify_mode(LDAPSSL_VERIFY_SERVER);
+    }
+    else {
+        result->rc = ldapssl_set_verify_mode(LDAPSSL_VERIFY_NONE);
+    }
+#elif defined(LDAP_OPT_X_TLS_REQUIRE_CERT)
+    /* This is not a per-connection setting so just pass NULL for the
+       Ldap connection handle */
+    if (st->verify_svr_cert) {
+        int i = LDAP_OPT_X_TLS_DEMAND;
+        result->rc = ldap_set_option(NULL, LDAP_OPT_X_TLS_REQUIRE_CERT, &i);
+    }
+    else {
+        int i = LDAP_OPT_X_TLS_NEVER;
+        result->rc = ldap_set_option(NULL, LDAP_OPT_X_TLS_REQUIRE_CERT, &i);
+    }
+#endif
+#endif
+
+#ifdef LDAP_OPT_NETWORK_TIMEOUT
+    if (st->connectionTimeout > 0) {
+        connectionTimeout.tv_sec = st->connectionTimeout;
+    }
+
+    if (connectionTimeout.tv_sec > 0) {
+        rc = apr_ldap_set_option(r->pool, ldc->ldap, LDAP_OPT_NETWORK_TIMEOUT,
+                                 (void *)&connectionTimeout, &(result));
+        if (APR_SUCCESS != rc) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server, APLOGNO(01282)
+                             "LDAP: Could not set the connection timeout");
+        }
+    }
+#endif
+
+#ifdef LDAP_OPT_TIMEOUT
+    /*
+     * LDAP_OPT_TIMEOUT is not portable, but it influences all synchronous ldap
+     * function calls and not just ldap_search_ext_s(), which accepts a timeout
+     * parameter.
+     * XXX: It would be possible to simulate LDAP_OPT_TIMEOUT by replacing all
+     * XXX: synchronous ldap function calls with asynchronous calls and using
+     * XXX: ldap_result() with a timeout.
+     */
+    if (st->opTimeout) {
+        rc = apr_ldap_set_option(r->pool, ldc->ldap, LDAP_OPT_TIMEOUT,
+                                 st->opTimeout, &(result));
+        if (APR_SUCCESS != rc) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server, APLOGNO(01283)
+                             "LDAP: Could not set LDAP_OPT_TIMEOUT");
+        }
+    }
+#endif
+
+    return(rc);
 }

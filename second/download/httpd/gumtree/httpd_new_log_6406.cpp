@@ -1,5 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01174)
-                              "%s: Forcing worker (%s) into error state " 
-                              "due to status code %d matching 'failonstatus' "
-                              "balancer parameter",
-                              balancer->s->name, worker->s->name, val);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_NOTFOUND, session->c,
+                      APLOGNO(02924) 
+                      "h2_stream(%ld-%d): send_data, lookup stream",
+                      session->id, (int)stream_id);

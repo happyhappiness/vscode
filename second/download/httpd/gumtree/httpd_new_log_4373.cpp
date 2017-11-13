@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01945)
-                     "stapling_renew_response: error caching response!");
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
+                 "canonicalising URL %s", url);

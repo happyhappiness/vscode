@@ -1,8 +1,10 @@
 fputs(
-"              prefix  them  with  a  dash '-'.  To make commands be sent after\n"
-"              curl has changed the working directory, just before the transfer\n"
-"              command(s),  prefix  the  command  with a '+' (this is only sup-\n"
-"              ported for FTP). You may specify any number of commands. If  the\n"
-"              server returns failure for one of the commands, the entire oper-\n"
-"              ation will be aborted. You must send syntactically  correct  FTP\n"
+"              Tells curl to pick a suitable authentication method when  commu-\n"
+"              nicating  with  the  given  proxy.  This  might  cause  an extra\n"
+"              request/response round-trip. (Added in 7.13.2)\n"
+"\n"
+"       --proxy-basic\n"
+"              Tells curl to use HTTP Basic authentication  when  communicating\n"
+"              with the given proxy. Use --basic for enabling HTTP Basic with a\n"
+"              remote host. Basic is the  default  authentication  method  curl\n"
 , stdout);

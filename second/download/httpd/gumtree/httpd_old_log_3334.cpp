@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server,
-                     "mod_cgid: Couldn't spawn cgid daemon process");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, errno, r,
+                      "Error setting effective privileges");

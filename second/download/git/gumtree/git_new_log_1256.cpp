@@ -1,2 +1,1 @@
-die(_("bad numeric config value '%s' for '%s' in %s: %s"),
-		    value, name, cf->name, reason);
+die(_("cannot read existing object %s"), oid_to_hex(oid));

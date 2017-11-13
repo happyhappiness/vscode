@@ -1,1 +1,1 @@
-state_attach_puts (_("*** End Notation ***\n"), s);
+state_attach_puts (_("KeyID "), s);

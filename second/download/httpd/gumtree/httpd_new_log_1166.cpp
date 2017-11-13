@@ -1,1 +1,2 @@
-fprintf(stderr, "    %-32.*s", (int)key.dsize, key.dptr);
+printf("(%d) %*s: %.*s\n", n, name_entry_size - 3, tabptr + 2,
+        ovector[2*n+1] - ovector[2*n], subject + ovector[2*n]);

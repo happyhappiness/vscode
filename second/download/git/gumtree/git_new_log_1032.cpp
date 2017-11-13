@@ -1,1 +1,1 @@
-usage("git submodule--helper <command>");
+die(_("--no-contains option is only allowed in list mode"));

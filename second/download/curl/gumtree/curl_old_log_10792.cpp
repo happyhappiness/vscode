@@ -1,10 +1,11 @@
 fputs(
-"              This option switches off the \"URL globbing parser\". When you set\n"
-"              this option, you can specify URLs that contain the letters  {}[]\n"
-"              without  having them being interpreted by curl itself. Note that\n"
-"              these letters are not normal legal URL contents but they  should\n"
-"              be encoded according to the URI standard.\n"
+"              used.  Undoing  an  enforced passive really isn't doable but you\n"
+"              must then instead enforce the correct -P, --ftp-port again.\n"
 "\n"
-"       -G, --get\n"
-"              When  used,  this  option  will make all data specified with -d,\n"
+"              Passive mode means that curl will try the EPSV command first and\n"
+"              then PASV, unless --disable-epsv is used.\n"
+"\n"
+"       --ftp-skip-pasv-ip\n"
+"              (FTP) Tell curl to not use the IP address the server suggests in\n"
+"              its response to curl's PASV command when curl connects the  data\n"
 , stdout);

@@ -1,2 +1,1 @@
-rprintf(FERROR,"%s: %s\n",
-			dir,strerror(errno));
+fprintf(FINFO,"send_files starting\n");

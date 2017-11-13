@@ -1,1 +1,2 @@
-die("strange hostname '%s' blocked", ssh_host);
+warning("invalid line while parsing alternate refs: %s",
+				line.buf);

@@ -1,1 +1,1 @@
-state_puts (",", s);
+(fprintf(out, "X-Label: %s\n", h->env->x_label);

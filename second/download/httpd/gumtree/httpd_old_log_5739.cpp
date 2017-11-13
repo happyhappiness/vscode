@@ -1,5 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, 
-                          "select protocol, proposals=%s preferences=%s configured=%s", 
-                          apr_array_pstrcat(pool, proposals, ','),
-                          apr_array_pstrcat(pool, prefs, ','),
-                          apr_array_pstrcat(pool, conf->protocols, ','));
+ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
+                      "%s: Loop: %s",
+                      SSL_LIBRARY_NAME, SSL_state_string_long(ssl));

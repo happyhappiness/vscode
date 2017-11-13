@@ -1,1 +1,2 @@
-die(_("unknown error occured while reading the configuration files"));
+warning(_("Missing author: %s"),
+		    sha1_to_hex(commit->object.sha1));

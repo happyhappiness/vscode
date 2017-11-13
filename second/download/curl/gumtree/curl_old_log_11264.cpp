@@ -1,12 +1,9 @@
 fputs(
-"              WARNING: this option loosens the SSL security, and by using this\n"
-"              flag you ask for exactly that.  (Added in 7.25.0)\n"
+"              munication  will be unencrypted. This allows NAT routers to fol-\n"
+"              low the FTP transaction. The default mode is passive. See --ftp-\n"
+"              ssl-ccc-mode for other modes.  (Added in 7.16.1)\n"
 "\n"
-"       --socks4 <host[:port]>\n"
-"              Use the specified SOCKS4 proxy. If the port number is not speci-\n"
-"              fied, it is assumed at port 1080. (Added in 7.15.2)\n"
-"\n"
-"              This option overrides any previous use of -x, --proxy,  as  they\n"
-"              are mutually exclusive.\n"
-"\n"
+"       --ftp-ssl-ccc-mode [active/passive]\n"
+"              (FTP)  Use  CCC  (Clear  Command Channel) Sets the CCC mode. The\n"
+"              passive mode will not initiate the shutdown,  but  instead  wait\n"
 , stdout);

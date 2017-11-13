@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, r->server,
-                 "proxy: CONNECT: canonicalising URL %s", url);
+ap_rputs("\"<b><code>W</code></b>\" Sending Reply, \n", r);

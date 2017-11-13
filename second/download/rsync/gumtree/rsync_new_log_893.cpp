@@ -1,1 +1,0 @@
-overflow_exit("recv_xattr_request");

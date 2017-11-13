@@ -1,1 +1,3 @@
-error(_("invalid value for %s: %s"), key, value);
+die(Q_("cannot handle more than %d rev.",
+			       "cannot handle more than %d revs.",
+			       MAX_REVS), MAX_REVS);

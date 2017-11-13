@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                     "ISAPI: missing GetExtensionVersion() in %s",
-                     isa->filename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                  "queue_size = %u", header->queue_size);

@@ -1,1 +1,1 @@
-fprintf(stderr, _("Applied autostash.\n"));
+die("BUG: %s: not a valid attribute name", param);

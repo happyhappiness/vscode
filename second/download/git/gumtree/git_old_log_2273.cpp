@@ -1,1 +1,1 @@
-error("cannot open mail %s (%s)", file, strerror(errno));
+die("--contents and --children do not blend well.");

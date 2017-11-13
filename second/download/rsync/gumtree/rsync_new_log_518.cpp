@@ -1,1 +1,2 @@
-rprintf(FINFO,"skipping non-regular file %s\n",fname);
+rprintf(FINFO,"hash search s->n=%d len=%d count=%d\n",
+			s->n,(int)len,s->count);

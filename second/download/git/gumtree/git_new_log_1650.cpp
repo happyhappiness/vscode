@@ -1,1 +1,1 @@
-fputs(prefix, fh);
+error("Couldn't write %s", lock->lk->filename.buf);

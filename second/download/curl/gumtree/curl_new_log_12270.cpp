@@ -1,10 +1,9 @@
 fputs(
-"              can be used to send an UIDL command instead, so the user may use\n"
-"              the  email's  unique  identifier  rather than it's message id to\n"
-"              make the request. (Added in 7.21.5)\n"
+"              before  sending keepalive probes and the time between individual\n"
+"              keepalive probes. It is currently effective on operating systems\n"
+"              offering  the  TCP_KEEPIDLE  and  TCP_KEEPINTVL  socket  options\n"
+"              (meaning Linux, recent AIX, HP-UX and more). This option has  no\n"
+"              effect if --no-keepalive is used. (Added in 7.18.0)\n"
 "\n"
-"       -L, --location\n"
-"              (HTTP/HTTPS) If the server reports that the requested  page  has\n"
-"              moved to a different location (indicated with a Location: header\n"
-"              and a 3XX response code), this option will make  curl  redo  the\n"
+"              If this option is used several times, the last one will be used.\n"
 , stdout);

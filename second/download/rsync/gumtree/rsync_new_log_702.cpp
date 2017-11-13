@@ -1,1 +1,1 @@
-out_of_memory("readfd_unbuffered");
+fprintf(stderr, " '%s'", *avp);

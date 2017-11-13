@@ -1,83 +1,173 @@
-static int h2_post_config(apr_pool_t *p, apr_pool_t *plog,
-                          apr_pool_t *ptemp, server_rec *s)
+static apr_status_t send_environment(proxy_conn_rec *conn, request_rec *r,
+                                     apr_pool_t *temp_pool,
+                                     apr_uint16_t request_id)
 {
-    void *data = NULL;
-    const char *mod_h2_init_key = "mod_http2_init_counter";
-    nghttp2_info *ngh2;
-    apr_status_t status;
-    
-    (void)plog;(void)ptemp;
-#ifdef H2_NG2_CHANGE_PRIO
-    myfeats.change_prio = 1;
+    const apr_array_header_t *envarr;
+    const apr_table_entry_t *elts;
+    struct iovec vec[2];
+    ap_fcgi_header header;
+    unsigned char farray[AP_FCGI_HEADER_LEN];
+    char *body;
+    apr_status_t rv;
+    apr_size_t avail_len, len, required_len;
+    int next_elem, starting_elem;
+    int fpm = 0;
+    fcgi_req_config_t *rconf = ap_get_module_config(r->request_config, &proxy_fcgi_module);
+    fcgi_dirconf_t *dconf = ap_get_module_config(r->per_dir_config, &proxy_fcgi_module);
+
+    if (rconf) {
+       if (rconf->need_dirwalk) {
+          ap_directory_walk(r);
+       }
+    }
+
+    /* Strip proxy: prefixes */
+    if (r->filename) {
+        char *newfname = NULL;
+
+        if (!strncmp(r->filename, "proxy:balancer://", 17)) {
+            newfname = apr_pstrdup(r->pool, r->filename+17);
+        }
+
+        if (!FCGI_MAY_BE_FPM(dconf))  {
+            if (!strncmp(r->filename, "proxy:fcgi://", 13)) {
+                /* If we strip this under FPM, and any internal redirect occurs
+                 * on PATH_INFO, FPM may use PATH_TRANSLATED instead of
+                 * SCRIPT_FILENAME (a la mod_fastcgi + Action).
+                 */
+                newfname = apr_pstrdup(r->pool, r->filename+13);
+            }
+            /* Query string in environment only */
+            if (newfname && r->args && *r->args) {
+                char *qs = strrchr(newfname, '?');
+                if (qs && !strcmp(qs+1, r->args)) {
+                    *qs = '\0';
+                }
+            }
+        } else {
+            fpm = 1;
+        }
+
+        if (newfname) {
+            newfname = ap_strchr(newfname, '/');
+            r->filename = newfname;
+        }
+    }
+
+#if 0
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(09999)
+                  "r->filename: %s", (r->filename ? r->filename : "nil"));
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(09999)
+                  "r->uri: %s", (r->uri ? r->uri : "nil"));
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(09999)
+                  "r->path_info: %s", (r->path_info ? r->path_info : "nil"));
 #endif
-#ifdef H2_OPENSSL
-    myfeats.sha256 = 1;
-#endif
-#ifdef H2_NG2_INVALID_HEADER_CB
-    myfeats.inv_headers = 1;
-#endif
-#ifdef H2_NG2_LOCAL_WIN_SIZE
-    myfeats.dyn_windows = 1;
-#endif
-    
-    apr_pool_userdata_get(&data, mod_h2_init_key, s->process->pool);
-    if ( data == NULL ) {
-        ap_log_error( APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(03089)
-                     "initializing post config dry run");
-        apr_pool_userdata_set((const void *)1, mod_h2_init_key,
-                              apr_pool_cleanup_null, s->process->pool);
-        return APR_SUCCESS;
+
+    ap_add_common_vars(r);
+    ap_add_cgi_vars(r);
+
+    if (fpm || apr_table_get(r->notes, "virtual_script")) {
+        /*
+         * Adjust SCRIPT_NAME, PATH_INFO and PATH_TRANSLATED for PHP-FPM
+         * TODO: Right now, PATH_INFO and PATH_TRANSLATED look OK...
+         */
+        const char *pend;
+        const char *script_name = apr_table_get(r->subprocess_env, "SCRIPT_NAME");
+        pend = script_name + strlen(script_name);
+        if (r->path_info && *r->path_info) {
+            pend = script_name + ap_find_path_info(script_name, r->path_info) - 1;
+        }
+        while (pend != script_name && *pend != '/') {
+            pend--;
+        }
+        apr_table_setn(r->subprocess_env, "SCRIPT_NAME", pend);
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
+                      "fpm:virtual_script: Modified SCRIPT_NAME to: %s",
+                      pend);
     }
-    
-    ngh2 = nghttp2_version(0);
-    ap_log_error( APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(03090)
-                 "mod_http2 (v%s, feats=%s%s%s%s, nghttp2 %s), initializing...",
-                 MOD_HTTP2_VERSION, 
-                 myfeats.change_prio? "CHPRIO"  : "", 
-                 myfeats.sha256?      "+SHA256" : "",
-                 myfeats.inv_headers? "+INVHD"  : "",
-                 myfeats.dyn_windows? "+DWINS"  : "",
-                 ngh2?                ngh2->version_str : "unknown");
-    
-    switch (h2_conn_mpm_type()) {
-        case H2_MPM_SIMPLE:
-        case H2_MPM_MOTORZ:
-        case H2_MPM_NETWARE:
-        case H2_MPM_WINNT:
-            /* not sure we need something extra for those. */
+
+    /* XXX are there any FastCGI specific env vars we need to send? */
+
+    /* Give admins final option to fine-tune env vars */
+    fix_cgivars(r, dconf);
+
+    /* XXX mod_cgi/mod_cgid use ap_create_environment here, which fills in
+     *     the TZ value specially.  We could use that, but it would mean
+     *     parsing the key/value pairs back OUT of the allocated env array,
+     *     not to mention allocating a totally useless array in the first
+     *     place, which would suck. */
+
+    envarr = apr_table_elts(r->subprocess_env);
+    elts = (const apr_table_entry_t *) envarr->elts;
+
+    if (APLOGrtrace8(r)) {
+        int i;
+
+        for (i = 0; i < envarr->nelts; ++i) {
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE8, 0, r, APLOGNO(01062)
+                          "sending env var '%s' value '%s'",
+                          elts[i].key, elts[i].val);
+        }
+    }
+
+    /* Send envvars over in as many FastCGI records as it takes, */
+    next_elem = 0; /* starting with the first one */
+
+    avail_len = 16 * 1024; /* our limit per record, which could have been up
+                            * to AP_FCGI_MAX_CONTENT_LEN
+                            */
+
+    while (next_elem < envarr->nelts) {
+        starting_elem = next_elem;
+        required_len = ap_fcgi_encoded_env_len(r->subprocess_env,
+                                               avail_len,
+                                               &next_elem);
+
+        if (!required_len) {
+            if (next_elem < envarr->nelts) {
+                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                              APLOGNO(02536) "couldn't encode envvar '%s' in %"
+                              APR_SIZE_T_FMT " bytes",
+                              elts[next_elem].key, avail_len);
+                /* skip this envvar and continue */
+                ++next_elem;
+                continue;
+            }
+            /* only an unused element at the end of the array */
             break;
-        case H2_MPM_EVENT:
-        case H2_MPM_WORKER:
-            /* all fine, we know these ones */
-            break;
-        case H2_MPM_PREFORK:
-            /* ok, we now know how to handle that one */
-            break;
-        case H2_MPM_UNKNOWN:
-            /* ??? */
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(03091)
-                         "post_config: mpm type unknown");
-            break;
+        }
+
+        body = apr_palloc(temp_pool, required_len);
+        rv = ap_fcgi_encode_env(r, r->subprocess_env, body, required_len,
+                                &starting_elem);
+        /* we pre-compute, so we can't run out of space */
+        ap_assert(rv == APR_SUCCESS);
+        /* compute and encode must be in sync */
+        ap_assert(starting_elem == next_elem);
+
+        ap_fcgi_fill_in_header(&header, AP_FCGI_PARAMS, request_id,
+                               (apr_uint16_t)required_len, 0);
+        ap_fcgi_header_to_array(&header, farray);
+
+        vec[0].iov_base = (void *)farray;
+        vec[0].iov_len = sizeof(farray);
+        vec[1].iov_base = body;
+        vec[1].iov_len = required_len;
+
+        rv = send_data(conn, vec, 2, &len);
+        apr_pool_clear(temp_pool);
+
+        if (rv) {
+            return rv;
+        }
     }
-    
-    if (!h2_mpm_supported() && !mpm_warned) {
-        mpm_warned = 1;
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(10034)
-                     "The mpm module (%s) is not supported by mod_http2. The mpm determines "
-                     "how things are processed in your server. HTTP/2 has more demands in "
-                     "this regard and the currently selected mpm will just not do. "
-                     "This is an advisory warning. Your server will continue to work, but "
-                     "the HTTP/2 protocol will be inactive.", 
-                     h2_conn_mpm_name());
-    }
-    
-    status = h2_h2_init(p, s);
-    if (status == APR_SUCCESS) {
-        status = h2_switch_init(p, s);
-    }
-    if (status == APR_SUCCESS) {
-        status = h2_task_init(p, s);
-    }
-    
-    return status;
+
+    /* Envvars sent, so say we're done */
+    ap_fcgi_fill_in_header(&header, AP_FCGI_PARAMS, request_id, 0, 0);
+    ap_fcgi_header_to_array(&header, farray);
+
+    vec[0].iov_base = (void *)farray;
+    vec[0].iov_len = sizeof(farray);
+
+    return send_data(conn, vec, 1, &len);
 }

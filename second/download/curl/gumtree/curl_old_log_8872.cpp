@@ -1,11 +1,9 @@
 fputs(
-"              redirects to follow by using the --max-redirs option.\n"
+"              only view. This is  especially  useful  if  the  user  wants  to\n"
+"              machine-parse  the contents of an FTP directory since the normal\n"
+"              directory view doesn't use a standard look or format. When  used\n"
+"              like  this,  the  option causes a NLST command to be sent to the\n"
+"              server instead of LIST.\n"
 "\n"
-"              When curl follows a redirect and the request is not a plain  GET\n"
-"              (for example POST or PUT), it will do the following request with\n"
-"              a GET if the HTTP response was 301, 302, or 303. If the response\n"
-"              code  was  any  other  3xx code, curl will re-send the following\n"
-"              request using the same unmodified method.\n"
-"\n"
-"       --libcurl <file>\n"
+"              Note: Some FTP servers list only  files  in  their  response  to\n"
 , stdout);

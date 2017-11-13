@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "exec used but not allowed "
-                      "in %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
+                         "Can't chdir to %s", ap_unixd_config.chroot_dir);

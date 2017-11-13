@@ -1,1 +1,1 @@
-die(_("positive value expected contents:lines=%s"), valp);
+die(":strip= requires a positive integer argument");

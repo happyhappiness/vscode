@@ -1,0 +1,1 @@
+die("delete %s given zero old value", ref.buf);

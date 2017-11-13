@@ -1,1 +1,1 @@
-state_puts (_("A policy requirement was not met\n"), s);
+(mutt_yesorno (buff, MUTT_NO);

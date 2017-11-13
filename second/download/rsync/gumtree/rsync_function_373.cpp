@@ -1,43 +1,68 @@
-void do_hard_links(struct file_list *flist)
+static int receive_data(int f_in,struct map_struct *buf,int fd,char *fname)
 {
-#if SUPPORT_HARD_LINKS
-  int i;
-  
-  if (!hlink_list) return;
+  int i,n,remainder,len,count;
+  off_t offset = 0;
+  off_t offset2;
+  char *data;
+  static char file_sum1[MD4_SUM_LENGTH];
+  static char file_sum2[MD4_SUM_LENGTH];
+  char *map=NULL;
 
-  for (i=1;i<hlink_count;i++) {
-    if (S_ISREG(hlink_list[i].mode) &&
-	S_ISREG(hlink_list[i-1].mode) &&
-	hlink_list[i].basename && hlink_list[i-1].basename &&
-	hlink_list[i].dev == hlink_list[i-1].dev &&
-	hlink_list[i].inode == hlink_list[i-1].inode) {
-      struct stat st1,st2;
+  count = read_int(f_in);
+  n = read_int(f_in);
+  remainder = read_int(f_in);
 
-      if (link_stat(f_name(&hlink_list[i-1]),&st1) != 0) continue;
-      if (link_stat(f_name(&hlink_list[i]),&st2) != 0) {
-	if (do_link(f_name(&hlink_list[i-1]),f_name(&hlink_list[i])) != 0) {
-		if (verbose > 0)
-			fprintf(FINFO,"link %s => %s : %s\n",
-				f_name(&hlink_list[i]),
-				f_name(&hlink_list[i-1]),strerror(errno));
-	  continue;
-	}
-      } else {
-	if (st2.st_dev == st1.st_dev && st2.st_ino == st1.st_ino) continue;
-	
-	if (do_unlink(f_name(&hlink_list[i])) != 0 ||
-	    do_link(f_name(&hlink_list[i-1]),f_name(&hlink_list[i])) != 0) {
-		if (verbose > 0)
-			fprintf(FINFO,"link %s => %s : %s\n",
-				f_name(&hlink_list[i]),
-				f_name(&hlink_list[i-1]),strerror(errno));
-	  continue;
-	}
+  sum_init();
+
+  for (i=recv_token(f_in,&data); i != 0; i=recv_token(f_in,&data)) {
+    if (i > 0) {
+      if (verbose > 3)
+	fprintf(FERROR,"data recv %d at %d\n",i,(int)offset);
+
+      sum_update(data,i);
+
+      if (fd != -1 && write_sparse(fd,data,i) != i) {
+	fprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));
+	exit_cleanup(1);
       }
-      if (verbose > 0)
-	      fprintf(FINFO,"%s => %s\n",
-		      f_name(&hlink_list[i]),f_name(&hlink_list[i-1]));
-    }	
+      offset += i;
+    } else {
+      i = -(i+1);
+      offset2 = i*n;
+      len = n;
+      if (i == count-1 && remainder != 0)
+	len = remainder;
+
+      if (verbose > 3)
+	fprintf(FERROR,"chunk[%d] of size %d at %d offset=%d\n",
+		i,len,(int)offset2,(int)offset);
+
+      map = map_ptr(buf,offset2,len);
+
+      see_token(map, len);
+      sum_update(map,len);
+
+      if (fd != -1 && write_sparse(fd,map,len) != len) {
+	fprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));
+	exit_cleanup(1);
+      }
+      offset += len;
+    }
   }
-#endif
+
+  if (fd != -1 && offset > 0 && sparse_end(fd) != 0) {
+    fprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));
+    exit_cleanup(1);
+  }
+
+  sum_end(file_sum1);
+
+  if (remote_version >= 14) {
+    read_buf(f_in,file_sum2,MD4_SUM_LENGTH);
+    if (verbose > 2)
+      fprintf(FERROR,"got file_sum\n");
+    if (fd != -1 && memcmp(file_sum1,file_sum2,MD4_SUM_LENGTH) != 0)
+      return 0;
+  }
+  return 1;
 }

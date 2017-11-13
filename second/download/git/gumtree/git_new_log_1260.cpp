@@ -1,1 +1,2 @@
-die(_("bad zlib compression level %d"), level);
+printf(" %u %s", obj_stat[i].delta_depth,
+			       oid_to_hex(&bobj->idx.oid));

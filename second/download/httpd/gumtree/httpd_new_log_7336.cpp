@@ -1,1 +1,1 @@
-apr_file_printf(errfile, "User %s not found" NL, user);
+apr_file_printf(errfile, "Password for user %s correct." NL, user);

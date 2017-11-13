@@ -1,1 +1,1 @@
-die("unable to generate diff for %s", name);
+printf("Diag: url=%s\n", url ? url : "NULL");

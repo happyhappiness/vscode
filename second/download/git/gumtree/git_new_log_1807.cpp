@@ -1,1 +1,2 @@
-status_printf_ln(s, color, "   %s", have_done.items[i].string);
+status_printf_ln(s, c,
+			"--------------------------------------------------");

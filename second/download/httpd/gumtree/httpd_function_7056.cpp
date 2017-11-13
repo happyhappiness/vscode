@@ -1,140 +1,35 @@
-static int filter_lookup(ap_filter_t *f, ap_filter_rec_t *filter)
+static void show_providers(request_rec *r)
 {
-    ap_filter_provider_t *provider;
-    int match = 0;
-    const char *err = NULL;
-    request_rec *r = f->r;
-    harness_ctx *ctx = f->ctx;
-    provider_ctx *pctx;
-#ifndef NO_PROTOCOL
-    unsigned int proto_flags;
-    mod_filter_ctx *rctx = ap_get_module_config(r->request_config,
-                                                &filter_module);
-#endif
+    apr_array_header_t *groups = ap_list_provider_groups(r->pool);
+    ap_list_provider_groups_t *group;
+    apr_array_header_t *names;
+    ap_list_provider_names_t *name;
+    int i,j;
+    const char *cur_group = NULL;
 
-    /* Check registered providers in order */
-    for (provider = filter->providers; provider; provider = provider->next) {
-        if (provider->expr) {
-            match = ap_expr_exec(r, provider->expr, &err);
-            if (err) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01379)
-                              "Error evaluating filter dispatch condition: %s",
-                              err);
-                match = 0;
-            }
-            ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                          "Expression condition for '%s' %s",
-                          provider->frec->name,
-                          match ? "matched" : "did not match");
+    qsort(groups->elts, groups->nelts, sizeof(ap_list_provider_groups_t),
+          cmp_provider_groups);
+    ap_rputs("<h2><a name=\"providers\">Providers</a></h2>\n<dl>", r);
+
+    for (i = 0; i < groups->nelts; i++) {
+        group = &APR_ARRAY_IDX(groups, i, ap_list_provider_groups_t);
+        if (!cur_group || strcmp(cur_group, group->provider_group) != 0) {
+            if (cur_group)
+                ap_rputs("\n</dt>\n", r);
+            cur_group = group->provider_group;
+            ap_rprintf(r, "<dt><strong>%s</strong> (version <tt>%s</tt>):"
+                          "\n <br />\n", cur_group, group->provider_version);
         }
-        else if (r->content_type) {
-            const char **type = provider->types;
-            size_t len = strcspn(r->content_type, "; \t");
-            AP_DEBUG_ASSERT(type != NULL);
-            ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
-                          "Content-Type '%s' ...", r->content_type);
-            while (*type) {
-                /* Handle 'content-type;charset=...' correctly */
-                if (strncmp(*type, r->content_type, len) == 0
-                    && (*type)[len] == '\0') {
-                    ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
-                                  "... matched '%s'", *type);
-                    match = 1;
-                    break;
-                }
-                else {
-                    ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
-                                  "... did not match '%s'", *type);
-                }
-                type++;
-            }
-            ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                          "Content-Type condition for '%s' %s",
-                          provider->frec->name,
-                          match ? "matched" : "did not match");
-        }
-        else {
-            ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                          "Content-Type condition for '%s' did not match: "
-                          "no Content-Type", provider->frec->name);
-        }
-
-        if (match) {
-            /* condition matches this provider */
-#ifndef NO_PROTOCOL
-            /* check protocol
-             *
-             * FIXME:
-             * This is a quick hack and almost certainly buggy.
-             * The idea is that by putting this in mod_filter, we relieve
-             * filter implementations of the burden of fixing up HTTP headers
-             * for cases that are routinely affected by filters.
-             *
-             * Default is ALWAYS to do nothing, so as not to tread on the
-             * toes of filters which want to do it themselves.
-             *
-             */
-            proto_flags = provider->frec->proto_flags;
-
-            /* some specific things can't happen in a proxy */
-            if (r->proxyreq) {
-                if (proto_flags & AP_FILTER_PROTO_NO_PROXY) {
-                    /* can't use this provider; try next */
-                    continue;
-                }
-
-                if (proto_flags & AP_FILTER_PROTO_TRANSFORM) {
-                    const char *str = apr_table_get(r->headers_out,
-                                                    "Cache-Control");
-                    if (str) {
-                        char *str1 = apr_pstrdup(r->pool, str);
-                        ap_str_tolower(str1);
-                        if (strstr(str1, "no-transform")) {
-                            /* can't use this provider; try next */
-                            continue;
-                        }
-                    }
-                    apr_table_addn(r->headers_out, "Warning",
-                                   apr_psprintf(r->pool,
-                                                "214 %s Transformation applied",
-                                                r->hostname));
-                }
-            }
-
-            /* things that are invalidated if the filter transforms content */
-            if (proto_flags & AP_FILTER_PROTO_CHANGE) {
-                apr_table_unset(r->headers_out, "Content-MD5");
-                apr_table_unset(r->headers_out, "ETag");
-                if (proto_flags & AP_FILTER_PROTO_CHANGE_LENGTH) {
-                    apr_table_unset(r->headers_out, "Content-Length");
-                }
-            }
-
-            /* no-cache is for a filter that has different effect per-hit */
-            if (proto_flags & AP_FILTER_PROTO_NO_CACHE) {
-                apr_table_unset(r->headers_out, "Last-Modified");
-                apr_table_addn(r->headers_out, "Cache-Control", "no-cache");
-            }
-
-            if (proto_flags & AP_FILTER_PROTO_NO_BYTERANGE) {
-                apr_table_setn(r->headers_out, "Accept-Ranges", "none");
-            }
-            else if (rctx && rctx->range) {
-                /* restore range header we saved earlier */
-                apr_table_setn(r->headers_in, "Range", rctx->range);
-                rctx->range = NULL;
-            }
-#endif
-            for (pctx = ctx->init_ctx; pctx; pctx = pctx->next) {
-                if (pctx->provider == provider) {
-                    ctx->fctx = pctx->ctx ;
-                }
-            }
-            ctx->func = provider->frec->filter_func.out_func;
-            return 1;
+        names = ap_list_provider_names(r->pool, group->provider_group,
+                                       group->provider_version);
+        qsort(names->elts, names->nelts, sizeof(ap_list_provider_names_t),
+              cmp_provider_names);
+        for (j = 0; j < names->nelts; j++) {
+            name = &APR_ARRAY_IDX(names, j, ap_list_provider_names_t);
+            ap_rprintf(r, "<tt>&nbsp;&nbsp;%s</tt><br/>", name->provider_name);
         }
     }
-
-    /* No provider matched */
-    return 0;
+    if (cur_group)
+        ap_rputs("\n</dt>\n", r);
+    ap_rputs("</dl>\n<hr />\n", r);
 }

@@ -1,2 +1,1 @@
-printf("notdir %"PRIuMAX"\n%s\n",
-			       (uintmax_t)strlen(obj_name), obj_name);
+die("BUG: couldn't parse 'reset' as a color");

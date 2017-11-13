@@ -1,1 +1,1 @@
-out_of_memory("map_ptr");
+fprintf(stderr,"write failed on %s : %s\n",fname,strerror(errno));

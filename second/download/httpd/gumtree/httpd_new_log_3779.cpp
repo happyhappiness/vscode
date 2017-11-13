@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_EMERG, rv, r, APLOGNO(01197)
-                                      "worker slotmem_dptr failed");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01275)
+                      "Can't open directory for index: %s", r->filename);

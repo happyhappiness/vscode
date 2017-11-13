@@ -1,1 +1,1 @@
-die("--reverse and --first-parent together require specified latest commit");
+die("git cat-file: could not get object info");

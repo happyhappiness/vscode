@@ -1,79 +1,68 @@
-static int asis_handler(request_rec *r)
+static authz_status fileowner_check_authorization(request_rec *r,
+                                             const char *require_args)
 {
-    conn_rec *c = r->connection;
-    apr_file_t *f = NULL;
-    apr_status_t rv;
-    const char *location;
+    char *reason = NULL;
+    apr_status_t status = 0;
 
-    if(strcmp(r->handler,ASIS_MAGIC_TYPE) && strcmp(r->handler,"send-as-is"))
-        return DECLINED;
+#if !APR_HAS_USER
+    reason = "'Require file-owner' is not supported on this platform.";
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                  "Authorization of user %s to access %s failed, reason: %s",
+                  r->user, r->uri, reason ? reason : "unknown");
+    return AUTHZ_DENIED;
+#else  /* APR_HAS_USER */
+    char *owner = NULL;
+    apr_finfo_t finfo;
 
-    r->allowed |= (AP_METHOD_BIT << M_GET);
-    if (r->method_number != M_GET)
-        return DECLINED;
-    if (r->finfo.filetype == APR_NOFILE) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                    "File does not exist: %s", r->filename);
-        return HTTP_NOT_FOUND;
+    if (!r->user) {
+        return AUTHZ_DENIED_NO_USER;
     }
 
-    if ((rv = apr_file_open(&f, r->filename, APR_READ,
-                APR_OS_DEFAULT, r->pool)) != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                    "file permissions deny server access: %s", r->filename);
-        return HTTP_FORBIDDEN;
+    if (!r->filename) {
+        reason = "no filename available";
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");
+        return AUTHZ_DENIED;
     }
 
-    ap_scan_script_header_err(r, f, NULL);
-    location = apr_table_get(r->headers_out, "Location");
-
-    if (location && location[0] == '/' &&
-        ((r->status == HTTP_OK) || ap_is_HTTP_REDIRECT(r->status))) {
-
-        apr_file_close(f);
-
-        /* Internal redirect -- fake-up a pseudo-request */
-        r->status = HTTP_OK;
-
-        /* This redirect needs to be a GET no matter what the original
-         * method was.
-         */
-        r->method = apr_pstrdup(r->pool, "GET");
-        r->method_number = M_GET;
-
-        ap_internal_redirect_handler(location, r);
-        return OK;
+    status = apr_stat(&finfo, r->filename, APR_FINFO_USER, r->pool);
+    if (status != APR_SUCCESS) {
+        reason = apr_pstrcat(r->pool, "could not stat file ",
+                                r->filename, NULL);
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");
+        return AUTHZ_DENIED;
     }
 
-    if (!r->header_only) {
-        apr_bucket_brigade *bb;
-        apr_bucket *b;
-        apr_off_t pos = 0;
-
-        rv = apr_file_seek(f, APR_CUR, &pos);
-        if (rv != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "mod_asis: failed to find end-of-headers position "
-                          "for %s", r->filename);
-            apr_file_close(f);
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
-
-        bb = apr_brigade_create(r->pool, c->bucket_alloc);
-        apr_brigade_insert_file(bb, f, pos, r->finfo.size - pos, r->pool);
-
-        b = apr_bucket_eos_create(c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(bb, b);
-        rv = ap_pass_brigade(r->output_filters, bb);
-        if (rv != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "mod_asis: ap_pass_brigade failed for file %s", r->filename);
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
-    }
-    else {
-        apr_file_close(f);
+    if (!(finfo.valid & APR_FINFO_USER)) {
+        reason = "no file owner information available";
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");
+        return AUTHZ_DENIED;
     }
 
-    return OK;
+    status = apr_uid_name_get(&owner, finfo.user, r->pool);
+    if (status != APR_SUCCESS || !owner) {
+        reason = "could not get name of file owner";
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");
+        return AUTHZ_DENIED;
+    }
+
+    if (strcmp(owner, r->user)) {
+        reason = apr_psprintf(r->pool, "file owner %s does not match.",
+                                owner);
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");
+        return AUTHZ_DENIED;
+    }
+
+    /* this user is authorized */
+    return AUTHZ_GRANTED;
+#endif /* APR_HAS_USER */
 }

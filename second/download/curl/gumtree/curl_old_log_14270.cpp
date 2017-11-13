@@ -1,8 +1,12 @@
 fputs(
-"              (HTTP) Tells curl to figure out authentication method by itself,\n"
-"              and  use  the most secure one the remote site claims to support.\n"
-"              This is done by first doing a request and checking the response-\n"
-"              headers,  thus  possibly  inducing  an extra network round-trip.\n"
-"              This is  used  instead  of  setting  a  specific  authentication\n"
-"              method,  which  you  can  do with --basic, --digest, --ntlm, and\n"
+"  If you neglect to specify the password on the command line, you will be\n"
+"  prompted for the correct password before any data can be received.\n"
+"\n"
+"  Many older SSL-servers have problems with SSLv3 or TLS, which newer versions\n"
+"  of OpenSSL etc use, therefore it is sometimes useful to specify what\n"
+"  SSL-version curl should use. Use -3, -2 or -1 to specify that exact SSL\n"
+"  version to use (for SSLv3, SSLv2 or TLSv1 respectively):\n"
+"\n"
+"        curl -2 https://secure.site.com/\n"
+"\n"
 , stdout);

@@ -1,35 +1,27 @@
-static void ssl_init_server_certs(server_rec *s,
-                                  apr_pool_t *p,
-                                  apr_pool_t *ptemp,
-                                  modssl_ctx_t *mctx)
+static int show_active_hooks(request_rec * r)
 {
-    const char *rsa_id, *dsa_id;
-    const char *vhost_id = mctx->sc->vhost_id;
     int i;
-    int have_rsa, have_dsa;
+    ap_rputs("<h2><a name=\"startup_hooks\">Startup Hooks</a></h2>\n<dl>", r);
 
-    rsa_id = ssl_asn1_table_keyfmt(ptemp, vhost_id, SSL_AIDX_RSA);
-    dsa_id = ssl_asn1_table_keyfmt(ptemp, vhost_id, SSL_AIDX_DSA);
-
-    have_rsa = ssl_server_import_cert(s, mctx, rsa_id, SSL_AIDX_RSA);
-    have_dsa = ssl_server_import_cert(s, mctx, dsa_id, SSL_AIDX_DSA);
-
-    if (!(have_rsa || have_dsa)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                "Oops, no RSA or DSA server certificate found?!");
-        ssl_die();
+    for (i = 0; startup_hooks[i].name; i++) {
+        ap_rprintf(r, "<dt><strong>%s:</strong>\n <br /><tt>\n",
+                   startup_hooks[i].name);
+        dump_a_hook(r, startup_hooks[i].get);
+        ap_rputs("\n  </tt>\n</dt>\n", r);
     }
 
-    for (i = 0; i < SSL_AIDX_MAX; i++) {
-        ssl_check_public_cert(s, ptemp, mctx->pks->certs[i], i);
+    ap_rputs
+        ("</dl>\n<hr />\n<h2><a name=\"request_hooks\">Request Hooks</a></h2>\n<dl>",
+         r);
+
+    for (i = 0; request_hooks[i].name; i++) {
+        ap_rprintf(r, "<dt><strong>%s:</strong>\n <br /><tt>\n",
+                   request_hooks[i].name);
+        dump_a_hook(r, request_hooks[i].get);
+        ap_rputs("\n  </tt>\n</dt>\n", r);
     }
 
-    have_rsa = ssl_server_import_key(s, mctx, rsa_id, SSL_AIDX_RSA);
-    have_dsa = ssl_server_import_key(s, mctx, dsa_id, SSL_AIDX_DSA);
+    ap_rputs("</dl>\n<hr />\n", r);
 
-    if (!(have_rsa || have_dsa)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                "Oops, no RSA or DSA server private key found?!");
-        ssl_die();
-    }
+    return 0;
 }

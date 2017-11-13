@@ -1,2 +1,1 @@
-error("unable to get sha1 of object %u in %s",
-				     i, p->pack_name);
+die("Couldn't allocate PCRE2 JIT stack");

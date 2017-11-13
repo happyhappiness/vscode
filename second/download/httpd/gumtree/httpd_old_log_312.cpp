@@ -1,2 +1,1 @@
-apr_file_printf(errfile, "\thtpasswd -b[cmdps] passwordfile username "
-                    "password\n\n");
+ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGBUS)");

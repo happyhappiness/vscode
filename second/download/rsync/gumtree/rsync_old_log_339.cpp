@@ -1,1 +1,1 @@
-fprintf(FERROR,"got file_sum\n");
+fprintf(FERROR,"waiting on %d\n",pid);

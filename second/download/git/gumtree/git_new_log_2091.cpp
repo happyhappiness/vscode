@@ -1,1 +1,0 @@
-error("RPC failed; %s", msg.buf);

@@ -1,12 +1,19 @@
-static int git_config_get_notes_strategy(const char *key,
-					 enum notes_merge_strategy *strategy)
+static int memory_limit_check(size_t size, int gentle)
 {
-	const char *value;
-
-	if (git_config_get_string_const(key, &value))
-		return 1;
-	if (parse_notes_merge_strategy(value, strategy))
-		git_die_config(key, "unknown notes merge strategy %s", value);
-
+	static size_t limit = 0;
+	if (!limit) {
+		limit = git_env_ulong("GIT_ALLOC_LIMIT", 0);
+		if (!limit)
+			limit = SIZE_MAX;
+	}
+	if (size > limit) {
+		if (gentle) {
+			error("attempting to allocate %"PRIuMAX" over limit %"PRIuMAX,
+			      (uintmax_t)size, (uintmax_t)limit);
+			return -1;
+		} else
+			die("attempting to allocate %"PRIuMAX" over limit %"PRIuMAX,
+			    (uintmax_t)size, (uintmax_t)limit);
+	}
 	return 0;
 }

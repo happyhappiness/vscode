@@ -1,4 +1,2 @@
-fprintf(stderr, "%s in %s has negative refcnt %d\n",
-				ent->suspect->path,
-				sha1_to_hex(ent->suspect->commit->object.sha1),
-				ent->suspect->refcnt);
+die("unable to generate diff (%s)",
+		    sha1_to_hex(parent->commit->object.sha1));

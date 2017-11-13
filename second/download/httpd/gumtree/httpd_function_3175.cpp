@@ -1,43 +1,42 @@
-static void xlate_insert_filter(request_rec *r)
+static int authn_cache_post_config(apr_pool_t *pconf, apr_pool_t *plog,
+                                   apr_pool_t *ptmp, server_rec *s)
 {
-    /* Hey... don't be so quick to use reqinfo->dc here; reqinfo may be NULL */
-    charset_req_t *reqinfo = ap_get_module_config(r->request_config,
-                                                  &charset_lite_module);
-    charset_dir_t *dc = ap_get_module_config(r->per_dir_config,
-                                             &charset_lite_module);
+    apr_status_t rv;
+    const char *errmsg;
+    static struct ap_socache_hints authn_cache_hints = {64, 32, 60000000};
 
-    if (dc && (dc->implicit_add == IA_NOIMPADD)) { 
-        if (dc->debug >= DBGLVL_GORY) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "xlate output filter not added implicitly because "
-                          "CharsetOptions included 'NoImplicitAdd'");
-        }
-        return;
+    if (!configured) {
+        return OK;    /* don't waste the overhead of creating mutex & cache */
+    }
+    if (socache_provider == NULL) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, plog,
+                      "Please select a socache provider with AuthnCacheSOCache "
+                      "(no default found on this platform)");
+        return 500; /* An HTTP status would be a misnomer! */
     }
 
-    if (reqinfo) {
-        if (reqinfo->output_ctx && !configured_on_output(r, XLATEOUT_FILTER_NAME)) {
-            ap_add_output_filter(XLATEOUT_FILTER_NAME, reqinfo->output_ctx, r,
-                                 r->connection);
-        }
-        else if (dc->debug >= DBGLVL_FLOW) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "xlate output filter not added implicitly because %s",
-                          !reqinfo->output_ctx ?
-                          "no output configuration available" :
-                          "another module added the filter");
-        }
-
-        if (reqinfo->input_ctx && !configured_on_input(r, XLATEIN_FILTER_NAME)) {
-            ap_add_input_filter(XLATEIN_FILTER_NAME, reqinfo->input_ctx, r,
-                                r->connection);
-        }
-        else if (dc->debug >= DBGLVL_FLOW) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "xlate input filter not added implicitly because %s",
-                          !reqinfo->input_ctx ?
-                          "no input configuration available" :
-                          "another module added the filter");
-        }
+    rv = ap_global_mutex_create(&authn_cache_mutex, NULL,
+                                authn_cache_id, NULL, s, pconf, 0);
+    if (rv != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog,
+                      "failed to create %s mutex", authn_cache_id);
+        return 500; /* An HTTP status would be a misnomer! */
     }
+    apr_pool_cleanup_register(pconf, NULL, remove_lock, apr_pool_cleanup_null);
+
+    errmsg = socache_provider->create(&socache_instance, NULL, ptmp, pconf);
+    if (errmsg) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog, "%s", errmsg);
+        return 500; /* An HTTP status would be a misnomer! */
+    }
+
+    rv = socache_provider->init(socache_instance, authn_cache_id,
+                                &authn_cache_hints, s, pconf);
+    if (rv != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog,
+                      "failed to initialise %s cache", authn_cache_id);
+        return 500; /* An HTTP status would be a misnomer! */
+    }
+    apr_pool_cleanup_register(pconf, (void*)s, destroy_cache, apr_pool_cleanup_null);
+    return OK;
 }

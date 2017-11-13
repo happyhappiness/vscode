@@ -1,11 +1,9 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              When curl is invoked, it always (unless -q is used) checks for a\n"
+"              default config file and uses it if  found.  The  default  config\n"
+"              file is checked for in the following places in this order:\n"
 "\n"
-"       --krb4 <level>\n"
-"              (FTP) This is the former name for --krb. Do not use.\n"
-"\n"
-"       -l, --list-only\n"
-"              (FTP) When listing an FTP directory, this switch forces a  name-\n"
-"              only  view.  This  is  especially  useful  if  the user wants to\n"
-"              machine-parse the contents of an FTP directory since the  normal\n"
+"              1)  curl  tries  to find the \"home dir\": It first checks for the\n"
+"              CURL_HOME and then the HOME environment variables. Failing that,\n"
+"              it  uses getpwuid() on Unix-like systems (which returns the home\n"
 , stdout);

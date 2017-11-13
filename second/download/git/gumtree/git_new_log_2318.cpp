@@ -1,1 +1,1 @@
-error_errno("unable to mmap '%s'", config_filename);
+error("duplicate parent %s ignored", oid_to_hex(oid));

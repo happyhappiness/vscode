@@ -1,11 +1,8 @@
 fputs(
-"              requires  that  the  underlying  libcurl was built to support c-\n"
-"              ares. Added in 7.33.0.\n"
-"\n"
-"       --dns-ipv6-addr <address>\n"
-"              (DNS) Tell curl to bind to <ip-address>  when  making  IPv6  DNS\n"
-"              requests,  so that the DNS requests originate from this address.\n"
-"              The argument should be a single IPv6 address.\n"
-"\n"
-"              See also --dns-interface  and  --dns-ipv4-addr.  --dns-ipv6-addr\n"
+"              (FTP) Tell curl to disable the use of the EPRT and LPRT commands\n"
+"              when doing active FTP transfers. Curl will normally always first\n"
+"              attempt  to use EPRT, then LPRT before using PORT, but with this\n"
+"              option, it will use PORT right away. EPRT and  LPRT  are  exten-\n"
+"              sions  to  the  original  FTP  protocol, and may not work on all\n"
+"              servers, but they enable more functionality in a better way than\n"
 , stdout);

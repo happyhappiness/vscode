@@ -1,32 +1,23 @@
-static const char *parse_cmd_verify(struct strbuf *input, const char *next)
+static void parse_cmd_delete(const char *next)
 {
-	char *refname;
-	unsigned char new_sha1[20];
-	unsigned char old_sha1[20];
-	int have_old;
+	struct strbuf ref = STRBUF_INIT;
+	struct strbuf oldvalue = STRBUF_INIT;
+	struct ref_update *update;
 
-	refname = parse_refname(input, &next);
-	if (!refname)
-		die("verify: missing <ref>");
+	update = update_alloc();
 
-	if (parse_next_sha1(input, &next, old_sha1, "verify", refname,
-			    PARSE_SHA1_OLD)) {
-		hashclr(new_sha1);
-		have_old = 0;
-	} else {
-		hashcpy(new_sha1, old_sha1);
-		have_old = 1;
-	}
+	if ((next = parse_first_arg(next, &ref)) != NULL && ref.buf[0])
+		update_store_ref_name(update, ref.buf);
+	else
+		die("delete line missing <ref>");
 
-	if (*next != line_termination)
-		die("verify %s: extra input: %s", refname, next);
+	if ((next = parse_next_arg(next, &oldvalue)) != NULL)
+		update_store_old_sha1(update, oldvalue.buf);
+	else if(!line_termination)
+		die("delete %s missing [<oldvalue>] NUL", ref.buf);
+	if (update->have_old && is_null_sha1(update->old_sha1))
+		die("delete %s given zero old value", ref.buf);
 
-	if (ref_transaction_update(transaction, refname, new_sha1, old_sha1,
-				   update_flags, have_old, &err))
-		die("%s", err.buf);
-
-	update_flags = 0;
-	free(refname);
-
-	return next;
+	if (next && *next)
+		die("delete %s has extra input: %s", ref.buf, next);
 }

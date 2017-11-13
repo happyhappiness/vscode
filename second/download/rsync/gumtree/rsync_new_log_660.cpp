@@ -1,1 +1,1 @@
-fprintf(fp, "\n%s\n", D_(sub_transdom, opt->descrip));
+rprintf(FLOG,"failed to create pid file %s\n", pid_file);

@@ -1,1 +1,2 @@
-die(_("Not all child objects of %s are reachable"), oid_to_hex(&obj->oid));
+fprintf_ln(stderr, _("directory stat info changes "
+				     "after updating a file"));

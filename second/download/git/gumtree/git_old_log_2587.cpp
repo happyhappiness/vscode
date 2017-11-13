@@ -1,1 +1,1 @@
-error("Unknown object type for %s", oid_to_hex(&obj->oid));
+die("bad tree %s", sha1_to_hex(obj->sha1));

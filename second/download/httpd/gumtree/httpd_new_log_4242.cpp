@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02226)
-                          "Awaiting re-negotiation handshake");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01178) "Doing balancers create: %d, %d (%d)",
+                         (int)ALIGNED_PROXY_BALANCER_SHARED_SIZE,
+                         (int)conf->balancers->nelts, conf->max_balancers);

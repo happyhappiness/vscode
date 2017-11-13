@@ -1,1 +1,1 @@
-fprintf (stderr, "dotlock [Mutt %s (%s)]\n", MUTT_VERSION, ReleaseDate);
+fputs (_("Failed to parse mailto: link\n"), stderr);

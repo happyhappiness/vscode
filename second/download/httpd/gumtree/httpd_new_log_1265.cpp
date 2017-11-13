@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, ap_server_conf,
-                     "Parent: Duplicating socket %d and sending it to child process %lu",
-                     nsd, dwProcessId);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "proxy: Unhandled bucket type of type %s in"
+                          " ap_proxy_buckets_lifetime_transform", e->type->name);

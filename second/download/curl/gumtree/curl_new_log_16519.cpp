@@ -1,11 +1,15 @@
-puts(
-"          info.  For  FTP,  this can also be enforced by using an\n"
-"          URL that ends with \";type=A\". This option  causes  data\n"
-"          sent to stdout to be in text mode for win32 systems.\n"
+fputs(
+"              used for FTP uploading.\n"
 "\n"
-"          If  this option is used twice, the second one will dis�\n"
-"          able ASCII usage.\n"
-"     --connect-timeout <seconds>\n"
-"          Maximum time in seconds that you allow  the  connection\n"
-"          to the server to take.  This only limits the connection\n"
-);
+"       26     Read error. Various reading problems.\n"
+"\n"
+"       27     Out of memory. A memory allocation request failed.\n"
+"\n"
+"       28     Operation  timeout.  The  specified  time-out period was reached\n"
+"              according to the conditions.\n"
+"\n"
+"       30     FTP PORT failed. The PORT command failed. Not  all  FTP  servers\n"
+"              support  the  PORT  command,  try  doing  a  transfer using PASV\n"
+"              instead!\n"
+"\n"
+, stdout);

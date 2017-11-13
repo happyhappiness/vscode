@@ -1,84 +1,108 @@
-static void sha1_object(const void *data, struct object_entry *obj_entry,
-			unsigned long size, enum object_type type,
-			const unsigned char *sha1)
+void diff_setup_done(struct diff_options *options)
 {
-	void *new_data = NULL;
-	int collision_test_needed;
+	int count = 0;
 
-	assert(data || obj_entry);
+	if (options->set_default)
+		options->set_default(options);
 
-	read_lock();
-	collision_test_needed = has_sha1_file(sha1);
-	read_unlock();
+	if (options->output_format & DIFF_FORMAT_NAME)
+		count++;
+	if (options->output_format & DIFF_FORMAT_NAME_STATUS)
+		count++;
+	if (options->output_format & DIFF_FORMAT_CHECKDIFF)
+		count++;
+	if (options->output_format & DIFF_FORMAT_NO_OUTPUT)
+		count++;
+	if (count > 1)
+		die("--name-only, --name-status, --check and -s are mutually exclusive");
 
-	if (collision_test_needed && !data) {
-		read_lock();
-		if (!check_collison(obj_entry))
-			collision_test_needed = 0;
-		read_unlock();
-	}
-	if (collision_test_needed) {
-		void *has_data;
-		enum object_type has_type;
-		unsigned long has_size;
-		read_lock();
-		has_type = sha1_object_info(sha1, &has_size);
-		if (has_type != type || has_size != size)
-			die(_("SHA1 COLLISION FOUND WITH %s !"), sha1_to_hex(sha1));
-		has_data = read_sha1_file(sha1, &has_type, &has_size);
-		read_unlock();
-		if (!data)
-			data = new_data = get_data_from_pack(obj_entry);
-		if (!has_data)
-			die(_("cannot read existing object %s"), sha1_to_hex(sha1));
-		if (size != has_size || type != has_type ||
-		    memcmp(data, has_data, size) != 0)
-			die(_("SHA1 COLLISION FOUND WITH %s !"), sha1_to_hex(sha1));
-		free(has_data);
-	}
+	/*
+	 * Most of the time we can say "there are changes"
+	 * only by checking if there are changed paths, but
+	 * --ignore-whitespace* options force us to look
+	 * inside contents.
+	 */
 
-	if (strict) {
-		read_lock();
-		if (type == OBJ_BLOB) {
-			struct blob *blob = lookup_blob(sha1);
-			if (blob)
-				blob->object.flags |= FLAG_CHECKED;
-			else
-				die(_("invalid blob object %s"), sha1_to_hex(sha1));
-		} else {
-			struct object *obj;
-			int eaten;
-			void *buf = (void *) data;
+	if (DIFF_XDL_TST(options, IGNORE_WHITESPACE) ||
+	    DIFF_XDL_TST(options, IGNORE_WHITESPACE_CHANGE) ||
+	    DIFF_XDL_TST(options, IGNORE_WHITESPACE_AT_EOL))
+		DIFF_OPT_SET(options, DIFF_FROM_CONTENTS);
+	else
+		DIFF_OPT_CLR(options, DIFF_FROM_CONTENTS);
 
-			assert(data && "data can only be NULL for large _blobs_");
+	if (DIFF_OPT_TST(options, FIND_COPIES_HARDER))
+		options->detect_rename = DIFF_DETECT_COPY;
 
-			/*
-			 * we do not need to free the memory here, as the
-			 * buf is deleted by the caller.
+	if (!DIFF_OPT_TST(options, RELATIVE_NAME))
+		options->prefix = NULL;
+	if (options->prefix)
+		options->prefix_length = strlen(options->prefix);
+	else
+		options->prefix_length = 0;
+
+	if (options->output_format & (DIFF_FORMAT_NAME |
+				      DIFF_FORMAT_NAME_STATUS |
+				      DIFF_FORMAT_CHECKDIFF |
+				      DIFF_FORMAT_NO_OUTPUT))
+		options->output_format &= ~(DIFF_FORMAT_RAW |
+					    DIFF_FORMAT_NUMSTAT |
+					    DIFF_FORMAT_DIFFSTAT |
+					    DIFF_FORMAT_SHORTSTAT |
+					    DIFF_FORMAT_DIRSTAT |
+					    DIFF_FORMAT_SUMMARY |
+					    DIFF_FORMAT_PATCH);
+
+	/*
+	 * These cases always need recursive; we do not drop caller-supplied
+	 * recursive bits for other formats here.
+	 */
+	if (options->output_format & (DIFF_FORMAT_PATCH |
+				      DIFF_FORMAT_NUMSTAT |
+				      DIFF_FORMAT_DIFFSTAT |
+				      DIFF_FORMAT_SHORTSTAT |
+				      DIFF_FORMAT_DIRSTAT |
+				      DIFF_FORMAT_SUMMARY |
+				      DIFF_FORMAT_CHECKDIFF))
+		DIFF_OPT_SET(options, RECURSIVE);
+	/*
+	 * Also pickaxe would not work very well if you do not say recursive
+	 */
+	if (options->pickaxe)
+		DIFF_OPT_SET(options, RECURSIVE);
+	/*
+	 * When patches are generated, submodules diffed against the work tree
+	 * must be checked for dirtiness too so it can be shown in the output
+	 */
+	if (options->output_format & DIFF_FORMAT_PATCH)
+		DIFF_OPT_SET(options, DIRTY_SUBMODULES);
+
+	if (options->detect_rename && options->rename_limit < 0)
+		options->rename_limit = diff_rename_limit_default;
+	if (options->setup & DIFF_SETUP_USE_CACHE) {
+		if (!active_cache)
+			/* read-cache does not die even when it fails
+			 * so it is safe for us to do this here.  Also
+			 * it does not smudge active_cache or active_nr
+			 * when it fails, so we do not have to worry about
+			 * cleaning it up ourselves either.
 			 */
-			obj = parse_object_buffer(sha1, type, size, buf, &eaten);
-			if (!obj)
-				die(_("invalid %s"), typename(type));
-			if (do_fsck_object &&
-			    fsck_object(obj, 1, fsck_error_function))
-				die(_("Error in object"));
-			if (fsck_walk(obj, mark_link, NULL))
-				die(_("Not all child objects of %s are reachable"), sha1_to_hex(obj->sha1));
+			read_cache();
+	}
+	if (options->abbrev <= 0 || 40 < options->abbrev)
+		options->abbrev = 40; /* full */
 
-			if (obj->type == OBJ_TREE) {
-				struct tree *item = (struct tree *) obj;
-				item->buffer = NULL;
-				obj->parsed = 0;
-			}
-			if (obj->type == OBJ_COMMIT) {
-				struct commit *commit = (struct commit *) obj;
-				if (detach_commit_buffer(commit, NULL) != data)
-					die("BUG: parse_object_buffer transmogrified our buffer");
-			}
-			obj->flags |= FLAG_CHECKED;
-		}
-		read_unlock();
+	/*
+	 * It does not make sense to show the first hit we happened
+	 * to have found.  It does not make sense not to return with
+	 * exit code in such a case either.
+	 */
+	if (DIFF_OPT_TST(options, QUICK)) {
+		options->output_format = DIFF_FORMAT_NO_OUTPUT;
+		DIFF_OPT_SET(options, EXIT_WITH_STATUS);
 	}
 
-	free(new_data);
+	options->diff_path_counter = 0;
+
+	if (DIFF_OPT_TST(options, FOLLOW_RENAMES) && options->pathspec.nr != 1)
+		die(_("--follow requires exactly one pathspec"));
 }

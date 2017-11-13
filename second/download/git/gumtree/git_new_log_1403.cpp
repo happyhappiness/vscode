@@ -1,1 +1,1 @@
-die("curl_easy_init failed");
+die("BUG: attempt to trim too many characters");

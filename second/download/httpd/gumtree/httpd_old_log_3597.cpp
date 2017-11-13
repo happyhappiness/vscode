@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                        "%lu < %lu = %d", v, l, matched);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Depth of \"1\" is not allowed for DELETE.");

@@ -1,1 +1,1 @@
-fprintf(f,"\n");
+fprintf(f,"Options:\n");

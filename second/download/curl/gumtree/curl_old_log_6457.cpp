@@ -1,11 +1,9 @@
 fputs(
-"              same  way as the proxy environment variables, including the pro-\n"
-"              tocol prefix (http://) and the embedded user + password.\n"
+"              Note that all operations that are performed over  a  HTTP  proxy\n"
+"              will  transparently  be converted to HTTP. It means that certain\n"
+"              protocol specific operations might not be available. This is not\n"
+"              the  case  if you can tunnel through the proxy, as done with the\n"
+"              -p/--proxytunnel option.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -X/--request <command>\n"
-"              (HTTP) Specifies a custom request method to use when communicat-\n"
-"              ing  with  the  HTTP server.  The specified request will be used\n"
-"              instead of the method otherwise used (which  defaults  to  GET).\n"
+"              Starting with 7.14.1, the proxy host can be specified the  exact\n"
 , stdout);

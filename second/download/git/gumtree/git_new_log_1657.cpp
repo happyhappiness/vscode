@@ -1,1 +1,1 @@
-die("unable to generate diff for %s", one->path);
+die("BUG: create ref with null new_sha1");

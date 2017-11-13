@@ -1,1 +1,1 @@
-fprintf(stderr, "Server supports allow-reachable-sha1-in-want\n");
+error(_("bad config file line %d in %s"), cf->linenr, cf->name);

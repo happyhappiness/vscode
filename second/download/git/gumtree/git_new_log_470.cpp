@@ -1,2 +1,1 @@
-error(_("malformed options sheet: '%s'"),
-			git_path_opts_file());
+die(_("'%s' is not a valid ref."), ref_name[num_rev]);

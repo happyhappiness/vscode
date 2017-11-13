@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02594)
-                      "authz_user authorize: require user: Can't "
-                      "evaluate require expression: %s", err);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02416)
+                         "[strict] purely numeric host names not allowed: %s",
+                         src);

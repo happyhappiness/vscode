@@ -1,1 +1,1 @@
-die(_("format: %%(then) atom used after %%(else)"));
+die("Invalid gitfile format: %s", path);

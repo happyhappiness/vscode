@@ -1,1 +1,2 @@
-die("BUG: update called for transaction that is not open");
+die("Refusing to %s notes in %s (outside of refs/notes/)",
+		    subcommand, ref);

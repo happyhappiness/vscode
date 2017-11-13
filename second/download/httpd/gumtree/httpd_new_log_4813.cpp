@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00268)
-                     "sigaction(SIGXFSZ)");
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, pServ, APLOGNO(02204)
+                                 "Init: Pass phrase incorrect for key of %s",
+                                 cpVHostID);

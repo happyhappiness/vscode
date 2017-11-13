@@ -1,1 +1,0 @@
-die(_("--keep-unreachable and -A are incompatible"));

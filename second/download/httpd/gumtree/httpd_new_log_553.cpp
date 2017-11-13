@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK,
-                      (!(ctx->if_nesting_level)) ? APLOG_ERR : APLOG_WARNING,
-                      0, r, "endif directive does not take tags in %s",
-                      r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, f->r,
+                      "buffered SSL brigade now exhausted; removing filter");

@@ -1,1 +1,0 @@
-die("BUG: unmerged index entries in merge-recursive.c");

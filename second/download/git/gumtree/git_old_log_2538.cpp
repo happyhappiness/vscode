@@ -1,1 +1,1 @@
-printf_ln(_("  Push  URL: %s"), "(no URL)");
+error("refname %s not found", oldrefname);

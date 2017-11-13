@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00981)
-                        "ajp_marshal_into_msgb: "
-                        "Error appending attribute %s=%s",
-                        elts[i].key, elts[i].val);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00621)
+                          "%s", lookup.err.desc);

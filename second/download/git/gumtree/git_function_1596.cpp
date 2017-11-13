@@ -1,31 +1,31 @@
-static int send_ref(const char *refname, const unsigned char *sha1, int flag, void *cb_data)
+static int git_pack_config(const char *k, const char *v, void *cb)
 {
-	static const char *capabilities = "multi_ack thin-pack side-band"
-		" side-band-64k ofs-delta shallow no-progress"
-		" include-tag multi_ack_detailed";
-	const char *refname_nons = strip_namespace(refname);
-	unsigned char peeled[20];
-
-	if (mark_our_ref(refname, sha1))
+	if (!strcmp(k, "pack.depth")) {
+		max_depth = git_config_int(k, v);
+		if (max_depth > MAX_DEPTH)
+			max_depth = MAX_DEPTH;
 		return 0;
-
-	if (capabilities) {
-		struct strbuf symref_info = STRBUF_INIT;
-
-		format_symref_info(&symref_info, cb_data);
-		packet_write(1, "%s %s%c%s%s%s%s agent=%s\n",
-			     sha1_to_hex(sha1), refname_nons,
-			     0, capabilities,
-			     allow_tip_sha1_in_want ? " allow-tip-sha1-in-want" : "",
-			     stateless_rpc ? " no-done" : "",
-			     symref_info.buf,
-			     git_user_agent_sanitized());
-		strbuf_release(&symref_info);
-	} else {
-		packet_write(1, "%s %s\n", sha1_to_hex(sha1), refname_nons);
 	}
-	capabilities = NULL;
-	if (!peel_ref(refname, peeled))
-		packet_write(1, "%s %s^{}\n", sha1_to_hex(peeled), refname_nons);
-	return 0;
+	if (!strcmp(k, "pack.compression")) {
+		int level = git_config_int(k, v);
+		if (level == -1)
+			level = Z_DEFAULT_COMPRESSION;
+		else if (level < 0 || level > Z_BEST_COMPRESSION)
+			die("bad pack compression level %d", level);
+		pack_compression_level = level;
+		pack_compression_seen = 1;
+		return 0;
+	}
+	if (!strcmp(k, "pack.indexversion")) {
+		pack_idx_opts.version = git_config_int(k, v);
+		if (pack_idx_opts.version > 2)
+			die("bad pack.indexversion=%"PRIu32,
+			    pack_idx_opts.version);
+		return 0;
+	}
+	if (!strcmp(k, "pack.packsizelimit")) {
+		max_packsize = git_config_ulong(k, v);
+		return 0;
+	}
+	return git_default_config(k, v, cb);
 }

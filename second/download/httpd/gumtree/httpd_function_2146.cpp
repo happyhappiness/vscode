@@ -1,39 +1,166 @@
-static void checkRotate(rotate_config_t *config, rotate_status_t *status)
+static void show_compile_settings(void)
 {
+    printf("Server version: %s\n", ap_get_server_description());
+    printf("Server built:   %s\n", ap_get_server_built());
+    printf("Server's Module Magic Number: %u:%u\n",
+           MODULE_MAGIC_NUMBER_MAJOR, MODULE_MAGIC_NUMBER_MINOR);
+    printf("Server loaded:  APR %s, APR-Util %s\n",
+           apr_version_string(), apu_version_string());
+    printf("Compiled using: APR %s, APR-Util %s\n",
+           APR_VERSION_STRING, APU_VERSION_STRING);
+    /* sizeof(foo) is long on some platforms so we might as well
+     * make it long everywhere to keep the printf format
+     * consistent
+     */
+    printf("Architecture:   %ld-bit\n", 8 * (long)sizeof(void *));
 
-    if (status->nLogFD == NULL) {
-        status->rotateReason = ROTATE_NEW;
-    }
-    else if (config->sRotation) {
-        apr_finfo_t finfo;
-        apr_off_t current_size = -1;
+    show_mpm_settings();
 
-        if (apr_file_info_get(&finfo, APR_FINFO_SIZE, status->nLogFD) == APR_SUCCESS) {
-            current_size = finfo.size;
-        }
+    printf("Server compiled with....\n");
+#ifdef BIG_SECURITY_HOLE
+    printf(" -D BIG_SECURITY_HOLE\n");
+#endif
 
-        if (current_size > config->sRotation) {
-            status->rotateReason = ROTATE_SIZE;
-        }
-        else if (config->tRotation) {
-            if (get_now(config) >= status->tLogEnd) {
-                status->rotateReason = ROTATE_TIME;
-            }
-        }
-    }
-    else if (config->tRotation) {
-        if (get_now(config) >= status->tLogEnd) {
-            status->rotateReason = ROTATE_TIME;
-        }
-    }
-    else {
-        fprintf(stderr, "No rotation time or size specified\n");
-        exit(2);
-    }
+#ifdef SECURITY_HOLE_PASS_AUTHORIZATION
+    printf(" -D SECURITY_HOLE_PASS_AUTHORIZATION\n");
+#endif
 
-    if (status->rotateReason != ROTATE_NONE && config->verbose) {
-        fprintf(stderr, "File rotation needed, reason: %s\n", ROTATE_REASONS[status->rotateReason]);
-    }
+#ifdef OS
+    printf(" -D OS=\"" OS "\"\n");
+#endif
 
-    return;
+#ifdef APACHE_MPM_DIR
+    printf(" -D APACHE_MPM_DIR=\"" APACHE_MPM_DIR "\"\n");
+#endif
+
+#ifdef HAVE_SHMGET
+    printf(" -D HAVE_SHMGET\n");
+#endif
+
+#if APR_FILE_BASED_SHM
+    printf(" -D APR_FILE_BASED_SHM\n");
+#endif
+
+#if APR_HAS_SENDFILE
+    printf(" -D APR_HAS_SENDFILE\n");
+#endif
+
+#if APR_HAS_MMAP
+    printf(" -D APR_HAS_MMAP\n");
+#endif
+
+#ifdef NO_WRITEV
+    printf(" -D NO_WRITEV\n");
+#endif
+
+#ifdef NO_LINGCLOSE
+    printf(" -D NO_LINGCLOSE\n");
+#endif
+
+#if APR_HAVE_IPV6
+    printf(" -D APR_HAVE_IPV6 (IPv4-mapped addresses ");
+#ifdef AP_ENABLE_V4_MAPPED
+    printf("enabled)\n");
+#else
+    printf("disabled)\n");
+#endif
+#endif
+
+#if APR_USE_FLOCK_SERIALIZE
+    printf(" -D APR_USE_FLOCK_SERIALIZE\n");
+#endif
+
+#if APR_USE_SYSVSEM_SERIALIZE
+    printf(" -D APR_USE_SYSVSEM_SERIALIZE\n");
+#endif
+
+#if APR_USE_POSIXSEM_SERIALIZE
+    printf(" -D APR_USE_POSIXSEM_SERIALIZE\n");
+#endif
+
+#if APR_USE_FCNTL_SERIALIZE
+    printf(" -D APR_USE_FCNTL_SERIALIZE\n");
+#endif
+
+#if APR_USE_PROC_PTHREAD_SERIALIZE
+    printf(" -D APR_USE_PROC_PTHREAD_SERIALIZE\n");
+#endif
+
+#if APR_USE_PTHREAD_SERIALIZE
+    printf(" -D APR_USE_PTHREAD_SERIALIZE\n");
+#endif
+
+#if APR_PROCESS_LOCK_IS_GLOBAL
+    printf(" -D APR_PROCESS_LOCK_IS_GLOBAL\n");
+#endif
+
+#ifdef SINGLE_LISTEN_UNSERIALIZED_ACCEPT
+    printf(" -D SINGLE_LISTEN_UNSERIALIZED_ACCEPT\n");
+#endif
+
+#if APR_HAS_OTHER_CHILD
+    printf(" -D APR_HAS_OTHER_CHILD\n");
+#endif
+
+#ifdef AP_HAVE_RELIABLE_PIPED_LOGS
+    printf(" -D AP_HAVE_RELIABLE_PIPED_LOGS\n");
+#endif
+
+#ifdef BUFFERED_LOGS
+    printf(" -D BUFFERED_LOGS\n");
+#ifdef PIPE_BUF
+    printf(" -D PIPE_BUF=%ld\n",(long)PIPE_BUF);
+#endif
+#endif
+
+    printf(" -D DYNAMIC_MODULE_LIMIT=%ld\n",(long)DYNAMIC_MODULE_LIMIT);
+
+#if APR_CHARSET_EBCDIC
+    printf(" -D APR_CHARSET_EBCDIC\n");
+#endif
+
+#ifdef NEED_HASHBANG_EMUL
+    printf(" -D NEED_HASHBANG_EMUL\n");
+#endif
+
+#ifdef SHARED_CORE
+    printf(" -D SHARED_CORE\n");
+#endif
+
+/* This list displays the compiled in default paths: */
+#ifdef HTTPD_ROOT
+    printf(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n");
+#endif
+
+#ifdef SUEXEC_BIN
+    printf(" -D SUEXEC_BIN=\"" SUEXEC_BIN "\"\n");
+#endif
+
+#if defined(SHARED_CORE) && defined(SHARED_CORE_DIR)
+    printf(" -D SHARED_CORE_DIR=\"" SHARED_CORE_DIR "\"\n");
+#endif
+
+#ifdef DEFAULT_PIDLOG
+    printf(" -D DEFAULT_PIDLOG=\"" DEFAULT_PIDLOG "\"\n");
+#endif
+
+#ifdef DEFAULT_SCOREBOARD
+    printf(" -D DEFAULT_SCOREBOARD=\"" DEFAULT_SCOREBOARD "\"\n");
+#endif
+
+#ifdef DEFAULT_LOCKFILE
+    printf(" -D DEFAULT_LOCKFILE=\"" DEFAULT_LOCKFILE "\"\n");
+#endif
+
+#ifdef DEFAULT_ERRORLOG
+    printf(" -D DEFAULT_ERRORLOG=\"" DEFAULT_ERRORLOG "\"\n");
+#endif
+
+#ifdef AP_TYPES_CONFIG_FILE
+    printf(" -D AP_TYPES_CONFIG_FILE=\"" AP_TYPES_CONFIG_FILE "\"\n");
+#endif
+
+#ifdef SERVER_CONFIG_FILE
+    printf(" -D SERVER_CONFIG_FILE=\"" SERVER_CONFIG_FILE "\"\n");
+#endif
 }

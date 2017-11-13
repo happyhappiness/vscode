@@ -1,1 +1,1 @@
-fprintf(F,"Trivial file listing program for portably checking rsync\n");
+io_printf(f_out, "%s%s\n", leader, challenge);

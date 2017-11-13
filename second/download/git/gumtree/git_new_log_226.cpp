@@ -1,1 +1,1 @@
-error("--path=<path> incompatible with --batch");
+error(_("Could not parse object '%s'."), oid_to_hex(head));

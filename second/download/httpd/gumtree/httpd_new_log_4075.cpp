@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01818)
-                          "attempt made to save the session twice, "
-                          "session not saved: %s", r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01544)
+                        "%lu > %lu = %d", v, l, matched);

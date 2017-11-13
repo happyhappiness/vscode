@@ -1,11 +1,11 @@
 fputs(
-"              (WinSSL) This option tells curl to disable  certificate  revoca-\n"
-"              tion checks.  WARNING: this option loosens the SSL security, and\n"
-"              by using this flag you ask for exactly that.  (Added in 7.44.0)\n"
+"              zero  will  make  curl  use the default backoff time.  (Added in\n"
+"              7.12.3)\n"
 "\n"
-"       --socks4 <host[:port]>\n"
-"              Use the specified SOCKS4 proxy. If the port number is not speci-\n"
-"              fied, it is assumed at port 1080. (Added in 7.15.2)\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              This  option  overrides any previous use of -x, --proxy, as they\n"
+"       --retry-max-time <seconds>\n"
+"              The retry timer is reset  before  the  first  transfer  attempt.\n"
+"              Retries will be done as usual (see --retry) as long as the timer\n"
+"              hasn't reached this given limit. Notice that if the timer hasn't\n"
 , stdout);

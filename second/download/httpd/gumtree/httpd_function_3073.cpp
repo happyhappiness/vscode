@@ -1,70 +1,185 @@
-static apr_status_t hm_file_update_stats(hm_ctx_t *ctx, apr_pool_t *p)
+apr_status_t ap_core_output_filter(ap_filter_t *f, apr_bucket_brigade *new_bb)
 {
+    conn_rec *c = f->c;
+    core_net_rec *net = f->ctx;
+    core_output_filter_ctx_t *ctx = net->out_ctx;
+    apr_bucket_brigade *bb = NULL;
+    apr_bucket *bucket, *next, *flush_upto = NULL;
+    apr_size_t bytes_in_brigade, non_file_bytes_in_brigade;
+    int eor_buckets_in_brigade;
     apr_status_t rv;
-    apr_file_t *fp;
-    apr_hash_index_t *hi;
-    apr_time_t now;
-    char *path = apr_pstrcat(p, ctx->storage_path, ".tmp.XXXXXX", NULL);
-    /* TODO: Update stats file (!) */
-    rv = apr_file_mktemp(&fp, path, APR_CREATE | APR_WRITE, p);
 
-    if (rv) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Unable to open tmp file: %s", path);
-        return rv;
+    /* Fail quickly if the connection has already been aborted. */
+    if (c->aborted) {
+        if (new_bb != NULL) {
+            apr_brigade_cleanup(new_bb);
+        }
+        return APR_ECONNABORTED;
     }
 
-    now = apr_time_now();
-    for (hi = apr_hash_first(p, ctx->servers);
-         hi != NULL; hi = apr_hash_next(hi)) {
-        hm_server_t *s = NULL;
-        apr_time_t seen;
-        apr_hash_this(hi, NULL, NULL, (void **) &s);
-        seen = apr_time_sec(now - s->seen);
-        if (seen > SEEN_TIMEOUT) {
-            /*
-             * Skip this entry from the heartbeat file -- when it comes back,
-             * we will reuse the memory...
-             */
+    if (ctx == NULL) {
+        ctx = apr_pcalloc(c->pool, sizeof(*ctx));
+        net->out_ctx = (core_output_filter_ctx_t *)ctx;
+        rv = apr_socket_opt_set(net->client_socket, APR_SO_NONBLOCK, 1);
+        if (rv != APR_SUCCESS) {
+            return rv;
+        }
+        /*
+         * Need to create tmp brigade with correct lifetime. Passing
+         * NULL to apr_brigade_split_ex would result in a brigade
+         * allocated from bb->pool which might be wrong.
+         */
+        ctx->tmp_flush_bb = apr_brigade_create(c->pool, c->bucket_alloc);
+        /* same for buffered_bb and ap_save_brigade */
+        ctx->buffered_bb = apr_brigade_create(c->pool, c->bucket_alloc);
+    }
+
+    if (new_bb != NULL) {
+        for (bucket = APR_BRIGADE_FIRST(new_bb); bucket != APR_BRIGADE_SENTINEL(new_bb); bucket = APR_BUCKET_NEXT(bucket)) {
+            if (bucket->length > 0) {
+                ctx->bytes_in += bucket->length;
+            }
+        }
+        bb = new_bb;
+    }
+
+    if ((ctx->buffered_bb != NULL) &&
+        !APR_BRIGADE_EMPTY(ctx->buffered_bb)) {
+        if (new_bb != NULL) {
+            APR_BRIGADE_PREPEND(bb, ctx->buffered_bb);
         }
         else {
-            apr_file_printf(fp, "%s &ready=%u&busy=%u&lastseen=%u&port=%u\n",
-                            s->ip, s->ready, s->busy, (unsigned int) seen, s->port);
+            bb = ctx->buffered_bb;
+        }
+        c->data_in_output_filters = 0;
+    }
+    else if (new_bb == NULL) {
+        return APR_SUCCESS;
+    }
+
+    /* Scan through the brigade and decide whether to attempt a write,
+     * based on the following rules:
+     *
+     *  1) The new_bb is null: Do a nonblocking write of as much as
+     *     possible: do a nonblocking write of as much data as possible,
+     *     then save the rest in ctx->buffered_bb.  (If new_bb == NULL,
+     *     it probably means that the MPM is doing asynchronous write
+     *     completion and has just determined that this connection
+     *     is writable.)
+     *
+     *  2) The brigade contains a flush bucket: Do a blocking write
+     *     of everything up that point.
+     *
+     *  3) The request is in CONN_STATE_HANDLER state, and the brigade
+     *     contains at least THRESHOLD_MAX_BUFFER bytes in non-file
+     *     buckets: Do blocking writes until the amount of data in the
+     *     buffer is less than THRESHOLD_MAX_BUFFER.  (The point of this
+     *     rule is to provide flow control, in case a handler is
+     *     streaming out lots of data faster than the data can be
+     *     sent to the client.)
+     *
+     *  4) The request is in CONN_STATE_HANDLER state, and the brigade
+     *     contains at least MAX_REQUESTS_IN_PIPELINE EOR buckets:
+     *     Do blocking writes until less than MAX_REQUESTS_IN_PIPELINE EOR
+     *     buckets are left. (The point of this rule is to prevent too many
+     *     FDs being kept open by pipelined requests, possibly allowing a
+     *     DoS).
+     *
+     *  5) The brigade contains at least THRESHOLD_MIN_WRITE
+     *     bytes: Do a nonblocking write of as much data as possible,
+     *     then save the rest in ctx->buffered_bb.
+     */
+
+    if (new_bb == NULL) {
+        rv = send_brigade_nonblocking(net->client_socket, bb,
+                                      &(ctx->bytes_written), c);
+        if (APR_STATUS_IS_EAGAIN(rv)) {
+            rv = APR_SUCCESS;
+        }
+        else if (rv != APR_SUCCESS) {
+            /* The client has aborted the connection */
+            c->aborted = 1;
+        }
+        setaside_remaining_output(f, ctx, bb, c);
+        return rv;
+    }
+
+    bytes_in_brigade = 0;
+    non_file_bytes_in_brigade = 0;
+    eor_buckets_in_brigade = 0;
+    for (bucket = APR_BRIGADE_FIRST(bb); bucket != APR_BRIGADE_SENTINEL(bb);
+         bucket = next) {
+        next = APR_BUCKET_NEXT(bucket);
+
+        if (!APR_BUCKET_IS_METADATA(bucket)) {
+            if (bucket->length == (apr_size_t)-1) {
+                const char *data;
+                apr_size_t length;
+                /* XXX support nonblocking read here? */
+                rv = apr_bucket_read(bucket, &data, &length, APR_BLOCK_READ);
+                if (rv != APR_SUCCESS) {
+                    return rv;
+                }
+                /* reading may have split the bucket, so recompute next: */
+                next = APR_BUCKET_NEXT(bucket);
+            }
+            bytes_in_brigade += bucket->length;
+            if (!APR_BUCKET_IS_FILE(bucket)) {
+                non_file_bytes_in_brigade += bucket->length;
+            }
+        }
+        else if (AP_BUCKET_IS_EOR(bucket)) {
+            eor_buckets_in_brigade++;
+        }
+
+        if (APR_BUCKET_IS_FLUSH(bucket)                         ||
+            (non_file_bytes_in_brigade >= THRESHOLD_MAX_BUFFER) ||
+            (eor_buckets_in_brigade > MAX_REQUESTS_IN_PIPELINE) )
+        {
+            if (APLOGctrace6(c)) {
+                char *reason = APR_BUCKET_IS_FLUSH(bucket) ?
+                               "FLUSH bucket" :
+                               (non_file_bytes_in_brigade >= THRESHOLD_MAX_BUFFER) ?
+                               "THRESHOLD_MAX_BUFFER" :
+                               "MAX_REQUESTS_IN_PIPELINE";
+                ap_log_cerror(APLOG_MARK, APLOG_TRACE6, 0, c,
+                              "core_output_filter: flushing because of %s",
+                              reason);
+            }
+            /*
+             * Defer the actual blocking write to avoid doing many writes.
+             */
+            flush_upto = next;
+
+            bytes_in_brigade = 0;
+            non_file_bytes_in_brigade = 0;
+            eor_buckets_in_brigade = 0;
         }
     }
 
-    rv = apr_file_flush(fp);
-    if (rv) {
-      ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                   "Heartmonitor: Unable to flush file: %s", path);
-      return rv;
+    if (flush_upto != NULL) {
+        ctx->tmp_flush_bb = apr_brigade_split_ex(bb, flush_upto,
+                                                 ctx->tmp_flush_bb);
+        rv = send_brigade_blocking(net->client_socket, bb,
+                                   &(ctx->bytes_written), c);
+        if (rv != APR_SUCCESS) {
+            /* The client has aborted the connection */
+            c->aborted = 1;
+            return rv;
+        }
+        APR_BRIGADE_CONCAT(bb, ctx->tmp_flush_bb);
     }
 
-    rv = apr_file_close(fp);
-    if (rv) {
-      ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                   "Heartmonitor: Unable to close file: %s", path);
-      return rv;
-    }
-  
-    rv = apr_file_perms_set(path,
-                            APR_FPROT_UREAD | APR_FPROT_GREAD |
-                            APR_FPROT_WREAD);
-    if (rv && rv != APR_INCOMPLETE) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Unable to set file permssions on %s",
-                     path);
-        return rv;
+    if (bytes_in_brigade >= THRESHOLD_MIN_WRITE) {
+        rv = send_brigade_nonblocking(net->client_socket, bb,
+                                      &(ctx->bytes_written), c);
+        if ((rv != APR_SUCCESS) && (!APR_STATUS_IS_EAGAIN(rv))) {
+            /* The client has aborted the connection */
+            c->aborted = 1;
+            return rv;
+        }
     }
 
-    rv = apr_file_rename(path, ctx->storage_path, p);
-
-    if (rv) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Unable to move file: %s -> %s", path,
-                     ctx->storage_path);
-        return rv;
-    }
-
+    setaside_remaining_output(f, ctx, bb, c);
     return APR_SUCCESS;
 }

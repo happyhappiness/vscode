@@ -1,5 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                 "Server: %s, Interface: %s, Library: %s",
-                 AP_SERVER_BASEVERSION,
-                 vals[1],  /* SSL_VERSION_INTERFACE */
-                 vals[2]);
+ap_log_error(APLOG_MARK,APLOG_DEBUG, rc, ap_server_conf,
+                             "Child %lu: GetQueuedComplationStatus returned %d", my_pid, rc);

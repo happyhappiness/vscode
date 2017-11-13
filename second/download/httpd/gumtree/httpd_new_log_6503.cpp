@@ -1,0 +1,1 @@
+ap_rputs("<th>HC Fail</th>", r);

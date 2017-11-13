@@ -1,1 +1,1 @@
-)malloc(sizeof(delete_list[0])*dlist_alloc_len);
+fprintf(FERROR,"unlink %s : %s\n",f_name(f),strerror(errno));

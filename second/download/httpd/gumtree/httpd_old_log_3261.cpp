@@ -1,5 +1,3 @@
-ap_log_rerror(APLOG_MARK,
-                      (ctx->flags & SSI_FLAG_PRINTING)
-                          ? APLOG_ERR : APLOG_WARNING,
-                      0, r, "missing argument for fsize element in %s",
-                      r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_SUCCESS, r,
+                          "user %s: authorization failure for \"%s\": ",
+                          r->user, r->uri);

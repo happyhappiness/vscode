@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " Please read the documentation.");
+APR_REGISTER_OPTIONAL_FN(ap_logio_get_last_bytes);

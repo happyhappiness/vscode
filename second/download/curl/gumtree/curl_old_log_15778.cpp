@@ -1,8 +1,10 @@
 fputs(
-"              TO-HOST:CONNECT-TO-PORT instead.  This  option  is  suitable  to\n"
-"              direct requests at a specific server, e.g. at a specific cluster\n"
-"              node in a cluster of servers.   This  option  is  only  used  to\n"
-"              establish  the  network connection. It does NOT affect the host-\n"
-"              name/port that is used for TLS/SSL (e.g. SNI, certificate  veri-\n"
-"              fication)  or  for the application protocols.  \"host\" and \"port\"\n"
+"              which makes it impossible to use a colon in the user  name  with\n"
+"              this option. The password can, still.\n"
+"\n"
+"              When  using  Kerberos  V5 with a Windows based server you should\n"
+"              include the Windows domain name in the user name, in  order  for\n"
+"              the  server  to  successfully  obtain  a Kerberos Ticket. If you\n"
+"              don't then the initial authentication handshake may fail.\n"
+"\n"
 , stdout);

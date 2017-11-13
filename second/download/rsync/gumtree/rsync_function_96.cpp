@@ -1,91 +1,142 @@
-struct file_list *send_file_list(int f,int recurse,int argc,char *argv[])
-{
-  int i,l;
+void recv_generator(char *fname,struct file_list *flist,int i,int f_out)
+{  
+  int fd;
   struct stat st;
-  char *p,*dir;
-  char dbuf[MAXPATHLEN];
-  struct file_list *flist;
+  char *buf;
+  struct sum_struct *s;
+  char sum[SUM_LENGTH];
+  int statret;
 
-  if (verbose && recurse) {
-    fprintf(am_server?stderr:stdout,"building file list ... ");
-    fflush(am_server?stderr:stdout);
+  if (verbose > 2)
+    fprintf(stderr,"recv_generator(%s)\n",fname);
+
+  statret = lstat(fname,&st);
+
+#if SUPPORT_LINKS
+  if (preserve_links && S_ISLNK(flist->files[i].mode)) {
+    char lnk[MAXPATHLEN];
+    int l;
+    if (statret == 0) {
+      l = readlink(fname,lnk,MAXPATHLEN-1);
+      if (l > 0) {
+	lnk[l] = 0;
+	if (strcmp(lnk,flist->files[i].link) == 0) {
+	  if (verbose > 1) 
+	    fprintf(am_server?stderr:stdout,"%s is uptodate\n",fname);
+	  return;
+	}
+      }
+    }
+    if (!dry_run) unlink(fname);
+    if (!dry_run && symlink(flist->files[i].link,fname) != 0) {
+      fprintf(stderr,"link %s -> %s : %s\n",
+	      fname,flist->files[i].link,strerror(errno));
+    } else {
+      if (verbose) 
+	fprintf(am_server?stderr:stdout,"%s -> %s\n",fname,flist->files[i].link);
+    }
+    return;
+  }
+#endif
+
+#ifdef HAVE_MKNOD
+  if (preserve_devices && IS_DEVICE(flist->files[i].mode)) {
+    if (statret != 0 || 
+	st.st_mode != flist->files[i].mode ||
+	st.st_rdev != flist->files[i].dev) {	
+      if (!dry_run) unlink(fname);
+      if (verbose > 2)
+	fprintf(stderr,"mknod(%s,0%o,0x%x)\n",
+		fname,(int)flist->files[i].mode,(int)flist->files[i].dev);
+      if (!dry_run && 
+	  mknod(fname,flist->files[i].mode,flist->files[i].dev) != 0) {
+	fprintf(stderr,"mknod %s : %s\n",fname,strerror(errno));
+      } else {
+	set_perms(fname,&flist->files[i],NULL,0);
+	if (verbose)
+	  fprintf(am_server?stderr:stdout,"%s\n",fname);
+      }
+    } else {
+      set_perms(fname,&flist->files[i],&st,1);
+    }
+    return;
+  }
+#endif
+
+  if (!S_ISREG(flist->files[i].mode)) {
+    fprintf(stderr,"skipping non-regular file %s\n",fname);
+    return;
   }
 
-  flist = (struct file_list *)malloc(sizeof(flist[0]));
-  if (!flist) out_of_memory("send_file_list");
-
-  flist->count=0;
-  flist->malloced = 100;
-  flist->files = (struct file_struct *)malloc(sizeof(flist->files[0])*
-					      flist->malloced);
-  if (!flist->files) out_of_memory("send_file_list");
-
-  for (i=0;i<argc;i++) {
-    char fname2[MAXPATHLEN];
-    char *fname = fname2;
-
-    strcpy(fname,argv[i]);
-
-    l = strlen(fname);
-    if (l != 1 && fname[l-1] == '/') {
-      strcat(fname,".");
+  if (statret == -1) {
+    if (errno == ENOENT) {
+      write_int(f_out,i);
+      if (!dry_run) send_sums(NULL,f_out);
+    } else {
+      if (verbose > 1)
+	fprintf(stderr,"recv_generator failed to open %s\n",fname);
     }
-
-    if (lstat(fname,&st) != 0) {
-      fprintf(stderr,"%s : %s\n",fname,strerror(errno));
-      continue;
-    }
-
-    if (S_ISDIR(st.st_mode) && !recurse) {
-      fprintf(stderr,"skipping directory %s\n",fname);
-      continue;
-    }
-
-    dir = NULL;
-    p = strrchr(fname,'/');
-    if (p) {
-      *p = 0;
-      dir = fname;
-      fname = p+1;      
-    }
-    if (!*fname)
-      fname = ".";
-
-    if (dir && *dir) {
-      if (getcwd(dbuf,MAXPATHLEN-1) == NULL) {
-	fprintf(stderr,"getwd : %s\n",strerror(errno));
-	exit_cleanup(1);
-      }
-      if (chdir(dir) != 0) {
-	fprintf(stderr,"chdir %s : %s\n",dir,strerror(errno));
-	continue;
-      }
-      flist_dir = dir;
-      if (one_file_system)
-	set_filesystem(fname);
-      send_file_name(f,flist,recurse,fname);
-      flist_dir = NULL;
-      if (chdir(dbuf) != 0) {
-	fprintf(stderr,"chdir %s : %s\n",dbuf,strerror(errno));
-	exit_cleanup(1);
-      }
-      continue;
-    }
-
-    if (one_file_system)
-      set_filesystem(fname);
-    send_file_name(f,flist,recurse,fname);
+    return;
   }
 
-  if (f != -1) {
-    send_file_entry(NULL,f);
-    write_flush(f);
+  if (!S_ISREG(st.st_mode)) {
+    fprintf(stderr,"%s : not a regular file\n",fname);
+    return;
   }
 
-  clean_flist(flist);
+  if (update_only && st.st_mtime >= flist->files[i].modtime) {
+    if (verbose > 1)
+      fprintf(stderr,"%s is newer\n",fname);
+    return;
+  }
 
-  if (verbose && recurse)
-    fprintf(am_server?stderr:stdout,"done\n");
+  if (always_checksum && S_ISREG(st.st_mode)) {
+    file_checksum(fname,sum,st.st_size);
+  }
 
-  return flist;
+  if (st.st_size == flist->files[i].length &&
+      ((!ignore_times && st.st_mtime == flist->files[i].modtime) ||
+       (always_checksum && S_ISREG(st.st_mode) && 	  
+	memcmp(sum,flist->files[i].sum,SUM_LENGTH) == 0))) {
+    set_perms(fname,&flist->files[i],&st,1);
+    return;
+  }
+
+  if (dry_run) {
+    write_int(f_out,i);
+    return;
+  }
+
+  /* open the file */  
+  fd = open(fname,O_RDONLY);
+
+  if (fd == -1) {
+    fprintf(stderr,"failed to open %s : %s\n",fname,strerror(errno));
+    return;
+  }
+
+  if (st.st_size > 0) {
+    buf = map_file(fd,st.st_size);
+    if (!buf) {
+      fprintf(stderr,"mmap : %s\n",strerror(errno));
+      close(fd);
+      return;
+    }
+  } else {
+    buf = NULL;
+  }
+
+  if (verbose > 3)
+    fprintf(stderr,"mapped %s of size %d\n",fname,(int)st.st_size);
+
+  s = generate_sums(buf,st.st_size,block_size);
+
+  write_int(f_out,i);
+  send_sums(s,f_out);
+  write_flush(f_out);
+
+  close(fd);
+  unmap_file(buf,st.st_size);
+
+  free_sums(s);
 }

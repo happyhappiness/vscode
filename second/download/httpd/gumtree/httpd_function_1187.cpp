@@ -1,443 +1,268 @@
-static int ap_proxy_ajp_request(apr_pool_t *p, request_rec *r,
-                                proxy_conn_rec *conn,
-                                conn_rec *origin,
-                                proxy_dir_conf *conf,
-                                apr_uri_t *uri,
-                                char *url, char *server_portstr)
+int main(int argc, const char * const argv[])
 {
+    int r, l;
+    char tmp[1024];
     apr_status_t status;
-    int result;
-    apr_bucket *e;
-    apr_bucket_brigade *input_brigade;
-    apr_bucket_brigade *output_brigade;
-    ajp_msg_t *msg;
-    apr_size_t bufsiz = 0;
-    char *buff;
-    char *send_body_chunk_buff;
-    apr_uint16_t size;
-    const char *tenc;
-    int havebody = 1;
-    int output_failed = 0;
-    int backend_failed = 0;
-    apr_off_t bb_len;
-    int data_sent = 0;
-    int request_ended = 0;
-    int headers_sent = 0;
-    int rv = 0;
-    apr_int32_t conn_poll_fd;
-    apr_pollfd_t *conn_poll;
-    proxy_server_conf *psf =
-    ap_get_module_config(r->server->module_config, &proxy_module);
-    apr_size_t maxsize = AJP_MSG_BUFFER_SZ;
-    int send_body = 0;
-    apr_off_t content_length = 0;
+    apr_getopt_t *opt;
+    const char *optarg;
+    char c;
+#ifdef USE_SSL
+    SSL_METHOD *meth = SSLv23_client_method();
+#endif
 
-    if (psf->io_buffer_size_set)
-       maxsize = psf->io_buffer_size;
-    if (maxsize > AJP_MAX_BUFFER_SZ)
-       maxsize = AJP_MAX_BUFFER_SZ;
-    else if (maxsize < AJP_MSG_BUFFER_SZ)
-       maxsize = AJP_MSG_BUFFER_SZ;
-    maxsize = APR_ALIGN(maxsize, 1024);
-       
-    /*
-     * Send the AJP request to the remote server
-     */
+    /* table defaults  */
+    tablestring = "";
+    trstring = "";
+    tdstring = "bgcolor=white";
+    cookie = "";
+    auth = "";
+    proxyhost[0] = '\0';
+    hdrs = "";
 
-    /* send request headers */
-    status = ajp_send_header(conn->sock, r, maxsize, uri);
-    if (status != APR_SUCCESS) {
-        conn->close++;
-        ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                     "proxy: AJP: request failed to %pI (%s)",
-                     conn->worker->cp->addr,
-                     conn->worker->hostname);
-        if (status == AJP_EOVERFLOW)
-            return HTTP_BAD_REQUEST;
-        else {
-            /*
-             * This is only non fatal when the method is idempotent. In this
-             * case we can dare to retry it with a different worker if we are
-             * a balancer member.
-             */
-            if (is_idempotent(r) == METHOD_IDEMPOTENT) {
-                return HTTP_SERVICE_UNAVAILABLE;
-            }
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
+    apr_app_initialize(&argc, &argv, NULL);
+    atexit(apr_terminate);
+    apr_pool_create(&cntxt, NULL);
+
+#ifdef NOT_ASCII
+    status = apr_xlate_open(&to_ascii, "ISO-8859-1", APR_DEFAULT_CHARSET, cntxt);
+    if (status) {
+        fprintf(stderr, "apr_xlate_open(to ASCII)->%d\n", status);
+        exit(1);
     }
-
-    /* allocate an AJP message to store the data of the buckets */
-    bufsiz = maxsize;
-    status = ajp_alloc_data_msg(r->pool, &buff, &bufsiz, &msg);
-    if (status != APR_SUCCESS) {
-        /* We had a failure: Close connection to backend */
-        conn->close++;
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: ajp_alloc_data_msg failed");
-        return HTTP_INTERNAL_SERVER_ERROR;
+    status = apr_xlate_open(&from_ascii, APR_DEFAULT_CHARSET, "ISO-8859-1", cntxt);
+    if (status) {
+        fprintf(stderr, "apr_xlate_open(from ASCII)->%d\n", status);
+        exit(1);
     }
+    status = apr_base64init_ebcdic(to_ascii, from_ascii);
+    if (status) {
+        fprintf(stderr, "apr_base64init_ebcdic()->%d\n", status);
+        exit(1);
+    }
+#endif
 
-    /* read the first bloc of data */
-    input_brigade = apr_brigade_create(p, r->connection->bucket_alloc);
-    tenc = apr_table_get(r->headers_in, "Transfer-Encoding");
-    if (tenc && (strcasecmp(tenc, "chunked") == 0)) {
-        /* The AJP protocol does not want body data yet */
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: request is chunked");
-    } else {
-        /* Get client provided Content-Length header */
-        content_length = get_content_length(r);
-        status = ap_get_brigade(r->input_filters, input_brigade,
-                                AP_MODE_READBYTES, APR_BLOCK_READ,
-                                maxsize - AJP_HEADER_SZ);
-
-        if (status != APR_SUCCESS) {
-            /* We had a failure: Close connection to backend */
-            conn->close++;
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "proxy: ap_get_brigade failed");
-            apr_brigade_destroy(input_brigade);
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
-
-        /* have something */
-        if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(input_brigade))) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "proxy: APR_BUCKET_IS_EOS");
-        }
-
-        /* Try to send something */
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: data to read (max %" APR_SIZE_T_FMT
-                     " at %" APR_SIZE_T_FMT ")", bufsiz, msg->pos);
-
-        status = apr_brigade_flatten(input_brigade, buff, &bufsiz);
-        if (status != APR_SUCCESS) {
-            /* We had a failure: Close connection to backend */
-            conn->close++;
-            apr_brigade_destroy(input_brigade);
-            ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                         "proxy: apr_brigade_flatten");
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
-        apr_brigade_cleanup(input_brigade);
-
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: got %" APR_SIZE_T_FMT " bytes of data", bufsiz);
-        if (bufsiz > 0) {
-            status = ajp_send_data_msg(conn->sock, msg, bufsiz);
-            if (status != APR_SUCCESS) {
-                /* We had a failure: Close connection to backend */
-                conn->close++;
-                apr_brigade_destroy(input_brigade);
-                ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                             "proxy: send failed to %pI (%s)",
-                             conn->worker->cp->addr,
-                             conn->worker->hostname);
+    apr_getopt_init(&opt, cntxt, argc, argv);
+    while ((status = apr_getopt(opt, "n:c:t:T:p:v:kVhwix:y:z:C:H:P:A:g:X:de:Sq"
+#ifdef USE_SSL
+            "Z:f:"
+#endif
+            ,&c, &optarg)) == APR_SUCCESS) {
+        switch (c) {
+            case 'n':
+                requests = atoi(optarg);
+                if (!requests) {
+                    err("Invalid number of requests\n");
+                }
+                break;
+            case 'k':
+                keepalive = 1;
+                break;
+            case 'q':
+                heartbeatres = 0;
+                break;
+            case 'c':
+                concurrency = atoi(optarg);
+                break;
+            case 'i':
+                if (posting == 1)
+                err("Cannot mix POST and HEAD\n");
+                posting = -1;
+                break;
+            case 'g':
+                gnuplot = strdup(optarg);
+                break;
+            case 'd':
+                percentile = 0;
+                break;
+            case 'e':
+                csvperc = strdup(optarg);
+                break;
+            case 'S':
+                confidence = 0;
+                break;
+            case 'p':
+                if (posting != 0)
+                    err("Cannot mix POST and HEAD\n");
+                if (0 == (r = open_postfile(optarg))) {
+                    posting = 1;
+                }
+                else if (postdata) {
+                    exit(r);
+                }
+                break;
+            case 'v':
+                verbosity = atoi(optarg);
+                break;
+            case 't':
+                tlimit = atoi(optarg);
+                requests = MAX_REQUESTS;    /* need to size data array on
+                                             * something */
+                break;
+            case 'T':
+                strcpy(content_type, optarg);
+                break;
+            case 'C':
+                cookie = apr_pstrcat(cntxt, "Cookie: ", optarg, "\r\n", NULL);
+                break;
+            case 'A':
                 /*
-                 * It is fatal when we failed to send a (part) of the request
-                 * body.
+                 * assume username passwd already to be in colon separated form.
+                 * Ready to be uu-encoded.
                  */
-                return HTTP_INTERNAL_SERVER_ERROR;
-            }
-            conn->worker->s->transferred += bufsiz;
-            send_body = 1;
-        }
-        else if (content_length > 0) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                         "proxy: read zero bytes, expecting"
-                         " %" APR_OFF_T_FMT " bytes",
-                         content_length);
-            /*
-             * We can only get here if the client closed the connection
-             * to us without sending the body.
-             * Now the connection is in the wrong state on the backend.
-             * Sending an empty data msg doesn't help either as it does
-             * not move this connection to the correct state on the backend
-             * for later resusage by the next request again.
-             * Close it to clean things up.
-             */
-            conn->close++;
-            return HTTP_BAD_REQUEST;
-        }
-    }
+                while (apr_isspace(*optarg))
+                    optarg++;
+                if (apr_base64_encode_len(strlen(optarg)) > sizeof(tmp)) {
+                    err("Authentication credentials too long\n");
+                }
+                l = apr_base64_encode(tmp, optarg, strlen(optarg));
+                tmp[l] = '\0';
 
-    /* read the response */
-    conn->data = NULL;
-    status = ajp_read_header(conn->sock, r, maxsize,
-                             (ajp_msg_t **)&(conn->data));
-    if (status != APR_SUCCESS) {
-        /* We had a failure: Close connection to backend */
-        conn->close++;
-        apr_brigade_destroy(input_brigade);
-        ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                     "proxy: read response failed from %pI (%s)",
-                     conn->worker->cp->addr,
-                     conn->worker->hostname);
-        /*
-         * This is only non fatal when we have not sent (parts) of a possible
-         * request body so far (we do not store it and thus cannot sent it
-         * again) and the method is idempotent. In this case we can dare to
-         * retry it with a different worker if we are a balancer member.
-         */
-        if (!send_body && (is_idempotent(r) == METHOD_IDEMPOTENT)) {
-            return HTTP_SERVICE_UNAVAILABLE;
-        }
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-    /* parse the reponse */
-    result = ajp_parse_type(r, conn->data);
-    output_brigade = apr_brigade_create(p, r->connection->bucket_alloc);
+                auth = apr_pstrcat(cntxt, auth, "Authorization: Basic ", tmp,
+                                       "\r\n", NULL);
+                break;
+            case 'P':
+                /*
+                 * assume username passwd already to be in colon separated form.
+                 */
+                while (apr_isspace(*optarg))
+                optarg++;
+                if (apr_base64_encode_len(strlen(optarg)) > sizeof(tmp)) {
+                    err("Proxy credentials too long\n");
+                }
+                l = apr_base64_encode(tmp, optarg, strlen(optarg));
+                tmp[l] = '\0';
 
-    /*
-     * Prepare apr_pollfd_t struct for possible later check if there is currently
-     * data available from the backend (do not flush response to client)
-     * or not (flush response to client)
-     */
-    conn_poll = apr_pcalloc(p, sizeof(apr_pollfd_t));
-    conn_poll->reqevents = APR_POLLIN;
-    conn_poll->desc_type = APR_POLL_SOCKET;
-    conn_poll->desc.s = conn->sock;
-
-    bufsiz = maxsize;
-    for (;;) {
-        switch (result) {
-            case CMD_AJP13_GET_BODY_CHUNK:
-                if (havebody) {
-                    if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(input_brigade))) {
-                        /* This is the end */
-                        bufsiz = 0;
-                        havebody = 0;
-                        ap_log_error(APLOG_MARK, APLOG_DEBUG, status, r->server,
-                                     "proxy: APR_BUCKET_IS_EOS");
-                    } else {
-                        status = ap_get_brigade(r->input_filters, input_brigade,
-                                                AP_MODE_READBYTES,
-                                                APR_BLOCK_READ,
-                                                maxsize - AJP_HEADER_SZ);
-                        if (status != APR_SUCCESS) {
-                            ap_log_error(APLOG_MARK, APLOG_DEBUG, status,
-                                         r->server,
-                                         "ap_get_brigade failed");
-                            output_failed = 1;
-                            break;
-                        }
-                        bufsiz = maxsize;
-                        status = apr_brigade_flatten(input_brigade, buff,
-                                                     &bufsiz);
-                        apr_brigade_cleanup(input_brigade);
-                        if (status != APR_SUCCESS) {
-                            ap_log_error(APLOG_MARK, APLOG_DEBUG, status,
-                                         r->server,
-                                         "apr_brigade_flatten failed");
-                            output_failed = 1;
-                            break;
-                        }
-                    }
-
-                    ajp_msg_reset(msg);
-                    /* will go in ajp_send_data_msg */
-                    status = ajp_send_data_msg(conn->sock, msg, bufsiz);
-                    if (status != APR_SUCCESS) {
-                        ap_log_error(APLOG_MARK, APLOG_DEBUG, status, r->server,
-                                     "ajp_send_data_msg failed");
-                        backend_failed = 1;
-                        break;
-                    }
-                    conn->worker->s->transferred += bufsiz;
-                } else {
+                auth = apr_pstrcat(cntxt, auth, "Proxy-Authorization: Basic ",
+                                       tmp, "\r\n", NULL);
+                break;
+            case 'H':
+                hdrs = apr_pstrcat(cntxt, hdrs, optarg, "\r\n", NULL);
+                break;
+            case 'w':
+                use_html = 1;
+                break;
+                /*
+                 * if any of the following three are used, turn on html output
+                 * automatically
+                 */
+            case 'x':
+                use_html = 1;
+                tablestring = optarg;
+                break;
+            case 'X':
+                {
+                    char *p;
                     /*
-                     * something is wrong TC asks for more body but we are
-                     * already at the end of the body data
+                     * assume proxy-name[:port]
                      */
-                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                                 "ap_proxy_ajp_request error read after end");
-                    backend_failed = 1;
-                }
-                break;
-            case CMD_AJP13_SEND_HEADERS:
-                if (headers_sent) {
-                    /* Do not send anything to the client.
-                     * Backend already send us the headers.
-                     */
-                    backend_failed = 1;
-                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                                 "proxy: Backend sent headers twice.");
-                    break;
-                }
-                /* AJP13_SEND_HEADERS: process them */
-                status = ajp_parse_header(r, conf, conn->data);
-                if (status != APR_SUCCESS) {
-                    backend_failed = 1;
-                }
-                headers_sent = 1;
-                break;
-            case CMD_AJP13_SEND_BODY_CHUNK:
-                /* AJP13_SEND_BODY_CHUNK: piece of data */
-                status = ajp_parse_data(r, conn->data, &size, &send_body_chunk_buff);
-                if (status == APR_SUCCESS) {
-                    /* AJP13_SEND_BODY_CHUNK with zero length
-                     * is explicit flush message
-                     */
-                    if (size == 0) {
-                        if (headers_sent) {
-                            e = apr_bucket_flush_create(r->connection->bucket_alloc);
-                            APR_BRIGADE_INSERT_TAIL(output_brigade, e);
-                        }
-                        else {
-                            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                                 "Ignoring flush message received before headers");
-                        }
+                    if ((p = strchr(optarg, ':'))) {
+                        *p = '\0';
+                        p++;
+                        proxyport = atoi(p);
                     }
-                    else {
-                        e = apr_bucket_transient_create(send_body_chunk_buff, size,
-                                                    r->connection->bucket_alloc);
-                        APR_BRIGADE_INSERT_TAIL(output_brigade, e);
-
-                        if ((conn->worker->flush_packets == flush_on) ||
-                            ((conn->worker->flush_packets == flush_auto) &&
-                            (apr_poll(conn_poll, 1, &conn_poll_fd,
-                                      conn->worker->flush_wait)
-                                        == APR_TIMEUP) ) ) {
-                            e = apr_bucket_flush_create(r->connection->bucket_alloc);
-                            APR_BRIGADE_INSERT_TAIL(output_brigade, e);
-                        }
-                        apr_brigade_length(output_brigade, 0, &bb_len);
-                        if (bb_len != -1)
-                            conn->worker->s->read += bb_len;
-                    }
-                    if (ap_pass_brigade(r->output_filters,
-                                        output_brigade) != APR_SUCCESS) {
-                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                      "proxy: error processing body");
-                        output_failed = 1;
-                    }
-                    data_sent = 1;
-                    apr_brigade_cleanup(output_brigade);
-                }
-                else {
-                    backend_failed = 1;
+                    strcpy(proxyhost, optarg);
+                    isproxy = 1;
                 }
                 break;
-            case CMD_AJP13_END_RESPONSE:
-                e = apr_bucket_eos_create(r->connection->bucket_alloc);
-                APR_BRIGADE_INSERT_TAIL(output_brigade, e);
-                if (ap_pass_brigade(r->output_filters,
-                                    output_brigade) != APR_SUCCESS) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                  "proxy: error processing end");
-                    output_failed = 1;
+            case 'y':
+                use_html = 1;
+                trstring = optarg;
+                break;
+            case 'z':
+                use_html = 1;
+                tdstring = optarg;
+                break;
+            case 'h':
+                usage(argv[0]);
+                break;
+            case 'V':
+                copyright();
+                return 0;
+#ifdef USE_SSL
+            case 'Z':
+                ssl_cipher = strdup(optarg);
+                break;
+            case 'f':
+                if (strncasecmp(optarg, "ALL", 3) == 0) {
+                    meth = SSLv23_client_method();
+                } else if (strncasecmp(optarg, "SSL2", 4) == 0) {
+                    meth = SSLv2_client_method();
+                } else if (strncasecmp(optarg, "SSL3", 4) == 0) {
+                    meth = SSLv3_client_method();
+                } else if (strncasecmp(optarg, "TLS1", 4) == 0) {
+                    meth = TLSv1_client_method();
                 }
-                /* XXX: what about flush here? See mod_jk */
-                data_sent = 1;
-                request_ended = 1;
                 break;
-            default:
-                backend_failed = 1;
-                break;
-        }
-
-        /*
-         * If connection has been aborted by client: Stop working.
-         * Nevertheless, we regard our operation so far as a success:
-         * So reset output_failed to 0 and set result to CMD_AJP13_END_RESPONSE
-         * But: Close this connection to the backend.
-         */
-        if (r->connection->aborted) {
-            conn->close++;
-            output_failed = 0;
-            result = CMD_AJP13_END_RESPONSE;
-        }
-
-        /*
-         * We either have finished successfully or we failed.
-         * So bail out
-         */
-        if ((result == CMD_AJP13_END_RESPONSE) || backend_failed
-            || output_failed)
-            break;
-
-        /* read the response */
-        status = ajp_read_header(conn->sock, r, maxsize,
-                                 (ajp_msg_t **)&(conn->data));
-        if (status != APR_SUCCESS) {
-            backend_failed = 1;
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, status, r->server,
-                         "ajp_read_header failed");
-            break;
-        }
-        result = ajp_parse_type(r, conn->data);
-    }
-    apr_brigade_destroy(input_brigade);
-
-    /*
-     * Clear output_brigade to remove possible buckets that remained there
-     * after an error.
-     */
-    apr_brigade_cleanup(output_brigade);
-
-    if (backend_failed || output_failed) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: Processing of request failed backend: %i, "
-                     "output: %i", backend_failed, output_failed);
-        /* We had a failure: Close connection to backend */
-        conn->close++;
-        /* Return DONE to avoid error messages being added to the stream */
-        if (data_sent) {
-            rv = DONE;
+#endif
         }
     }
-    else if (!request_ended) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: Processing of request didn't terminate cleanly");
-        /* We had a failure: Close connection to backend */
-        conn->close++;
-        backend_failed = 1;
-        /* Return DONE to avoid error messages being added to the stream */
-        if (data_sent) {
-            rv = DONE;
-        }
-    }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: got response from %pI (%s)",
-                     conn->worker->cp->addr,
-                     conn->worker->hostname);
-        rv = OK;
+
+    if (opt->ind != argc - 1) {
+        fprintf(stderr, "%s: wrong number of arguments\n", argv[0]);
+        usage(argv[0]);
     }
 
-    if (backend_failed) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                     "proxy: dialog to %pI (%s) failed",
-                     conn->worker->cp->addr,
-                     conn->worker->hostname);
-        /*
-         * If we already send data, signal a broken backend connection
-         * upwards in the chain.
-         */
-        if (data_sent) {
-            ap_proxy_backend_broke(r, output_brigade);
-        } else
-            rv = HTTP_SERVICE_UNAVAILABLE;
+    if (parse_url(apr_pstrdup(cntxt, opt->argv[opt->ind++]))) {
+        fprintf(stderr, "%s: invalid URL\n", argv[0]);
+        usage(argv[0]);
     }
 
-    /*
-     * Ensure that we sent an EOS bucket thru the filter chain, if we already
-     * have sent some data. Maybe ap_proxy_backend_broke was called and added
-     * one to the brigade already (no longer making it empty). So we should
-     * not do this in this case.
-     */
-    if (data_sent && !r->eos_sent && APR_BRIGADE_EMPTY(output_brigade)) {
-        e = apr_bucket_eos_create(r->connection->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(output_brigade, e);
+    if ((concurrency < 0) || (concurrency > MAX_CONCURRENCY)) {
+        fprintf(stderr, "%s: Invalid Concurrency [Range 0..%d]\n",
+                argv[0], MAX_CONCURRENCY);
+        usage(argv[0]);
     }
 
-    /* If we have added something to the brigade above, sent it */
-    if (!APR_BRIGADE_EMPTY(output_brigade))
-        ap_pass_brigade(r->output_filters, output_brigade);
+    if (concurrency > requests) {
+        fprintf(stderr, "%s: Cannot use concurrency level greater than "
+                "total number of requests\n", argv[0]);
+        usage(argv[0]);
+    }
 
-    apr_brigade_destroy(output_brigade);
+    if ((heartbeatres) && (requests > 150)) {
+        heartbeatres = requests / 10;   /* Print line every 10% of requests */
+        if (heartbeatres < 100)
+            heartbeatres = 100; /* but never more often than once every 100
+                                 * connections. */
+    }
+    else
+        heartbeatres = 0;
 
-    return rv;
+#ifdef USE_SSL
+#ifdef RSAREF
+    R_malloc_init();
+#else
+    CRYPTO_malloc_init();
+#endif
+    SSL_load_error_strings();
+    SSL_library_init();
+    bio_out=BIO_new_fp(stdout,BIO_NOCLOSE);
+    bio_err=BIO_new_fp(stderr,BIO_NOCLOSE);
+
+    if (!(ssl_ctx = SSL_CTX_new(meth))) {
+        BIO_printf(bio_err, "Could not initialize SSL Context.\n");
+        ERR_print_errors(bio_err);
+        exit(1);
+    }
+    SSL_CTX_set_options(ssl_ctx, SSL_OP_ALL);
+    if (ssl_cipher != NULL) {
+        if (!SSL_CTX_set_cipher_list(ssl_ctx, ssl_cipher)) {
+            fprintf(stderr, "error setting cipher list [%s]\n", ssl_cipher);
+        ERR_print_errors_fp(stderr);
+        exit(1);
+    }
+    }
+    if (verbosity >= 3) {
+        SSL_CTX_set_info_callback(ssl_ctx, ssl_state_cb);
+    }
+#endif
+#ifdef SIGPIPE
+    apr_signal(SIGPIPE, SIG_IGN);       /* Ignore writes to connections that
+                                         * have been closed at the other end. */
+#endif
+    copyright();
+    test();
+    apr_pool_destroy(cntxt);
+
+    return 0;
 }

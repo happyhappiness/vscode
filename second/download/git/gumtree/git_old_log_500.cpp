@@ -1,1 +1,1 @@
-print_ref_status('-', "[deleted]", ref, NULL, NULL, porcelain);
+error("cannot fork to run external filter %s", params->cmd);

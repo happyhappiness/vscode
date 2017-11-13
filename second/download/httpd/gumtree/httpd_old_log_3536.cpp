@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "apr_global_mutex_unlock(rewrite_mapr_lock_acquire) "
-                          "failed");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
+                     "Heartmonitor: Failed to create listening socket.");

@@ -1,136 +1,104 @@
-static apr_status_t make_sock(apr_pool_t *p, ap_listen_rec *server)
+static void ap_proxy_read_headers(request_rec *r, request_rec *rr,
+                                  char *buffer, int size,
+                                  conn_rec *c, int *pread_len)
 {
-    apr_socket_t *s = server->sd;
-    int one = 1;
-#if APR_HAVE_IPV6
-#ifdef AP_ENABLE_V4_MAPPED
-    int v6only_setting = 0;
-#else
-    int v6only_setting = 1;
-#endif
-#endif
-    apr_status_t stat;
+    int len;
+    char *value, *end;
+    char field[MAX_STRING_LEN];
+    int saw_headers = 0;
+    void *sconf = r->server->module_config;
+    proxy_server_conf *psc;
+    proxy_dir_conf *dconf;
 
-#ifndef WIN32
-    stat = apr_socket_opt_set(s, APR_SO_REUSEADDR, one);
-    if (stat != APR_SUCCESS && stat != APR_ENOTIMPL) {
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p,
-                      "make_sock: for address %pI, apr_socket_opt_set: (SO_REUSEADDR)",
-                      server->bind_addr);
-        apr_socket_close(s);
-        return stat;
-    }
-#endif
+    dconf = ap_get_module_config(r->per_dir_config, &proxy_module);
+    psc = (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
 
-    stat = apr_socket_opt_set(s, APR_SO_KEEPALIVE, one);
-    if (stat != APR_SUCCESS && stat != APR_ENOTIMPL) {
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p,
-                      "make_sock: for address %pI, apr_socket_opt_set: (SO_KEEPALIVE)",
-                      server->bind_addr);
-        apr_socket_close(s);
-        return stat;
-    }
-
-#if APR_HAVE_IPV6
-    if (server->bind_addr->family == APR_INET6) {
-        stat = apr_socket_opt_set(s, APR_IPV6_V6ONLY, v6only_setting);
-        if (stat != APR_SUCCESS && stat != APR_ENOTIMPL) {
-            ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p,
-                          "make_sock: for address %pI, apr_socket_opt_set: "
-                          "(IPV6_V6ONLY)",
-                          server->bind_addr);
-            apr_socket_close(s);
-            return stat;
-        }
-    }
-#endif
+    r->headers_out = apr_table_make(r->pool, 20);
+    *pread_len = 0;
 
     /*
-     * To send data over high bandwidth-delay connections at full
-     * speed we must force the TCP window to open wide enough to keep the
-     * pipe full.  The default window size on many systems
-     * is only 4kB.  Cross-country WAN connections of 100ms
-     * at 1Mb/s are not impossible for well connected sites.
-     * If we assume 100ms cross-country latency,
-     * a 4kB buffer limits throughput to 40kB/s.
-     *
-     * To avoid this problem I've added the SendBufferSize directive
-     * to allow the web master to configure send buffer size.
-     *
-     * The trade-off of larger buffers is that more kernel memory
-     * is consumed.  YMMV, know your customers and your network!
-     *
-     * -John Heidemann <johnh@isi.edu> 25-Oct-96
-     *
-     * If no size is specified, use the kernel default.
+     * Read header lines until we get the empty separator line, a read error,
+     * the connection closes (EOF), or we timeout.
      */
-    if (send_buffer_size) {
-        stat = apr_socket_opt_set(s, APR_SO_SNDBUF,  send_buffer_size);
-        if (stat != APR_SUCCESS && stat != APR_ENOTIMPL) {
-            ap_log_perror(APLOG_MARK, APLOG_WARNING, stat, p,
-                          "make_sock: failed to set SendBufferSize for "
-                          "address %pI, using default",
-                          server->bind_addr);
-            /* not a fatal error */
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
+                  "Headers received from backend:");
+    while ((len = ap_getline(buffer, size, rr, 1)) > 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r, "%s", buffer);
+
+        if (!(value = strchr(buffer, ':'))) {     /* Find the colon separator */
+
+            /* We may encounter invalid headers, usually from buggy
+             * MS IIS servers, so we need to determine just how to handle
+             * them. We can either ignore them, assume that they mark the
+             * start-of-body (eg: a missing CRLF) or (the default) mark
+             * the headers as totally bogus and return a 500. The sole
+             * exception is an extra "HTTP/1.0 200, OK" line sprinkled
+             * in between the usual MIME headers, which is a favorite
+             * IIS bug.
+             */
+             /* XXX: The mask check is buggy if we ever see an HTTP/1.10 */
+
+            if (!apr_date_checkmask(buffer, "HTTP/#.# ###*")) {
+                if (psc->badopt == bad_error) {
+                    /* Nope, it wasn't even an extra HTTP header. Give up. */
+                    r->headers_out = NULL;
+                    return ;
+                }
+                else if (psc->badopt == bad_body) {
+                    /* if we've already started loading headers_out, then
+                     * return what we've accumulated so far, in the hopes
+                     * that they are useful; also note that we likely pre-read
+                     * the first line of the response.
+                     */
+                    if (saw_headers) {
+                        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
+                         "proxy: Starting body due to bogus non-header in headers "
+                         "returned by %s (%s)", r->uri, r->method);
+                        *pread_len = len;
+                        return ;
+                    } else {
+                         ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
+                         "proxy: No HTTP headers "
+                         "returned by %s (%s)", r->uri, r->method);
+                        return ;
+                    }
+                }
+            }
+            /* this is the psc->badopt == bad_ignore case */
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
+                         "proxy: Ignoring bogus HTTP header "
+                         "returned by %s (%s)", r->uri, r->method);
+            continue;
+        }
+
+        *value = '\0';
+        ++value;
+        /* XXX: RFC2068 defines only SP and HT as whitespace, this test is
+         * wrong... and so are many others probably.
+         */
+        while (apr_isspace(*value))
+            ++value;            /* Skip to start of value   */
+
+        /* should strip trailing whitespace as well */
+        for (end = &value[strlen(value)-1]; end > value && apr_isspace(*end); --
+end)
+            *end = '\0';
+
+        /* make sure we add so as not to destroy duplicated headers
+         * Modify headers requiring canonicalisation and/or affected
+         * by ProxyPassReverse and family with process_proxy_header
+         */
+        process_proxy_header(r, dconf, buffer, value) ;
+        saw_headers = 1;
+
+        /* the header was too long; at the least we should skip extra data */
+        if (len >= size - 1) {
+            while ((len = ap_getline(field, MAX_STRING_LEN, rr, 1))
+                    >= MAX_STRING_LEN - 1) {
+                /* soak up the extra data */
+            }
+            if (len == 0) /* time to exit the larger loop as well */
+                break;
         }
     }
-    if (receive_buffer_size) {
-        stat = apr_socket_opt_set(s, APR_SO_RCVBUF, receive_buffer_size);
-        if (stat != APR_SUCCESS && stat != APR_ENOTIMPL) {
-            ap_log_perror(APLOG_MARK, APLOG_WARNING, stat, p,
-                          "make_sock: failed to set ReceiveBufferSize for "
-                          "address %pI, using default",
-                          server->bind_addr);
-            /* not a fatal error */
-        }
-    }
-
-#if APR_TCP_NODELAY_INHERITED
-    ap_sock_disable_nagle(s);
-#endif
-
-    if ((stat = apr_socket_bind(s, server->bind_addr)) != APR_SUCCESS) {
-        ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT, stat, p,
-                      "make_sock: could not bind to address %pI",
-                      server->bind_addr);
-        apr_socket_close(s);
-        return stat;
-    }
-
-    if ((stat = apr_socket_listen(s, ap_listenbacklog)) != APR_SUCCESS) {
-        ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_ERR, stat, p,
-                      "make_sock: unable to listen for connections "
-                      "on address %pI",
-                      server->bind_addr);
-        apr_socket_close(s);
-        return stat;
-    }
-
-#ifdef WIN32
-    /* I seriously doubt that this would work on Unix; I have doubts that
-     * it entirely solves the problem on Win32.  However, since setting
-     * reuseaddr on the listener -prior- to binding the socket has allowed
-     * us to attach to the same port as an already running instance of
-     * Apache, or even another web server, we cannot identify that this
-     * port was exclusively granted to this instance of Apache.
-     *
-     * So set reuseaddr, but do not attempt to do so until we have the
-     * parent listeners successfully bound.
-     */
-    stat = apr_socket_opt_set(s, APR_SO_REUSEADDR, one);
-    if (stat != APR_SUCCESS && stat != APR_ENOTIMPL) {
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p,
-                    "make_sock: for address %pI, apr_socket_opt_set: (SO_REUSEADDR)",
-                     server->bind_addr);
-        apr_socket_close(s);
-        return stat;
-    }
-#endif
-
-    server->sd = s;
-    server->active = 1;
-
-    server->accept_func = NULL;
-
-    return APR_SUCCESS;
 }

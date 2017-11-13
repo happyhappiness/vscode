@@ -1,1 +1,1 @@
-strbuf_release(&outbuf);
+fprintf(porcelain ? stdout : stderr, "To %s\n", url);

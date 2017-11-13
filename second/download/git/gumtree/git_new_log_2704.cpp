@@ -1,1 +1,1 @@
-die("BUG: unhandled unmerged status %x", stagemask);
+die(_("positive value expected contents:lines=%s"), arg);

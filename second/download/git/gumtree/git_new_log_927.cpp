@@ -1,1 +1,0 @@
-warning(_("submodule update strategy not supported for submodule '%s'"), ce->name);

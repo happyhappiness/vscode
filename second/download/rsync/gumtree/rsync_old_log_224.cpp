@@ -1,1 +1,1 @@
-fprintf(stderr,"Error reading %d bytes : %s\n",4,strerror(errno));
+fprintf(stderr,"generator wrote %d\n",write_total());

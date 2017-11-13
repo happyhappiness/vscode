@@ -1,1 +1,0 @@
-error("Version %d not supported", *chosen_version);

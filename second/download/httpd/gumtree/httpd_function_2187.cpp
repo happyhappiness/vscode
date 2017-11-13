@@ -1,31 +1,27 @@
-static int proxy_balancer_post_request(proxy_worker *worker,
-                                       proxy_balancer *balancer,
-                                       request_rec *r,
-                                       proxy_server_conf *conf)
+static const char *set_thread_limit (cmd_parms *cmd, void *dummy, const char *arg)
 {
-    apr_status_t rv;
-
-    if ((rv = PROXY_THREAD_LOCK(balancer)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-            "proxy: BALANCER: (%s). Lock failed for post_request",
-            balancer->name);
-        return HTTP_INTERNAL_SERVER_ERROR;
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
     }
-    /* TODO: calculate the bytes transferred
-     * This will enable to elect the worker that has
-     * the lowest load.
-     * The bytes transferred depends on the protocol
-     * used, so each protocol handler should keep the
-     * track on that.
-     */
 
-    if ((rv = PROXY_THREAD_UNLOCK(balancer)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-            "proxy: BALANCER: (%s). Unlock failed for post_request",
-            balancer->name);
+    ap_threads_limit = atoi(arg);
+    if (ap_threads_limit > HARD_THREAD_LIMIT) {
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                    "WARNING: MaxThreads of %d exceeds compile time limit "
+                    "of %d threads,", ap_threads_limit, HARD_THREAD_LIMIT);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                    " lowering MaxThreads to %d.  To increase, please "
+                    "see the", HARD_THREAD_LIMIT);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                    " HARD_THREAD_LIMIT define in %s.",
+                    AP_MPM_HARD_LIMITS_FILE);
+       ap_threads_limit = HARD_THREAD_LIMIT;
     }
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "proxy_balancer_post_request for (%s)", balancer->name);
-
-    return OK;
+    else if (ap_threads_limit < 1) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+            "WARNING: Require MaxThreads > 0, setting to 1");
+        ap_threads_limit = 1;
+    }
+    return NULL;
 }

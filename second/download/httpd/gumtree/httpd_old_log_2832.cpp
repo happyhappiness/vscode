@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                  "Could not find a command associated with the %s extension", ext);
+printf("<tr %s><th colspan=2 %s>HTML transferred:</th>"
+       "<td colspan=2 %s>%ld bytes</td></tr>\n",
+       trstring, tdstring, tdstring, totalbread);

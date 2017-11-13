@@ -1,1 +1,1 @@
-opterror(opt, "must point to a commit", 0);
+die(_("rev-list does not support display of notes"));

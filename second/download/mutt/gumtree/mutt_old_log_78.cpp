@@ -1,1 +1,0 @@
-fputs (tmp->data, fp);

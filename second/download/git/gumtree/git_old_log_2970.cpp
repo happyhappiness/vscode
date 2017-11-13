@@ -1,1 +1,1 @@
-error("cannot create pipe: %s", strerror(errno));
+error("fork (async) failed: %s", strerror(errno));

@@ -1,15 +1,2 @@
-fputs(
-"              output = \"curlhere.html\"\n"
-"              user-agent = \"superagent/1.0\"\n"
-"\n"
-"              # and fetch another URL too\n"
-"              url = \"example.com/docs/manpage.html\"\n"
-"              -O\n"
-"              referer = \"http://nowhereatall.example.com/\"\n"
-"              # --- End of example file ---\n"
-"\n"
-"              This  option  can be used multiple times to load multiple config\n"
-"              files.\n"
-"\n"
-"       --connect-timeout <seconds>\n"
-, stdout);
+Curl_failf(data, "Error importing service name %s",
+                   input_buffer.value);

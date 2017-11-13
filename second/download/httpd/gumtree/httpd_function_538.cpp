@@ -1,121 +1,266 @@
-static apr_status_t ef_output_filter(ap_filter_t *f, apr_bucket_brigade *bb)
+apr_status_t isapi_handler (request_rec *r)
 {
-    request_rec *r = f->r;
-    conn_rec *c = r->connection;
-    ef_ctx_t *ctx = f->ctx;
-    apr_bucket *b;
-    ef_dir_t *dc;
-    apr_size_t len;
-    const char *data;
+    isapi_dir_conf *dconf;
+    apr_table_t *e;
     apr_status_t rv;
-    char buf[4096];
-    apr_bucket *eos = NULL;
-
-    if (!ctx) {
-        if ((rv = init_filter_instance(f)) != APR_SUCCESS) {
-            return rv;
-        }
-        ctx = f->ctx;
+    isapi_loaded *isa;
+    isapi_cid *cid;
+    const char *val;
+    apr_uint32_t read;
+    int res;
+    
+    if(strcmp(r->handler, "isapi-isa") 
+        && strcmp(r->handler, "isapi-handler")) {
+        /* Hang on to the isapi-isa for compatibility with older docs
+         * (wtf did '-isa' mean in the first place?) but introduce
+         * a newer and clearer "isapi-handler" name.
+         */
+        return DECLINED;    
     }
-    if (ctx->noop) {
-        ap_remove_output_filter(f);
-        return ap_pass_brigade(f->next, bb);
-    }
-    dc = ctx->dc;
+    dconf = ap_get_module_config(r->per_dir_config, &isapi_module);
+    e = r->subprocess_env;
 
-    APR_BRIGADE_FOREACH(b, bb) {
-
-        if (APR_BUCKET_IS_EOS(b)) {
-            eos = b;
-            break;
-        }
-
-        rv = apr_bucket_read(b, &data, &len, APR_BLOCK_READ);
-        if (rv != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, "apr_bucket_read()");
-            return rv;
-        }
-
-        /* Good cast, we just tested len isn't negative */
-        if (len > 0 &&
-            (rv = pass_data_to_filter(f, data, (apr_size_t)len)) 
-                != APR_SUCCESS) {
-            return rv;
-        }
-    }
-
-    apr_brigade_destroy(bb);
-
-    /* XXX What we *really* need to do once we've hit eos is create a pipe bucket
-     * from the child output pipe and pass down the pipe bucket + eos.
+    /* Use similar restrictions as CGIs
+     *
+     * If this fails, it's pointless to load the isapi dll.
      */
-    if (eos) {
-        /* close the child's stdin to signal that no more data is coming;
-         * that will cause the child to finish generating output
+    if (!(ap_allow_options(r) & OPT_EXECCGI)) {
+        return HTTP_FORBIDDEN;
+    }
+    if (r->finfo.filetype == APR_NOFILE) {
+        return HTTP_NOT_FOUND;
+    }
+    if (r->finfo.filetype != APR_REG) {
+        return HTTP_FORBIDDEN;
+    }
+    if ((r->used_path_info == AP_REQ_REJECT_PATH_INFO) &&
+        r->path_info && *r->path_info) {
+        /* default to accept */
+        return HTTP_NOT_FOUND;
+    }
+
+    if (isapi_lookup(r->pool, r->server, r, r->filename, &isa) 
+           != APR_SUCCESS) {
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+    /* Set up variables */
+    ap_add_common_vars(r);
+    ap_add_cgi_vars(r);
+    apr_table_setn(e, "UNMAPPED_REMOTE_USER", "REMOTE_USER");
+    if ((val = apr_table_get(e, "HTTPS")) && strcmp(val, "on"))
+        apr_table_setn(e, "SERVER_PORT_SECURE", "1");
+    else
+        apr_table_setn(e, "SERVER_PORT_SECURE", "0");
+    apr_table_setn(e, "URL", r->uri);
+
+    /* Set up connection structure and ecb,
+     * NULL or zero out most fields.
+     */
+    cid = apr_pcalloc(r->pool, sizeof(isapi_cid));
+    
+    /* Fixup defaults for dconf */
+    cid->dconf.read_ahead_buflen = (dconf->read_ahead_buflen == ISAPI_UNDEF)
+                                     ? 49152 : dconf->read_ahead_buflen;
+    cid->dconf.log_unsupported   = (dconf->log_unsupported == ISAPI_UNDEF)
+                                     ? 0 : dconf->log_unsupported;
+    cid->dconf.log_to_errlog     = (dconf->log_to_errlog == ISAPI_UNDEF)
+                                     ? 0 : dconf->log_to_errlog;
+    cid->dconf.log_to_query      = (dconf->log_to_query == ISAPI_UNDEF)
+                                     ? 1 : dconf->log_to_query;
+    cid->dconf.fake_async        = (dconf->fake_async == ISAPI_UNDEF)
+                                     ? 0 : dconf->fake_async;
+
+    cid->ecb = apr_pcalloc(r->pool, sizeof(EXTENSION_CONTROL_BLOCK));
+    cid->ecb->ConnID = cid;
+    cid->isa = isa;
+    cid->r = r;
+    r->status = 0;
+    
+    cid->ecb->cbSize = sizeof(EXTENSION_CONTROL_BLOCK);
+    cid->ecb->dwVersion = isa->report_version;
+    cid->ecb->dwHttpStatusCode = 0;
+    strcpy(cid->ecb->lpszLogData, "");
+    /* TODO: are copies really needed here?
+     */
+    cid->ecb->lpszMethod = (char*) r->method;
+    cid->ecb->lpszQueryString = (char*) apr_table_get(e, "QUERY_STRING");
+    cid->ecb->lpszPathInfo = (char*) apr_table_get(e, "PATH_INFO");
+    cid->ecb->lpszPathTranslated = (char*) apr_table_get(e, "PATH_TRANSLATED");
+    cid->ecb->lpszContentType = (char*) apr_table_get(e, "CONTENT_TYPE");
+    
+    /* Set up the callbacks */
+    cid->ecb->GetServerVariable = GetServerVariable;
+    cid->ecb->WriteClient = WriteClient;
+    cid->ecb->ReadClient = ReadClient;
+    cid->ecb->ServerSupportFunction = ServerSupportFunction;
+
+    /* Set up client input */
+    res = ap_setup_client_block(r, REQUEST_CHUNKED_ERROR);
+    if (res) {
+        isapi_unload(isa, 0);
+        return res;
+    }
+
+    if (ap_should_client_block(r)) {
+        /* Time to start reading the appropriate amount of data,
+         * and allow the administrator to tweak the number
          */
-        if ((rv = apr_file_close(ctx->proc->in)) != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "apr_file_close(child input)");
-            return rv;
+        if (r->remaining) {
+            cid->ecb->cbTotalBytes = (apr_size_t)r->remaining;
+            if (cid->ecb->cbTotalBytes > (apr_uint32_t)cid->dconf.read_ahead_buflen)
+                cid->ecb->cbAvailable = cid->dconf.read_ahead_buflen;
+            else
+                cid->ecb->cbAvailable = cid->ecb->cbTotalBytes;
         }
-        /* since we've seen eos and closed the child's stdin, set the proper pipe 
-         * timeout; we don't care if we don't return from apr_file_read() for a while... 
+        else
+        {
+            cid->ecb->cbTotalBytes = 0xffffffff;
+            cid->ecb->cbAvailable = cid->dconf.read_ahead_buflen;
+        }
+
+        cid->ecb->lpbData = apr_pcalloc(r->pool, cid->ecb->cbAvailable + 1);
+
+        read = 0;
+        while (read < cid->ecb->cbAvailable &&
+               ((res = ap_get_client_block(r, (char*)cid->ecb->lpbData + read,
+                                        cid->ecb->cbAvailable - read)) > 0)) {
+            read += res;
+        }
+
+        if (res < 0) {
+            isapi_unload(isa, 0);
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+
+        /* Although it's not to spec, IIS seems to null-terminate
+         * its lpdData string. So we will too.
          */
-        rv = apr_file_pipe_timeout_set(ctx->proc->out, 
-                                       r->server->timeout);
-        if (rv) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "apr_file_pipe_timeout_set(child output)");
-            return rv;
+        if (res == 0)
+            cid->ecb->cbAvailable = cid->ecb->cbTotalBytes = read;
+        else
+            cid->ecb->cbAvailable = read;
+        cid->ecb->lpbData[read] = '\0';
+    }
+    else {
+        cid->ecb->cbTotalBytes = 0;
+        cid->ecb->cbAvailable = 0;
+        cid->ecb->lpbData = NULL;
+    }
+
+    /* To emulate async behavior...
+     *
+     * We create a cid->completed mutex and lock on it so that the
+     * app can believe is it running async.
+     *
+     * This request completes upon a notification through
+     * ServerSupportFunction(HSE_REQ_DONE_WITH_SESSION), which
+     * unlocks this mutex.  If the HttpExtensionProc() returns
+     * HSE_STATUS_PENDING, we will attempt to gain this lock again
+     * which may *only* happen once HSE_REQ_DONE_WITH_SESSION has
+     * unlocked the mutex.
+     */
+    if (cid->dconf.fake_async) {
+        rv = apr_thread_mutex_create(&cid->completed, 
+                                     APR_THREAD_MUTEX_UNNESTED, 
+                                     r->pool);
+        if (cid->completed && (rv == APR_SUCCESS)) {
+            rv = apr_thread_mutex_lock(cid->completed);
+        }
+
+        if (!cid->completed || (rv != APR_SUCCESS)) {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: Failed to create completion mutex");
+            return HTTP_INTERNAL_SERVER_ERROR;
         }
     }
 
-    do {
-        len = sizeof(buf);
-        rv = apr_file_read(ctx->proc->out,
-                      buf,
-                      &len);
-        if ((rv && !APR_STATUS_IS_EOF(rv) && !APR_STATUS_IS_EAGAIN(rv)) ||
-            dc->debug >= DBGLVL_GORY) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
-                          "apr_file_read(child output), len %" APR_SIZE_T_FMT,
-                          !rv ? len : -1);
-        }
-        if (APR_STATUS_IS_EAGAIN(rv)) {
-            if (eos) {
-                /* should not occur, because we have an APR timeout in place */
-                AP_DEBUG_ASSERT(1 != 1);
-            }
-            return APR_SUCCESS;
-        }
-        
-        if (rv == APR_SUCCESS) {
-            bb = apr_brigade_create(r->pool, c->bucket_alloc);
-            b = apr_bucket_transient_create(buf, len, c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(bb, b);
-            if ((rv = ap_pass_brigade(f->next, bb)) != APR_SUCCESS) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                              "ap_pass_brigade(filtered buffer) failed");
-                return rv;
-            }
-        }
-    } while (rv == APR_SUCCESS);
+    /* All right... try and run the sucker */
+    rv = (*isa->HttpExtensionProc)(cid->ecb);
 
-    if (!APR_STATUS_IS_EOF(rv)) {
-        return rv;
+    /* Check for a log message - and log it */
+    if (cid->ecb->lpszLogData && *cid->ecb->lpszLogData)
+        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                      "ISAPI: %s: %s", r->filename, cid->ecb->lpszLogData);
+
+    switch(rv) {
+        case 0:  /* Strange, but MS isapi accepts this as success */
+        case HSE_STATUS_SUCCESS:
+        case HSE_STATUS_SUCCESS_AND_KEEP_CONN:
+            /* Ignore the keepalive stuff; Apache handles it just fine without
+             * the ISAPI Handler's "advice".
+             * Per Microsoft: "In IIS versions 4.0 and later, the return
+             * values HSE_STATUS_SUCCESS and HSE_STATUS_SUCCESS_AND_KEEP_CONN
+             * are functionally identical: Keep-Alive connections are
+             * maintained, if supported by the client."
+             * ... so we were pat all this time
+             */
+            break;
+
+        case HSE_STATUS_PENDING:
+            /* emulating async behavior...
+             */
+            if (cid->completed) {
+                /* The completion port was locked prior to invoking
+                 * HttpExtensionProc().  Once we can regain the lock,
+                 * when ServerSupportFunction(HSE_REQ_DONE_WITH_SESSION)
+                 * is called by the extension to release the lock,
+                 * we may finally destroy the request.
+                 */
+                (void)apr_thread_mutex_lock(cid->completed);
+                break;
+            }
+            else if (cid->dconf.log_unsupported) {
+                 ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                               "ISAPI: asynch I/O result HSE_STATUS_PENDING "
+                               "from HttpExtensionProc() is not supported: %s",
+                               r->filename);
+                 r->status = HTTP_INTERNAL_SERVER_ERROR;
+            }
+            break;
+
+        case HSE_STATUS_ERROR:    
+            /* end response if we have yet to do so.
+             */
+            r->status = HTTP_INTERNAL_SERVER_ERROR;
+            break;
+
+        default:
+            /* TODO: log unrecognized retval for debugging 
+             */
+             ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                           "ISAPI: return code %d from HttpExtensionProc() "
+                           "was not not recognized", rv);
+            r->status = HTTP_INTERNAL_SERVER_ERROR;
+            break;
     }
 
-    if (eos) {
-        /* pass down eos */
+    /* Flush the response now, including headers-only responses */
+    if (cid->headers_set) {
+        conn_rec *c = r->connection;
+        apr_bucket_brigade *bb;
+        apr_bucket *b;
+        apr_status_t rv;
+
         bb = apr_brigade_create(r->pool, c->bucket_alloc);
         b = apr_bucket_eos_create(c->bucket_alloc);
         APR_BRIGADE_INSERT_TAIL(bb, b);
-        if ((rv = ap_pass_brigade(f->next, bb)) != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "ap_pass_brigade(eos) failed");
-            return rv;
-        }
+        b = apr_bucket_flush_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        rv = ap_pass_brigade(r->output_filters, bb);
+        cid->response_sent = 1;
+
+        return OK;  /* NOT r->status or cid->r->status, even if it has changed. */
+    }
+    
+    /* As the client returned no error, and if we did not error out
+     * ourselves, trust dwHttpStatusCode to say something relevant.
+     */
+    if (!ap_is_HTTP_SERVER_ERROR(r->status) && cid->ecb->dwHttpStatusCode) {
+        r->status = cid->ecb->dwHttpStatusCode;
     }
 
-    return APR_SUCCESS;
+    /* For all missing-response situations simply return the status.
+     * and let the core deal respond to the client.
+     */
+    return r->status;
 }

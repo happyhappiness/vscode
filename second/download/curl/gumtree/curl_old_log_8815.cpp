@@ -1,11 +1,10 @@
 fputs(
-"              the client must be able to rewind. If the need should arise when\n"
-"              uploading from stdin, the upload operation will fail.\n"
+"              to  the  target  file  instead  of  overwriting  it. If the file\n"
+"              doesn't exist, it will be  created.   Note  that  this  flag  is\n"
+"              ignored by some SSH servers (including OpenSSH).\n"
 "\n"
-"       -b, --cookie <name=data>\n"
-"              (HTTP) Pass the data to the HTTP server as a cookie. It is  sup-\n"
-"              posedly  the data previously received from the server in a \"Set-\n"
-"              Cookie:\" line.  The data should be in the format  \"NAME1=VALUE1;\n"
-"              NAME2=VALUE2\".\n"
-"\n"
+"       -A, --user-agent <agent string>\n"
+"              (HTTP) Specify the User-Agent string to send to the HTTP server.\n"
+"              Some  badly  done  CGIs  fail  if  this  field  isn't   set   to\n"
+"              \"Mozilla/4.0\".  To  encode  blanks  in  the string, surround the\n"
 , stdout);

@@ -1,1 +1,1 @@
-die(_("Failed to resolve HEAD as a valid ref."));
+printf_ln(_("Patch is empty."));

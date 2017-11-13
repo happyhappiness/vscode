@@ -1,3 +1,3 @@
-ap_log_rerror(SCRIPT_LOG_MARK, APLOG_TRACE4, 0, r,
-                              "Headers from script '%s':",
-                              apr_filepath_name_get(r->filename));
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, c->base_server, APLOGNO(00006)
+                     "core_filter: sendfile_nonblocking: "
+                     "this should never happen");

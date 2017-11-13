@@ -1,1 +1,1 @@
-fprintf(f, "\\#%03o", *(uchar*)in_buf++);
+out_of_memory("make_exclude");

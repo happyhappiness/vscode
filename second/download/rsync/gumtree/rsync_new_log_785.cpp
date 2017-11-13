@@ -1,1 +1,1 @@
-fprintf(stderr, "virtual memory exhausted.\n");
+out_of_memory("add_rule");

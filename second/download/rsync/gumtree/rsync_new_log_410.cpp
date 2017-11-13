@@ -1,1 +1,1 @@
-rprintf(FERROR,"Integer overflow - attempted 64 bit offset\n");
+)malloc(sizeof(delete_list[0])*dlist_alloc_len);

@@ -1,393 +1,264 @@
-static int dav_method_copymove(request_rec *r, int is_move)
+apr_status_t isapi_handler (request_rec *r)
 {
-    dav_resource *resource;
-    dav_resource *resnew;
-    dav_auto_version_info src_av_info = { 0 };
-    dav_auto_version_info dst_av_info = { 0 };
-    const char *body;
-    const char *dest;
-    dav_error *err;
-    dav_error *err2;
-    dav_error *err3;
-    dav_response *multi_response;
-    dav_lookup_result lookup;
-    int is_dir;
-    int overwrite;
-    int depth;
-    int result;
-    dav_lockdb *lockdb;
-    int replace_dest;
-    int resnew_state;
+    isapi_dir_conf *dconf;
+    apr_table_t *e;
+    apr_status_t rv;
+    isapi_loaded *isa;
+    isapi_cid *cid;
+    const char *val;
+    apr_uint32_t read;
+    int res;
+    
+    if(strcmp(r->handler, "isapi-isa") 
+        && strcmp(r->handler, "isapi-handler")) {
+        /* Hang on to the isapi-isa for compatibility with older docs
+         * (wtf did '-isa' mean in the first place?) but introduce
+         * a newer and clearer "isapi-handler" name.
+         */
+        return DECLINED;    
+    }
+    dconf = ap_get_module_config(r->per_dir_config, &isapi_module);
+    e = r->subprocess_env;
 
-    /* Ask repository module to resolve the resource */
-    err = dav_get_resource(r, !is_move /* label_allowed */,
-                           0 /* use_checked_in */, &resource);
-    if (err != NULL)
-        return dav_handle_err(r, err, NULL);
-
-    if (!resource->exists) {
-        /* Apache will supply a default error for this. */
+    /* Use similar restrictions as CGIs
+     *
+     * If this fails, it's pointless to load the isapi dll.
+     */
+    if (!(ap_allow_options(r) & OPT_EXECCGI)) {
+        return HTTP_FORBIDDEN;
+    }
+    if (r->finfo.filetype == APR_NOFILE) {
+        return HTTP_NOT_FOUND;
+    }
+    if (r->finfo.filetype != APR_REG) {
+        return HTTP_FORBIDDEN;
+    }
+    if ((r->used_path_info == AP_REQ_REJECT_PATH_INFO) &&
+        r->path_info && *r->path_info) {
+        /* default to accept */
         return HTTP_NOT_FOUND;
     }
 
-    /* If not a file or collection resource, COPY/MOVE not allowed */
-    /* ### allow COPY/MOVE of DeltaV resource types */
-    if (resource->type != DAV_RESOURCE_TYPE_REGULAR) {
-        body = apr_psprintf(r->pool,
-                            "Cannot COPY/MOVE resource %s.",
-                            ap_escape_html(r->pool, r->uri));
-        return dav_error_response(r, HTTP_METHOD_NOT_ALLOWED, body);
+    if (isapi_lookup(r->pool, r->server, r, r->filename, &isa) 
+           != APR_SUCCESS) {
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
+    /* Set up variables */
+    ap_add_common_vars(r);
+    ap_add_cgi_vars(r);
+    apr_table_setn(e, "UNMAPPED_REMOTE_USER", "REMOTE_USER");
+    if ((val = apr_table_get(e, "HTTPS")) && strcmp(val, "on"))
+        apr_table_setn(e, "SERVER_PORT_SECURE", "1");
+    else
+        apr_table_setn(e, "SERVER_PORT_SECURE", "0");
+    apr_table_setn(e, "URL", r->uri);
 
-    /* get the destination URI */
-    dest = apr_table_get(r->headers_in, "Destination");
-    if (dest == NULL) {
-        /* Look in headers provided by Netscape's Roaming Profiles */
-        const char *nscp_host = apr_table_get(r->headers_in, "Host");
-        const char *nscp_path = apr_table_get(r->headers_in, "New-uri");
-
-        if (nscp_host != NULL && nscp_path != NULL)
-            dest = apr_psprintf(r->pool, "http://%s%s", nscp_host, nscp_path);
-    }
-    if (dest == NULL) {
-        /* This supplies additional information for the default message. */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "The request is missing a Destination header.");
-        return HTTP_BAD_REQUEST;
-    }
-
-    lookup = dav_lookup_uri(dest, r, 1 /* must_be_absolute */);
-    if (lookup.rnew == NULL) {
-        if (lookup.err.status == HTTP_BAD_REQUEST) {
-            /* This supplies additional information for the default message. */
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          lookup.err.desc);
-            return HTTP_BAD_REQUEST;
-        }
-
-        /* ### this assumes that dav_lookup_uri() only generates a status
-         * ### that Apache can provide a status line for!! */
-
-        return dav_error_response(r, lookup.err.status, lookup.err.desc);
-    }
-    if (lookup.rnew->status != HTTP_OK) {
-        /* ### how best to report this... */
-        return dav_error_response(r, lookup.rnew->status,
-                                  "Destination URI had an error.");
-    }
-
-    /* Resolve destination resource */
-    err = dav_get_resource(lookup.rnew, 0 /* label_allowed */,
-                           0 /* use_checked_in */, &resnew);
-    if (err != NULL)
-        return dav_handle_err(r, err, NULL);
-
-    /* are the two resources handled by the same repository? */
-    if (resource->hooks != resnew->hooks) {
-        /* ### this message exposes some backend config, but screw it... */
-        return dav_error_response(r, HTTP_BAD_GATEWAY,
-                                  "Destination URI is handled by a "
-                                  "different repository than the source URI. "
-                                  "MOVE or COPY between repositories is "
-                                  "not possible.");
-    }
-
-    /* get and parse the overwrite header value */
-    if ((overwrite = dav_get_overwrite(r)) < 0) {
-        /* dav_get_overwrite() supplies additional information for the
-         * default message. */
-        return HTTP_BAD_REQUEST;
-    }
-
-    /* quick failure test: if dest exists and overwrite is false. */
-    if (resnew->exists && !overwrite) {
-        /* Supply some text for the error response body. */
-        return dav_error_response(r, HTTP_PRECONDITION_FAILED,
-                                  "Destination is not empty and "
-                                  "Overwrite is not \"T\"");
-    }
-
-    /* are the source and destination the same? */
-    if ((*resource->hooks->is_same_resource)(resource, resnew)) {
-        /* Supply some text for the error response body. */
-        return dav_error_response(r, HTTP_FORBIDDEN,
-                                  "Source and Destination URIs are the same.");
-
-    }
-
-    is_dir = resource->collection;
-
-    /* get and parse the Depth header value. "0" and "infinity" are legal. */
-    if ((depth = dav_get_depth(r, DAV_INFINITY)) < 0) {
-        /* dav_get_depth() supplies additional information for the
-         * default message. */
-        return HTTP_BAD_REQUEST;
-    }
-    if (depth == 1) {
-        /* This supplies additional information for the default message. */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Depth must be \"0\" or \"infinity\" for COPY or MOVE.");
-        return HTTP_BAD_REQUEST;
-    }
-    if (is_move && is_dir && depth != DAV_INFINITY) {
-        /* This supplies additional information for the default message. */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Depth must be \"infinity\" when moving a collection.");
-        return HTTP_BAD_REQUEST;
-    }
-
-    /*
-     * Check If-Headers and existing locks for each resource in the source
-     * if we are performing a MOVE. We will return a 424 response with a
-     * DAV:multistatus body. The multistatus responses will contain the
-     * information about any resource that fails the validation.
-     *
-     * We check the parent resource, too, since this is a MOVE. Moving the
-     * resource effectively removes it from the parent collection, so we
-     * must ensure that we have met the appropriate conditions.
-     *
-     * If a problem occurs with the Request-URI itself, then a plain error
-     * (rather than a multistatus) will be returned.
+    /* Set up connection structure and ecb,
+     * NULL or zero out most fields.
      */
-    if (is_move
-        && (err = dav_validate_request(r, resource, depth, NULL,
-                                       &multi_response,
-                                       DAV_VALIDATE_PARENT
-                                       | DAV_VALIDATE_USE_424,
-                                       NULL)) != NULL) {
-        err = dav_push_error(r->pool, err->status, 0,
-                             apr_psprintf(r->pool,
-                                          "Could not MOVE %s due to a failed "
-                                          "precondition on the source "
-                                          "(e.g. locks).",
-                                          ap_escape_html(r->pool, r->uri)),
-                             err);
-        return dav_handle_err(r, err, multi_response);
-    }
+    cid = apr_pcalloc(r->pool, sizeof(isapi_cid));
+    
+    /* Fixup defaults for dconf */
+    cid->dconf.read_ahead_buflen = (dconf->read_ahead_buflen == ISAPI_UNDEF)
+                                     ? 49152 : dconf->read_ahead_buflen;
+    cid->dconf.log_unsupported   = (dconf->log_unsupported == ISAPI_UNDEF)
+                                     ? 0 : dconf->log_unsupported;
+    cid->dconf.log_to_errlog     = (dconf->log_to_errlog == ISAPI_UNDEF)
+                                     ? 0 : dconf->log_to_errlog;
+    cid->dconf.log_to_query      = (dconf->log_to_query == ISAPI_UNDEF)
+                                     ? 1 : dconf->log_to_query;
+    cid->dconf.fake_async        = (dconf->fake_async == ISAPI_UNDEF)
+                                     ? 0 : dconf->fake_async;
 
-    /*
-     * Check If-Headers and existing locks for destination. Note that we
-     * use depth==infinity since the target (hierarchy) will be deleted
-     * before the move/copy is completed.
-     *
-     * Note that we are overwriting the target, which implies a DELETE, so
-     * we are subject to the error/response rules as a DELETE. Namely, we
-     * will return a 424 error if any of the validations fail.
-     * (see dav_method_delete() for more information)
+    cid->ecb = apr_pcalloc(r->pool, sizeof(EXTENSION_CONTROL_BLOCK));
+    cid->ecb->ConnID = cid;
+    cid->isa = isa;
+    cid->r = r;
+    r->status = 0;
+    
+    cid->ecb->cbSize = sizeof(EXTENSION_CONTROL_BLOCK);
+    cid->ecb->dwVersion = isa->report_version;
+    cid->ecb->dwHttpStatusCode = 0;
+    strcpy(cid->ecb->lpszLogData, "");
+    /* TODO: are copies really needed here?
      */
-    if ((err = dav_validate_request(lookup.rnew, resnew, DAV_INFINITY, NULL,
-                                    &multi_response,
-                                    DAV_VALIDATE_PARENT
-                                    | DAV_VALIDATE_USE_424, NULL)) != NULL) {
-        err = dav_push_error(r->pool, err->status, 0,
-                             apr_psprintf(r->pool,
-                                          "Could not MOVE/COPY %s due to a "
-                                          "failed precondition on the "
-                                          "destination (e.g. locks).",
-                                          ap_escape_html(r->pool, r->uri)),
-                             err);
-        return dav_handle_err(r, err, multi_response);
+    cid->ecb->lpszMethod = (char*) r->method;
+    cid->ecb->lpszQueryString = (char*) apr_table_get(e, "QUERY_STRING");
+    cid->ecb->lpszPathInfo = (char*) apr_table_get(e, "PATH_INFO");
+    cid->ecb->lpszPathTranslated = (char*) apr_table_get(e, "PATH_TRANSLATED");
+    cid->ecb->lpszContentType = (char*) apr_table_get(e, "CONTENT_TYPE");
+    
+    /* Set up the callbacks */
+    cid->ecb->GetServerVariable = GetServerVariable;
+    cid->ecb->WriteClient = WriteClient;
+    cid->ecb->ReadClient = ReadClient;
+    cid->ecb->ServerSupportFunction = ServerSupportFunction;
+
+    /* Set up client input */
+    res = ap_setup_client_block(r, REQUEST_CHUNKED_ERROR);
+    if (res) {
+        isapi_unload(isa, 0);
+        return res;
     }
 
-    if (is_dir
-        && depth == DAV_INFINITY
-        && (*resource->hooks->is_parent_resource)(resource, resnew)) {
-        /* Supply some text for the error response body. */
-        return dav_error_response(r, HTTP_FORBIDDEN,
-                                  "Source collection contains the "
-                                  "Destination.");
-
-    }
-    if (is_dir
-        && (*resnew->hooks->is_parent_resource)(resnew, resource)) {
-        /* The destination must exist (since it contains the source), and
-         * a condition above implies Overwrite==T. Obviously, we cannot
-         * delete the Destination before the MOVE/COPY, as that would
-         * delete the Source.
+    if (ap_should_client_block(r)) {
+        /* Time to start reading the appropriate amount of data,
+         * and allow the administrator to tweak the number
          */
-
-        /* Supply some text for the error response body. */
-        return dav_error_response(r, HTTP_FORBIDDEN,
-                                  "Destination collection contains the Source "
-                                  "and Overwrite has been specified.");
-    }
-
-    /* ### for now, we don't need anything in the body */
-    if ((result = ap_discard_request_body(r)) != OK) {
-        return result;
-    }
-
-    if ((err = dav_open_lockdb(r, 0, &lockdb)) != NULL) {
-        /* ### add a higher-level description? */
-        return dav_handle_err(r, err, NULL);
-    }
-
-    /* remove any locks from the old resources */
-    /*
-     * ### this is Yet Another Traversal. if we do a rename(), then we
-     * ### really don't have to do this in some cases since the inode
-     * ### values will remain constant across the move. but we can't
-     * ### know that fact from outside the provider :-(
-     *
-     * ### note that we now have a problem atomicity in the move/copy
-     * ### since a failure after this would have removed locks (technically,
-     * ### this is okay to do, but really...)
-     */
-    if (is_move && lockdb != NULL) {
-        /* ### this is wrong! it blasts direct locks on parent resources */
-        /* ### pass lockdb! */
-        (void)dav_unlock(r, resource, NULL);
-    }
-
-    /* if this is a move, then the source parent collection will be modified */
-    if (is_move) {
-        if ((err = dav_auto_checkout(r, resource, 1 /* parent_only */,
-                                     &src_av_info)) != NULL) {
-            if (lockdb != NULL)
-                (*lockdb->hooks->close_lockdb)(lockdb);
-
-            /* ### add a higher-level description? */
-            return dav_handle_err(r, err, NULL);
+        if (r->remaining) {
+            cid->ecb->cbTotalBytes = (apr_size_t)r->remaining;
+            if (cid->ecb->cbTotalBytes > (apr_uint32_t)cid->dconf.read_ahead_buflen)
+                cid->ecb->cbAvailable = cid->dconf.read_ahead_buflen;
+            else
+                cid->ecb->cbAvailable = cid->ecb->cbTotalBytes;
         }
-    }
-
-    /*
-     * Remember the initial state of the destination, so the lock system
-     * can be notified as to how it changed.
-     */
-    resnew_state = dav_get_resource_state(lookup.rnew, resnew);
-
-    /* In a MOVE operation, the destination is replaced by the source.
-     * In a COPY operation, if the destination exists, is under version
-     * control, and is the same resource type as the source,
-     * then it should not be replaced, but modified to be a copy of
-     * the source.
-     */
-    if (!resnew->exists)
-        replace_dest = 0;
-    else if (is_move || !resource->versioned)
-        replace_dest = 1;
-    else if (resource->type != resnew->type)
-        replace_dest = 1;
-    else if ((resource->collection == 0) != (resnew->collection == 0))
-        replace_dest = 1;
-    else
-        replace_dest = 0;
-
-    /* If the destination must be created or replaced,
-     * make sure the parent collection is writable
-     */
-    if (!resnew->exists || replace_dest) {
-        if ((err = dav_auto_checkout(r, resnew, 1 /*parent_only*/,
-                                     &dst_av_info)) != NULL) {
-            /* could not make destination writable:
-             * if move, restore state of source parent
-             */
-            if (is_move) {
-                (void)dav_auto_checkin(r, NULL, 1 /* undo */,
-                                       0 /*unlock*/, &src_av_info);
-            }
-
-            if (lockdb != NULL)
-                (*lockdb->hooks->close_lockdb)(lockdb);
-
-            /* ### add a higher-level description? */
-            return dav_handle_err(r, err, NULL);
-        }
-    }
-
-    /* If source and destination parents are the same, then
-     * use the same resource object, so status updates to one are reflected
-     * in the other, when doing auto-versioning. Otherwise,
-     * we may try to checkin the parent twice.
-     */
-    if (src_av_info.parent_resource != NULL
-        && dst_av_info.parent_resource != NULL
-        && (*src_av_info.parent_resource->hooks->is_same_resource)
-            (src_av_info.parent_resource, dst_av_info.parent_resource)) {
-
-        dst_av_info.parent_resource = src_av_info.parent_resource;
-    }
-
-    /* If destination is being replaced, remove it first
-     * (we know Ovewrite must be TRUE). Then try to copy/move the resource.
-     */
-    if (replace_dest)
-        err = (*resnew->hooks->remove_resource)(resnew, &multi_response);
-
-    if (err == NULL) {
-        if (is_move)
-            err = (*resource->hooks->move_resource)(resource, resnew,
-                                                    &multi_response);
         else
-            err = (*resource->hooks->copy_resource)(resource, resnew, depth,
-                                                    &multi_response);
+        {
+            cid->ecb->cbTotalBytes = 0xffffffff;
+            cid->ecb->cbAvailable = cid->dconf.read_ahead_buflen;
+        }
+
+        cid->ecb->lpbData = apr_pcalloc(r->pool, cid->ecb->cbAvailable + 1);
+
+        read = 0;
+        while (read < cid->ecb->cbAvailable &&
+               ((res = ap_get_client_block(r, cid->ecb->lpbData + read,
+                                        cid->ecb->cbAvailable - read)) > 0)) {
+            read += res;
+        }
+
+        if (res < 0) {
+            isapi_unload(isa, 0);
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+
+        /* Although it's not to spec, IIS seems to null-terminate
+         * its lpdData string. So we will too.
+         */
+        if (res == 0)
+            cid->ecb->cbAvailable = cid->ecb->cbTotalBytes = read;
+        else
+            cid->ecb->cbAvailable = read;
+        cid->ecb->lpbData[read] = '\0';
+    }
+    else {
+        cid->ecb->cbTotalBytes = 0;
+        cid->ecb->cbAvailable = 0;
+        cid->ecb->lpbData = NULL;
     }
 
-    /* perform any auto-versioning cleanup */
-    err2 = dav_auto_checkin(r, NULL, err != NULL /* undo if error */,
-                            0 /*unlock*/, &dst_av_info);
+    /* To emulate async behavior...
+     *
+     * We create a cid->completed mutex and lock on it so that the
+     * app can believe is it running async.
+     *
+     * This request completes upon a notification through
+     * ServerSupportFunction(HSE_REQ_DONE_WITH_SESSION), which
+     * unlocks this mutex.  If the HttpExtensionProc() returns
+     * HSE_STATUS_PENDING, we will attempt to gain this lock again
+     * which may *only* happen once HSE_REQ_DONE_WITH_SESSION has
+     * unlocked the mutex.
+     */
+    if (cid->dconf.fake_async) {
+        rv = apr_thread_mutex_create(&cid->completed, 
+                                     APR_THREAD_MUTEX_UNNESTED, 
+                                     r->pool);
+        if (cid->completed && (rv == APR_SUCCESS)) {
+            rv = apr_thread_mutex_lock(cid->completed);
+        }
 
-    if (is_move) {
-        err3 = dav_auto_checkin(r, NULL, err != NULL /* undo if error */,
-                                0 /*unlock*/, &src_av_info);
-    }
-    else
-        err3 = NULL;
-
-    /* check for error from remove/copy/move operations */
-    if (err != NULL) {
-        if (lockdb != NULL)
-            (*lockdb->hooks->close_lockdb)(lockdb);
-
-        err = dav_push_error(r->pool, err->status, 0,
-                             apr_psprintf(r->pool,
-                                          "Could not MOVE/COPY %s.",
-                                          ap_escape_html(r->pool, r->uri)),
-                             err);
-        return dav_handle_err(r, err, multi_response);
-    }
-
-    /* check for errors from auto-versioning */
-    if (err2 != NULL) {
-        /* just log a warning */
-        err = dav_push_error(r->pool, err2->status, 0,
-                             "The MOVE/COPY was successful, but there was a "
-                             "problem automatically checking in the "
-                             "source parent collection.",
-                             err2);
-        dav_log_err(r, err, APLOG_WARNING);
-    }
-    if (err3 != NULL) {
-        /* just log a warning */
-        err = dav_push_error(r->pool, err3->status, 0,
-                             "The MOVE/COPY was successful, but there was a "
-                             "problem automatically checking in the "
-                             "destination or its parent collection.",
-                             err3);
-        dav_log_err(r, err, APLOG_WARNING);
-    }
-
-    /* propagate any indirect locks at the target */
-    if (lockdb != NULL) {
-
-        /* notify lock system that we have created/replaced a resource */
-        err = dav_notify_created(r, lockdb, resnew, resnew_state, depth);
-
-        (*lockdb->hooks->close_lockdb)(lockdb);
-
-        if (err != NULL) {
-            /* The move/copy was successful, but the locking failed. */
-            err = dav_push_error(r->pool, err->status, 0,
-                                 "The MOVE/COPY was successful, but there "
-                                 "was a problem updating the lock "
-                                 "information.",
-                                 err);
-            return dav_handle_err(r, err, NULL);
+        if (!cid->completed || (rv != APR_SUCCESS)) {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: Failed to create completion mutex");
+            return HTTP_INTERNAL_SERVER_ERROR;
         }
     }
 
-    /* return an appropriate response (HTTP_CREATED or HTTP_NO_CONTENT) */
-    return dav_created(r, lookup.rnew->uri, "Destination",
-                       resnew_state == DAV_RESOURCE_EXISTS);
+    /* All right... try and run the sucker */
+    rv = (*isa->HttpExtensionProc)(cid->ecb);
+
+    /* Check for a log message - and log it */
+    if (cid->ecb->lpszLogData && *cid->ecb->lpszLogData)
+        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                      "ISAPI: %s: %s", r->filename, cid->ecb->lpszLogData);
+
+    switch(rv) {
+        case 0:  /* Strange, but MS isapi accepts this as success */
+        case HSE_STATUS_SUCCESS:
+        case HSE_STATUS_SUCCESS_AND_KEEP_CONN:
+            /* Ignore the keepalive stuff; Apache handles it just fine without
+             * the ISAPI Handler's "advice".
+             * Per Microsoft: "In IIS versions 4.0 and later, the return
+             * values HSE_STATUS_SUCCESS and HSE_STATUS_SUCCESS_AND_KEEP_CONN
+             * are functionally identical: Keep-Alive connections are
+             * maintained, if supported by the client."
+             * ... so we were pat all this time
+             */
+            break;
+
+        case HSE_STATUS_PENDING:
+            /* emulating async behavior...
+             */
+            if (cid->completed) {
+                /* The completion port was locked prior to invoking
+                 * HttpExtensionProc().  Once we can regain the lock,
+                 * when ServerSupportFunction(HSE_REQ_DONE_WITH_SESSION)
+                 * is called by the extension to release the lock,
+                 * we may finally destroy the request.
+                 */
+                (void)apr_thread_mutex_lock(cid->completed);
+                break;
+            }
+            else if (cid->dconf.log_unsupported) {
+                 ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                               "ISAPI: asynch I/O result HSE_STATUS_PENDING "
+                               "from HttpExtensionProc() is not supported: %s",
+                               r->filename);
+                 r->status = HTTP_INTERNAL_SERVER_ERROR;
+            }
+            break;
+
+        case HSE_STATUS_ERROR:    
+            /* end response if we have yet to do so.
+             */
+            r->status = HTTP_INTERNAL_SERVER_ERROR;
+            break;
+
+        default:
+            /* TODO: log unrecognized retval for debugging 
+             */
+             ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                           "ISAPI: return code %d from HttpExtensionProc() "
+                           "was not not recognized", rv);
+            r->status = HTTP_INTERNAL_SERVER_ERROR;
+            break;
+    }
+
+    /* Flush the response now, including headers-only responses */
+    if (cid->headers_set) {
+        conn_rec *c = r->connection;
+        apr_bucket_brigade *bb;
+        apr_bucket *b;
+        apr_status_t rv;
+
+        bb = apr_brigade_create(r->pool, c->bucket_alloc);
+        b = apr_bucket_eos_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        rv = ap_pass_brigade(r->output_filters, bb);
+        cid->response_sent = 1;
+
+        return OK;  /* NOT r->status or cid->r->status, even if it has changed. */
+    }
+    
+    /* As the client returned no error, and if we did not error out
+     * ourselves, trust dwHttpStatusCode to say something relevant.
+     */
+    if (!ap_is_HTTP_SERVER_ERROR(r->status) && cid->ecb->dwHttpStatusCode) {
+        r->status = cid->ecb->dwHttpStatusCode;
+    }
+
+    /* For all missing-response situations simply return the status.
+     * and let the core deal respond to the client.
+     */
+    return r->status;
 }

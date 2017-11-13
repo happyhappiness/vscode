@@ -1,26 +1,24 @@
-static apr_status_t stream_release(h2_session *session, 
-                                   h2_stream *stream,
-                                   uint32_t error_code) 
+apr_status_t h2_request_rwrite(h2_request *req, request_rec *r, h2_mplx *m)
 {
-    if (!error_code) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
-                      "h2_stream(%ld-%d): handled, closing", 
-                      session->id, (int)stream->id);
-        if (H2_STREAM_CLIENT_INITIATED(stream->id)) {
-            if (stream->id > session->local.completed_max) {
-                session->local.completed_max = stream->id;
-            }
-        }
+    apr_status_t status;
+    req->method = r->method;
+    req->authority = r->hostname;
+    req->path = r->uri;
+    if (!ap_strchr_c(req->authority, ':') && r->parsed_uri.port_str) {
+        req->authority = apr_psprintf(req->pool, "%s:%s", req->authority,
+                                      r->parsed_uri.port_str);
     }
-    else {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03065)
-                      "h2_stream(%ld-%d): closing with err=%d %s", 
-                      session->id, (int)stream->id, (int)error_code,
-                      h2_h2_err_description(error_code));
-        h2_stream_rst(stream, error_code);
-    }
+    req->scheme = NULL;
     
-    return h2_conn_io_writeb(&session->io,
-                             h2_bucket_eos_create(session->c->bucket_alloc, 
-                                                  stream));
+    
+    status = insert_request_line(req, m);
+    if (status == APR_SUCCESS) {
+        status = h2_to_h1_add_headers(req->to_h1, r->headers_in);
+    }
+
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r,
+                  "h2_request(%d): written request %s %s, host=%s",
+                  req->id, req->method, req->path, req->authority);
+    
+    return status;
 }

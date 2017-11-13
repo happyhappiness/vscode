@@ -1,11 +1,11 @@
 fputs(
-"              SSL connections and transfers. All SSL connections are attempted\n"
-"              to be made secure by using the CA certificate  bundle  installed\n"
-"              by  default.  This  makes  all connections considered \"insecure\"\n"
-"              fail unless -k, --insecure is used.\n"
+"              WARNING:  headers  set  with  this  option  will  be  set in all\n"
+"              requests - even after redirects are  followed,  like  when  told\n"
+"              with  -L,  --location. This can lead to the header being sent to\n"
+"              other hosts than the original host, so sensitive headers  should\n"
+"              be used with caution combined with following redirects.\n"
 "\n"
-"              See    this    online    resource    for    further     details:\n"
-"              http://curl.haxx.se/docs/sslcerts.html\n"
+"              This  option  can  be  used multiple times to add/replace/remove\n"
+"              multiple headers.\n"
 "\n"
-"       -K, --config <config file>\n"
 , stdout);

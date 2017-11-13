@@ -1,9 +1,10 @@
 fputs(
-"              1)  curl  tries  to find the \"home dir\": It first checks for the\n"
-"              CURL_HOME and then the HOME environment variables. Failing that,\n"
-"              it  uses getpwuid() on Unix-like systems (which returns the home\n"
-"              dir given the current user in your system). On Windows, it  then\n"
-"              checks for the APPDATA variable, or as a last resort the '%USER-\n"
-"              PROFILE%\\Application Data'.\n"
+"              Windows.  A  rogue  server  could  send you the name of a DLL or\n"
+"              other file that could possibly be loaded automatically  by  Win-\n"
+"              dows or some third party software.\n"
 "\n"
+"       -k, --insecure\n"
+"              (SSL)  This  option explicitly allows curl to perform \"insecure\"\n"
+"              SSL connections and transfers. All SSL connections are attempted\n"
+"              to  be  made secure by using the CA certificate bundle installed\n"
 , stdout);

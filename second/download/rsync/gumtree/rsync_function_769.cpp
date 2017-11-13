@@ -1,49 +1,70 @@
-int daemon_main(void)
+static int read_unbuffered(int fd, char *buf, size_t len)
 {
-	if (!config_file) {
-		if (am_server && am_root <= 0)
-			config_file = RSYNCD_USERCONF;
-		else
-			config_file = RSYNCD_SYSCONF;
+	static size_t remaining;
+	int tag, ret = 0;
+	char line[1024];
+	static char *buffer;
+	static size_t bufferIdx = 0;
+	static size_t bufferSz;
+
+	if (fd != multiplex_in_fd)
+		return read_timeout(fd, buf, len);
+
+	if (!io_multiplexing_in && remaining == 0) {
+		if (!buffer) {
+			bufferSz = 2 * IO_BUFFER_SIZE;
+			buffer   = new_array(char, bufferSz);
+			if (!buffer) out_of_memory("read_unbuffered");
+		}
+		remaining = read_timeout(fd, buffer, bufferSz);
+		bufferIdx = 0;
 	}
 
-	if (is_a_socket(STDIN_FILENO)) {
-		int i;
-
-		/* we are running via inetd - close off stdout and
-		 * stderr so that library functions (and getopt) don't
-		 * try to use them. Redirect them to /dev/null */
-		for (i = 1; i < 3; i++) {
-			close(i);
-			open("/dev/null", O_RDWR);
+	while (ret == 0) {
+		if (remaining) {
+			len = MIN(len, remaining);
+			memcpy(buf, buffer + bufferIdx, len);
+			bufferIdx += len;
+			remaining -= len;
+			ret = len;
+			break;
 		}
 
-		return start_daemon(STDIN_FILENO, STDIN_FILENO);
+		read_loop(fd, line, 4);
+		tag = IVAL(line, 0);
+
+		remaining = tag & 0xFFFFFF;
+		tag = (tag >> 24) - MPLEX_BASE;
+
+		switch (tag) {
+		case MSG_DATA:
+			if (!buffer || remaining > bufferSz) {
+				buffer = realloc_array(buffer, char, remaining);
+				if (!buffer) out_of_memory("read_unbuffered");
+				bufferSz = remaining;
+			}
+			read_loop(fd, buffer, remaining);
+			bufferIdx = 0;
+			break;
+		case MSG_INFO:
+		case MSG_ERROR:
+			if (remaining >= sizeof line) {
+				rprintf(FERROR, "multiplexing overflow %d:%ld\n\n",
+					tag, (long)remaining);
+				exit_cleanup(RERR_STREAMIO);
+			}
+			read_loop(fd, line, remaining);
+			rwrite((enum logcode)tag, line, remaining);
+			remaining = 0;
+			break;
+		default:
+			rprintf(FERROR, "unexpected tag %d\n", tag);
+			exit_cleanup(RERR_STREAMIO);
+		}
 	}
 
-	if (!lp_load(config_file, 1)) {
-		fprintf(stderr, "Failed to parse config file: %s\n", config_file);
-		exit_cleanup(RERR_SYNTAX);
-	}
+	if (remaining == 0)
+		io_flush(NORMAL_FLUSH);
 
-	if (no_detach)
-		create_pid_file();
-	else
-		become_daemon();
-
-	if (rsync_port == 0 && (rsync_port = lp_rsync_port()) == 0)
-		rsync_port = RSYNC_PORT;
-	if (bind_address == NULL && *lp_bind_address())
-		bind_address = lp_bind_address();
-
-	log_init(0);
-
-	rprintf(FLOG, "rsyncd version %s starting, listening on port %d\n",
-		RSYNC_VERSION, rsync_port);
-	/* TODO: If listening on a particular address, then show that
-	 * address too.  In fact, why not just do inet_ntop on the
-	 * local address??? */
-
-	start_accept_loop(rsync_port, start_daemon);
-	return -1;
+	return ret;
 }

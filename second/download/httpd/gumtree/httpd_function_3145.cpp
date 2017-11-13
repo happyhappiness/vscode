@@ -1,125 +1,99 @@
-static int dav_method_label(request_rec *r)
+static int check_authn(request_rec * r, const char *sent_user, const char *sent_pw)
 {
-    dav_resource *resource;
-    const dav_hooks_vsn *vsn_hooks = DAV_GET_HOOKS_VSN(r);
-    apr_xml_doc *doc;
-    apr_xml_elem *child;
-    int depth;
-    int result;
-    apr_size_t tsize;
-    dav_error *err;
-    dav_label_walker_ctx ctx = { { 0 } };
-    dav_response *multi_status;
+    authn_status auth_result;
+    authn_provider_list *current_provider;
+    auth_form_config_rec *conf = ap_get_module_config(r->per_dir_config,
+                                                      &auth_form_module);
 
-    /* If no versioning provider, or the provider doesn't support
-     * labels, decline the request */
-    if (vsn_hooks == NULL || vsn_hooks->add_label == NULL)
-        return DECLINED;
+    current_provider = conf->providers;
+    do {
+        const authn_provider *provider;
 
-    /* Ask repository module to resolve the resource */
-    err = dav_get_resource(r, 1 /* label_allowed */, 0 /* use_checked_in */,
-                           &resource);
-    if (err != NULL)
-        return dav_handle_err(r, err, NULL);
-    if (!resource->exists) {
-        /* Apache will supply a default error for this. */
-        return HTTP_NOT_FOUND;
-    }
-
-    if ((depth = dav_get_depth(r, 0)) < 0) {
-        /* dav_get_depth() supplies additional information for the
-         * default message. */
-        return HTTP_BAD_REQUEST;
-    }
-
-    /* parse the request body */
-    if ((result = ap_xml_parse_input(r, &doc)) != OK) {
-        return result;
-    }
-
-    if (doc == NULL || !dav_validate_root(doc, "label")) {
-        /* This supplies additional information for the default message. */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "The request body does not contain "
-                      "a \"label\" element.");
-        return HTTP_BAD_REQUEST;
-    }
-
-    /* check for add, set, or remove element */
-    if ((child = dav_find_child(doc->root, "add")) != NULL) {
-        ctx.label_op = DAV_LABEL_ADD;
-    }
-    else if ((child = dav_find_child(doc->root, "set")) != NULL) {
-        ctx.label_op = DAV_LABEL_SET;
-    }
-    else if ((child = dav_find_child(doc->root, "remove")) != NULL) {
-        ctx.label_op = DAV_LABEL_REMOVE;
-    }
-    else {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "The \"label\" element does not contain "
-                      "an \"add\", \"set\", or \"remove\" element.");
-        return HTTP_BAD_REQUEST;
-    }
-
-    /* get the label string */
-    if ((child = dav_find_child(child, "label-name")) == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "The label command element does not contain "
-                      "a \"label-name\" element.");
-        return HTTP_BAD_REQUEST;
-    }
-
-    apr_xml_to_text(r->pool, child, APR_XML_X2T_INNER, NULL, NULL,
-                    &ctx.label, &tsize);
-    if (tsize == 0) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "A \"label-name\" element does not contain "
-                      "a label name.");
-        return HTTP_BAD_REQUEST;
-    }
-
-    /* do the label operation walk */
-    ctx.w.walk_type = DAV_WALKTYPE_NORMAL;
-    ctx.w.func = dav_label_walker;
-    ctx.w.walk_ctx = &ctx;
-    ctx.w.pool = r->pool;
-    ctx.w.root = resource;
-    ctx.vsn_hooks = vsn_hooks;
-
-    err = (*resource->hooks->walk)(&ctx.w, depth, &multi_status);
-
-    if (err != NULL) {
-        /* some sort of error occurred which terminated the walk */
-        err = dav_push_error(r->pool, err->status, 0,
-                             "The LABEL operation was terminated prematurely.",
-                             err);
-        return dav_handle_err(r, err, multi_status);
-    }
-
-    if (multi_status != NULL) {
-        /* One or more resources had errors. If depth was zero, convert
-         * response to simple error, else make sure there is an
-         * overall error to pass to dav_handle_err()
+        /*
+         * For now, if a provider isn't set, we'll be nice and use the file
+         * provider.
          */
-        if (depth == 0) {
-            err = dav_new_error(r->pool, multi_status->status, 0, 0,
-                                multi_status->desc);
-            multi_status = NULL;
+        if (!current_provider) {
+            provider = ap_lookup_provider(AUTHN_PROVIDER_GROUP,
+                                          AUTHN_DEFAULT_PROVIDER,
+                                          AUTHN_PROVIDER_VERSION);
+
+            if (!provider || !provider->check_password) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, LOG_PREFIX
+                              "no authn provider configured");
+                auth_result = AUTH_GENERAL_ERROR;
+                break;
+            }
+            apr_table_setn(r->notes, AUTHN_PROVIDER_NAME_NOTE, AUTHN_DEFAULT_PROVIDER);
         }
         else {
-            err = dav_new_error(r->pool, HTTP_MULTI_STATUS, 0, 0,
-                                "Errors occurred during the LABEL operation.");
+            provider = current_provider->provider;
+            apr_table_setn(r->notes, AUTHN_PROVIDER_NAME_NOTE, current_provider->provider_name);
         }
 
-        return dav_handle_err(r, err, multi_status);
+        if (!sent_user || !sent_pw) {
+            auth_result = AUTH_USER_NOT_FOUND;
+            break;
+        }
+
+        auth_result = provider->check_password(r, sent_user, sent_pw);
+
+        apr_table_unset(r->notes, AUTHN_PROVIDER_NAME_NOTE);
+
+        /* Something occured. Stop checking. */
+        if (auth_result != AUTH_USER_NOT_FOUND) {
+            break;
+        }
+
+        /* If we're not really configured for providers, stop now. */
+        if (!conf->providers) {
+            break;
+        }
+
+        current_provider = current_provider->next;
+    } while (current_provider);
+
+    if (auth_result != AUTH_GRANTED) {
+        int return_code;
+
+        /* If we're not authoritative, then any error is ignored. */
+        if (!(conf->authoritative) && auth_result != AUTH_DENIED) {
+            return DECLINED;
+        }
+
+        switch (auth_result) {
+        case AUTH_DENIED:
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, LOG_PREFIX
+                          "user '%s': authentication failure for \"%s\": "
+                          "password Mismatch",
+                          sent_user, r->uri);
+            return_code = HTTP_UNAUTHORIZED;
+            break;
+        case AUTH_USER_NOT_FOUND:
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, LOG_PREFIX
+                          "user '%s' not found: %s", sent_user, r->uri);
+            return_code = HTTP_UNAUTHORIZED;
+            break;
+        case AUTH_GENERAL_ERROR:
+        default:
+            /*
+             * We'll assume that the module has already said what its error
+             * was in the logs.
+             */
+            return_code = HTTP_INTERNAL_SERVER_ERROR;
+            break;
+        }
+
+        /* If we're returning 403, tell them to try again. */
+        if (return_code == HTTP_UNAUTHORIZED) {
+            note_cookie_auth_failure(r);
+        }
+
+/* TODO: Flag the user somehow as to the reason for the failure */
+
+        return return_code;
     }
 
-    /* set the Cache-Control header, per the spec */
-    apr_table_setn(r->headers_out, "Cache-Control", "no-cache");
+    return OK;
 
-    /* no body */
-    ap_set_content_length(r, 0);
-
-    return DONE;
 }

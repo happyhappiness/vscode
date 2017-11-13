@@ -1,1 +1,1 @@
-printf("Diag: userandhost=%s\n", ssh_host ? ssh_host : "NULL");
+die_errno("BUG: unexpected fast_export_ls_rev error");

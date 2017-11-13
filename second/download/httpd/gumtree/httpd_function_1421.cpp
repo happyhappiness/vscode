@@ -1,325 +1,180 @@
-static int read_request_line(request_rec *r, apr_bucket_brigade *bb)
+static apr_status_t store_body(cache_handle_t *h, request_rec *r, apr_bucket_brigade *b)
 {
-    enum {
-        rrl_none, rrl_badmethod, rrl_badwhitespace, rrl_excesswhitespace,
-        rrl_missinguri, rrl_baduri, rrl_badprotocol, rrl_trailingtext,
-        rrl_badmethod09, rrl_reject09
-    } deferred_error = rrl_none;
-    char *ll;
-    char *uri;
-    apr_size_t len;
-    int num_blank_lines = DEFAULT_LIMIT_BLANK_LINES;
-    core_server_config *conf =
-        (core_server_config *)ap_get_module_config(r->server->module_config,
-                                                   &core_module);
-    int strict = (conf->http_conformance != AP_HTTP_CONFORMANCE_UNSAFE);
+    apr_status_t rv;
+    cache_object_t *obj = h->cache_obj;
+    cache_object_t *tobj = NULL;
+    mem_cache_object_t *mobj = (mem_cache_object_t*) obj->vobj;
+    apr_read_type_e eblock = APR_BLOCK_READ;
+    apr_bucket *e;
+    char *cur;
+    int eos = 0;
 
-    /* Read past empty lines until we get a real request line,
-     * a read error, the connection closes (EOF), or we timeout.
-     *
-     * We skip empty lines because browsers have to tack a CRLF on to the end
-     * of POSTs to support old CERN webservers.  But note that we may not
-     * have flushed any previous response completely to the client yet.
-     * We delay the flush as long as possible so that we can improve
-     * performance for clients that are pipelining requests.  If a request
-     * is pipelined then we won't block during the (implicit) read() below.
-     * If the requests aren't pipelined, then the client is still waiting
-     * for the final buffer flush from us, and we will block in the implicit
-     * read().  B_SAFEREAD ensures that the BUFF layer flushes if it will
-     * have to block during a read.
-     */
+    if (mobj->type == CACHE_TYPE_FILE) {
+        apr_file_t *file = NULL;
+        int fd = 0;
+        int other = 0;
 
-    do {
-        apr_status_t rv;
-
-        /* ensure ap_rgetline allocates memory each time thru the loop
-         * if there are empty lines
+        /* We can cache an open file descriptor if:
+         * - the brigade contains one and only one file_bucket &&
+         * - the brigade is complete &&
+         * - the file_bucket is the last data bucket in the brigade
          */
-        r->the_request = NULL;
-        rv = ap_rgetline(&(r->the_request), (apr_size_t)(r->server->limit_req_line + 2),
-                         &len, r, strict ? AP_GETLINE_CRLF : 0, bb);
+        for (e = APR_BRIGADE_FIRST(b);
+             e != APR_BRIGADE_SENTINEL(b);
+             e = APR_BUCKET_NEXT(e))
+        {
+            if (APR_BUCKET_IS_EOS(e)) {
+                eos = 1;
+            }
+            else if (APR_BUCKET_IS_FILE(e)) {
+                apr_bucket_file *a = e->data;
+                fd++;
+                file = a->fd;
+            }
+            else {
+                other++;
+            }
+        }
+        if (fd == 1 && !other && eos) {
+            apr_file_t *tmpfile;
+            const char *name;
+            /* Open a new XTHREAD handle to the file */
+            apr_file_name_get(&name, file);
+            mobj->flags = ((APR_SENDFILE_ENABLED & apr_file_flags_get(file))
+                           | APR_READ | APR_BINARY | APR_XTHREAD | APR_FILE_NOCLEANUP);
+            rv = apr_file_open(&tmpfile, name, mobj->flags,
+                               APR_OS_DEFAULT, r->pool);
+            if (rv != APR_SUCCESS) {
+                return rv;
+            }
+            apr_file_inherit_unset(tmpfile);
+            apr_os_file_get(&(mobj->fd), tmpfile);
 
+            /* Open for business */
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                         "mem_cache: Cached file: %s with key: %s", name, obj->key);
+            obj->complete = 1;
+            return APR_SUCCESS;
+        }
+
+        /* Content not suitable for fd caching. Cache in-memory instead. */
+        mobj->type = CACHE_TYPE_HEAP;
+    }
+
+    /*
+     * FD cacheing is not enabled or the content was not
+     * suitable for fd caching.
+     */
+    if (mobj->m == NULL) {
+        mobj->m = malloc(mobj->m_len);
+        if (mobj->m == NULL) {
+            return APR_ENOMEM;
+        }
+        obj->count = 0;
+    }
+    cur = (char*) mobj->m + obj->count;
+
+    /* Iterate accross the brigade and populate the cache storage */
+    for (e = APR_BRIGADE_FIRST(b);
+         e != APR_BRIGADE_SENTINEL(b);
+         e = APR_BUCKET_NEXT(e))
+    {
+        const char *s;
+        apr_size_t len;
+
+        if (APR_BUCKET_IS_EOS(e)) {
+            const char *cl_header = apr_table_get(r->headers_out, "Content-Length");
+            if (cl_header) {
+                apr_int64_t cl = apr_atoi64(cl_header);
+                if ((errno == 0) && (obj->count != cl)) {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                                 "mem_cache: URL %s didn't receive complete response, not caching",
+                                 h->cache_obj->key);
+                    return APR_EGENERAL;
+                }
+            }
+            if (mobj->m_len > obj->count) {
+                /* Caching a streamed response. Reallocate a buffer of the
+                 * correct size and copy the streamed response into that
+                 * buffer */
+                mobj->m = realloc(mobj->m, obj->count);
+                if (!mobj->m) {
+                    return APR_ENOMEM;
+                }
+
+                /* Now comes the crufty part... there is no way to tell the
+                 * cache that the size of the object has changed. We need
+                 * to remove the object, update the size and re-add the
+                 * object, all under protection of the lock.
+                 */
+                if (sconf->lock) {
+                    apr_thread_mutex_lock(sconf->lock);
+                }
+                /* Has the object been ejected from the cache?
+                 */
+                tobj = (cache_object_t *) cache_find(sconf->cache_cache, obj->key);
+                if (tobj == obj) {
+                    /* Object is still in the cache, remove it, update the len field then
+                     * replace it under protection of sconf->lock.
+                     */
+                    cache_remove(sconf->cache_cache, obj);
+                    /* For illustration, cache no longer has reference to the object
+                     * so decrement the refcount
+                     * apr_atomic_dec32(&obj->refcount);
+                     */
+                    mobj->m_len = obj->count;
+
+                    cache_insert(sconf->cache_cache, obj);
+                    /* For illustration, cache now has reference to the object, so
+                     * increment the refcount
+                     * apr_atomic_inc32(&obj->refcount);
+                     */
+                }
+                else if (tobj) {
+                    /* Different object with the same key found in the cache. Doing nothing
+                     * here will cause the object refcount to drop to 0 in decrement_refcount
+                     * and the object will be cleaned up.
+                     */
+
+                } else {
+                    /* Object has been ejected from the cache, add it back to the cache */
+                    mobj->m_len = obj->count;
+                    cache_insert(sconf->cache_cache, obj);
+                    apr_atomic_inc32(&obj->refcount);
+                }
+
+                if (sconf->lock) {
+                    apr_thread_mutex_unlock(sconf->lock);
+                }
+            }
+            /* Open for business */
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                         "mem_cache: Cached url: %s", obj->key);
+            obj->complete = 1;
+            break;
+        }
+        rv = apr_bucket_read(e, &s, &len, eblock);
         if (rv != APR_SUCCESS) {
-            r->request_time = apr_time_now();
-
-            /* ap_rgetline returns APR_ENOSPC if it fills up the
-             * buffer before finding the end-of-line.  This is only going to
-             * happen if it exceeds the configured limit for a request-line.
-             */
-            if (APR_STATUS_IS_ENOSPC(rv)) {
-                r->status = HTTP_REQUEST_URI_TOO_LARGE;
-            }
-            else if (APR_STATUS_IS_TIMEUP(rv)) {
-                r->status = HTTP_REQUEST_TIME_OUT;
-            }
-            else if (APR_STATUS_IS_EINVAL(rv)) {
-                r->status = HTTP_BAD_REQUEST;
-            }
-            r->proto_num = HTTP_VERSION(1,0);
-            r->protocol  = apr_pstrdup(r->pool, "HTTP/1.0");
-            return 0;
+            return rv;
         }
-    } while ((len <= 0) && (--num_blank_lines >= 0));
-
-    r->request_time = apr_time_now();
-
-    r->method = r->the_request;
-
-    /* If there is whitespace before a method, skip it and mark in error */
-    if (apr_isspace(*r->method)) {
-        deferred_error = rrl_badwhitespace; 
-        for ( ; apr_isspace(*r->method); ++r->method)
-            ; 
-    }
-
-    /* Scan the method up to the next whitespace, ensure it contains only
-     * valid http-token characters, otherwise mark in error
-     */
-    if (strict) {
-        ll = (char*) ap_scan_http_token(r->method);
-    }
-    else {
-        ll = (char*) ap_scan_vchar_obstext(r->method);
-    }
-
-    if (((ll == r->method) || (*ll && !apr_isspace(*ll)))
-            && deferred_error == rrl_none) {
-        deferred_error = rrl_badmethod;
-        ll = strpbrk(ll, "\t\n\v\f\r ");
-    }
-
-    /* Verify method terminated with a single SP, or mark as specific error */
-    if (!ll) {
-        if (deferred_error == rrl_none)
-            deferred_error = rrl_missinguri;
-        r->protocol = uri = "";
-        len = 0;
-        goto rrl_done;
-    }
-    else if (strict && ll[0] && apr_isspace(ll[1])
-             && deferred_error == rrl_none) {
-        deferred_error = rrl_excesswhitespace; 
-    }
-
-    /* Advance uri pointer over leading whitespace, NUL terminate the method
-     * If non-SP whitespace is encountered, mark as specific error
-     */
-    for (uri = ll; apr_isspace(*uri); ++uri) 
-        if (*uri != ' ' && deferred_error == rrl_none)
-            deferred_error = rrl_badwhitespace; 
-    *ll = '\0';
-
-    if (!*uri && deferred_error == rrl_none)
-        deferred_error = rrl_missinguri;
-
-    /* Scan the URI up to the next whitespace, ensure it contains no raw
-     * control characters, otherwise mark in error
-     */
-    ll = (char*) ap_scan_vchar_obstext(uri);
-    if (ll == uri || (*ll && !apr_isspace(*ll))) {
-        deferred_error = rrl_baduri;
-        ll = strpbrk(ll, "\t\n\v\f\r ");
-    }
-
-    /* Verify URI terminated with a single SP, or mark as specific error */
-    if (!ll) {
-        r->protocol = "";
-        len = 0;
-        goto rrl_done;
-    }
-    else if (strict && ll[0] && apr_isspace(ll[1])
-             && deferred_error == rrl_none) {
-        deferred_error = rrl_excesswhitespace; 
-    }
-
-    /* Advance protocol pointer over leading whitespace, NUL terminate the uri
-     * If non-SP whitespace is encountered, mark as specific error
-     */
-    for (r->protocol = ll; apr_isspace(*r->protocol); ++r->protocol) 
-        if (*r->protocol != ' ' && deferred_error == rrl_none)
-            deferred_error = rrl_badwhitespace; 
-    *ll = '\0';
-
-    /* Scan the protocol up to the next whitespace, validation comes later */
-    if (!(ll = (char*) ap_scan_vchar_obstext(r->protocol))) {
-        len = strlen(r->protocol);
-        goto rrl_done;
-    }
-    len = ll - r->protocol;
-
-    /* Advance over trailing whitespace, if found mark in error,
-     * determine if trailing text is found, unconditionally mark in error,
-     * finally NUL terminate the protocol string
-     */
-    if (*ll && !apr_isspace(*ll)) {
-        deferred_error = rrl_badprotocol;
-    }
-    else if (strict && *ll) {
-        deferred_error = rrl_excesswhitespace;
-    }
-    else {
-        for ( ; apr_isspace(*ll); ++ll)
-            if (*ll != ' ' && deferred_error == rrl_none)
-                deferred_error = rrl_badwhitespace; 
-        if (*ll && deferred_error == rrl_none)
-            deferred_error = rrl_trailingtext;
-    }
-    *((char *)r->protocol + len) = '\0';
-
-rrl_done:
-    /* For internal integrety and palloc efficiency, reconstruct the_request
-     * in one palloc, using only single SP characters, per spec.
-     */
-    r->the_request = apr_pstrcat(r->pool, r->method, *uri ? " " : NULL, uri,
-                                 *r->protocol ? " " : NULL, r->protocol, NULL);
-
-    if (len == 8
-            && r->protocol[0] == 'H' && r->protocol[1] == 'T'
-            && r->protocol[2] == 'T' && r->protocol[3] == 'P'
-            && r->protocol[4] == '/' && apr_isdigit(r->protocol[5])
-            && r->protocol[6] == '.' && apr_isdigit(r->protocol[7])
-            && r->protocol[5] != '0') {
-        r->assbackwards = 0;
-        r->proto_num = HTTP_VERSION(r->protocol[5] - '0', r->protocol[7] - '0');
-    }
-    else if (len == 8
-                 && (r->protocol[0] == 'H' || r->protocol[0] == 'h')
-                 && (r->protocol[1] == 'T' || r->protocol[1] == 't')
-                 && (r->protocol[2] == 'T' || r->protocol[2] == 't')
-                 && (r->protocol[3] == 'P' || r->protocol[3] == 'p')
-                 && r->protocol[4] == '/' && apr_isdigit(r->protocol[5])
-                 && r->protocol[6] == '.' && apr_isdigit(r->protocol[7])
-                 && r->protocol[5] != '0') {
-        r->assbackwards = 0;
-        r->proto_num = HTTP_VERSION(r->protocol[5] - '0', r->protocol[7] - '0');
-        if (strict && deferred_error == rrl_none)
-            deferred_error = rrl_badprotocol;
-        else
-            memcpy((char*)r->protocol, "HTTP", 4);
-    }
-    else if (r->protocol[0]) {
-        r->proto_num = HTTP_VERSION(0, 9);
-        /* Defer setting the r->protocol string till error msg is composed */
-        if (deferred_error == rrl_none)
-            deferred_error = rrl_badprotocol;
-    }
-    else {
-        r->assbackwards = 1;
-        r->protocol  = apr_pstrdup(r->pool, "HTTP/0.9");
-        r->proto_num = HTTP_VERSION(0, 9);
-    }
-
-    /* Determine the method_number and parse the uri prior to invoking error
-     * handling, such that these fields are available for subsitution
-     */
-    r->method_number = ap_method_number_of(r->method);
-    if (r->method_number == M_GET && r->method[0] == 'H')
-        r->header_only = 1;
-
-    ap_parse_uri(r, uri);
-
-    /* With the request understood, we can consider HTTP/0.9 specific errors */
-    if (r->proto_num == HTTP_VERSION(0, 9) && deferred_error == rrl_none) {
-        if (conf->http09_enable == AP_HTTP09_DISABLE)
-            deferred_error = rrl_reject09;
-        else if (strict && (r->method_number != M_GET || r->header_only))
-            deferred_error = rrl_badmethod09;
-    }
-
-    /* Now that the method, uri and protocol are all processed,
-     * we can safely resume any deferred error reporting
-     */
-    if (deferred_error != rrl_none) {
-        if (deferred_error == rrl_badmethod)
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "HTTP Request Line; Invalid method token: '%.*s'",
-                          field_name_len(r->method), r->method);
-        else if (deferred_error == rrl_badmethod09)
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "HTTP Request Line; Invalid method token: '%.*s'"
-                          " (only GET is allowed for HTTP/0.9 requests)",
-                          field_name_len(r->method), r->method);
-        else if (deferred_error == rrl_missinguri)
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "HTTP Request Line; Missing URI");
-        else if (deferred_error == rrl_baduri)
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "HTTP Request Line; URI incorrectly encoded: '%.*s'",
-                          field_name_len(r->uri), r->uri);
-        else if (deferred_error == rrl_badwhitespace)
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "HTTP Request Line; Invalid whitespace");
-        else if (deferred_error == rrl_excesswhitespace)
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "HTTP Request Line; Excess whitespace "
-                          "(disallowed by HttpProtocolOptions Strict");
-        else if (deferred_error == rrl_trailingtext)
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "HTTP Request Line; Extraneous text found '%.*s' "
-                          "(perhaps whitespace was injected?)",
-                          field_name_len(ll), ll);
-        else if (deferred_error == rrl_reject09)
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "HTTP Request Line; Rejected HTTP/0.9 request");
-        else if (deferred_error == rrl_badprotocol)
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "HTTP Request Line; Unrecognized protocol '%.*s' "
-                          "(perhaps whitespace was injected?)",
-                          field_name_len(r->protocol), r->protocol);
-        r->status = HTTP_BAD_REQUEST;
-        goto rrl_failed;
-    }
-
-    if (conf->http_methods == AP_HTTP_METHODS_REGISTERED
-            && r->method_number == M_INVALID) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "HTTP Request Line; Unrecognized HTTP method: '%.*s' "
-                      "(disallowed by RegisteredMethods)",
-                      field_name_len(r->method), r->method);
-        r->status = HTTP_NOT_IMPLEMENTED;
-        /* This can't happen in an HTTP/0.9 request, we verified GET above */
-        return 0;
-    }
-
-    if (r->status != HTTP_OK) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "HTTP Request Line; Unable to parse URI: '%.*s'",
-                      field_name_len(r->uri), r->uri);
-        goto rrl_failed;
-    }
-
-    if (strict) {
-        if (r->parsed_uri.fragment) {
-            /* RFC3986 3.5: no fragment */
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "HTTP Request Line; URI must not contain a fragment");
-            r->status = HTTP_BAD_REQUEST;
-            goto rrl_failed;
+        if (len) {
+            /* Check for buffer (max_streaming_buffer_size) overflow  */
+           if ((obj->count + len) > mobj->m_len) {
+               ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                            "mem_cache: URL %s exceeds the MCacheMaxStreamingBuffer (%" APR_SIZE_T_FMT ") limit and will not be cached.", 
+                            obj->key, mobj->m_len);
+               return APR_ENOMEM;
+           }
+           else {
+               memcpy(cur, s, len);
+               cur+=len;
+               obj->count+=len;
+           }
         }
-        if (r->parsed_uri.user || r->parsed_uri.password) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "HTTP Request Line; URI must not contain a "
-                          "username/password");
-            r->status = HTTP_BAD_REQUEST;
-            goto rrl_failed;
-        }
-    }
-
-    return 1;
-
-rrl_failed:
-    if (r->proto_num == HTTP_VERSION(0, 9)) {
-        /* Send all parsing and protocol error response with 1.x behavior,
-         * and reserve 505 errors for actual HTTP protocols presented.
-         * As called out in RFC7230 3.5, any errors parsing the protocol
-         * from the request line are nearly always misencoded HTTP/1.x
-         * requests. Only a valid 0.9 request with no parsing errors
-         * at all may be treated as a simple request, if allowed.
+        /* This should not fail, but if it does, we are in BIG trouble
+         * cause we just stomped all over the heap.
          */
-        r->assbackwards = 0;
-        r->connection->keepalive = AP_CONN_CLOSE;
-        r->proto_num = HTTP_VERSION(1, 0);
-        r->protocol  = apr_pstrdup(r->pool, "HTTP/1.0");
+        AP_DEBUG_ASSERT(obj->count <= mobj->m_len);
     }
-    return 0;
+    return APR_SUCCESS;
 }

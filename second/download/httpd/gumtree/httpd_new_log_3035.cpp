@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00837)
-                 "socache_shmcb_remove (0x%02x -> subcache %d)",
-                 SHMCB_MASK_DBG(header, id));
+ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "  %s: %s", "Server",
+                          server);

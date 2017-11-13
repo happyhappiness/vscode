@@ -1,9 +1,9 @@
 fputs(
-"              second and then for all forthcoming retries it will  double  the\n"
-"              waiting  time until it reaches 10 minutes which then will be the\n"
-"              delay between the rest of the retries.  By  using  --retry-delay\n"
-"              you   disable  this  exponential  backoff  algorithm.  See  also\n"
-"              --retry-max-time to limit the total time  allowed  for  retries.\n"
-"              (Added in 7.12.3)\n"
+"              If  a  transient  error is returned when curl tries to perform a\n"
+"              transfer, it will retry this number of times before  giving  up.\n"
+"              Setting  the  number to 0 makes curl do no retries (which is the\n"
+"              default). Transient error means either: a timeout,  an  FTP  4xx\n"
+"              response code or an HTTP 5xx response code.\n"
 "\n"
+"              When  curl  is about to retry a transfer, it will first wait one\n"
 , stdout);

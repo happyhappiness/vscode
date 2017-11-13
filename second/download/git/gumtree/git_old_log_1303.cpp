@@ -1,1 +1,1 @@
-error("%s", buf.buf);
+die("Expected two arguments");

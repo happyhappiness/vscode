@@ -1,9 +1,12 @@
 fputs(
-"                             The  time,  in  seconds,  it  took from the start\n"
-"                             until the file transfer was just about to  begin.\n"
-"                             This includes all pre-transfer commands and nego-\n"
-"                             tiations that are specific to the particular pro-\n"
-"                             tocol(s) involved.\n"
+"              local_ip       The  IP  address  of  the  local  end of the most\n"
+"                             recently done connection - can be either IPv4  or\n"
+"                             IPv6 (Added in 7.29.0)\n"
 "\n"
-"              time_redirect  The time, in seconds, it took for all redirection\n"
+"              local_port     The  local  port number of the most recently done\n"
+"                             connection (Added in 7.29.0)\n"
+"\n"
+"              num_connects   Number of new connects made in the recent  trans-\n"
+"                             fer. (Added in 7.12.3)\n"
+"\n"
 , stdout);

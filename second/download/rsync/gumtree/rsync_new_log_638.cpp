@@ -1,1 +1,1 @@
-io_printf(f_out, "@ERROR: auth failed on module %s\n", name);
+out_of_memory("unsafe_symlink");

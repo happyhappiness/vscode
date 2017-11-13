@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s,
-                         "MCacheMaxStreamingBuffer must be less than or equal to MCacheMaxObjectSize. "
-                         "Resetting MCacheMaxStreamingBuffer to MCacheMaxObjectSize.");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                         "disk_cache: Cannot cache files to disk without a CacheRoot specified.");

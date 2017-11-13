@@ -1,29 +1,38 @@
-static const char *util_ldap_set_connection_timeout(cmd_parms *cmd,
-                                                    void *dummy,
-                                                    const char *ttl)
+static void dumpit(ap_filter_t *f, apr_bucket *b)
 {
-#ifdef LDAP_OPT_NETWORK_TIMEOUT
-    util_ldap_state_t *st =
-        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config,
-                                                  &ldap_module);
-#endif
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    conn_rec *c = f->c;
 
-    if (err != NULL) {
-        return err;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, c->base_server,
+        "mod_dumpio:  %s (%s-%s): %" APR_SIZE_T_FMT " bytes",
+                f->frec->name,
+                (APR_BUCKET_IS_METADATA(b)) ? "metadata" : "data",
+                b->type->name,
+                b->length) ;
+
+    if (!(APR_BUCKET_IS_METADATA(b))) {
+        const char *buf;
+        apr_size_t nbytes;
+        char *obuf;
+        if (apr_bucket_read(b, &buf, &nbytes, APR_BLOCK_READ) == APR_SUCCESS) {
+            if (nbytes) {
+                obuf = malloc(nbytes+1);    /* use pool? */
+                memcpy(obuf, buf, nbytes);
+                obuf[nbytes] = '\0';
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, c->base_server,
+                     "mod_dumpio:  %s (%s-%s): %s",
+                     f->frec->name,
+                     (APR_BUCKET_IS_METADATA(b)) ? "metadata" : "data",
+                     b->type->name,
+                     obuf);
+                free(obuf);
+            }
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, c->base_server,
+                 "mod_dumpio:  %s (%s-%s): %s",
+                 f->frec->name,
+                 (APR_BUCKET_IS_METADATA(b)) ? "metadata" : "data",
+                 b->type->name,
+                 "error reading data");
+        }
     }
-
-#ifdef LDAP_OPT_NETWORK_TIMEOUT
-    st->connectionTimeout = atol(ttl);
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
-                 "[%" APR_PID_T_FMT "] ldap connection: Setting connection"
-                 " timeout to %ld seconds.", getpid(), st->connectionTimeout);
-#else
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, cmd->server,
-                 "LDAP: Connection timeout option not supported by the "
-                 "LDAP SDK in use." );
-#endif
-
-    return NULL;
 }

@@ -1,1 +1,2 @@
-get_commit_buffer(commit, NULL);
+die("cannot read commit object %s",
+			    sha1_to_hex(commit->object.sha1));

@@ -1,1 +1,1 @@
-fprintf(stderr, "Failed to run \"%s\"\n", prog);
+out_of_memory("normalize_path");

@@ -1,1 +1,1 @@
-printf("%s ", find_unique_abbrev(commit->object.sha1, DEFAULT_ABBREV));
+die("core.bare and core.worktree do not make sense");

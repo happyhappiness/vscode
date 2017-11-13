@@ -1,1 +1,1 @@
-die("unable to set up work tree using invalid config");
+die("BUG: attempt to commit unlocked object to \"%s\"", path);

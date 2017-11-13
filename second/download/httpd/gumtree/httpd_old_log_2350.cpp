@@ -1,1 +1,2 @@
-printf("Total of %ld requests completed\n" , done);
+ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
+                     "Couldn't create accept lock");

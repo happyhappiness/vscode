@@ -1,11 +1,11 @@
 fputs(
-"  The progress meter exists to show a user that something actually is\n"
-"  happening. The different fields in the output have the following meaning:\n"
+"    'Konqueror/1.0'             KDE File Manager desktop client\n"
+"    'Lynx/2.7.1 libwww-FM/2.14' Lynx command line browser\n"
 "\n"
-"  % Total    % Received % Xferd  Average Speed          Time             Curr.\n"
-"                                 Dload  Upload Total    Current  Left    Speed\n"
-"  0  151M    0 38608    0     0   9406      0  4:41:43  0:00:04  4:41:39  9287\n"
+"COOKIES\n"
 "\n"
-"  From left-to-right:\n"
-"   %             - percentage completed of the whole transfer\n"
+"  Cookies are generally used by web servers to keep state information at the\n"
+"  client's side. The server sets cookies by sending a response line in the\n"
+"  headers that looks like 'Set-Cookie: <data>' where the data part then\n"
+"  typically contains a set of NAME=VALUE pairs (separated by semicolons ';'\n"
 , stdout);

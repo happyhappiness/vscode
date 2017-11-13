@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "%s: only one of -c -n -v -D may be specified" NL,
-            argv[0]);
+ap_log_cerror(APLOG_MARK, lvl, 0, c, "bb_dump(%s): %s", 
+                      c->log_id, len? buffer : line);

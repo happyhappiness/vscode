@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
-                 "Digest: Set shmem-size: %" APR_SIZE_T_FMT ", num-buckets: %ld", 
-                 shmem_size, num_buckets);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                         "Parent: Unable to write duplicated socket %d to the child.", nsd);

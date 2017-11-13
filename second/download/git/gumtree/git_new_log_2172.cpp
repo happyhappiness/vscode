@@ -1,1 +1,1 @@
-die_errno("poll");
+die("could not read ref '%s'", pseudoref);

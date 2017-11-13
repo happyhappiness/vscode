@@ -1,11 +1,10 @@
 fputs(
-"              doing file lists with FTP.\n"
+"              ing with the HTTP server.  The specified request  will  be  used\n"
+"              instead  of  the  method otherwise used (which defaults to GET).\n"
+"              Read the HTTP 1.1 specification for  details  and  explanations.\n"
+"              Common  additional  HTTP  requests  include  PUT and DELETE, but\n"
+"              related technologies like WebDAV offers PROPFIND, COPY, MOVE and\n"
+"              more.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --xattr\n"
-"              When saving output to a file, this option tells  curl  to  store\n"
-"              certain file metadata in extened file attributes. Currently, the\n"
-"              URL is stored in the xdg.origin.url attribute and, for HTTP, the\n"
-"              content  type  is stored in the mime_type attribute. If the file\n"
+"              (FTP) Specifies a custom FTP command to use instead of LIST when\n"
 , stdout);

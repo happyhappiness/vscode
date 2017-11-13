@@ -1,1 +1,1 @@
-die("not a commit? can't happen: %s", oid_to_hex(&oid));
+die(_("There is no merge in progress (MERGE_HEAD missing)."));

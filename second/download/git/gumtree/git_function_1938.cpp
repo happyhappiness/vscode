@@ -1,117 +1,54 @@
-static void show_commit(struct commit *commit, void *data)
+static int process_diff_filepair(struct rev_info *rev,
+				 struct diff_filepair *pair,
+				 struct line_log_data *range,
+				 struct diff_ranges **diff_out)
 {
-	struct rev_list_info *info = data;
-	struct rev_info *revs = info->revs;
+	struct line_log_data *rg = range;
+	struct range_set tmp;
+	struct diff_ranges diff;
+	mmfile_t file_parent, file_target;
 
-	if (info->flags & REV_LIST_QUIET) {
-		finish_commit(commit, data);
-		return;
+	assert(pair->two->path);
+	while (rg) {
+		assert(rg->path);
+		if (!strcmp(rg->path, pair->two->path))
+			break;
+		rg = rg->next;
 	}
 
-	graph_show_commit(revs->graph);
+	if (!rg)
+		return 0;
+	if (rg->ranges.nr == 0)
+		return 0;
 
-	if (revs->count) {
-		if (commit->object.flags & PATCHSAME)
-			revs->count_same++;
-		else if (commit->object.flags & SYMMETRIC_LEFT)
-			revs->count_left++;
-		else
-			revs->count_right++;
-		finish_commit(commit, data);
-		return;
-	}
+	assert(pair->two->sha1_valid);
+	diff_populate_filespec(pair->two, 0);
+	file_target.ptr = pair->two->data;
+	file_target.size = pair->two->size;
 
-	if (info->show_timestamp)
-		printf("%lu ", commit->date);
-	if (info->header_prefix)
-		fputs(info->header_prefix, stdout);
-
-	if (!revs->graph)
-		fputs(get_revision_mark(revs, commit), stdout);
-	if (revs->abbrev_commit && revs->abbrev)
-		fputs(find_unique_abbrev(commit->object.sha1, revs->abbrev),
-		      stdout);
-	else
-		fputs(sha1_to_hex(commit->object.sha1), stdout);
-	if (revs->print_parents) {
-		struct commit_list *parents = commit->parents;
-		while (parents) {
-			printf(" %s", sha1_to_hex(parents->item->object.sha1));
-			parents = parents->next;
-		}
-	}
-	if (revs->children.name) {
-		struct commit_list *children;
-
-		children = lookup_decoration(&revs->children, &commit->object);
-		while (children) {
-			printf(" %s", sha1_to_hex(children->item->object.sha1));
-			children = children->next;
-		}
-	}
-	show_decorations(revs, commit);
-	if (revs->commit_format == CMIT_FMT_ONELINE)
-		putchar(' ');
-	else
-		putchar('\n');
-
-	if (revs->verbose_header && get_cached_commit_buffer(commit, NULL)) {
-		struct strbuf buf = STRBUF_INIT;
-		struct pretty_print_context ctx = {0};
-		ctx.abbrev = revs->abbrev;
-		ctx.date_mode = revs->date_mode;
-		ctx.date_mode_explicit = revs->date_mode_explicit;
-		ctx.fmt = revs->commit_format;
-		ctx.output_encoding = get_log_output_encoding();
-		pretty_print_commit(&ctx, commit, &buf);
-		if (revs->graph) {
-			if (buf.len) {
-				if (revs->commit_format != CMIT_FMT_ONELINE)
-					graph_show_oneline(revs->graph);
-
-				graph_show_commit_msg(revs->graph, &buf);
-
-				/*
-				 * Add a newline after the commit message.
-				 *
-				 * Usually, this newline produces a blank
-				 * padding line between entries, in which case
-				 * we need to add graph padding on this line.
-				 *
-				 * However, the commit message may not end in a
-				 * newline.  In this case the newline simply
-				 * ends the last line of the commit message,
-				 * and we don't need any graph output.  (This
-				 * always happens with CMIT_FMT_ONELINE, and it
-				 * happens with CMIT_FMT_USERFORMAT when the
-				 * format doesn't explicitly end in a newline.)
-				 */
-				if (buf.len && buf.buf[buf.len - 1] == '\n')
-					graph_show_padding(revs->graph);
-				putchar('\n');
-			} else {
-				/*
-				 * If the message buffer is empty, just show
-				 * the rest of the graph output for this
-				 * commit.
-				 */
-				if (graph_show_remainder(revs->graph))
-					putchar('\n');
-				if (revs->commit_format == CMIT_FMT_ONELINE)
-					putchar('\n');
-			}
-		} else {
-			if (revs->commit_format != CMIT_FMT_USERFORMAT ||
-			    buf.len) {
-				fwrite(buf.buf, 1, buf.len, stdout);
-				putchar(info->hdr_termination);
-			}
-		}
-		strbuf_release(&buf);
+	if (pair->one->sha1_valid) {
+		diff_populate_filespec(pair->one, 0);
+		file_parent.ptr = pair->one->data;
+		file_parent.size = pair->one->size;
 	} else {
-		if (graph_show_remainder(revs->graph))
-			putchar('\n');
+		file_parent.ptr = "";
+		file_parent.size = 0;
 	}
-	maybe_flush_or_die(stdout, "stdout");
-	finish_commit(commit, data);
+
+	diff_ranges_init(&diff);
+	if (collect_diff(&file_parent, &file_target, &diff))
+		die("unable to generate diff for %s", pair->one->path);
+
+	/* NEEDSWORK should apply some heuristics to prevent mismatches */
+	free(rg->path);
+	rg->path = xstrdup(pair->one->path);
+
+	range_set_init(&tmp, 0);
+	range_set_map_across_diff(&tmp, &rg->ranges, &diff, diff_out);
+	range_set_release(&rg->ranges);
+	range_set_move(&rg->ranges, &tmp);
+
+	diff_ranges_release(&diff);
+
+	return ((*diff_out)->parent.nr > 0);
 }

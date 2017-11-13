@@ -1,39 +1,44 @@
-long ssl_io_data_cb(BIO *bio, int cmd,
-                    MODSSL_BIO_CB_ARG_TYPE *argp,
-                    int argi, long argl, long rc)
+static proxy_worker *find_session_route(proxy_balancer *balancer,
+                                        request_rec *r,
+                                        char **route,
+                                        char **url)
 {
-    SSL *ssl;
-    conn_rec *c;
-    server_rec *s;
-    SSLSrvConfigRec *sc;
+    proxy_worker *worker = NULL;
 
-    if ((ssl = (SSL *)BIO_get_callback_arg(bio)) == NULL)
-        return rc;
-    if ((c = (conn_rec *)SSL_get_app_data(ssl)) == NULL)
-        return rc;
-    s = mySrvFromConn(c);
-    sc = mySrvConfig(s);
-
-    if (   cmd == (BIO_CB_WRITE|BIO_CB_RETURN)
-        || cmd == (BIO_CB_READ |BIO_CB_RETURN) ) {
-        if (rc >= 0) {
-            ap_log_error(APLOG_MARK, APLOG_TRACE4, 0, s,
-                    "%s: %s %ld/%d bytes %s BIO#%pp [mem: %pp] %s",
-                    SSL_LIBRARY_NAME,
-                    (cmd == (BIO_CB_WRITE|BIO_CB_RETURN) ? "write" : "read"),
-                    rc, argi, (cmd == (BIO_CB_WRITE|BIO_CB_RETURN) ? "to" : "from"),
-                    bio, argp,
-                    (argp != NULL ? "(BIO dump follows)" : "(Oops, no memory buffer?)"));
-            if ((argp != NULL) && APLOGctrace7(c))
-                ssl_io_data_dump(s, argp, rc);
+    if (!balancer->sticky)
+        return NULL;
+    /* Try to find the sticky route inside url */
+    *route = get_path_param(r->pool, *url, balancer->sticky);
+    if (!*route)
+        *route = get_cookie_param(r, balancer->sticky);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                            "proxy: BALANCER: Found value %s for "
+                            "stickysession %s", *route, balancer->sticky);
+    /*
+     * If we found a value for sticksession, find the first '.' within.
+     * Everything after '.' (if present) is our route.
+     */
+    if ((*route) && ((*route = strchr(*route, '.')) != NULL ))
+        (*route)++;
+    if ((*route) && (**route)) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                                  "proxy: BALANCER: Found route %s", *route);
+        /* We have a route in path or in cookie
+         * Find the worker that has this route defined.
+         */
+        worker = find_route_worker(balancer, *route, r);
+        if (worker && strcmp(*route, worker->s->route)) {
+            /*
+             * Notice that the route of the worker chosen is different from
+             * the route supplied by the client.
+             */
+            apr_table_setn(r->subprocess_env, "BALANCER_ROUTE_CHANGED", "1");
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: BALANCER: Route changed from %s to %s",
+                         *route, worker->s->route);
         }
-        else {
-            ap_log_error(APLOG_MARK, APLOG_TRACE4, 0, s,
-                    "%s: I/O error, %d bytes expected to %s on BIO#%pp [mem: %pp]",
-                    SSL_LIBRARY_NAME, argi,
-                    (cmd == (BIO_CB_WRITE|BIO_CB_RETURN) ? "write" : "read"),
-                    bio, argp);
-        }
+        return worker;
     }
-    return rc;
+    else
+        return NULL;
 }

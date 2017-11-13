@@ -1,11 +1,10 @@
 fputs(
-"              entire operation will be aborted. You  must  send  syntactically\n"
-"              correct  FTP  commands as RFC 959 defines to FTP servers, or one\n"
-"              of the commands listed below to SFTP servers.\n"
+"              with the proper end-of-line marker, you should thus not add that\n"
+"              as a part of the header content: do not add newlines or carriage\n"
+"              returns, they will only mess things up for you.\n"
 "\n"
-"              This option can be used multiple times. When speaking to an  FTP\n"
-"              server,  prefix  the  command  with an asterisk (*) to make curl\n"
-"              continue even if the command fails as by default curl will  stop\n"
-"              at first failure.\n"
+"              Headers  specified  with  this  option  will  not be included in\n"
+"              requests that curl knows will not be sent to a proxy.\n"
 "\n"
+"              Starting in 7.55.0, this option can take an argument  in  @file-\n"
 , stdout);

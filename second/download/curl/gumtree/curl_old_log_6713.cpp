@@ -1,11 +1,8 @@
 fputs(
-"              name with the symbol <. The difference between @ and <  is  then\n"
-"              that  @  makes a file get attached in the post as a file upload,\n"
-"              while the < makes a text field and just  get  the  contents  for\n"
-"              that text field from a file.\n"
-"\n"
-"              Example,  to send your password file to the server, where 'pass-\n"
-"              word' is the name of the form-field to which /etc/passwd will be\n"
-"              the input:\n"
-"\n"
+"              (HTTP) This lets curl emulate a filled-in form in which  a  user\n"
+"              has  pressed  the  submit  button. This causes curl to POST data\n"
+"              using the  Content-Type  multipart/form-data  according  to  RFC\n"
+"              2388.  This  enables uploading of binary files etc. To force the\n"
+"              'content' part to be a file, prefix the  file  name  with  an  @\n"
+"              sign.  To just get the content part from a file, prefix the file\n"
 , stdout);

@@ -1,9 +1,12 @@
 fputs(
-"              enclosed  within  quotes.  Within  double  quotes, the following\n"
-"              escape sequences are available: \\\\, \\\", \\t, \\n,  \\r  and  \\v.  A\n"
-"              backslash  preceding  any  other letter is ignored. If the first\n"
-"              column of a config line is a '#' character, the rest of the line\n"
-"              will be treated as a comment. Only write one option per physical\n"
-"              line in the config file.\n"
+"              (HTTP) This option tells the -O, --remote-name option to use the\n"
+"              server-specified   Content-Disposition   filename   instead   of\n"
+"              extracting a filename from the URL.\n"
 "\n"
+"              There's no attempt to decode %-sequences (yet) in  the  provided\n"
+"              file name, so this option may provide you with rather unexpected\n"
+"              file names.\n"
+"\n"
+"       -k, --insecure\n"
+"              (SSL) This option explicitly allows curl to  perform  \"insecure\"\n"
 , stdout);

@@ -1,1 +1,2 @@
-die("Bad value '%s' in environment '%s'", e, name);
+error("internal error: %s is not a valid packed reference!",
+		      entry->name);

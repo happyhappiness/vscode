@@ -1,1 +1,1 @@
-fprintf(FERROR,"%s is newer\n",fname);
+fprintf(FERROR, "sum=%.8x k=%d\n", sum, k);

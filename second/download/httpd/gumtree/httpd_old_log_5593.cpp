@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE2, status, workers->s,
-                     "h2_workers: register mplx(%ld)", m->id);
+log_scripterror(r, conf, HTTP_FORBIDDEN, 0,
+                               "attempt to invoke directory as script");

@@ -1,1 +1,0 @@
-die("%s failed", cmd_name);

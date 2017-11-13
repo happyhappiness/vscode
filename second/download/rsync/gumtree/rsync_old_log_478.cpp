@@ -1,1 +1,1 @@
-fprintf(FINFO,"nothing to do\n");
+fprintf(f,"-l, --links              preserve soft links\n");

@@ -1,22 +1,18 @@
-static int index_core(unsigned char *sha1, int fd, size_t size,
-		      enum object_type type, const char *path,
-		      unsigned flags)
+static int show_merge_base(struct commit **rev, int rev_nr, int show_all)
 {
-	int ret;
+	struct commit_list *result;
 
-	if (!size) {
-		ret = index_mem(sha1, "", size, type, path, flags);
-	} else if (size <= SMALL_FILE_SIZE) {
-		char *buf = xmalloc(size);
-		if (size == read_in_full(fd, buf, size))
-			ret = index_mem(sha1, buf, size, type, path, flags);
-		else
-			ret = error("short read %s", strerror(errno));
-		free(buf);
-	} else {
-		void *buf = xmmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
-		ret = index_mem(sha1, buf, size, type, path, flags);
-		munmap(buf, size);
+	result = get_merge_bases_many_dirty(rev[0], rev_nr - 1, rev + 1);
+
+	if (!result)
+		return 1;
+
+	while (result) {
+		printf("%s\n", sha1_to_hex(result->item->object.sha1));
+		if (!show_all)
+			return 0;
+		result = result->next;
 	}
-	return ret;
+
+	return 0;
 }

@@ -1,2 +1,1 @@
-ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, plog, APLOGNO(02130)
-                         "No Listen directive found for upgradeable listener %s:%d", slu->addr, slu->port);
+fprintf(stderr,"%s: %s (%d)\n", "apr_socket_recv", apr_strerror(status, buf, sizeof buf), status);

@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "LDAP cache: LDAPSharedCacheSize is zero, disabling shared memory cache");
+apr_file_printf(errfile, "Changing password for user %s in realm %s\n", 
+                    user, realm);

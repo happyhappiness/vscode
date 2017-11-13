@@ -24,17 +24,21 @@ def check_given_log_in_function(function_name, check, variable, postfix=''):
         if log_record[my_constant.ANALYZE_REPOS_LOG_FUNCTION] == function_name:
             flag_meet_function = True
             # filter with check and variable info
-            if check == json.loads(log_record[my_constant.ANALYZE_REPOS_LOG_CHECK])\
-                and variable == json.loads(log_record[my_constant.ANALYZE_REPOS_LOG_VARIABLE]):
-                log_file.close()
-                return True
+            # if check == json.loads(log_record[my_constant.ANALYZE_REPOS_LOG_CHECK]):
+            if my_util.is_sub_list(check, json.loads(log_record[my_constant.ANALYZE_REPOS_LOG_CHECK])):
+                if variable == json.loads(log_record[my_constant.ANALYZE_REPOS_LOG_VARIABLE]):
+                    log_file.close()
+                    return "accept-false-variable"
+                else:
+                    log_file.close()
+                    return "accept-false-check"
         # records store by function name, so quit if meet new function name
         elif flag_meet_function:
             log_file.close()
-            return False
+            return "accpept-true"
 
     log_file.close()
-    return False
+    return "accpept-true"
 
 def check_for_insert_rule(rule_feature, function, postfix=''):
     """
@@ -45,10 +49,7 @@ def check_for_insert_rule(rule_feature, function, postfix=''):
     check = rule_feature[0]
     variable = rule_feature[1]
     # has log -> no need
-    if check_given_log_in_function(function, check, variable, postfix):
-        return "accept-false"
-    else:
-        return "accept-true"
+    return check_given_log_in_function(function, check, variable, postfix)
 
 def check_for_modify_rule(edit_words, curr_log):
     """
@@ -98,7 +99,7 @@ def filter_insert_rule(rule_feature, none_ratio=0.5):
     @ return true if pass filter\n
     @ involve check insert rule feature must not has more none feature than maximum none ratio\n
     """
-    rule_feature = rule_feature[0] + rule_feature[1]
+    rule_feature = rule_feature[0]
     if rule_feature.count(None) > len(rule_feature) * none_ratio:
         return False
     else:
@@ -111,11 +112,11 @@ def is_match_for_insert_rule(rule_feature, function_feature):
     @ involve validate that any element in rule feature must exist in function\n
     """
     check = rule_feature[0]
-    variable = rule_feature[1]
+    # variable = rule_feature[1]
     calls = function_feature[0]
     types = function_feature[1]
     # validate whether any one in check or variable is in calls and types
-    rule_infos = check + variable
+    rule_infos = check
     function_info = calls + types
     for info in rule_infos:
         if info and not info.replace('_ret','').replace('_arg','') in function_info:
@@ -200,6 +201,9 @@ def seek_clone(repos_name, rebuild_repos=False, postfix=''):
         clone_counter_log = 0
         # insert rule -> function records
         if old_loc == '-1':
+            # filter insert rule by info
+            if not filter_insert_rule(rule_feature):
+                    continue
             for repos_function_record in islice(repos_function_records, 1, None):
                 calls = json.loads(repos_function_record[my_constant.ANALYZE_REPOS_FUNCTION_CALLS])
                 types = json.loads(repos_function_record[my_constant.ANALYZE_REPOS_FUNCTION_TYPES])
@@ -325,7 +329,6 @@ def seek_clone_for_corresponding_repos(rebuild_repos=False):
                         %(clone_counter_function, clone_counter_log)
 
     # close file
-    repos_function_file.close()
     repos_function_clone_file.close()
     repos_log_clone_file.close()
 

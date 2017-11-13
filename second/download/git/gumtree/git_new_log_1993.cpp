@@ -1,1 +1,1 @@
-die("bad tree object %s", oid_to_hex(&obj->oid));
+strbuf_addf(err, "unable to create directory for %s", ref_file);

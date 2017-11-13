@@ -1,2 +1,7 @@
-ap_log_rerror(
-                        APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02482) "Encountered extra data after compressed data");
+apr_file_printf(stderr_log,
+                    "[%s] [client %s] mod_ext_filter (%d)%pm: %s\n",
+                    time_str,
+                    r->useragent_ip,
+                    err,
+                    &err,
+                    description);

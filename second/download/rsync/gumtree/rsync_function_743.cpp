@@ -1,105 +1,133 @@
-void rwrite(enum logcode code, char *buf, int len)
+static void receive_file_entry(struct file_struct **fptr,
+			       unsigned flags, int f)
 {
-	int trailing_CR_or_NL;
-	FILE *f = NULL;
+	static time_t last_time;
+	static mode_t last_mode;
+	static DEV64_T last_rdev;
+	static uid_t last_uid;
+	static gid_t last_gid;
+	static char lastname[MAXPATHLEN];
+	char thisname[MAXPATHLEN];
+	unsigned int l1 = 0, l2 = 0;
+	char *p;
+	struct file_struct *file;
 
-	if (len < 0)
-		exit_cleanup(RERR_MESSAGEIO);
+	if (flags & SAME_NAME)
+		l1 = read_byte(f);
 
-	if (quiet && code == FINFO)
-		return;
+	if (flags & LONG_NAME)
+		l2 = read_int(f);
+	else
+		l2 = read_byte(f);
 
-	if (am_server && msg_fd_out >= 0) {
-		/* Pass the message to our sibling. */
-		send_msg((enum msgcode)code, buf, len);
-		return;
+	file = new(struct file_struct);
+	if (!file)
+		out_of_memory("receive_file_entry");
+	memset((char *) file, 0, sizeof(*file));
+	(*fptr) = file;
+
+	if (l2 >= MAXPATHLEN - l1) {
+		rprintf(FERROR,
+			"overflow: flags=0x%x l1=%d l2=%d lastname=%s\n",
+			flags, l1, l2, lastname);
+		overflow("receive_file_entry");
 	}
 
-	if (code == FSOCKERR) /* This gets simplified for a non-sibling. */
-		code = FERROR;
+	strlcpy(thisname, lastname, l1 + 1);
+	read_sbuf(f, &thisname[l1], l2);
+	thisname[l1 + l2] = 0;
 
-	if (code == FCLIENT)
-		code = FINFO;
-	else if (am_daemon) {
-		static int in_block;
-		char msg[2048];
-		int priority = code == FERROR ? LOG_WARNING : LOG_INFO;
+	strlcpy(lastname, thisname, MAXPATHLEN);
+	lastname[MAXPATHLEN - 1] = 0;
 
-		if (in_block)
-			return;
-		in_block = 1;
-		if (!log_initialised)
-			log_init();
-		strlcpy(msg, buf, MIN((int)sizeof msg, len + 1));
-		logit(priority, msg);
-		in_block = 0;
+	clean_fname(thisname);
 
-		if (code == FLOG || !am_server)
-			return;
-	} else if (code == FLOG)
-		return;
-
-	if (am_server) {
-		/* Pass the message to the non-server side. */
-		if (io_multiplex_write((enum msgcode)code, buf, len))
-			return;
-		if (am_daemon) {
-			/* TODO: can we send the error to the user somehow? */
-			return;
-		}
+	if (sanitize_paths) {
+		sanitize_path(thisname, NULL);
 	}
 
-	switch (code) {
-	case FERROR:
-		log_got_error = 1;
-		f = stderr;
-		goto pre_scan;
-	case FINFO:
-		f = am_server ? stderr : stdout;
-	pre_scan:
-		while (len > 1 && *buf == '\n') {
-			fputc(*buf, f);
-			buf++;
-			len--;
+	if ((p = strrchr(thisname, '/'))) {
+		static char *lastdir;
+		*p = 0;
+		if (lastdir && strcmp(thisname, lastdir) == 0) {
+			file->dirname = lastdir;
+		} else {
+			file->dirname = strdup(thisname);
+			lastdir = file->dirname;
 		}
-		break;
-	case FNAME:
-		f = am_server ? stderr : stdout;
-		break;
-	default:
-		exit_cleanup(RERR_MESSAGEIO);
+		file->basename = strdup(p + 1);
+	} else {
+		file->dirname = NULL;
+		file->basename = strdup(thisname);
 	}
 
-	trailing_CR_or_NL = len && (buf[len-1] == '\n' || buf[len-1] == '\r')
-			  ? buf[--len] : 0;
+	if (!file->basename)
+		out_of_memory("receive_file_entry 1");
 
-#if defined HAVE_ICONV_OPEN && defined HAVE_ICONV_H
-	if (ic_chck != (iconv_t)-1) {
-		char convbuf[1024];
-		char *in_buf = buf, *out_buf = convbuf;
-		size_t in_cnt = len, out_cnt = sizeof convbuf - 1;
 
-		iconv(ic_chck, NULL, 0, NULL, 0);
-		while (iconv(ic_chck, &in_buf,&in_cnt,
-				 &out_buf,&out_cnt) == (size_t)-1) {
-			if (out_buf != convbuf) {
-				filtered_fwrite(f, convbuf, out_buf - convbuf, 0);
-				out_buf = convbuf;
-				out_cnt = sizeof convbuf - 1;
-			}
-			if (errno == E2BIG)
-				continue;
-			fprintf(f, "\\#%03o", *(uchar*)in_buf++);
-			in_cnt--;
+	file->flags = flags;
+	file->length = read_longint(f);
+	file->modtime =
+	    (flags & SAME_TIME) ? last_time : (time_t) read_int(f);
+	file->mode =
+	    (flags & SAME_MODE) ? last_mode : from_wire_mode(read_int(f));
+	if (preserve_uid)
+		file->uid =
+		    (flags & SAME_UID) ? last_uid : (uid_t) read_int(f);
+	if (preserve_gid)
+		file->gid =
+		    (flags & SAME_GID) ? last_gid : (gid_t) read_int(f);
+	if (preserve_devices && IS_DEVICE(file->mode))
+		file->rdev =
+		    (flags & SAME_RDEV) ? last_rdev : (DEV64_T) read_int(f);
+
+	if (preserve_links && S_ISLNK(file->mode)) {
+		int l = read_int(f);
+		if (l < 0) {
+			rprintf(FERROR, "overflow: l=%d\n", l);
+			overflow("receive_file_entry");
 		}
-		if (out_buf != convbuf)
-			filtered_fwrite(f, convbuf, out_buf - convbuf, 0);
-	} else
+		file->link = new_array(char, l + 1);
+		if (!file->link)
+			out_of_memory("receive_file_entry 2");
+		read_sbuf(f, file->link, l);
+		if (sanitize_paths) {
+			sanitize_path(file->link, file->dirname);
+		}
+	}
+#if SUPPORT_HARD_LINKS
+	if (preserve_hard_links && S_ISREG(file->mode)) {
+		if (protocol_version < 26) {
+			file->dev = read_int(f);
+			file->inode = read_int(f);
+		} else {
+			file->dev = read_longint(f);
+			file->inode = read_longint(f);
+		}
+	}
 #endif
-		filtered_fwrite(f, buf, len, !allow_8bit_chars);
 
-	if (trailing_CR_or_NL) {
-		fputc(trailing_CR_or_NL, f);
-		fflush(f);
+	if (always_checksum) {
+		file->sum = new_array(char, MD4_SUM_LENGTH);
+		if (!file->sum)
+			out_of_memory("md4 sum");
+		if (protocol_version < 21) {
+			read_buf(f, file->sum, 2);
+		} else {
+			read_buf(f, file->sum, MD4_SUM_LENGTH);
+		}
+	}
+
+	last_mode = file->mode;
+	last_rdev = file->rdev;
+	last_uid = file->uid;
+	last_gid = file->gid;
+	last_time = file->modtime;
+
+	if (!preserve_perms) {
+		extern int orig_umask;
+		/* set an appropriate set of permissions based on original
+		   permissions and umask. This emulates what GNU cp does */
+		file->mode &= ~orig_umask;
 	}
 }

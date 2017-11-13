@@ -1,36 +1,39 @@
-char *map_ptr(char *buf,off_t offset,int len)
+static void receive_data(int f_in,char *buf,int fd,char *fname)
 {
-  if (buf)
-    return buf+offset;
+  int i,n,remainder,len,count;
+  off_t offset = 0;
+  off_t offset2;
 
-  if (len == 0) 
-    return NULL;
+  count = read_int(f_in);
+  n = read_int(f_in);
+  remainder = read_int(f_in);
 
-  len = MIN(len,map_size-offset);
+  for (i=read_int(f_in); i != 0; i=read_int(f_in)) {
+    if (i > 0) {
+      if (verbose > 3)
+	fprintf(stderr,"data recv %d at %d\n",i,(int)offset);
 
-  if (offset >= p_offset && 
-      offset+len <= p_offset+p_len) {
-    return (p + (offset - p_offset));
+      if (read_write(f_in,fd,i) != i) {
+	fprintf(stderr,"write failed on %s : %s\n",fname,strerror(errno));
+	exit(1);
+      }
+      offset += i;
+    } else {
+      i = -(i+1);
+      offset2 = i*n;
+      len = n;
+      if (i == count-1 && remainder != 0)
+	len = remainder;
+
+      if (verbose > 3)
+	fprintf(stderr,"chunk[%d] of size %d at %d offset=%d\n",
+		i,len,(int)offset2,(int)offset);
+
+      if (write(fd,buf+offset2,len) != len) {
+	fprintf(stderr,"write failed on %s : %s\n",fname,strerror(errno));
+	exit(1);
+      }
+      offset += len;
+    }
   }
-
-  len = MAX(len,WRITE_BLOCK_SIZE);
-  len = MIN(len,map_size - offset);  
-
-  if (len > p_size) {
-    if (p) free(p);
-    p = (char *)malloc(len);
-    if (!p) out_of_memory("map_ptr");
-    p_size = len;
-  }
-
-  if (lseek(map_fd,offset,SEEK_SET) != offset ||
-      read(map_fd,p,len) != len) {
-    fprintf(stderr,"EOF in map_ptr!\n");
-    exit(1);
-  }
-
-  p_offset = offset;
-  p_len = len;
-
-  return p; 
 }

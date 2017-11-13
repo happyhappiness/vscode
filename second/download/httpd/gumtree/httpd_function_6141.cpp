@@ -1,36 +1,25 @@
-apr_status_t h2_conn_io_write(h2_conn_io *io, const char *data, size_t length)
+static int h2_task_process_conn(conn_rec* c)
 {
-    apr_status_t status = APR_SUCCESS;
-    apr_size_t remain;
+    h2_ctx *ctx;
     
-    if (io->buffer_output) {
-        while (length > 0) {
-            remain = assure_scratch_space(io);
-            if (remain >= length) {
-#if LOG_SCRATCH
-                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, io->c, APLOGNO(03389)
-                              "h2_conn_io(%ld): write_to_scratch(%ld)", 
-                              io->c->id, (long)length); 
-#endif
-                memcpy(io->scratch + io->slen, data, length);
-                io->slen += length;
-                length = 0;
-            }
-            else {
-#if LOG_SCRATCH
-                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, io->c, APLOGNO(03390)
-                              "h2_conn_io(%ld): write_to_scratch(%ld)", 
-                              io->c->id, (long)remain); 
-#endif
-                memcpy(io->scratch + io->slen, data, remain);
-                io->slen += remain;
-                data += remain;
-                length -= remain;
-            }
+    if (!c->master) {
+        return DECLINED;
+    }
+    
+    ctx = h2_ctx_get(c, 0);
+    if (h2_ctx_is_task(ctx)) {
+        if (!ctx->task->ser_headers) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c, 
+                          "h2_h2, processing request directly");
+            h2_task_process_request(ctx->task, c);
+            return DONE;
         }
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c, 
+                      "h2_task(%s), serialized handling", ctx->task->id);
     }
     else {
-        status = apr_brigade_write(io->output, NULL, NULL, data, length);
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c, 
+                      "slave_conn(%ld): has no task", c->id);
     }
-    return status;
+    return DECLINED;
 }

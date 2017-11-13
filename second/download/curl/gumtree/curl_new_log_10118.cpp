@@ -1,11 +1,11 @@
 fputs(
-"  be read from a file, use <@filename> as contents. When specifying a file,\n"
-"  you can also specify the file content type by appending ';type=<mime type>'\n"
-"  to the file name. You can also post the contents of several files in one\n"
-"  field.  For example, the field name 'coolfiles' is used to send three files,\n"
-"  with different content types using the following syntax:\n"
+"  If there's a \"normal\" post, you use -d to post. -d takes a full \"post\n"
+"  string\", which is in the format\n"
 "\n"
-"        curl -F \"coolfiles=@fil1.gif;type=image/gif,fil2.txt,fil3.html\" \\\n"
-"        http://www.post.com/postit.cgi\n"
+"        <variable1>=<data1>&<variable2>=<data2>&...\n"
 "\n"
+"  The 'variable' names are the names set with \"name=\" in the <input> tags, and\n"
+"  the data is the contents you want to fill in for the inputs. The data *must*\n"
+"  be properly URL encoded. That means you replace space with + and that you\n"
+"  replace weird letters with %XX where XX is the hexadecimal representation of\n"
 , stdout);

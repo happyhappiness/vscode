@@ -1,12 +1,9 @@
 fputs(
-"                     on. The preceding = symbol is not included in the data.\n"
+"              If  any of these options is used more than once on the same com-\n"
+"              mand line, the data pieces specified  will  be  merged  together\n"
+"              with  a  separating  &-symbol.  Thus,  using  '-d name=daniel -d\n"
+"              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
+"              'name=daniel&skill=lousy'.\n"
 "\n"
-"              name=content\n"
-"                     This  will make curl URL-encode the content part and pass\n"
-"                     that on. Note that the name part is expected to  be  URL-\n"
-"                     encoded already.\n"
-"\n"
-"              @filename\n"
-"                     This  will  make  curl  load  data  from  the  given file\n"
-"                     (including any newlines), URL-encode that data  and  pass\n"
+"              If  you  start  the data with the letter @, the rest should be a\n"
 , stdout);

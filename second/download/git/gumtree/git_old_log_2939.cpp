@@ -1,2 +1,2 @@
-error(_("could not create temporary file '%s': %s"),
+error(_("failed writing detached signature to '%s': %s"),
 			     path, strerror(errno));

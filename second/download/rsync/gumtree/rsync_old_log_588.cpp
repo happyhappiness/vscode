@@ -1,1 +1,2 @@
-fprintf(FERROR,"ERROR: buffer overflow in %s\n",str);
+fprintf(FERROR,"ERROR: file corruption in %s. File changed during transfer?\n",
+			      fname);

@@ -1,11 +1,11 @@
 fputs(
-"              The  Bearer  Token  and user name are formatted according to RFC\n"
-"              6750.\n"
+"              uations,  curl  will  use a standard buffered output stream that\n"
+"              will have the effect that it will output the data in chunks, not\n"
+"              necessarily  exactly  when  the data arrives.  Using this option\n"
+"              will disable that buffering.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              Note that this is the negated option name  documented.  You  can\n"
+"              thus use --buffer to enforce the buffering.\n"
 "\n"
-"       -o, --output <file>\n"
-"              Write output to <file> instead of stdout. If you are using {} or\n"
-"              []  to  fetch  multiple documents, you can use '#' followed by a\n"
-"              number in the <file> specifier. That variable will  be  replaced\n"
+"       --no-keepalive\n"
 , stdout);

@@ -1,153 +1,85 @@
-static void show_compile_settings(void)
+BOOL ssl_scache_dbm_store(server_rec *s, UCHAR *id, int idlen, time_t expiry, SSL_SESSION *sess)
 {
-    printf("Server version: %s\n", ap_get_server_version());
-    printf("Server built:   %s\n", ap_get_server_built());
-    printf("Server's Module Magic Number: %u:%u\n",
-           MODULE_MAGIC_NUMBER_MAJOR, MODULE_MAGIC_NUMBER_MINOR);
+    SSLModConfigRec *mc = myModConfig(s);
+    apr_dbm_t *dbm;
+    apr_datum_t dbmkey;
+    apr_datum_t dbmval;
+    UCHAR ucaData[SSL_SESSION_MAX_DER];
+    int nData;
+    UCHAR *ucp;
+    apr_status_t rv;
 
-    /* sizeof(foo) is long on some platforms so we might as well
-     * make it long everywhere to keep the printf format
-     * consistent
-     */
-    printf("Architecture:   %ld-bit\n", 8 * (long)sizeof(void *));
-    printf("Server compiled with....\n");
-#ifdef BIG_SECURITY_HOLE
-    printf(" -D BIG_SECURITY_HOLE\n");
-#endif
+    /* streamline session data */
+    if ((nData = i2d_SSL_SESSION(sess, NULL)) > sizeof(ucaData)) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "streamline session data size too large: %d > %d",
+                 nData, sizeof(ucaData));
+        return FALSE;
+    }
+    ucp = ucaData;
+    i2d_SSL_SESSION(sess, &ucp);
 
-#ifdef SECURITY_HOLE_PASS_AUTHORIZATION
-    printf(" -D SECURITY_HOLE_PASS_AUTHORIZATION\n");
-#endif
-
-#ifdef APACHE_MPM_DIR
-    printf(" -D APACHE_MPM_DIR=\"%s\"\n", APACHE_MPM_DIR);
-#endif
-
-#ifdef HAVE_SHMGET
-    printf(" -D HAVE_SHMGET\n");
-#endif
-
-#if APR_FILE_BASED_SHM
-    printf(" -D APR_FILE_BASED_SHM\n");
-#endif
-
-#if APR_HAS_SENDFILE
-    printf(" -D APR_HAS_SENDFILE\n");
-#endif
-
-#if APR_HAS_MMAP
-    printf(" -D APR_HAS_MMAP\n");
+    /* be careful: do not try to store too much bytes in a DBM file! */
+#ifdef PAIRMAX
+    if ((idlen + nData) >= PAIRMAX) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "data size too large for DBM session cache: %d >= %d",
+                 (idlen + nData), PAIRMAX);
+        return FALSE;
+    }
+#else
+    if ((idlen + nData) >= 950 /* at least less than approx. 1KB */) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "data size too large for DBM session cache: %d >= %d",
+                 (idlen + nData), 950);
+        return FALSE;
+    }
 #endif
 
-#ifdef NO_WRITEV
-    printf(" -D NO_WRITEV\n");
-#endif
+    /* create DBM key */
+    dbmkey.dptr  = (char *)id;
+    dbmkey.dsize = idlen;
 
-#ifdef NO_LINGCLOSE
-    printf(" -D NO_LINGCLOSE\n");
-#endif
+    /* create DBM value */
+    dbmval.dsize = sizeof(time_t) + nData;
+    dbmval.dptr  = (char *)malloc(dbmval.dsize);
+    if (dbmval.dptr == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "malloc error creating DBM value");
+        return FALSE;
+    }
+    memcpy((char *)dbmval.dptr, &expiry, sizeof(time_t));
+    memcpy((char *)dbmval.dptr+sizeof(time_t), ucaData, nData);
 
-#if APR_HAVE_IPV6
-    printf(" -D APR_HAVE_IPV6\n");
-#endif
+    /* and store it to the DBM file */
+    ssl_mutex_on(s);
+    if ((rv = apr_dbm_open(&dbm, mc->szSessionCacheDataFile,
+	    APR_DBM_RWCREATE, SSL_DBM_FILE_MODE, mc->pPool)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                     "Cannot open SSLSessionCache DBM file `%s' for writing "
+                     "(store)",
+                     mc->szSessionCacheDataFile);
+        ssl_mutex_off(s);
+        free(dbmval.dptr);
+        return FALSE;
+    }
+    if ((rv = apr_dbm_store(dbm, dbmkey, dbmval)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                     "Cannot store SSL session to DBM file `%s'",
+                     mc->szSessionCacheDataFile);
+        apr_dbm_close(dbm);
+        ssl_mutex_off(s);
+        free(dbmval.dptr);
+        return FALSE;
+    }
+    apr_dbm_close(dbm);
+    ssl_mutex_off(s);
 
-#if APR_USE_FLOCK_SERIALIZE
-    printf(" -D APR_USE_FLOCK_SERIALIZE\n");
-#endif
+    /* free temporary buffers */
+    free(dbmval.dptr);
 
-#if APR_USE_SYSVSEM_SERIALIZE
-    printf(" -D APR_USE_SYSVSEM_SERIALIZE\n");
-#endif
+    /* allow the regular expiring to occur */
+    ssl_scache_dbm_expire(s);
 
-#if APR_USE_POSIXSEM_SERIALIZE
-    printf(" -D APR_USE_POSIXSEM_SERIALIZE\n");
-#endif
-
-#if APR_USE_FCNTL_SERIALIZE
-    printf(" -D APR_USE_FCNTL_SERIALIZE\n");
-#endif
-
-#if APR_USE_PROC_PTHREAD_SERIALIZE
-    printf(" -D APR_USE_PROC_PTHREAD_SERIALIZE\n");
-#endif
-
-#if APR_USE_PTHREAD_SERIALIZE
-    printf(" -D APR_USE_PTHREAD_SERIALIZE\n");
-#endif
-
-#if APR_PROCESS_LOCK_IS_GLOBAL
-    printf(" -D APR_PROCESS_LOCK_IS_GLOBAL\n");
-#endif
-
-#ifdef SINGLE_LISTEN_UNSERIALIZED_ACCEPT
-    printf(" -D SINGLE_LISTEN_UNSERIALIZED_ACCEPT\n");
-#endif
-
-#if APR_HAS_OTHER_CHILD
-    printf(" -D APR_HAS_OTHER_CHILD\n");
-#endif
-
-#ifdef AP_HAVE_RELIABLE_PIPED_LOGS
-    printf(" -D AP_HAVE_RELIABLE_PIPED_LOGS\n");
-#endif
-
-#ifdef BUFFERED_LOGS
-    printf(" -D BUFFERED_LOGS\n");
-#ifdef PIPE_BUF
-    printf(" -D PIPE_BUF=%ld\n",(long)PIPE_BUF);
-#endif
-#endif
-
-#if APR_CHARSET_EBCDIC
-    printf(" -D APR_CHARSET_EBCDIC\n");
-#endif
-
-#ifdef APACHE_XLATE
-    printf(" -D APACHE_XLATE\n");
-#endif
-
-#ifdef NEED_HASHBANG_EMUL
-    printf(" -D NEED_HASHBANG_EMUL\n");
-#endif
-
-#ifdef SHARED_CORE
-    printf(" -D SHARED_CORE\n");
-#endif
-
-/* This list displays the compiled in default paths: */
-#ifdef HTTPD_ROOT
-    printf(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n");
-#endif
-
-#ifdef SUEXEC_BIN
-    printf(" -D SUEXEC_BIN=\"" SUEXEC_BIN "\"\n");
-#endif
-
-#if defined(SHARED_CORE) && defined(SHARED_CORE_DIR)
-    printf(" -D SHARED_CORE_DIR=\"" SHARED_CORE_DIR "\"\n");
-#endif
-
-#ifdef DEFAULT_PIDLOG
-    printf(" -D DEFAULT_PIDLOG=\"" DEFAULT_PIDLOG "\"\n");
-#endif
-
-#ifdef DEFAULT_SCOREBOARD
-    printf(" -D DEFAULT_SCOREBOARD=\"" DEFAULT_SCOREBOARD "\"\n");
-#endif
-
-#ifdef DEFAULT_LOCKFILE
-    printf(" -D DEFAULT_LOCKFILE=\"" DEFAULT_LOCKFILE "\"\n");
-#endif
-
-#ifdef DEFAULT_ERRORLOG
-    printf(" -D DEFAULT_ERRORLOG=\"" DEFAULT_ERRORLOG "\"\n");
-#endif
-
-#ifdef AP_TYPES_CONFIG_FILE
-    printf(" -D AP_TYPES_CONFIG_FILE=\"" AP_TYPES_CONFIG_FILE "\"\n");
-#endif
-
-#ifdef SERVER_CONFIG_FILE
-    printf(" -D SERVER_CONFIG_FILE=\"" SERVER_CONFIG_FILE "\"\n");
-#endif
+    return TRUE;
 }

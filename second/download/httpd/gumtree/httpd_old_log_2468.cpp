@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "leaving shmcb_remove_session_id");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "Request header value is malformed: "
+                                  "%.*s", (int)LOG_NAME_MAX_LEN, value);

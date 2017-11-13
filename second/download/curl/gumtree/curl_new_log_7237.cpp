@@ -1,11 +1,11 @@
 fputs(
-"              its response to curl's PASV command when curl connects the  data\n"
-"              connection.  Instead  curl  will  re-use  the same IP address it\n"
-"              already uses for the control connection. (Added in 7.14.2)\n"
+"              available: \\\\, \\\", \\t, \\n, \\r and \\v. A backslash preceding  any\n"
+"              other letter is ignored. If the first column of a config line is\n"
+"              a '#' character, the rest of the line will be treated as a  com-\n"
+"              ment.  Only  write  one  option  per physical line in the config\n"
+"              file.\n"
 "\n"
-"              This option has no effect if PORT, EPRT or EPSV is used  instead\n"
-"              of PASV.\n"
+"              Specify the filename to -K, --config as '-' to  make  curl  read\n"
+"              the file from stdin.\n"
 "\n"
-"       --ftp-pret\n"
-"              (FTP)  Tell  curl to send a PRET command before PASV (and EPSV).\n"
 , stdout);

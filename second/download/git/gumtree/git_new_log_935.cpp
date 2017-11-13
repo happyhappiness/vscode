@@ -1,4 +1,1 @@
-fprintf_ln(stderr,
-			   Q_("\nThe most similar command is",
-			      "\nThe most similar commands are",
-			   n));
+error(_("remote unpack failed: %s"), line);

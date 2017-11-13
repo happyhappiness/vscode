@@ -1,2 +1,1 @@
-fprintf(logfile_fp, "%s [%d] %s",
-			timestring(time(NULL)), (int)getpid(), buf);
+out_of_memory("server_options");

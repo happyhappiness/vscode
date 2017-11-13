@@ -1,18 +1,56 @@
-static int on_invalid_header_cb(nghttp2_session *ngh2, 
-                                const nghttp2_frame *frame, 
-                                const uint8_t *name, size_t namelen, 
-                                const uint8_t *value, size_t valuelen, 
-                                uint8_t flags, void *user_data)
+h2_stream *h2_mplx_next_submit(h2_mplx *m, h2_stream_set *streams)
 {
-    h2_session *session = user_data;
-    if (APLOGcdebug(session->c)) {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03456)
-                      "h2_session(%ld-%d): denying stream with invalid header "
-                      "'%s: %s'", session->id, (int)frame->hd.stream_id,
-                      apr_pstrndup(session->pool, (const char *)name, namelen),
-                      apr_pstrndup(session->pool, (const char *)value, valuelen));
+    apr_status_t status;
+    h2_stream *stream = NULL;
+    AP_DEBUG_ASSERT(m);
+    if (m->aborted) {
+        return NULL;
     }
-    return nghttp2_submit_rst_stream(session->ngh2, NGHTTP2_FLAG_NONE,
-                                     frame->hd.stream_id, 
-                                     NGHTTP2_PROTOCOL_ERROR);
+    status = apr_thread_mutex_lock(m->lock);
+    if (APR_SUCCESS == status) {
+        h2_io *io = h2_io_set_pop_highest_prio(m->ready_ios);
+        if (io) {
+            stream = h2_stream_set_get(streams, io->id);
+            if (stream) {
+                if (io->rst_error) {
+                    h2_stream_rst(stream, io->rst_error);
+                }
+                else {
+                    AP_DEBUG_ASSERT(io->response);
+                    H2_MPLX_IO_OUT(APLOG_TRACE2, m, io, "h2_mplx_next_submit_pre");
+                    h2_stream_set_response(stream, io->response, io->bbout);
+                    H2_MPLX_IO_OUT(APLOG_TRACE2, m, io, "h2_mplx_next_submit_post");
+                }
+                
+            }
+            else {
+                /* We have the io ready, but the stream has gone away, maybe
+                 * reset by the client. Should no longer happen since such
+                 * streams should clear io's from the ready queue.
+                 */
+                ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, m->c, APLOGNO(02953) 
+                              "h2_mplx(%ld): stream for response %d closed, "
+                              "resetting io to close request processing",
+                              m->id, io->id);
+                io->orphaned = 1;
+                if (io->task_done) {
+                    io_destroy(m, io, 1);
+                }
+                else {
+                    /* hang around until the h2_task is done, but
+                     * shutdown input and send out any events (e.g. window
+                     * updates) asap. */
+                    h2_io_in_shutdown(io);
+                    h2_io_rst(io, H2_ERR_STREAM_CLOSED);
+                    io_process_events(m, io);
+                }
+            }
+            
+            if (io->output_drained) {
+                apr_thread_cond_signal(io->output_drained);
+            }
+        }
+        apr_thread_mutex_unlock(m->lock);
+    }
+    return stream;
 }

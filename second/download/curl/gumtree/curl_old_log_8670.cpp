@@ -1,11 +1,10 @@
 fputs(
-"              vided private key is. DER, PEM, and ENG are  supported.  If  not\n"
-"              specified, PEM is assumed.\n"
+"       --keepalive-time <seconds>\n"
+"              This option sets the time a  connection  needs  to  remain  idle\n"
+"              before  sending keepalive probes and the time between individual\n"
+"              keepalive probes. It is currently effective on operating systems\n"
+"              offering  the  TCP_KEEPIDLE  and  TCP_KEEPINTVL  socket  options\n"
+"              (meaning Linux, recent AIX, HP-UX and more). This option has  no\n"
+"              effect if --no-keepalive is used. (Added in 7.18.0)\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --krb <level>\n"
-"              (FTP)  Enable Kerberos authentication and use. The level must be\n"
-"              entered and should be one of 'clear', 'safe', 'confidential', or\n"
-"              'private'.  Should  you  use  a  level that is not one of these,\n"
 , stdout);

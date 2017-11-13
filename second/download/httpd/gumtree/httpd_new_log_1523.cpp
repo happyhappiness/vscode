@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                        "Authorization of user %s to access %s failed, reason: "
-                        "user doesn't appear in group file (%s).",
-                        r->user, r->uri, conf->groupfile);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, s,
+                           "proxy client certificate and "
+                           "private key do not match");

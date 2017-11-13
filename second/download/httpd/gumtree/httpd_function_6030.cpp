@@ -1,51 +1,51 @@
-apr_status_t h2_stream_write_data(h2_stream *stream,
-                                  const char *data, size_t len, int eos)
+apr_status_t h2_mplx_idle(h2_mplx *m)
 {
-    conn_rec *c = stream->session->c;
     apr_status_t status = APR_SUCCESS;
+    apr_time_t now;            
+    int acquired;
     
-    AP_DEBUG_ASSERT(stream);
-    if (!stream->input) {
-        return APR_EOF;
-    }
-    if (input_closed(stream) || !stream->request->eoh) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                      "h2_stream(%ld-%d): writing denied, closed=%d, eoh=%d", 
-                      stream->session->id, stream->id, input_closed(stream),
-                      stream->request->eoh);
-        return APR_EINVAL;
-    }
-
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                  "h2_stream(%ld-%d): add %ld input bytes", 
-                  stream->session->id, stream->id, (long)len);
-
-    if (!stream->request->chunked) {
-        stream->input_remaining -= len;
-        if (stream->input_remaining < 0) {
-            ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, c,
-                          APLOGNO(02961) 
-                          "h2_stream(%ld-%d): got %ld more content bytes than announced "
-                          "in content-length header: %ld", 
-                          stream->session->id, stream->id,
-                          (long)stream->request->content_length, 
-                          -(long)stream->input_remaining);
-            h2_stream_rst(stream, H2_ERR_PROTOCOL_ERROR);
-            return APR_ECONNABORTED;
+    if (enter_mutex(m, &acquired) == APR_SUCCESS) {
+        apr_size_t scount = h2_io_set_size(m->stream_ios);
+        if (scount > 0 && m->workers_busy) {
+            /* If we have streams in connection state 'IDLE', meaning
+             * all streams are ready to sent data out, but lack
+             * WINDOW_UPDATEs. 
+             * 
+             * This is ok, unless we have streams that still occupy
+             * h2 workers. As worker threads are a scarce resource, 
+             * we need to take measures that we do not get DoSed.
+             * 
+             * This is what we call an 'idle block'. Limit the amount 
+             * of busy workers we allow for this connection until it
+             * well behaves.
+             */
+            now = apr_time_now();
+            m->last_idle_block = now;
+            if (m->workers_limit > 2 
+                && now - m->last_limit_change >= m->limit_change_interval) {
+                if (m->workers_limit > 16) {
+                    m->workers_limit = 16;
+                }
+                else if (m->workers_limit > 8) {
+                    m->workers_limit = 8;
+                }
+                else if (m->workers_limit > 4) {
+                    m->workers_limit = 4;
+                }
+                else if (m->workers_limit > 2) {
+                    m->workers_limit = 2;
+                }
+                m->last_limit_change = now;
+                ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
+                              "h2_mplx(%ld): decrease worker limit to %d",
+                              m->id, m->workers_limit);
+            }
+            
+            if (m->workers_busy > m->workers_limit) {
+                status = unschedule_slow_ios(m);
+            }
         }
+        leave_mutex(m, acquired);
     }
-    
-    if (!stream->tmp) {
-        stream->tmp = apr_brigade_create(stream->pool, c->bucket_alloc);
-    }
-    apr_brigade_write(stream->tmp, NULL, NULL, data, len);
-    if (eos) {
-        APR_BRIGADE_INSERT_TAIL(stream->tmp, 
-                                apr_bucket_eos_create(c->bucket_alloc)); 
-        close_input(stream);
-    }
-    
-    status = h2_beam_send(stream->input, stream->tmp, APR_BLOCK_READ);
-    apr_brigade_cleanup(stream->tmp);
     return status;
 }

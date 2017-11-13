@@ -1,50 +1,30 @@
-apr_status_t h2_stream_schedule(h2_stream *stream, int eos, int push_enabled, 
-                                h2_stream_pri_cmp *cmp, void *ctx)
+static int submit_response(h2_session *session, h2_response *response)
 {
-    apr_status_t status;
-    AP_DEBUG_ASSERT(stream);
-    AP_DEBUG_ASSERT(stream->session);
-    AP_DEBUG_ASSERT(stream->session->mplx);
+    nghttp2_data_provider provider;
+    int rv;
     
-    if (!output_open(stream)) {
-        return APR_ECONNRESET;
-    }
-    if (stream->scheduled) {
-        return APR_EINVAL;
-    }
-    if (eos) {
-        close_input(stream);
-    }
+    memset(&provider, 0, sizeof(provider));
+    provider.source.fd = response->stream_id;
+    provider.read_callback = stream_data_cb;
     
-    /* Seeing the end-of-headers, we have everything we need to 
-     * start processing it.
-     */
-    status = h2_request_end_headers(stream->request, stream->pool, 
-                                    eos, push_enabled);
-    if (status == APR_SUCCESS) {
-        if (!eos) {
-            stream->request->body = 1;
-        }
-        stream->input_remaining = stream->request->content_length;
-        
-        status = h2_mplx_process(stream->session->mplx, stream->id, 
-                                 stream->request, cmp, ctx);
-        stream->scheduled = 1;
-        
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
-                      "h2_stream(%ld-%d): scheduled %s %s://%s%s",
-                      stream->session->id, stream->id,
-                      stream->request->method, stream->request->scheme,
-                      stream->request->authority, stream->request->path);
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
+                  "h2_stream(%ld-%d): submitting response %s",
+                  session->id, response->stream_id, response->status);
+    
+    rv = nghttp2_submit_response(session->ngh2, response->stream_id,
+                                 response->ngheader->nv, 
+                                 response->ngheader->nvlen, &provider);
+    
+    if (rv != 0) {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, session->c,
+                      APLOGNO(02939) "h2_stream(%ld-%d): submit_response: %s",
+                      session->id, response->stream_id, nghttp2_strerror(rv));
     }
     else {
-        h2_stream_rst(stream, H2_ERR_INTERNAL_ERROR);
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
-                      "h2_stream(%ld-%d): RST=2 (internal err) %s %s://%s%s",
-                      stream->session->id, stream->id,
-                      stream->request->method, stream->request->scheme,
-                      stream->request->authority, stream->request->path);
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                      "h2_stream(%ld-%d): submitted response %s, rv=%d",
+                      session->id, response->stream_id, 
+                      response->status, rv);
     }
-    
-    return status;
+    return rv;
 }

@@ -1,88 +1,41 @@
-static apr_status_t send_http_connect(proxy_conn_rec *backend,
-                                      server_rec *s)
+static apr_status_t htdbm_list(htdbm_t *htdbm) 
 {
-    int status;
-    apr_size_t nbytes;
-    apr_size_t left;
-    int complete = 0;
-    char buffer[HUGE_STRING_LEN];
-    char drain_buffer[HUGE_STRING_LEN];
-    forward_info *forward = (forward_info *)backend->forward;
-    int len = 0;
+    apr_status_t rv;
+    apr_datum_t key, val;
+    char *rec, *cmnt;
+    char kb[MAX_STRING_LEN];
+    int i = 0;
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "proxy: CONNECT: sending the CONNECT request for %s:%d "
-                 "to the remote proxy %pI (%s)",
-                 forward->target_host, forward->target_port,
-                 backend->addr, backend->hostname);
-    /* Create the CONNECT request */
-    nbytes = apr_snprintf(buffer, sizeof(buffer),
-                          "CONNECT %s:%d HTTP/1.0" CRLF,
-                          forward->target_host, forward->target_port);
-    /* Add proxy authorization from the initial request if necessary */
-    if (forward->proxy_auth != NULL) {
-        nbytes += apr_snprintf(buffer + nbytes, sizeof(buffer) - nbytes,
-                               "Proxy-Authorization: %s" CRLF,
-                               forward->proxy_auth);
+    rv = apr_dbm_firstkey(htdbm->dbm, &key);
+    if (rv != APR_SUCCESS) {
+        fprintf(stderr, "Empty database -- %s\n", htdbm->filename); 
+        return APR_ENOENT;
     }
-    /* Set a reasonable agent and send everything */
-    nbytes += apr_snprintf(buffer + nbytes, sizeof(buffer) - nbytes,
-                           "Proxy-agent: %s" CRLF CRLF,
-                           ap_get_server_banner());
-    apr_socket_send(backend->sock, buffer, &nbytes);
+    rec = apr_pcalloc(htdbm->pool, HUGE_STRING_LEN);
 
-    /* Receive the whole CONNECT response */
-    left = sizeof(buffer) - 1;
-    /* Read until we find the end of the headers or run out of buffer */
-    do {
-        nbytes = left;
-        status = apr_socket_recv(backend->sock, buffer + len, &nbytes);
-        len += nbytes;
-        left -= nbytes;
-        buffer[len] = '\0';
-        if (strstr(buffer + len - nbytes, "\r\n\r\n") != NULL) {
-            complete = 1;
-            break;
+    fprintf(stderr, "Dumping records from database -- %s\n", htdbm->filename); 
+    fprintf(stderr, "    %-32sComment\n", "Username");    
+    while (key.dptr != NULL) {
+        rv = apr_dbm_fetch(htdbm->dbm, key, &val);
+        if (rv != APR_SUCCESS) {
+            fprintf(stderr, "Failed getting data from %s\n", htdbm->filename);
+            return APR_EGENERAL;
         }
-    } while (status == APR_SUCCESS && left > 0);
-    /* Drain what's left */
-    if (!complete) {
-        nbytes = sizeof(drain_buffer) - 1;
-        while (status == APR_SUCCESS && nbytes) {
-            status = apr_socket_recv(backend->sock, drain_buffer, &nbytes);
-            buffer[nbytes] = '\0';
-            nbytes = sizeof(drain_buffer) - 1;
-            if (strstr(drain_buffer, "\r\n\r\n") != NULL) {
-                complete = 1;
-                break;
-            }
-        }
+        strncpy(kb, key.dptr, key.dsize);
+        kb[key.dsize] = '\0';
+        fprintf(stderr, "    %-32s", kb);
+        strncpy(rec, val.dptr, val.dsize);
+        rec[val.dsize] = '\0';
+        cmnt = strchr(rec, ':');
+        if (cmnt)
+            fprintf(stderr, cmnt + 1);
+        fprintf(stderr, "\n");
+        rv = apr_dbm_nextkey(htdbm->dbm, &key);
+        if (rv != APR_SUCCESS)
+            fprintf(stderr, "Failed getting NextKey\n");
+        ++i;
     }
 
-    /* Check for HTTP_OK response status */
-    if (status == APR_SUCCESS) {
-        int major, minor;
-        /* Only scan for three character status code */
-        char code_str[4];
-
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "send_http_connect: response from the forward proxy: %s",
-                     buffer);
-
-        /* Extract the returned code */
-        if (sscanf(buffer, "HTTP/%u.%u %3s", &major, &minor, code_str) == 3) {
-            status = atoi(code_str);
-            if (status == HTTP_OK) {
-                status = APR_SUCCESS;
-            }
-            else {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                             "send_http_connect: the forward proxy returned code is '%s'",
-                             code_str);
-            status = APR_INCOMPLETE;
-            }
-        }
-    }
-
-    return(status);
+    fprintf(stderr, "Total #records : %d\n", i);
+    return APR_SUCCESS;
 }

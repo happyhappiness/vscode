@@ -1,1 +1,1 @@
-error_errno("unable to write sha1 filename %s", filename);
+error_errno("file write error");

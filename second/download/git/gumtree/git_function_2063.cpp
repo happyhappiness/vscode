@@ -1,23 +1,24 @@
-static int parse_push_recurse(const char *opt, const char *arg,
-			       int die_on_error)
+void read_bisect_terms(const char **read_bad, const char **read_good)
 {
-	switch (git_config_maybe_bool(opt, arg)) {
-	case 1:
-		/* There's no simple "on" value when pushing */
-		if (die_on_error)
-			die("bad %s argument: %s", opt, arg);
-		else
-			return RECURSE_SUBMODULES_ERROR;
-	case 0:
-		return RECURSE_SUBMODULES_OFF;
-	default:
-		if (!strcmp(arg, "on-demand"))
-			return RECURSE_SUBMODULES_ON_DEMAND;
-		else if (!strcmp(arg, "check"))
-			return RECURSE_SUBMODULES_CHECK;
-		else if (die_on_error)
-			die("bad %s argument: %s", opt, arg);
-		else
-			return RECURSE_SUBMODULES_ERROR;
+	struct strbuf str = STRBUF_INIT;
+	const char *filename = git_path("BISECT_TERMS");
+	FILE *fp = fopen(filename, "r");
+
+	if (!fp) {
+		if (errno == ENOENT) {
+			*read_bad = "bad";
+			*read_good = "good";
+			return;
+		} else {
+			die("could not read file '%s': %s", filename,
+				strerror(errno));
+		}
+	} else {
+		strbuf_getline(&str, fp, '\n');
+		*read_bad = strbuf_detach(&str, NULL);
+		strbuf_getline(&str, fp, '\n');
+		*read_good = strbuf_detach(&str, NULL);
 	}
+	strbuf_release(&str);
+	fclose(fp);
 }

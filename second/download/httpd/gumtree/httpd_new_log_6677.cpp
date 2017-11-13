@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
-                    "Websocket: SSL Frame contained %lu bytes, "\
-                            "pushed to Lua stack", 
-                        remaining);
+ap_register_output_filter("H2_PARSE_H1", h2_filter_parse_h1,
+                              NULL, AP_FTYPE_NETWORK);

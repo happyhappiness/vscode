@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00851)
-                 "shmcb_subcache_retrieve found no match");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                 "ldap cache: Setting search cache size to %ld entries.",
+                 st->search_cache_size);

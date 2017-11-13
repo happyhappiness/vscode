@@ -1,2 +1,2 @@
-fprintf(stderr, "Staged '%s' using previous resolution.\n",
-			item->string);
+die("unable to generate diff (%s)",
+		    sha1_to_hex(parent->commit->object.sha1));

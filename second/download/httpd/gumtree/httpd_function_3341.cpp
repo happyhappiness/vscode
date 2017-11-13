@@ -1,48 +1,49 @@
-static apr_status_t dead_yet(pid_t pid, apr_interval_time_t max_wait)
+static int set_group_privs(void)
 {
-    apr_interval_time_t interval = 10000; /* 10 ms */
-    apr_interval_time_t total = 0;
+    if (!geteuid()) {
+        const char *name;
 
-    do {
-#ifdef _AIX
-        /* On AIX, for processes like mod_cgid's script children where
-         * SIGCHLD is ignored, kill(pid,0) returns success for up to
-         * one second after the script child exits, based on when a
-         * daemon runs to clean up unnecessary process table entries.
-         * getpgid() can report the proper info (-1/ESRCH) immediately.
+        /* Get username if passed as a uid */
+
+        if (ap_unixd_config.user_name[0] == '#') {
+            struct passwd *ent;
+            uid_t uid = atol(&ap_unixd_config.user_name[1]);
+
+            if ((ent = getpwuid(uid)) == NULL) {
+                ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
+                         "getpwuid: couldn't determine user name from uid %ld, "
+                         "you probably need to modify the User directive",
+                         (long)uid);
+                return -1;
+            }
+
+            name = ent->pw_name;
+        }
+        else
+            name = ap_unixd_config.user_name;
+
+#if !defined(OS2)
+        /* OS/2 doesn't support groups. */
+        /*
+         * Set the GID before initgroups(), since on some platforms
+         * setgid() is known to zap the group list.
          */
-        if (getpgid(pid) < 0) {
-#else
-        if (kill(pid, 0) < 0) {
-#endif
-            return APR_SUCCESS;
+        if (setgid(ap_unixd_config.group_id) == -1) {
+            ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
+                        "setgid: unable to set group id to Group %ld",
+                        (long)ap_unixd_config.group_id);
+            return -1;
         }
-        apr_sleep(interval);
-        total = total + interval;
-        if (interval < 500000) {
-            interval *= 2;
+
+        /* Reset `groups' attributes. */
+
+        if (initgroups(name, ap_unixd_config.group_id) == -1) {
+            ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
+                        "initgroups: unable to set groups for User %s "
+                        "and Group %ld", name, (long)ap_unixd_config.group_id);
+            return -1;
         }
-    } while (total < max_wait);
-    return APR_EGENERAL;
-}
-
-static apr_status_t cleanup_nonchild_process(request_rec *r, pid_t pid)
-{
-    kill(pid, SIGTERM); /* in case it isn't dead yet */
-    if (dead_yet(pid, apr_time_from_sec(3)) == APR_SUCCESS) {
-        return APR_SUCCESS;
+#endif /* !defined(OS2) */
     }
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                  "CGI process %" APR_PID_T_FMT " didn't exit, sending SIGKILL",
-                  pid);
-    kill(pid, SIGKILL);
-    if (dead_yet(pid, apr_time_from_sec(3)) == APR_SUCCESS) {
-        return APR_SUCCESS;
-    }
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                  "CGI process %" APR_PID_T_FMT " didn't exit, sending SIGKILL again",
-                  pid);
-    kill(pid, SIGKILL);
-
-    return APR_EGENERAL;
+    return 0;
 }

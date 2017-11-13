@@ -1,1 +1,1 @@
-warning("old-style 'git merge <msg> HEAD <commit>' is deprecated.");
+die("unable to add recent objects");

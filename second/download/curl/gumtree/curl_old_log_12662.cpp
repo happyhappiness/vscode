@@ -1,9 +1,11 @@
 fputs(
-"              See --cert and --key to specify them independently.\n"
+"              This option requires that libcurl  was  built  with  a  resolver\n"
+"              backend  that supports this operation. The c-ares backend is the\n"
+"              only such one. (Added in 7.33.0)\n"
 "\n"
-"              If  curl  is  built against the NSS SSL library then this option\n"
-"              can tell curl the nickname of the certificate to use within  the\n"
-"              NSS  database defined by the environment variable SSL_DIR (or by\n"
-"              default /etc/pki/nssdb). If the NSS  PEM  PKCS#11  module  (lib-\n"
-"              nsspem.so)  is  available  then  PEM files may be loaded. If you\n"
+"       --dns-ipv4-addr <ip-address>\n"
+"              Tell curl to bind to <ip-address> when making IPv4 DNS requests,\n"
+"              so  that the DNS requests originate from this address. The argu-\n"
+"              ment should be a single IPv4 address.\n"
+"\n"
 , stdout);

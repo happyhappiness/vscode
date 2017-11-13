@@ -1,10 +1,10 @@
 fputs(
-"              cause curl to pass the data to the server using the content-type\n"
-"              application/x-www-form-urlencoded.  Compare to -F, --form.\n"
+"              If this option is used several times, the last one will be used.\n"
+"              Users very often want to both read cookies from a file and write\n"
+"              updated cookies back to a file, so using both -b,  --cookie  and\n"
+"              -c, --cookie-jar in the same command line is common.\n"
 "\n"
-"              --data-raw is almost the same but does not have a special inter-\n"
-"              pretation  of  the  @ character. To post data purely binary, you\n"
-"              should instead use the --data-binary option.  To URL-encode  the\n"
-"              value of a form field you may use --data-urlencode.\n"
-"\n"
+"       --create-dirs\n"
+"              When used in conjunction with the -o, --output option, curl will\n"
+"              create the necessary local directory hierarchy as  needed.  This\n"
 , stdout);

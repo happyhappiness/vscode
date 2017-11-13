@@ -1,1 +1,2 @@
-out_of_memory("send_file_name");
+fprintf(FERROR,"write %s: %s\n",
+				dest,strerror(errno));

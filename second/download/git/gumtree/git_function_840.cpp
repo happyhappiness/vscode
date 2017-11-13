@@ -1,134 +1,64 @@
-static int http_options(const char *var, const char *value, void *cb)
+static int read_populate_todo(struct todo_list *todo_list,
+			struct replay_opts *opts)
 {
-	if (!strcmp("http.sslverify", var)) {
-		curl_ssl_verify = git_config_bool(var, value);
-		return 0;
+	const char *todo_file = get_todo_path(opts);
+	int fd, res;
+
+	strbuf_reset(&todo_list->buf);
+	fd = open(todo_file, O_RDONLY);
+	if (fd < 0)
+		return error_errno(_("could not open '%s'"), todo_file);
+	if (strbuf_read(&todo_list->buf, fd, 0) < 0) {
+		close(fd);
+		return error(_("could not read '%s'."), todo_file);
 	}
-	if (!strcmp("http.sslcipherlist", var))
-		return git_config_string(&ssl_cipherlist, var, value);
-	if (!strcmp("http.sslversion", var))
-		return git_config_string(&ssl_version, var, value);
-	if (!strcmp("http.sslcert", var))
-		return git_config_string(&ssl_cert, var, value);
-#if LIBCURL_VERSION_NUM >= 0x070903
-	if (!strcmp("http.sslkey", var))
-		return git_config_string(&ssl_key, var, value);
-#endif
-#if LIBCURL_VERSION_NUM >= 0x070908
-	if (!strcmp("http.sslcapath", var))
-		return git_config_pathname(&ssl_capath, var, value);
-#endif
-	if (!strcmp("http.sslcainfo", var))
-		return git_config_pathname(&ssl_cainfo, var, value);
-	if (!strcmp("http.sslcertpasswordprotected", var)) {
-		ssl_cert_password_required = git_config_bool(var, value);
-		return 0;
-	}
-	if (!strcmp("http.ssltry", var)) {
-		curl_ssl_try = git_config_bool(var, value);
-		return 0;
-	}
-	if (!strcmp("http.minsessions", var)) {
-		min_curl_sessions = git_config_int(var, value);
-#ifndef USE_CURL_MULTI
-		if (min_curl_sessions > 1)
-			min_curl_sessions = 1;
-#endif
-		return 0;
-	}
-#ifdef USE_CURL_MULTI
-	if (!strcmp("http.maxrequests", var)) {
-		max_requests = git_config_int(var, value);
-		return 0;
-	}
-#endif
-	if (!strcmp("http.lowspeedlimit", var)) {
-		curl_low_speed_limit = (long)git_config_int(var, value);
-		return 0;
-	}
-	if (!strcmp("http.lowspeedtime", var)) {
-		curl_low_speed_time = (long)git_config_int(var, value);
-		return 0;
+	close(fd);
+
+	res = parse_insn_buffer(todo_list->buf.buf, todo_list);
+	if (res) {
+		if (is_rebase_i(opts))
+			return error(_("please fix this using "
+				       "'git rebase --edit-todo'."));
+		return error(_("unusable instruction sheet: '%s'"), todo_file);
 	}
 
-	if (!strcmp("http.noepsv", var)) {
-		curl_ftp_no_epsv = git_config_bool(var, value);
-		return 0;
-	}
-	if (!strcmp("http.proxy", var))
-		return git_config_string(&curl_http_proxy, var, value);
+	if (!todo_list->nr &&
+	    (!is_rebase_i(opts) || !file_exists(rebase_path_done())))
+		return error(_("no commits parsed."));
 
-	if (!strcmp("http.proxyauthmethod", var))
-		return git_config_string(&http_proxy_authmethod, var, value);
+	if (!is_rebase_i(opts)) {
+		enum todo_command valid =
+			opts->action == REPLAY_PICK ? TODO_PICK : TODO_REVERT;
+		int i;
 
-	if (!strcmp("http.cookiefile", var))
-		return git_config_pathname(&curl_cookie_file, var, value);
-	if (!strcmp("http.savecookies", var)) {
-		curl_save_cookies = git_config_bool(var, value);
-		return 0;
-	}
-
-	if (!strcmp("http.postbuffer", var)) {
-		http_post_buffer = git_config_ssize_t(var, value);
-		if (http_post_buffer < 0)
-			warning(_("negative value for http.postbuffer; defaulting to %d"), LARGE_PACKET_MAX);
-		if (http_post_buffer < LARGE_PACKET_MAX)
-			http_post_buffer = LARGE_PACKET_MAX;
-		return 0;
+		for (i = 0; i < todo_list->nr; i++)
+			if (valid == todo_list->items[i].command)
+				continue;
+			else if (valid == TODO_PICK)
+				return error(_("cannot cherry-pick during a revert."));
+			else
+				return error(_("cannot revert during a cherry-pick."));
 	}
 
-	if (!strcmp("http.useragent", var))
-		return git_config_string(&user_agent, var, value);
+	if (is_rebase_i(opts)) {
+		struct todo_list done = TODO_LIST_INIT;
+		FILE *f = fopen(rebase_path_msgtotal(), "w");
 
-	if (!strcmp("http.emptyauth", var)) {
-		if (value && !strcmp("auto", value))
-			curl_empty_auth = -1;
+		if (strbuf_read_file(&done.buf, rebase_path_done(), 0) > 0 &&
+				!parse_insn_buffer(done.buf.buf, &done))
+			todo_list->done_nr = count_commands(&done);
 		else
-			curl_empty_auth = git_config_bool(var, value);
-		return 0;
-	}
+			todo_list->done_nr = 0;
 
-	if (!strcmp("http.delegation", var)) {
-#if LIBCURL_VERSION_NUM >= 0x071600
-		return git_config_string(&curl_deleg, var, value);
-#else
-		warning(_("Delegation control is not supported with cURL < 7.22.0"));
-		return 0;
-#endif
-	}
+		todo_list->total_nr = todo_list->done_nr
+			+ count_commands(todo_list);
+		todo_list_release(&done);
 
-	if (!strcmp("http.pinnedpubkey", var)) {
-#if LIBCURL_VERSION_NUM >= 0x072c00
-		return git_config_pathname(&ssl_pinnedkey, var, value);
-#else
-		warning(_("Public key pinning not supported with cURL < 7.44.0"));
-		return 0;
-#endif
-	}
-
-	if (!strcmp("http.extraheader", var)) {
-		if (!value) {
-			return config_error_nonbool(var);
-		} else if (!*value) {
-			curl_slist_free_all(extra_http_headers);
-			extra_http_headers = NULL;
-		} else {
-			extra_http_headers =
-				curl_slist_append(extra_http_headers, value);
+		if (f) {
+			fprintf(f, "%d\n", todo_list->total_nr);
+			fclose(f);
 		}
-		return 0;
 	}
 
-	if (!strcmp("http.followredirects", var)) {
-		if (value && !strcmp(value, "initial"))
-			http_follow_config = HTTP_FOLLOW_INITIAL;
-		else if (git_config_bool(var, value))
-			http_follow_config = HTTP_FOLLOW_ALWAYS;
-		else
-			http_follow_config = HTTP_FOLLOW_NONE;
-		return 0;
-	}
-
-	/* Fall back on the default ones */
-	return git_default_config(var, value, cb);
+	return 0;
 }

@@ -1,1 +1,0 @@
-die("no such commit %s", sha1_to_hex(sha1));

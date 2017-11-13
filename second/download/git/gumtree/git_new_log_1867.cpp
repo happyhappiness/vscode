@@ -1,1 +1,1 @@
-die(_("no tag exactly matches '%s'"), oid_to_hex(&cmit->object.oid));
+die("git cat-file --allow-unknown-type: use with -s or -t");

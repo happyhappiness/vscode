@@ -1,1 +1,0 @@
-error("new commit is the same as the old one: '%s'", sha1_to_hex(old));

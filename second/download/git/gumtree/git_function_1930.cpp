@@ -1,22 +1,13 @@
-static int option_parse_recurse_submodules(const struct option *opt,
-				   const char *arg, int unset)
+static const char *get_ident_string(void)
 {
-	int *flags = opt->value;
+	static struct strbuf sb = STRBUF_INIT;
+	struct utsname uts;
 
-	if (*flags & (TRANSPORT_RECURSE_SUBMODULES_CHECK |
-		      TRANSPORT_RECURSE_SUBMODULES_ON_DEMAND))
-		die("%s can only be used once.", opt->long_name);
-
-	if (arg) {
-		if (!strcmp(arg, "check"))
-			*flags |= TRANSPORT_RECURSE_SUBMODULES_CHECK;
-		else if (!strcmp(arg, "on-demand"))
-			*flags |= TRANSPORT_RECURSE_SUBMODULES_ON_DEMAND;
-		else
-			die("bad %s argument: %s", opt->long_name, arg);
-	} else
-		die("option %s needs an argument (check|on-demand)",
-				opt->long_name);
-
-	return 0;
+	if (sb.len)
+		return sb.buf;
+	if (uname(&uts))
+		die_errno(_("failed to get kernel name and information"));
+	strbuf_addf(&sb, "Location %s, system %s %s %s", get_git_work_tree(),
+		    uts.sysname, uts.release, uts.version);
+	return sb.buf;
 }

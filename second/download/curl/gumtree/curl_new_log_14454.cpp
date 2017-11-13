@@ -1,10 +1,10 @@
 fputs(
-"              ing with the HTTP server.  The specified request method will  be\n"
-"              used  instead  of  the  method otherwise used (which defaults to\n"
-"              GET). Read the HTTP 1.1 specification for details  and  explana-\n"
-"              tions.  Common  additional HTTP requests include PUT and DELETE,\n"
-"              but related technologies like WebDAV offers PROPFIND, COPY, MOVE\n"
-"              and more.\n"
+"              extracting a filename from the URL.\n"
 "\n"
-"              Normally  you  don't  need  this option. All sorts of GET, HEAD,\n"
+"              If  the  server  specifies a file name and a file with that name\n"
+"              already exists in the current working directory it will  not  be\n"
+"              overwritten and an error will occur. If the server doesn't spec-\n"
+"              ify a file name then this option has no effect.\n"
+"\n"
+"              There's no attempt to decode %-sequences (yet) in  the  provided\n"
 , stdout);

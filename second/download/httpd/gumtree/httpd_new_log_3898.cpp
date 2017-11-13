@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01079)
-                      "failed to make connection to backend: %s",
-                      backend->hostname);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss, APLOGNO(01602)
+                     "Cannot get media parameter.");

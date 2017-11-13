@@ -1,1 +1,1 @@
-die("strange hostname '%s' blocked", ssh_host);
+error(_("Merging is not possible because you have unmerged files."));

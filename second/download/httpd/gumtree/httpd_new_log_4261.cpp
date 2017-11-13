@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02269)
-                 SSLPROXY_CERT_CB_LOG_FMT
-                 "no client certificate found!?", sc->vhost_id);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01192) "settings worker params");

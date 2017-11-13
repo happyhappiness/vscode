@@ -1,2 +1,3 @@
-apr_pstrcat(p, "Wildcard patterns not allowed in Include ",
-                               fname, NULL);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "proxy: %s: has acquired connection for (%s)",
+                 proxy_function, worker->hostname);

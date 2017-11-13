@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
-                         "Limiting the subrequest depth to a very low level may"
-                         " cause normal requests to fail.");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                             "proxy: origin server sent 401 without WWW-Authenticate header");

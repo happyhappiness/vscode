@@ -1,1 +1,1 @@
-fprintf(stderr,"Testing httpd.conf....\n");
+ap_rputs("<b><font color=\"#ffffff\" face=\"Arial,Helvetica\">SSL/TLS Session Cache Status:</font></b>\r", r);

@@ -1,0 +1,1 @@
+printf("%s\n", pks->cert_files[i]);

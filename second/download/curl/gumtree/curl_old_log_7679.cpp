@@ -1,11 +1,11 @@
 fputs(
-"              (SSL) Specify the path name to file containing what will be con-\n"
-"              sidered as random data. The data is  used  to  seed  the  random\n"
-"              engine for SSL connections.  See also the --egd-file option.\n"
+"              mand with an asterisk (*) to make libcurl continue even  if  the\n"
+"              command fails as by default curl will stop at first failure.\n"
 "\n"
-"       --raw  When  used, it disables all internal HTTP decoding of content or\n"
-"              transfer encodings and instead makes them passed  on  unaltered,\n"
-"              raw. (Added in 7.16.2)\n"
+"              SFTP  is  a  binary protocol. Unlike for FTP, libcurl interprets\n"
+"              SFTP quote commands itself before sending them  to  the  server.\n"
+"              File  names may be quoted shell-style to embed spaces or special\n"
+"              characters.  Following is the list of all supported  SFTP  quote\n"
+"              commands:\n"
 "\n"
-"       --remote-name-all\n"
 , stdout);

@@ -1,1 +1,1 @@
-error_errno("poll failed, resuming");
+printf_ln("%s", *url);

@@ -1,10 +1,11 @@
 fputs(
-"              (FTP) Tell curl to send a PRET command before PASV  (and  EPSV).\n"
-"              Certain  FTP  servers,  mainly drftpd, require this non-standard\n"
-"              command for directory listings as well as up  and  downloads  in\n"
-"              PASV mode.  (Added in 7.20.x)\n"
+"              (FTP) Tell curl to not use the IP address the server suggests in\n"
+"              its  response to curl's PASV command when curl connects the data\n"
+"              connection. Instead curl will re-use  the  same  IP  address  it\n"
+"              already uses for the control connection. (Added in 7.14.2)\n"
 "\n"
-"       --ftp-ssl-ccc\n"
-"              (FTP)  Use  CCC  (Clear  Command Channel) Shuts down the SSL/TLS\n"
-"              layer after authenticating. The rest of the control channel com-\n"
+"              This  option has no effect if PORT, EPRT or EPSV is used instead\n"
+"              of PASV.\n"
+"\n"
+"       --ftp-pret\n"
 , stdout);

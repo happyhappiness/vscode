@@ -1,1 +1,1 @@
-print_ref_status(type, quickref.buf, ref, ref->peer_ref, msg, porcelain);
+die(_("'%s' is already checked out at '%s'"), branch, existing);

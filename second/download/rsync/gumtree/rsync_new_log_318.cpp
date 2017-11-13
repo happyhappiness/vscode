@@ -1,1 +1,1 @@
-fprintf(FINFO,"offset=%d sum=%08x\n",(int)offset,sum);
+fprintf(FINFO,"recv_file_name(%s)\n",f_name(flist->files[i]));

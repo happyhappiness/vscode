@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, errno,
-                         NULL, "ufork: Possible mis-configuration "
-                         "for user %s - Aborting.", user);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                     "proxy: FCGI: Failed writing Environment to %s:",
+                     server_portstr);

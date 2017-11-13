@@ -1,1 +1,1 @@
-die("bug in show-killed-files");
+die("loose refname is dangerous: %s", refname.buf);

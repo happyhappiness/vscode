@@ -1,1 +1,1 @@
-die_errno("BUG: unexpected fast_export_ls error");
+die_errno("sigfillset");

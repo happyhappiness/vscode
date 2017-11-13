@@ -1,1 +1,0 @@
-io_printf(f_out, "@ERROR: protocol startup error\n");

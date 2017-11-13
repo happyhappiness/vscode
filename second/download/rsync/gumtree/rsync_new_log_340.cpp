@@ -1,1 +1,1 @@
-fprintf(FERROR,"unlink %s : %s\n",f_name(f),strerror(errno));
+fprintf(FINFO,"nothing to do\n");

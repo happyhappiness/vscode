@@ -1,8 +1,11 @@
 fputs(
-"              and a 3XX response code), this option will make  curl  redo  the\n"
-"              request on the new place. If used together with -i, --include or\n"
-"              -I, --head, headers from all requested pages will be shown. When\n"
-"              authentication  is  used, curl only sends its credentials to the\n"
-"              initial host. If a redirect takes curl to a different  host,  it\n"
-"              won't  be  able to intercept the user+password. See also --loca-\n"
+"              If this option is used several times, the last one will be used.\n"
+"              If unspecified, the option defaults to 60 seconds.\n"
+"\n"
+"       --key <key>\n"
+"              (SSL/SSH) Private key file name. Allows you to provide your pri-\n"
+"              vate  key in this separate file. For SSH, if not specified, curl\n"
+"              tries  the  following  candidates  in  order:   '~/.ssh/id_rsa',\n"
+"              '~/.ssh/id_dsa', './id_rsa', './id_dsa'.\n"
+"\n"
 , stdout);

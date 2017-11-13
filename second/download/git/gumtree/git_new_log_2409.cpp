@@ -1,1 +1,1 @@
-error_errno("cannot open fd %d", in_fd);
+printf(" %s", oid_to_hex(&parents->item->object.oid));

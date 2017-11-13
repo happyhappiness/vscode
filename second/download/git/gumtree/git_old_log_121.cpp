@@ -1,1 +1,0 @@
-die_errno("index file open failed");

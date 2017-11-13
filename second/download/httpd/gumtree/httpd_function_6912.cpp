@@ -1,12 +1,12 @@
-void h2_stream_destroy(h2_stream *stream)
+void h2_stream_rst(h2_stream *stream, int error_code)
 {
-    ap_assert(stream);
-    ap_assert(!h2_mplx_stream_get(stream->session->mplx, stream->id));
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, stream->session->c, 
-                  "h2_stream(%ld-%d): destroy", 
-                  stream->session->id, stream->id);
-    stream->can_be_cleaned = 1;
-    if (stream->pool) {
-        apr_pool_destroy(stream->pool);
+    stream->rst_error = error_code;
+    close_input(stream);
+    close_output(stream);
+    if (stream->out_buffer) {
+        apr_brigade_cleanup(stream->out_buffer);
     }
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
+                  "h2_stream(%ld-%d): reset, error=%d", 
+                  stream->session->id, stream->id, error_code);
 }

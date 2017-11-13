@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00126)
-                     "Invalid URI in request %s", r->the_request);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01052)
+                          "error listening to ftp data socket %pI", local_addr);

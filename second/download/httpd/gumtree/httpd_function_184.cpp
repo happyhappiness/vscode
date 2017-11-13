@@ -1,475 +1,199 @@
-static apr_status_t send_parsed_content(ap_filter_t *f, apr_bucket_brigade *bb)
+static int util_ldap_post_config(apr_pool_t *p, apr_pool_t *plog, 
+                                 apr_pool_t *ptemp, server_rec *s)
 {
-    ssi_ctx_t *ctx = f->ctx;
-    request_rec *r = f->r;
-    apr_bucket *b = APR_BRIGADE_FIRST(bb);
-    apr_bucket_brigade *pass_bb;
-    apr_status_t rv = APR_SUCCESS;
-    char *magic; /* magic pointer for sentinel use */
+    int rc = LDAP_SUCCESS;
+    apr_status_t result;
+    char buf[MAX_STRING_LEN];
 
-    /* fast exit */
-    if (APR_BRIGADE_EMPTY(bb)) {
-        return APR_SUCCESS;
-    }
+    util_ldap_state_t *st =
+        (util_ldap_state_t *)ap_get_module_config(s->module_config, &ldap_module);
 
-    /* we may crash, since already cleaned up; hand over the responsibility
-     * to the next filter;-)
-     */
-    if (ctx->seen_eos) {
-        return ap_pass_brigade(f->next, bb);
-    }
+#if APR_HAS_SHARED_MEMORY
+    server_rec *s_vhost;
+    util_ldap_state_t *st_vhost;
+    
+    /* initializing cache if file is here and we already don't have shm addr*/
+    if (st->cache_file && !st->cache_shm) {
+#endif
+        result = util_ldap_cache_init(p, st);
+        apr_strerror(result, buf, sizeof(buf));
+        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s,
+                     "LDAP cache init: %s", buf);
 
-    /* All stuff passed along has to be put into that brigade */
-    pass_bb = apr_brigade_create(ctx->ctx->pool, f->c->bucket_alloc);
-    ctx->ctx->bytes_parsed = 0;
-    ctx->ctx->output_now = 0;
-    ctx->error = 0;
+#if APR_HAS_SHARED_MEMORY
+        /* merge config in all vhost */
+        s_vhost = s->next;
+        while (s_vhost) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s, 
+                         "LDAP merging Shared Cache conf: shm=0x%x rmm=0x%x for VHOST: %s",
+                         st->cache_shm, st->cache_rmm, s_vhost->server_hostname);
 
-    /* loop over the current bucket brigade */
-    while (b != APR_BRIGADE_SENTINEL(bb)) {
-        const char *data = NULL;
-        apr_size_t len, index, release;
-        apr_bucket *newb = NULL;
-        char **store = &magic;
-        apr_size_t *store_len;
-
-        /* handle meta buckets before reading any data */
-        if (APR_BUCKET_IS_METADATA(b)) {
-            newb = APR_BUCKET_NEXT(b);
-
-            APR_BUCKET_REMOVE(b);
-
-            if (APR_BUCKET_IS_EOS(b)) {
-                ctx->seen_eos = 1;
-
-                /* Hit end of stream, time for cleanup ... But wait!
-                 * Perhaps we're not ready yet. We may have to loop one or
-                 * two times again to finish our work. In that case, we
-                 * just re-insert the EOS bucket to allow for an extra loop.
-                 *
-                 * PARSE_EXECUTE means, we've hit a directive just before the
-                 *    EOS, which is now waiting for execution.
-                 *
-                 * PARSE_DIRECTIVE_POSTTAIL means, we've hit a directive with
-                 *    no argument and no space between directive and end_seq
-                 *    just before the EOS. (consider <!--#printenv--> as last
-                 *    or only string within the stream). This state, however,
-                 *    just cleans up and turns itself to PARSE_EXECUTE, which
-                 *    will be passed through within the next (and actually
-                 *    last) round.
-                 */
-                if (PARSE_EXECUTE            == ctx->state ||
-                    PARSE_DIRECTIVE_POSTTAIL == ctx->state) {
-                    APR_BUCKET_INSERT_BEFORE(newb, b);
-                }
-                else {
-                    break; /* END OF STREAM */
-                }
-            }
-            else {
-                APR_BRIGADE_INSERT_TAIL(pass_bb, b);
-
-                if (APR_BUCKET_IS_FLUSH(b)) {
-                    ctx->ctx->output_now = 1;
-                }
-
-                b = newb;
-                continue;
-            }
+            st_vhost = (util_ldap_state_t *)ap_get_module_config(s_vhost->module_config, &ldap_module);
+            st_vhost->cache_shm = st->cache_shm;
+            st_vhost->cache_rmm = st->cache_rmm;
+            st_vhost->cache_file = st->cache_file;
+            s_vhost = s_vhost->next;
         }
-
-        /* enough is enough ... */
-        if (ctx->ctx->output_now ||
-            ctx->ctx->bytes_parsed > AP_MIN_BYTES_TO_WRITE) {
-
-            if (!APR_BRIGADE_EMPTY(pass_bb)) {
-                rv = ap_pass_brigade(f->next, pass_bb);
-                if (!APR_STATUS_IS_SUCCESS(rv)) {
-                    apr_brigade_destroy(pass_bb);
-                    return rv;
-                }
-            }
-
-            ctx->ctx->output_now = 0;
-            ctx->ctx->bytes_parsed = 0;
-        }
-
-        /* read the current bucket data */
-        len = 0;
-        if (!ctx->seen_eos) {
-            if (ctx->ctx->bytes_parsed > 0) {
-                rv = apr_bucket_read(b, &data, &len, APR_NONBLOCK_READ);
-                if (APR_STATUS_IS_EAGAIN(rv)) {
-                    ctx->ctx->output_now = 1;
-                    continue;
-                }
-            }
-
-            if (!len || !APR_STATUS_IS_SUCCESS(rv)) {
-                rv = apr_bucket_read(b, &data, &len, APR_BLOCK_READ);
-            }
-
-            if (!APR_STATUS_IS_SUCCESS(rv)) {
-                apr_brigade_destroy(pass_bb);
-                return rv;
-            }
-
-            ctx->ctx->bytes_parsed += len;
-        }
-
-        /* zero length bucket, fetch next one */
-        if (!len && !ctx->seen_eos) {
-            b = APR_BUCKET_NEXT(b);
-            continue;
-        }
-
-        /*
-         * it's actually a data containing bucket, start/continue parsing
-         */
-
-        switch (ctx->state) {
-        /* no current tag; search for start sequence */
-        case PARSE_PRE_HEAD:
-            index = find_start_sequence(ctx, data, len);
-
-            if (index < len) {
-                apr_bucket_split(b, index);
-            }
-
-            newb = APR_BUCKET_NEXT(b);
-            if (ctx->ctx->flags & FLAG_PRINTING) {
-                APR_BUCKET_REMOVE(b);
-                APR_BRIGADE_INSERT_TAIL(pass_bb, b);
-            }
-            else {
-                apr_bucket_delete(b);
-            }
-
-            if (index < len) {
-                /* now delete the start_seq stuff from the remaining bucket */
-                if (PARSE_DIRECTIVE == ctx->state) { /* full match */
-                    apr_bucket_split(newb, ctx->ctx->start_seq_len);
-                    ctx->ctx->output_now = 1; /* pass pre-tag stuff */
-                }
-
-                b = APR_BUCKET_NEXT(newb);
-                apr_bucket_delete(newb);
-            }
-            else {
-                b = newb;
-            }
-
-            break;
-
-        /* we're currently looking for the end of the start sequence */
-        case PARSE_HEAD:
-            index = find_partial_start_sequence(ctx, data, len, &release);
-
-            /* check if we mismatched earlier and have to release some chars */
-            if (release && (ctx->ctx->flags & FLAG_PRINTING)) {
-                char *to_release = apr_palloc(ctx->ctx->pool, release);
-
-                memcpy(to_release, ctx->ctx->start_seq, release);
-                newb = apr_bucket_pool_create(to_release, release,
-                                              ctx->ctx->pool,
-                                              f->c->bucket_alloc);
-                APR_BRIGADE_INSERT_TAIL(pass_bb, newb);
-            }
-
-            if (index) { /* any match */
-                /* now delete the start_seq stuff from the remaining bucket */
-                if (PARSE_DIRECTIVE == ctx->state) { /* final match */
-                    apr_bucket_split(b, index);
-                    ctx->ctx->output_now = 1; /* pass pre-tag stuff */
-                }
-                newb = APR_BUCKET_NEXT(b);
-                apr_bucket_delete(b);
-                b = newb;
-            }
-
-            break;
-
-        /* we're currently grabbing the directive name */
-        case PARSE_DIRECTIVE:
-        case PARSE_DIRECTIVE_POSTNAME:
-        case PARSE_DIRECTIVE_TAIL:
-        case PARSE_DIRECTIVE_POSTTAIL:
-            index = find_directive(ctx, data, len, &store, &store_len);
-
-            if (index) {
-                apr_bucket_split(b, index);
-                newb = APR_BUCKET_NEXT(b);
-            }
-
-            if (store) {
-                if (index) {
-                    APR_BUCKET_REMOVE(b);
-                    APR_BRIGADE_INSERT_TAIL(ctx->tmp_bb, b);
-                    b = newb;
-                }
-
-                /* time for cleanup? */
-                if (store != &magic) {
-                    apr_brigade_pflatten(ctx->tmp_bb, store, store_len,
-                                         ctx->dpool);
-                    apr_brigade_cleanup(ctx->tmp_bb);
-                }
-            }
-            else if (index) {
-                apr_bucket_delete(b);
-                b = newb;
-            }
-
-            break;
-
-        /* skip WS and find out what comes next (arg or end_seq) */
-        case PARSE_PRE_ARG:
-            index = find_arg_or_tail(ctx, data, len);
-
-            if (index) { /* skipped whitespaces */
-                if (index < len) {
-                    apr_bucket_split(b, index);
-                }
-                newb = APR_BUCKET_NEXT(b);
-                apr_bucket_delete(b);
-                b = newb;
-            }
-
-            break;
-
-        /* currently parsing name[=val] */
-        case PARSE_ARG:
-        case PARSE_ARG_NAME:
-        case PARSE_ARG_POSTNAME:
-        case PARSE_ARG_EQ:
-        case PARSE_ARG_PREVAL:
-        case PARSE_ARG_VAL:
-        case PARSE_ARG_VAL_ESC:
-        case PARSE_ARG_POSTVAL:
-            index = find_argument(ctx, data, len, &store, &store_len);
-
-            if (index) {
-                apr_bucket_split(b, index);
-                newb = APR_BUCKET_NEXT(b);
-            }
-
-            if (store) {
-                if (index) {
-                    APR_BUCKET_REMOVE(b);
-                    APR_BRIGADE_INSERT_TAIL(ctx->tmp_bb, b);
-                    b = newb;
-                }
-
-                /* time for cleanup? */
-                if (store != &magic) {
-                    apr_brigade_pflatten(ctx->tmp_bb, store, store_len,
-                                         ctx->dpool);
-                    apr_brigade_cleanup(ctx->tmp_bb);
-                }
-            }
-            else if (index) {
-                apr_bucket_delete(b);
-                b = newb;
-            }
-
-            break;
-
-        /* try to match end_seq at current pos. */
-        case PARSE_TAIL:
-        case PARSE_TAIL_SEQ:
-            index = find_tail(ctx, data, len);
-
-            switch (ctx->state) {
-            case PARSE_EXECUTE:  /* full match */
-                apr_bucket_split(b, index);
-                newb = APR_BUCKET_NEXT(b);
-                apr_bucket_delete(b);
-                b = newb;
-                break;
-
-            case PARSE_ARG:      /* no match */
-                /* PARSE_ARG must reparse at the beginning */
-                APR_BRIGADE_PREPEND(bb, ctx->tmp_bb);
-                b = APR_BRIGADE_FIRST(bb);
-                break;
-
-            default:             /* partial match */
-                newb = APR_BUCKET_NEXT(b);
-                APR_BUCKET_REMOVE(b);
-                APR_BRIGADE_INSERT_TAIL(ctx->tmp_bb, b);
-                b = newb;
-                break;
-            }
-
-            break;
-
-        /* now execute the parsed directive, cleanup the space and
-         * start again with PARSE_PRE_HEAD
-         */
-        case PARSE_EXECUTE:
-            /* if there was an error, it was already logged; just stop here */
-            if (ctx->error) {
-                if (ctx->ctx->flags & FLAG_PRINTING) {
-                    SSI_CREATE_ERROR_BUCKET(ctx->ctx, f, pass_bb);
-                    ctx->error = 0;
-                }
-            }
-            else {
-                include_handler_fn_t *handle_func;
-
-                handle_func =
-                    (include_handler_fn_t *) apr_hash_get(include_hash,
-                                                    ctx->directive,
-                                                    ctx->ctx->directive_length);
-                if (handle_func) {
-                    apr_bucket *dummy;
-                    char *tag;
-                    apr_size_t tag_len = 0;
-                    ssi_arg_item_t *carg = ctx->argv;
-
-                    /* legacy wrapper code */
-                    while (carg) {
-                        /* +1 \0 byte (either after tag or value)
-                         * +1 =  byte (before value)
-                         */
-                        tag_len += (carg->name  ? carg->name_len      : 0) +
-                                   (carg->value ? carg->value_len + 1 : 0) + 1;
-                        carg = carg->next;
-                    }
-
-                    tag = ctx->ctx->combined_tag = ctx->ctx->curr_tag_pos =
-                        apr_palloc(ctx->dpool, tag_len);
-
-                    carg = ctx->argv;
-                    while (carg) {
-                        if (carg->name) {
-                            memcpy(tag, carg->name, carg->name_len);
-                            tag += carg->name_len;
-                        }
-                        if (carg->value) {
-                            *tag++ = '=';
-                            memcpy(tag, carg->value, carg->value_len);
-                            tag += carg->value_len;
-                        }
-                        *tag++ = '\0';
-                        carg = carg->next;
-                    }
-                    ctx->ctx->tag_length = tag_len;
-
-                    /* create dummy buckets for backards compat */
-                    ctx->ctx->head_start_bucket =
-                        apr_bucket_pool_create(apr_pmemdup(ctx->ctx->pool,
-                                                           ctx->ctx->start_seq,
-                                                       ctx->ctx->start_seq_len),
-                                               ctx->ctx->start_seq_len,
-                                               ctx->ctx->pool,
-                                               f->c->bucket_alloc);
-                    APR_BRIGADE_INSERT_TAIL(ctx->ctx->ssi_tag_brigade,
-                                            ctx->ctx->head_start_bucket);
-                    ctx->ctx->tag_start_bucket =
-                        apr_bucket_pool_create(apr_pmemdup(ctx->ctx->pool,
-                                                         ctx->ctx->combined_tag,
-                                                         ctx->ctx->tag_length),
-                                               ctx->ctx->tag_length,
-                                               ctx->ctx->pool,
-                                               f->c->bucket_alloc);
-                    APR_BRIGADE_INSERT_TAIL(ctx->ctx->ssi_tag_brigade,
-                                            ctx->ctx->tag_start_bucket);
-                    ctx->ctx->tail_start_bucket =
-                        apr_bucket_pool_create(apr_pmemdup(ctx->ctx->pool,
-                                                           ctx->ctx->end_seq,
-                                                           ctx->end_seq_len),
-                                               ctx->end_seq_len,
-                                               ctx->ctx->pool,
-                                               f->c->bucket_alloc);
-                    APR_BRIGADE_INSERT_TAIL(ctx->ctx->ssi_tag_brigade,
-                                            ctx->ctx->tail_start_bucket);
-
-                    rv = handle_func(ctx->ctx, &bb, r, f, b, &dummy);
-
-                    apr_brigade_cleanup(ctx->ctx->ssi_tag_brigade);
-
-                    if (rv != 0 && rv != 1 && rv != -1) {
-                        apr_brigade_destroy(pass_bb);
-                        return rv;
-                    }
-
-                    if (dummy) {
-                        apr_bucket_brigade *remain;
-
-                        remain = apr_brigade_split(bb, b);
-                        APR_BRIGADE_CONCAT(pass_bb, bb);
-                        bb = remain;
-                    }
-                }
-                else {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                  "unknown directive \"%s\" in parsed doc %s",
-                                  apr_pstrmemdup(r->pool, ctx->directive,
-                                                 ctx->ctx->directive_length),
-                                                 r->filename);
-                    if (ctx->ctx->flags & FLAG_PRINTING) {
-                        SSI_CREATE_ERROR_BUCKET(ctx->ctx, f, pass_bb);
-                    }
-                }
-            }
-
-            /* cleanup */
-            apr_pool_clear(ctx->dpool);
-            apr_brigade_cleanup(ctx->tmp_bb);
-
-            /* Oooof. Done here, start next round */
-            ctx->state = PARSE_PRE_HEAD;
-            break;
-        }
-
-    } /* while (brigade) */
-
-    /* End of stream. Final cleanup */
-    if (ctx->seen_eos) {
-        if (PARSE_HEAD == ctx->state) {
-            if (ctx->ctx->flags & FLAG_PRINTING) {
-                char *to_release = apr_palloc(ctx->ctx->pool,
-                                              ctx->ctx->parse_pos);
-
-                memcpy(to_release, ctx->ctx->start_seq, ctx->ctx->parse_pos);
-                APR_BRIGADE_INSERT_TAIL(pass_bb,
-                                        apr_bucket_pool_create(to_release,
-                                        ctx->ctx->parse_pos, ctx->ctx->pool,
-                                        f->c->bucket_alloc));
-            }
-        }
-        else if (PARSE_PRE_HEAD != ctx->state) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "SSI directive was not properly finished at the end "
-                          "of parsed document %s", r->filename);
-            if (ctx->ctx->flags & FLAG_PRINTING) {
-                SSI_CREATE_ERROR_BUCKET(ctx->ctx, f, pass_bb);
-            }
-        }
-
-        if (!(ctx->ctx->flags & FLAG_PRINTING)) {
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "missing closing endif directive in parsed document"
-                          " %s", r->filename);
-        }
-
-        /* cleanup our temporary memory */
-        apr_brigade_destroy(ctx->tmp_bb);
-        apr_pool_destroy(ctx->dpool);
-
-        /* don't forget to finally insert the EOS bucket */
-        APR_BRIGADE_INSERT_TAIL(pass_bb, b);
-    }
-
-    /* if something's left over, pass it along */
-    if (!APR_BRIGADE_EMPTY(pass_bb)) {
-        rv = ap_pass_brigade(f->next, pass_bb);
     }
     else {
-        rv = APR_SUCCESS;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0 , s, "LDAP cache: Unable to init Shared Cache: no file");
     }
+#endif
+    
+    /* log the LDAP SDK used 
+     */
+    #if APR_HAS_NETSCAPE_LDAPSDK 
+    
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+             "LDAP: Built with Netscape LDAP SDK" );
 
-    apr_brigade_destroy(pass_bb);
-    return rv;
+    #elif APR_HAS_NOVELL_LDAPSDK
+
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+             "LDAP: Built with Novell LDAP SDK" );
+
+    #elif APR_HAS_OPENLDAP_LDAPSDK
+
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+             "LDAP: Built with OpenLDAP LDAP SDK" );
+
+    #elif APR_HAS_MICROSOFT_LDAPSDK
+    
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+             "LDAP: Built with Microsoft LDAP SDK" );
+    #else
+    
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+             "LDAP: Built with unknown LDAP SDK" );
+
+    #endif /* APR_HAS_NETSCAPE_LDAPSDK */
+
+
+
+    apr_pool_cleanup_register(p, s, util_ldap_cleanup_module,
+                              util_ldap_cleanup_module); 
+
+    /* initialize SSL support if requested
+    */
+    if (st->cert_auth_file)
+    {
+        #if APR_HAS_LDAP_SSL /* compiled with ssl support */
+
+        #if APR_HAS_NETSCAPE_LDAPSDK 
+
+            /* Netscape sdk only supports a cert7.db file 
+            */
+            if (st->cert_file_type == LDAP_CA_TYPE_CERT7_DB)
+            {
+                rc = ldapssl_client_init(st->cert_auth_file, NULL);
+            }
+            else
+            {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
+                         "LDAP: Invalid LDAPTrustedCAType directive - "
+                          "CERT7_DB_PATH type required");
+                rc = -1;
+            }
+
+        #elif APR_HAS_NOVELL_LDAPSDK
+        
+            /* Novell SDK supports DER or BASE64 files
+            */
+            if (st->cert_file_type == LDAP_CA_TYPE_DER  ||
+                st->cert_file_type == LDAP_CA_TYPE_BASE64 )
+            {
+                rc = ldapssl_client_init(NULL, NULL);
+                if (LDAP_SUCCESS == rc)
+                {
+                    if (st->cert_file_type == LDAP_CA_TYPE_BASE64)
+                        rc = ldapssl_add_trusted_cert(st->cert_auth_file, 
+                                                  LDAPSSL_CERT_FILETYPE_B64);
+                    else
+                        rc = ldapssl_add_trusted_cert(st->cert_auth_file, 
+                                                  LDAPSSL_CERT_FILETYPE_DER);
+
+                    if (LDAP_SUCCESS != rc)
+                        ldapssl_client_deinit();
+                }
+            }
+            else
+            {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
+                             "LDAP: Invalid LDAPTrustedCAType directive - "
+                             "DER_FILE or BASE64_FILE type required");
+                rc = -1;
+            }
+
+        #elif APR_HAS_OPENLDAP_LDAPSDK
+
+            /* OpenLDAP SDK supports BASE64 files
+            */
+            if (st->cert_file_type == LDAP_CA_TYPE_BASE64)
+            {
+                rc = ldap_set_option(NULL, LDAP_OPT_X_TLS_CACERTFILE, st->cert_auth_file);
+            }
+            else
+            {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
+                             "LDAP: Invalid LDAPTrustedCAType directive - "
+                             "BASE64_FILE type required");
+                rc = -1;
+            }
+
+
+        #elif APR_HAS_MICROSOFT_LDAPSDK
+            
+            /* Microsoft SDK use the registry certificate store - always
+             * assume support is always available
+            */
+            rc = LDAP_SUCCESS;
+
+        #else
+            rc = -1;
+        #endif /* APR_HAS_NETSCAPE_LDAPSDK */
+
+        #else  /* not compiled with SSL Support */
+
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+                     "LDAP: Not built with SSL support." );
+            rc = -1;
+
+        #endif /* APR_HAS_LDAP_SSL */
+
+        if (LDAP_SUCCESS == rc)
+        {
+            st->ssl_support = 1;
+        }
+        else
+        {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, 
+                         "LDAP: SSL initialization failed");
+            st->ssl_support = 0;
+        }
+    }
+      
+        /* The Microsoft SDK uses the registry certificate store -
+         * always assume support is available
+        */
+    #if APR_HAS_MICROSOFT_LDAPSDK
+        st->ssl_support = 1;
+    #endif
+    
+
+        /* log SSL status - If SSL isn't available it isn't necessarily
+         * an error because the modules asking for LDAP connections 
+         * may not ask for SSL support
+        */
+    if (st->ssl_support)
+    {
+       ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+                         "LDAP: SSL support available" );
+    }
+    else
+    {
+       ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+                         "LDAP: SSL support unavailable" );
+    }
+    
+    return(OK);
 }

@@ -1,14 +1,6 @@
-puts(
-"          This option switches off  the  \"URL  globbing  parser\".\n"
-"          When  you  set  this  option, you can specify URLs that\n"
-"          contain the letters  {}[]  without  having  them  being\n"
-"          interpreted by curl itself. Note that these letters are\n"
-"          not normal  legal  URL  contents  but  they  should  be\n"
-"          encoded according to the URI standard. (Option added in\n"
-"          curl 7.6)\n"
-"\n"
-"     -h/--help\n"
-"          Usage help.\n"
-"\n"
-"     -H/--header <header>\n"
-);
+puts(" -y/--speed-time    Time needed to trig speed-limit abort. Defaults to 30\n"
+       " -Y/--speed-limit   Stop transfer if below speed-limit for 'speed-time' secs\n"
+       " -z/--time-cond <time> Includes a time condition to the server (H)\n"
+       " -Z/--max-redirs <num> Set maximum number of redirections allowed (H)\n"
+       " -2/--sslv2         Force usage of SSLv2 (H)\n"
+       " -3/--sslv3         Force usage of SSLv3 (H)");

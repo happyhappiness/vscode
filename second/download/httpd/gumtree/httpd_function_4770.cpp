@@ -1,352 +1,191 @@
-void winnt_rewrite_args(process_rec *process)
+int ssl_callback_SSLVerify_CRL(int ok, X509_STORE_CTX *ctx, conn_rec *c)
 {
-    /* Handle the following SCM aspects in this phase:
-     *
-     *   -k runservice [transition in service context only]
-     *   -k install
-     *   -k config
-     *   -k uninstall
-     *   -k stop
-     *   -k shutdown (same as -k stop). Maintained for backward compatability.
-     *
-     * We can't leave this phase until we know our identity
-     * and modify the command arguments appropriately.
-     *
-     * We do not care if the .conf file exists or is parsable when
-     * attempting to stop or uninstall a service.
+    SSL *ssl = X509_STORE_CTX_get_ex_data(ctx,
+                                          SSL_get_ex_data_X509_STORE_CTX_idx());
+    request_rec *r      = (request_rec *)SSL_get_app_data2(ssl);
+    server_rec *s       = r ? r->server : mySrvFromConn(c);
+    SSLSrvConfigRec *sc = mySrvConfig(s);
+    SSLConnRec *sslconn = myConnConfig(c);
+    modssl_ctx_t *mctx  = myCtxConfig(sslconn, sc);
+    X509_OBJECT obj;
+    X509_NAME *subject, *issuer;
+    X509 *cert;
+    X509_CRL *crl;
+    EVP_PKEY *pubkey;
+    int i, n, rc;
+
+    /*
+     * Unless a revocation store for CRLs was created we
+     * cannot do any CRL-based verification, of course.
      */
-    apr_status_t rv;
-    char *def_server_root;
-    char *binpath;
-    char optbuf[3];
-    const char *optarg;
-    int fixed_args;
-    char *pid;
-    apr_getopt_t *opt;
-    int running_as_service = 1;
-    int errout = 0;
-    apr_file_t *nullfile;
+    if (!mctx->crl) {
+        return ok;
+    }
 
-    pconf = process->pconf;
-
-    osver.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-    GetVersionEx(&osver);
-
-    /* We wish this was *always* a reservation, but sadly it wasn't so and
-     * we couldn't break a hard limit prior to NT Kernel 5.1
+    /*
+     * Determine certificate ingredients in advance
      */
-    if (osver.dwPlatformId == VER_PLATFORM_WIN32_NT 
-        && ((osver.dwMajorVersion > 5)
-         || ((osver.dwMajorVersion == 5) && (osver.dwMinorVersion > 0)))) {
-        stack_res_flag = STACK_SIZE_PARAM_IS_A_RESERVATION;
-    }
+    cert    = X509_STORE_CTX_get_current_cert(ctx);
+    subject = X509_get_subject_name(cert);
+    issuer  = X509_get_issuer_name(cert);
 
-    /* AP_PARENT_PID is only valid in the child */
-    pid = getenv("AP_PARENT_PID");
-    if (pid)
-    {
-        HANDLE filehand;
-        HANDLE hproc = GetCurrentProcess();
-
-        /* This is the child */
-        my_pid = GetCurrentProcessId();
-        parent_pid = (DWORD) atol(pid);
-
-        /* Prevent holding open the (nonexistant) console */
-        ap_real_exit_code = 0;
-
-        /* The parent gave us stdin, we need to remember this
-         * handle, and no longer inherit it at our children
-         * (we can't slurp it up now, we just aren't ready yet).
-         * The original handle is closed below, at apr_file_dup2()
-         */
-        pipe = GetStdHandle(STD_INPUT_HANDLE);
-        if (DuplicateHandle(hproc, pipe,
-                            hproc, &filehand, 0, FALSE,
-                            DUPLICATE_SAME_ACCESS)) {
-            pipe = filehand;
-        }
-
-        /* The parent gave us stdout of the NUL device,
-         * and expects us to suck up stdin of all of our
-         * shared handles and data from the parent.
-         * Don't infect child processes with our stdin
-         * handle, use another handle to NUL!
-         */
-        {
-            apr_file_t *infile, *outfile;
-            if ((apr_file_open_stdout(&outfile, process->pool) == APR_SUCCESS)
-             && (apr_file_open_stdin(&infile, process->pool) == APR_SUCCESS))
-                apr_file_dup2(infile, outfile, process->pool);
-        }
-
-        /* This child needs the existing stderr opened for logging,
-         * already 
-         */
-
-
-        /* The parent is responsible for providing the
-         * COMPLETE ARGUMENTS REQUIRED to the child.
-         *
-         * No further argument parsing is needed, but
-         * for good measure we will provide a simple
-         * signal string for later testing.
-         */
-        signal_arg = "runchild";
-        return;
-    }
-
-    /* This is the parent, we have a long way to go :-) */
-    parent_pid = my_pid = GetCurrentProcessId();
-
-    /* This behavior is voided by setting real_exit_code to 0 */
-    atexit(hold_console_open_on_error);
-
-    /* Rewrite process->argv[];
+    /*
+     * OpenSSL provides the general mechanism to deal with CRLs but does not
+     * use them automatically when verifying certificates, so we do it
+     * explicitly here. We will check the CRL for the currently checked
+     * certificate, if there is such a CRL in the store.
      *
-     * strip out -k signal into signal_arg
-     * strip out -n servicename and set the names
-     * add default -d serverroot from the path of this executable
+     * We come through this procedure for each certificate in the certificate
+     * chain, starting with the root-CA's certificate. At each step we've to
+     * both verify the signature on the CRL (to make sure it's a valid CRL)
+     * and it's revocation list (to make sure the current certificate isn't
+     * revoked).  But because to check the signature on the CRL we need the
+     * public key of the issuing CA certificate (which was already processed
+     * one round before), we've a little problem. But we can both solve it and
+     * at the same time optimize the processing by using the following
+     * verification scheme (idea and code snippets borrowed from the GLOBUS
+     * project):
      *
-     * The end result will look like:
+     * 1. We'll check the signature of a CRL in each step when we find a CRL
+     *    through the _subject_ name of the current certificate. This CRL
+     *    itself will be needed the first time in the next round, of course.
+     *    But we do the signature processing one round before this where the
+     *    public key of the CA is available.
      *
-     * The invocation command (%0)
-     *     The -d serverroot default from the running executable
-     *         The requested service's (-n) registry ConfigArgs
-     *             The WinNT SCM's StartService() args
+     * 2. We'll check the revocation list of a CRL in each step when
+     *    we find a CRL through the _issuer_ name of the current certificate.
+     *    This CRLs signature was then already verified one round before.
+     *
+     * This verification scheme allows a CA to revoke its own certificate as
+     * well, of course.
      */
-    if ((rv = ap_os_proc_filepath(&binpath, process->pconf))
-            != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK,APLOG_CRIT, rv, NULL,
-                     "Failed to get the full path of %s", process->argv[0]);
-        exit(APEXIT_INIT);
-    }
-    /* WARNING: There is an implict assumption here that the
-     * executable resides in ServerRoot or ServerRoot\bin
+
+    /*
+     * Try to retrieve a CRL corresponding to the _subject_ of
+     * the current certificate in order to verify it's integrity.
      */
-    def_server_root = (char *) apr_filepath_name_get(binpath);
-    if (def_server_root > binpath) {
-        *(def_server_root - 1) = '\0';
-        def_server_root = (char *) apr_filepath_name_get(binpath);
-        if (!strcasecmp(def_server_root, "bin"))
-            *(def_server_root - 1) = '\0';
-    }
-    apr_filepath_merge(&def_server_root, NULL, binpath,
-                       APR_FILEPATH_TRUENAME, process->pool);
+    memset((char *)&obj, 0, sizeof(obj));
+    rc = SSL_X509_STORE_lookup(mctx->crl,
+                               X509_LU_CRL, subject, &obj);
+    crl = obj.data.crl;
 
-    /* Use process->pool so that the rewritten argv
-     * lasts for the lifetime of the server process,
-     * because pconf will be destroyed after the
-     * initial pre-flight of the config parser.
+    if ((rc > 0) && crl) {
+        /*
+         * Log information about CRL
+         * (A little bit complicated because of ASN.1 and BIOs...)
+         */
+        if (APLOGtrace1(s)) {
+            char buff[512]; /* should be plenty */
+            BIO *bio = BIO_new(BIO_s_mem());
+
+            BIO_printf(bio, "CA CRL: Issuer: ");
+            X509_NAME_print(bio, issuer, 0);
+
+            BIO_printf(bio, ", lastUpdate: ");
+            ASN1_UTCTIME_print(bio, X509_CRL_get_lastUpdate(crl));
+
+            BIO_printf(bio, ", nextUpdate: ");
+            ASN1_UTCTIME_print(bio, X509_CRL_get_nextUpdate(crl));
+
+            n = BIO_read(bio, buff, sizeof(buff) - 1);
+            buff[n] = '\0';
+
+            BIO_free(bio);
+
+            ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s, "%s", buff);
+        }
+
+        /*
+         * Verify the signature on this CRL
+         */
+        pubkey = X509_get_pubkey(cert);
+        rc = X509_CRL_verify(crl, pubkey);
+#ifdef OPENSSL_VERSION_NUMBER
+        /* Only refcounted in OpenSSL */
+        if (pubkey)
+            EVP_PKEY_free(pubkey);
+#endif
+        if (rc <= 0) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "Invalid signature on CRL");
+
+            X509_STORE_CTX_set_error(ctx, X509_V_ERR_CRL_SIGNATURE_FAILURE);
+            X509_OBJECT_free_contents(&obj);
+            return FALSE;
+        }
+
+        /*
+         * Check date of CRL to make sure it's not expired
+         */
+        i = X509_cmp_current_time(X509_CRL_get_nextUpdate(crl));
+
+        if (i == 0) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "Found CRL has invalid nextUpdate field");
+
+            X509_STORE_CTX_set_error(ctx,
+                                     X509_V_ERR_ERROR_IN_CRL_NEXT_UPDATE_FIELD);
+            X509_OBJECT_free_contents(&obj);
+
+            return FALSE;
+        }
+
+        if (i < 0) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "Found CRL is expired - "
+                         "revoking all certificates until you get updated CRL");
+
+            X509_STORE_CTX_set_error(ctx, X509_V_ERR_CRL_HAS_EXPIRED);
+            X509_OBJECT_free_contents(&obj);
+
+            return FALSE;
+        }
+
+        X509_OBJECT_free_contents(&obj);
+    }
+
+    /*
+     * Try to retrieve a CRL corresponding to the _issuer_ of
+     * the current certificate in order to check for revocation.
      */
-    mpm_new_argv = apr_array_make(process->pool, process->argc + 2,
-                                  sizeof(const char *));
-    *(const char **)apr_array_push(mpm_new_argv) = process->argv[0];
-    *(const char **)apr_array_push(mpm_new_argv) = "-d";
-    *(const char **)apr_array_push(mpm_new_argv) = def_server_root;
+    memset((char *)&obj, 0, sizeof(obj));
+    rc = SSL_X509_STORE_lookup(mctx->crl,
+                               X509_LU_CRL, issuer, &obj);
 
-    fixed_args = mpm_new_argv->nelts;
-
-    optbuf[0] = '-';
-    optbuf[2] = '\0';
-    apr_getopt_init(&opt, process->pool, process->argc, (char**) process->argv);
-    opt->errfn = NULL;
-    while ((rv = apr_getopt(opt, "wn:k:" AP_SERVER_BASEARGS,
-                            optbuf + 1, &optarg)) == APR_SUCCESS) {
-        switch (optbuf[1]) {
-
-        /* Shortcuts; include the -w option to hold the window open on error.
-         * This must not be toggled once we reset ap_real_exit_code to 0!
+    crl = obj.data.crl;
+    if ((rc > 0) && crl) {
+        /*
+         * Check if the current certificate is revoked by this CRL
          */
-        case 'w':
-            if (ap_real_exit_code)
-                ap_real_exit_code = 2;
-            break;
+        n = sk_X509_REVOKED_num(X509_CRL_get_REVOKED(crl));
 
-        case 'n':
-            service_set = mpm_service_set_name(process->pool, &service_name,
-                                               optarg);
-            break;
+        for (i = 0; i < n; i++) {
+            X509_REVOKED *revoked =
+                sk_X509_REVOKED_value(X509_CRL_get_REVOKED(crl), i);
 
-        case 'k':
-            signal_arg = optarg;
-            break;
+            ASN1_INTEGER *sn = X509_REVOKED_get_serialNumber(revoked);
 
-        case 'E':
-            errout = 1;
-            /* Fall through so the Apache main() handles the 'E' arg */
-        default:
-            *(const char **)apr_array_push(mpm_new_argv) =
-                apr_pstrdup(process->pool, optbuf);
+            if (!ASN1_INTEGER_cmp(sn, X509_get_serialNumber(cert))) {
+                if (APLOGdebug(s)) {
+                    char *cp = X509_NAME_oneline(issuer, NULL, 0);
+                    long serial = ASN1_INTEGER_get(sn);
 
-            if (optarg) {
-                *(const char **)apr_array_push(mpm_new_argv) = optarg;
-            }
-            break;
-        }
-    }
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                                 "Certificate with serial %ld (0x%lX) "
+                                 "revoked per CRL from issuer %s",
+                                 serial, serial, cp);
+                    modssl_free(cp);
+                }
 
-    /* back up to capture the bad argument */
-    if (rv == APR_BADCH || rv == APR_BADARG) {
-        opt->ind--;
-    }
+                X509_STORE_CTX_set_error(ctx, X509_V_ERR_CERT_REVOKED);
+                X509_OBJECT_free_contents(&obj);
 
-    while (opt->ind < opt->argc) {
-        *(const char **)apr_array_push(mpm_new_argv) =
-            apr_pstrdup(process->pool, opt->argv[opt->ind++]);
-    }
-
-    /* Track the number of args actually entered by the user */
-    inst_argc = mpm_new_argv->nelts - fixed_args;
-
-    /* Provide a default 'run' -k arg to simplify signal_arg tests */
-    if (!signal_arg)
-    {
-        signal_arg = "run";
-        running_as_service = 0;
-    }
-
-    if (!strcasecmp(signal_arg, "runservice"))
-    {
-        /* Start the NT Service _NOW_ because the WinNT SCM is
-         * expecting us to rapidly assume control of our own
-         * process, the SCM will tell us our service name, and
-         * may have extra StartService() command arguments to
-         * add for us.
-         *
-         * The SCM will generally invoke the executable with
-         * the c:\win\system32 default directory.  This is very
-         * lethal if folks use ServerRoot /foopath on windows
-         * without a drive letter.  Change to the default root
-         * (path to apache root, above /bin) for safety.
-         */
-        apr_filepath_set(def_server_root, process->pool);
-
-        /* Any other process has a console, so we don't to begin
-         * a Win9x service until the configuration is parsed and
-         * any command line errors are reported.
-         *
-         * We hold the return value so that we can die in pre_config
-         * after logging begins, and the failure can land in the log.
-         */
-        if (!errout) {
-            mpm_nt_eventlog_stderr_open(service_name, process->pool);
-        }
-        service_to_start_success = mpm_service_to_start(&service_name,
-                                                        process->pool);
-        if (service_to_start_success == APR_SUCCESS) {
-            service_set = APR_SUCCESS;
-        }
-
-        /* Open a null handle to soak stdout in this process.
-         * Windows service processes are missing any file handle
-         * usable for stdin/out/err.  This was the cause of later 
-         * trouble with invocations of apr_file_open_stdout()
-         */
-        if ((rv = apr_file_open(&nullfile, "NUL",
-                                APR_READ | APR_WRITE, APR_OS_DEFAULT,
-                                process->pool)) == APR_SUCCESS) {
-            apr_file_t *nullstdout;
-            if (apr_file_open_stdout(&nullstdout, process->pool)
-                    == APR_SUCCESS)
-                apr_file_dup2(nullstdout, nullfile, process->pool);
-            apr_file_close(nullfile);
-        }
-    }
-
-    /* Get the default for any -k option, except run */
-    if (service_set == SERVICE_UNSET && strcasecmp(signal_arg, "run")) {
-        service_set = mpm_service_set_name(process->pool, &service_name,
-                                           AP_DEFAULT_SERVICE_NAME);
-    }
-
-    if (!strcasecmp(signal_arg, "install")) /* -k install */
-    {
-        if (service_set == APR_SUCCESS)
-        {
-            ap_log_error(APLOG_MARK,APLOG_ERR, 0, NULL,
-                 "%s: Service is already installed.", service_name);
-            exit(APEXIT_INIT);
-        }
-    }
-    else if (running_as_service)
-    {
-        if (service_set == APR_SUCCESS)
-        {
-            /* Attempt to Uninstall, or stop, before
-             * we can read the arguments or .conf files
-             */
-            if (!strcasecmp(signal_arg, "uninstall")) {
-                rv = mpm_service_uninstall();
-                exit(rv);
-            }
-
-            if ((!strcasecmp(signal_arg, "stop")) ||
-                (!strcasecmp(signal_arg, "shutdown"))) {
-                mpm_signal_service(process->pool, 0);
-                exit(0);
-            }
-
-            rv = mpm_merge_service_args(process->pool, mpm_new_argv,
-                                        fixed_args);
-            if (rv == APR_SUCCESS) {
-                ap_log_error(APLOG_MARK,APLOG_INFO, 0, NULL,
-                             "Using ConfigArgs of the installed service "
-                             "\"%s\".", service_name);
-            }
-            else  {
-                ap_log_error(APLOG_MARK,APLOG_WARNING, rv, NULL,
-                             "No installed ConfigArgs for the service "
-                             "\"%s\", using Apache defaults.", service_name);
+                return FALSE;
             }
         }
-        else
-        {
-            ap_log_error(APLOG_MARK,APLOG_ERR, service_set, NULL,
-                 "No installed service named \"%s\".", service_name);
-            exit(APEXIT_INIT);
-        }
-    }
-    if (strcasecmp(signal_arg, "install") && service_set && service_set != SERVICE_UNSET)
-    {
-        ap_log_error(APLOG_MARK,APLOG_ERR, service_set, NULL,
-             "No installed service named \"%s\".", service_name);
-        exit(APEXIT_INIT);
+
+        X509_OBJECT_free_contents(&obj);
     }
 
-    /* Track the args actually entered by the user.
-     * These will be used for the -k install parameters, as well as
-     * for the -k start service override arguments.
-     */
-    inst_argv = (const char * const *)mpm_new_argv->elts
-        + mpm_new_argv->nelts - inst_argc;
-
-    /* Now, do service install or reconfigure then proceed to
-     * post_config to test the installed configuration.
-     */
-    if (!strcasecmp(signal_arg, "config")) { /* -k config */
-        /* Reconfigure the service */
-        rv = mpm_service_install(process->pool, inst_argc, inst_argv, 1);
-        if (rv != APR_SUCCESS) {
-            exit(rv);
-        }
-
-        fprintf(stderr,"Testing httpd.conf....\n");
-        fprintf(stderr,"Errors reported here must be corrected before the "
-                "service can be started.\n");
-    }
-    else if (!strcasecmp(signal_arg, "install")) { /* -k install */
-        /* Install the service */
-        rv = mpm_service_install(process->pool, inst_argc, inst_argv, 0);
-        if (rv != APR_SUCCESS) {
-            exit(rv);
-        }
-
-        fprintf(stderr,"Testing httpd.conf....\n");
-        fprintf(stderr,"Errors reported here must be corrected before the "
-                "service can be started.\n");
-    }
-
-    process->argc = mpm_new_argv->nelts;
-    process->argv = (const char * const *) mpm_new_argv->elts;
+    return ok;
 }

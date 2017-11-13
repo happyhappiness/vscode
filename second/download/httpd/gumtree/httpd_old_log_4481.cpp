@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT, APR_EBADPATH,
-                     NULL, "Invalid PID file path %s, ignoring.", filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "proxy: " PROXY_FUNCTION ": error reading response "
+                      "headers from %s:%u", conn->hostname, conn->port);

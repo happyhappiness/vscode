@@ -1,4 +1,1 @@
-error("external filter '%s' signaled that '%s' "
-					      "is now available although it has not been "
-					      "delayed earlier",
-					      filter->string, path->string);
+die("you must specify at least one tree to merge");

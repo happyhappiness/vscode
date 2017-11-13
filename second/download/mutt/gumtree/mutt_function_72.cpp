@@ -1,97 +1,102 @@
-int mutt_write_mime_header (BODY *a, FILE *f)
+void pgp_signed_handler (BODY *a, STATE *s)
 {
-  PARAMETER *p;
-  char buffer[STRING];
-  char *t;
-  char *fn;
-  int len;
-  int tmplen;
-  int encode;
+  char tempfile[_POSIX_PATH_MAX];
+  char *protocol;
+  int protocol_major = TYPEOTHER;
+  char *protocol_minor = NULL;
   
-  fprintf (f, "Content-Type: %s/%s", TYPE (a), a->subtype);
+  BODY *b = a;
+  BODY **signatures = NULL;
+  int sigcnt = 0;
+  int i;
+  short goodsig = 1;
 
-  if (a->parameter)
+  protocol = mutt_get_parameter ("protocol", a->parameter);
+  a = a->parts;
+
+  /* extract the protocol information */
+  
+  if (protocol)
   {
-    len = 25 + mutt_strlen (a->subtype); /* approximate len. of content-type */
+    char major[STRING];
+    char *t;
 
-    for(p = a->parameter; p; p = p->next)
-    {
-      char *tmp;
-      
-      if(!p->value)
-	continue;
-      
-      fputc (';', f);
-
-      buffer[0] = 0;
-      tmp = safe_strdup (p->value);
-      encode = rfc2231_encode_string (&tmp);
-      rfc822_cat (buffer, sizeof (buffer), tmp, MimeSpecials);
-
-      /* Dirty hack to make messages readable by Outlook Express 
-       * for the Mac: force quotes around the boundary parameter
-       * even when they aren't needed.
-       */
-
-      if (!ascii_strcasecmp (p->attribute, "boundary") && !strcmp (buffer, tmp))
-	snprintf (buffer, sizeof (buffer), "\"%s\"", tmp);
-
-      safe_free ((void **)&tmp);
-
-      tmplen = mutt_strlen (buffer) + mutt_strlen (p->attribute) + 1;
-
-      if (len + tmplen + 2 > 76)
-      {
-	fputs ("\n\t", f);
-	len = tmplen + 8;
-      }
-      else
-      {
-	fputc (' ', f);
-	len += tmplen + 1;
-      }
-
-      fprintf (f, "%s%s=%s", p->attribute, encode ? "*" : "", buffer);
-
-    }
-  }
-
-  fputc ('\n', f);
-
-  if (a->description)
-    fprintf(f, "Content-Description: %s\n", a->description);
-
-  fprintf (f, "Content-Disposition: %s", DISPOSITION (a->disposition));
-
-  if (a->use_disp)
-  {
-    if(!(fn = a->d_filename))
-      fn = a->filename;
+    if ((protocol_minor = strchr(protocol, '/'))) protocol_minor++;
     
-    if (fn)
-    {
-      char *tmp;
-
-      /* Strip off the leading path... */
-      if ((t = strrchr (fn, '/')))
-	t++;
-      else
-	t = fn;
-      
-      buffer[0] = 0;
-      tmp = safe_strdup (t);
-      encode = rfc2231_encode_string (&tmp);
-      rfc822_cat (buffer, sizeof (buffer), tmp, MimeSpecials);
-      safe_free ((void **)&tmp);
-      fprintf (f, "; filename%s=%s", encode ? "*" : "", buffer);
-    }
+    strfcpy(major, protocol, sizeof(major));
+    if((t = strchr(major, '/')))
+      *t = '\0';
+    
+    protocol_major = mutt_check_mime_type (major);
   }
 
-  fputc ('\n', f);
+  /* consistency check */
 
-  if (a->encoding != ENC7BIT)
-    fprintf(f, "Content-Transfer-Encoding: %s\n", ENCODING (a->encoding));
+  if (!(a && a->next && a->next->type == protocol_major && 
+      !ascii_strcasecmp(a->next->subtype, protocol_minor)))
+  {
+    state_attach_puts(_("[-- Error: Inconsistent multipart/signed structure! --]\n\n"), s);
+    mutt_body_handler (a, s);
+    return;
+  }
 
-  /* Do NOT add the terminator here!!! */
-  return (ferror (f) ? -1 : 0);
+  if(!(protocol_major == TYPEAPPLICATION && !ascii_strcasecmp(protocol_minor, "pgp-signature"))
+     && !(protocol_major == TYPEMULTIPART && !ascii_strcasecmp(protocol_minor, "mixed")))
+  {
+    state_mark_attach (s);
+    state_printf(s, _("[-- Error: Unknown multipart/signed protocol %s! --]\n\n"), protocol);
+    mutt_body_handler (a, s);
+    return;
+  }
+  
+  if (s->flags & M_DISPLAY)
+  {
+    
+    pgp_fetch_signatures(&signatures, a->next, &sigcnt);
+    
+    if (sigcnt)
+    {
+      mutt_mktemp (tempfile);
+      if (pgp_write_signed (a, s, tempfile) == 0)
+      {
+	for (i = 0; i < sigcnt; i++)
+	{
+	  if (signatures[i]->type == TYPEAPPLICATION 
+	      && !ascii_strcasecmp(signatures[i]->subtype, "pgp-signature"))
+	  {
+	    if (pgp_verify_one (signatures[i], s, tempfile) != 0)
+	      goodsig = 0;
+	  }
+	  else
+	  {
+	    state_mark_attach (s);
+	    state_printf (s, _("[-- Warning: We can't verify %s/%s signatures. --]\n\n"),
+			  TYPE(signatures[i]), signatures[i]->subtype);
+	  }
+	}
+      }
+      
+      mutt_unlink (tempfile);
+
+      b->goodsig = goodsig;
+      
+      dprint (2, (debugfile, "pgp_signed_handler: goodsig = %d\n", goodsig));
+      
+      /* Now display the signed body */
+      state_attach_puts (_("[-- The following data is signed --]\n\n"), s);
+
+
+      safe_free((void **) &signatures);
+    }
+    else
+      state_attach_puts (_("[-- Warning: Can't find any signatures. --]\n\n"), s);
+  }
+  
+  mutt_body_handler (a, s);
+  
+  if (s->flags & M_DISPLAY && sigcnt)
+  {
+    state_putc ('\n', s);
+    state_attach_puts (_("[-- End of signed data --]\n"), s);
+  }
 }

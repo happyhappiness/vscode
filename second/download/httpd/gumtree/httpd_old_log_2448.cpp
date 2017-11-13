@@ -1,1 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, "remove called with NULL session_id!");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "HTTP Request Line; Excess whitespace "
+                          "(disallowed by HttpProtocolOptions Strict");

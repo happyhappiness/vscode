@@ -1,1 +1,1 @@
-error("cannot open fd %d: %s", in_fd, strerror(errno));
+printf(" %s", sha1_to_hex(parents->item->object.sha1));

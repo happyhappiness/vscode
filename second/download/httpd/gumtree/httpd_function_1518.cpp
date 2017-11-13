@@ -1,66 +1,130 @@
-static authz_status dbmfilegroup_check_authorization(request_rec *r,
-                                              const char *require_args)
+static int match_headers(request_rec *r)
 {
-    authz_dbm_config_rec *conf = ap_get_module_config(r->per_dir_config,
-                                                      &authz_dbm_module);
-    char *user = r->user;
-    const char *realm = ap_auth_name(r);
-    const char *filegroup = NULL;
-    const char *orig_groups = NULL;
-    apr_status_t status;
-    const char *groups;
-    char *v;
+    sei_cfg_rec *sconf;
+    sei_entry *entries;
+    const apr_table_entry_t *elts;
+    const char *val;
+    apr_size_t val_len = 0;
+    int i, j;
+    char *last_name;
+    ap_regmatch_t regm[AP_MAX_REG_MATCH];
 
-    if (!user) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-            "access to %s failed, reason: no authenticated user", r->uri);
-        return AUTHZ_DENIED;
+    if (!ap_get_module_config(r->request_config, &setenvif_module)) {
+        ap_set_module_config(r->request_config, &setenvif_module,
+                             SEI_MAGIC_HEIRLOOM);
+        sconf  = (sei_cfg_rec *) ap_get_module_config(r->server->module_config,
+                                                      &setenvif_module);
     }
-
-    if (!conf->grpfile) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                        "No group file was specified in the configuration");
-        return AUTHZ_DENIED;
+    else {
+        sconf = (sei_cfg_rec *) ap_get_module_config(r->per_dir_config,
+                                                     &setenvif_module);
     }
+    entries = (sei_entry *) sconf->conditionals->elts;
+    last_name = NULL;
+    val = NULL;
+    for (i = 0; i < sconf->conditionals->nelts; ++i) {
+        sei_entry *b = &entries[i];
 
-    /* fetch group data from dbm file. */
-    status = get_dbm_grp(r, apr_pstrcat(r->pool, user, ":", realm, NULL),
-                         user, conf->grpfile, conf->dbmtype, &groups);
+        /* Optimize the case where a bunch of directives in a row use the
+         * same header.  Remember we don't need to strcmp the two header
+         * names because we made sure the pointers were equal during
+         * configuration.
+         */
+        if (b->name != last_name) {
+            last_name = b->name;
+            switch (b->special_type) {
+            case SPECIAL_REMOTE_ADDR:
+                val = r->connection->remote_ip;
+                break;
+            case SPECIAL_SERVER_ADDR:
+                val = r->connection->local_ip;
+                break;
+            case SPECIAL_REMOTE_HOST:
+                val =  ap_get_remote_host(r->connection, r->per_dir_config,
+                                          REMOTE_NAME, NULL);
+                break;
+            case SPECIAL_REQUEST_URI:
+                val = r->uri;
+                break;
+            case SPECIAL_REQUEST_METHOD:
+                val = r->method;
+                break;
+            case SPECIAL_REQUEST_PROTOCOL:
+                val = r->protocol;
+                break;
+            case SPECIAL_NOT:
+                if (b->pnamereg) {
+                    /* Matching headers_in against a regex. Iterate through
+                     * the headers_in until we find a match or run out of
+                     * headers.
+                     */
+                    const apr_array_header_t
+                        *arr = apr_table_elts(r->headers_in);
 
-    if (status != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                      "could not open dbm (type %s) group access "
-                      "file: %s", conf->dbmtype, conf->grpfile);
-        return AUTHZ_DENIED;
-    }
+                    elts = (const apr_table_entry_t *) arr->elts;
+                    val = NULL;
+                    for (j = 0; j < arr->nelts; ++j) {
+                        if (!ap_regexec(b->pnamereg, elts[j].key, 0, NULL, 0)) {
+                            val = elts[j].val;
+                        }
+                    }
+                }
+                else {
+                    /* Not matching against a regex */
+                    val = apr_table_get(r->headers_in, b->name);
+                    if (val == NULL) {
+                        val = apr_table_get(r->subprocess_env, b->name);
+                    }
+                }
+            }
+            val_len = val ? strlen(val) : 0;
+        }
 
-    if (groups == NULL) {
-        /* no groups available, so exit immediately */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Authorization of user %s to access %s failed, reason: "
-                      "user doesn't appear in DBM group file (%s).", 
-                      r->user, r->uri, conf->grpfile);
-        return AUTHZ_DENIED;
-    }
+        /*
+         * A NULL value indicates that the header field or special entity
+         * wasn't present or is undefined.  Represent that as an empty string
+         * so that REs like "^$" will work and allow envariable setting
+         * based on missing or empty field.
+         */
+        if (val == NULL) {
+            val = "";
+            val_len = 0;
+        }
 
-    orig_groups = groups;
+        if ((b->pattern && apr_strmatch(b->pattern, val, val_len)) ||
+            (!b->pattern && !ap_regexec(b->preg, val, AP_MAX_REG_MATCH, regm,
+                                        0))) {
+            const apr_array_header_t *arr = apr_table_elts(b->features);
+            elts = (const apr_table_entry_t *) arr->elts;
 
-    filegroup = authz_owner_get_file_group(r);
-
-    if (filegroup) {
-        groups = orig_groups;
-        while (groups[0]) {
-            v = ap_getword(r->pool, &groups, ',');
-            if (!strcmp(v, filegroup)) {
-                return AUTHZ_GRANTED;
+            for (j = 0; j < arr->nelts; ++j) {
+                if (*(elts[j].val) == '!') {
+                    apr_table_unset(r->subprocess_env, elts[j].key);
+                }
+                else {
+                    if (!b->pattern) {
+                        char *replaced = ap_pregsub(r->pool, elts[j].val, val,
+                                                    AP_MAX_REG_MATCH, regm);
+                        if (replaced) {
+                            apr_table_setn(r->subprocess_env, elts[j].key,
+                                           replaced);
+                        }
+                        else {
+                            ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r,
+                                          "Regular expression replacement "
+                                          "failed for '%s', value too long?",
+                                          elts[j].key);
+                            return HTTP_INTERNAL_SERVER_ERROR;
+                        }
+                    }
+                    else {
+                        apr_table_setn(r->subprocess_env, elts[j].key,
+                                       elts[j].val);
+                    }
+                }
             }
         }
     }
 
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                  "Authorization of user %s to access %s failed, reason: "
-                  "user is not part of the 'require'ed group(s).",
-                  r->user, r->uri);
-
-    return AUTHZ_DENIED;
+    return DECLINED;
 }

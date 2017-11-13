@@ -1,69 +1,25 @@
-int mutt_check_overwrite (const char *attname, const char *path,
-				char *fname, size_t flen, int *append, char **directory) 
+static void draw_envelope (HEADER *msg, char *fcc)
 {
-  int rc = 0;
-  char tmp[_POSIX_PATH_MAX];
-  struct stat st;
+  draw_envelope_addr (HDR_FROM, msg->env->from);
+  draw_envelope_addr (HDR_TO, msg->env->to);
+  draw_envelope_addr (HDR_CC, msg->env->cc);
+  draw_envelope_addr (HDR_BCC, msg->env->bcc);
+  mutt_window_mvprintw (MuttIndexWindow, HDR_SUBJECT, 0, TITLE_FMT, Prompts[HDR_SUBJECT]);
+  mutt_paddstr (W, NONULL (msg->env->subject));
+  draw_envelope_addr (HDR_REPLYTO, msg->env->reply_to);
+  mutt_window_mvprintw (MuttIndexWindow, HDR_FCC, 0, TITLE_FMT, Prompts[HDR_FCC]);
+  mutt_paddstr (W, fcc);
 
-  strfcpy (fname, path, flen);
-  if (access (fname, F_OK) != 0)
-    return 0;
-  if (stat (fname, &st) != 0)
-    return -1;
-  if (S_ISDIR (st.st_mode))
-  {
-    if (directory)
-    {
-      switch (mutt_multi_choice
-      /* L10N:
-         Means "The path you specified as the destination file is a directory."
-         See the msgid "Save to file: " (alias.c, recvattach.c) */
-	      (_("File is a directory, save under it? [(y)es, (n)o, (a)ll]"), _("yna")))
-      {
-	case 3:		/* all */
-	  mutt_str_replace (directory, fname);
-	  break;
-	case 1:		/* yes */
-	  FREE (directory);		/* __FREE_CHECKED__ */
-	  break;
-	case -1:	/* abort */
-	  FREE (directory); 		/* __FREE_CHECKED__ */
-	  return -1;
-	case  2:	/* no */
-	  FREE (directory);		/* __FREE_CHECKED__ */
-	  return 1;
-      }
-    }
-    /* L10N:
-       Means "The path you specified as the destination file is a directory."
-       See the msgid "Save to file: " (alias.c, recvattach.c) */
-    else if ((rc = mutt_yesorno (_("File is a directory, save under it?"), M_YES)) != M_YES)
-      return (rc == M_NO) ? 1 : -1;
+  if (WithCrypto)
+    redraw_crypt_lines (msg);
 
-    strfcpy (tmp, mutt_basename (NONULL (attname)), sizeof (tmp));
-    if (mutt_get_field (_("File under directory: "), tmp, sizeof (tmp),
-                                    M_FILE | M_CLEAR) != 0 || !tmp[0])
-      return (-1);
-    mutt_concat_path (fname, path, tmp, flen);
-  }
-  
-  if (*append == 0 && access (fname, F_OK) == 0)
-  {
-    switch (mutt_multi_choice
-	    (_("File exists, (o)verwrite, (a)ppend, or (c)ancel?"), _("oac")))
-    {
-      case -1: /* abort */
-        return -1;
-      case 3:  /* cancel */
-	return 1;
+#ifdef MIXMASTER
+  redraw_mix_line (msg->chain);
+#endif
 
-      case 2: /* append */
-        *append = M_SAVE_APPEND;
-        break;
-      case 1: /* overwrite */
-        *append = M_SAVE_OVERWRITE;
-        break;
-    }
-  }
-  return 0;
+  SETCOLOR (MT_COLOR_STATUS);
+  mutt_window_mvaddstr (MuttIndexWindow, HDR_ATTACH - 1, 0, _("-- Attachments"));
+  mutt_window_clrtoeol (MuttIndexWindow);
+
+  NORMAL_COLOR;
 }

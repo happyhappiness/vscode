@@ -1,1 +1,1 @@
-fprintf(outfile, "%s%s\n", tok, val);
+fprintf(outfile, "%s%c %s\n", tok, separators[0], val);

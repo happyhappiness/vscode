@@ -1,1 +1,1 @@
-error_errno("cannot stat '%s'", path);
+error_errno("cannot stat '%s'", ce->name);

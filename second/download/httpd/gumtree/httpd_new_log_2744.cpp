@@ -1,6 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01718)
-                                  "auth_ldap authorise: require group "
-                                  "(sub-group) \"%s\": authorisation failed "
-                                  "[%s][%d - %s]",
-                                  t, ldc->reason, result,
-                                  ldap_err2string(result));
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
+                     "unable to create or access scoreboard \"%s\" "
+                     "(name-based shared memory failure)", fname);

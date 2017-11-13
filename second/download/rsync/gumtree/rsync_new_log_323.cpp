@@ -1,1 +1,2 @@
-fprintf(FINFO,"deleting %s\n", buf);
+fprintf(FINFO,"%s => %s\n",
+		      f_name(&hlink_list[i]),f_name(&hlink_list[i-1]));

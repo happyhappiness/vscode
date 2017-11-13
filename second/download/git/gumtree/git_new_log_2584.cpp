@@ -1,1 +1,2 @@
-error("unable to read files to diff");
+fprintf(stderr, "Staged '%s' using previous resolution.\n",
+			item->string);

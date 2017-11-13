@@ -1,22 +1,25 @@
-static int run_gpg_verify(const char *buf, unsigned long size, unsigned flags)
+static int verify_tag(const char *name, unsigned flags)
 {
-	struct signature_check sigc;
-	int len;
+	enum object_type type;
+	unsigned char sha1[20];
+	char *buf;
+	unsigned long size;
 	int ret;
 
-	memset(&sigc, 0, sizeof(sigc));
+	if (get_sha1(name, sha1))
+		return error("tag '%s' not found.", name);
 
-	len = parse_signature(buf, size);
+	type = sha1_object_info(sha1, NULL);
+	if (type != OBJ_TAG)
+		return error("%s: cannot verify a non-tag object of type %s.",
+				name, typename(type));
 
-	if (size == len) {
-		if (flags & GPG_VERIFY_VERBOSE)
-			write_in_full(1, buf, len);
-		return error("no signature found");
-	}
+	buf = read_sha1_file(sha1, &type, &size);
+	if (!buf)
+		return error("%s: unable to read file.", name);
 
-	ret = check_signature(buf, len, buf + len, size - len, &sigc);
-	print_signature_buffer(&sigc, flags);
+	ret = run_gpg_verify(buf, size, flags);
 
-	signature_check_clear(&sigc);
+	free(buf);
 	return ret;
 }

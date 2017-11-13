@@ -1,10 +1,10 @@
 fputs(
-"              When  used,  this will make curl attempt to figure out the time-\n"
-"              stamp of the remote file, and if  that  is  available  make  the\n"
-"              local file get that same timestamp.\n"
+"              ter is given in the range, the server's response will be unspec-\n"
+"              ified, depending on the server's configuration.\n"
 "\n"
-"       -X, --request <command>\n"
-"              (HTTP) Specifies a custom request method to use when communicat-\n"
-"              ing with the HTTP server.  The specified request method will  be\n"
-"              used  instead  of  the  method otherwise used (which defaults to\n"
+"              You should also be aware that many HTTP/1.1 servers do not  have\n"
+"              this  feature  enabled, so that when you attempt to get a range,\n"
+"              you'll instead get the whole document.\n"
+"\n"
+"              FTP and SFTP range downloads only  support  the  simple  'start-\n"
 , stdout);

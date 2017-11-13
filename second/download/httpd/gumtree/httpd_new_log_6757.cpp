@@ -1,5 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02609)
-                          "read request body failed to %pI (%s)"
-                          " from %s (%s)", p_conn->addr,
-                          p_conn->hostname ? p_conn->hostname: "",
-                          c->client_ip, c->remote_host ? c->remote_host: "");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, slave,
+                  "h2_stream(%s): destroy slave", 
+                  apr_table_get(slave->notes, H2_TASK_ID_NOTE));

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "proxy: ap_get_brigade failed");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                          "apr_file_read(child output), len %" APR_SIZE_T_FMT,
+                          !rv ? len : -1);

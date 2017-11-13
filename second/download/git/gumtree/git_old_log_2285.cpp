@@ -1,2 +1,1 @@
-warning("failed utime() on %s: %s",
-						pack_tmp_name, strerror(errno));
+error("could not commit config file %s", config_filename);

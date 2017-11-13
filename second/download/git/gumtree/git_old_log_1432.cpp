@@ -1,1 +1,1 @@
-die("BUG: create ref with null new_sha1");
+status_printf_ln(s, color(WT_STATUS_HEADER, s), _("Initial commit"));

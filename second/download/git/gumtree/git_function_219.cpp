@@ -1,22 +1,12 @@
-static void batch_object_write(const char *obj_name, struct batch_options *opt,
-			       struct expand_data *data)
+static int do_cvs_cmd(const char *me, char *arg)
 {
-	struct strbuf buf = STRBUF_INIT;
+	const char *cvsserver_argv[3] = {
+		"cvsserver", "server", NULL
+	};
 
-	if (!data->skip_object_info &&
-	    sha1_object_info_extended(data->sha1, &data->info, LOOKUP_REPLACE_OBJECT) < 0) {
-		printf("%s missing\n", obj_name ? obj_name : sha1_to_hex(data->sha1));
-		fflush(stdout);
-		return;
-	}
+	if (!arg || strcmp(arg, "server"))
+		die("git-cvsserver only handles server: %s", arg);
 
-	strbuf_expand(&buf, opt->format, expand_format, data);
-	strbuf_addch(&buf, '\n');
-	batch_write(opt, buf.buf, buf.len);
-	strbuf_release(&buf);
-
-	if (opt->print_contents) {
-		print_object_or_die(opt, data);
-		batch_write(opt, "\n", 1);
-	}
+	setup_path();
+	return execv_git_cmd(cvsserver_argv);
 }

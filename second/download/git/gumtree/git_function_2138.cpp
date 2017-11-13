@@ -1,39 +1,36 @@
-void init_notes(struct notes_tree *t, const char *notes_ref,
-		combine_notes_fn combine_notes, int flags)
+static void init_skiplist(struct fsck_options *options, const char *path)
 {
-	unsigned char sha1[20], object_sha1[20];
-	unsigned mode;
-	struct leaf_node root_tree;
+	static struct sha1_array skiplist = SHA1_ARRAY_INIT;
+	int sorted, fd;
+	char buffer[41];
+	unsigned char sha1[20];
 
-	if (!t)
-		t = &default_notes_tree;
-	assert(!t->initialized);
+	if (options->skiplist)
+		sorted = options->skiplist->sorted;
+	else {
+		sorted = 1;
+		options->skiplist = &skiplist;
+	}
 
-	if (!notes_ref)
-		notes_ref = default_notes_ref();
+	fd = open(path, O_RDONLY);
+	if (fd < 0)
+		die("Could not open skip list: %s", path);
+	for (;;) {
+		int result = read_in_full(fd, buffer, sizeof(buffer));
+		if (result < 0)
+			die_errno("Could not read '%s'", path);
+		if (!result)
+			break;
+		if (get_sha1_hex(buffer, sha1) || buffer[40] != '\n')
+			die("Invalid SHA-1: %s", buffer);
+		sha1_array_append(&skiplist, sha1);
+		if (sorted && skiplist.nr > 1 &&
+				hashcmp(skiplist.sha1[skiplist.nr - 2],
+					sha1) > 0)
+			sorted = 0;
+	}
+	close(fd);
 
-	if (!combine_notes)
-		combine_notes = combine_notes_concatenate;
-
-	t->root = (struct int_node *) xcalloc(1, sizeof(struct int_node));
-	t->first_non_note = NULL;
-	t->prev_non_note = NULL;
-	t->ref = xstrdup_or_null(notes_ref);
-	t->update_ref = (flags & NOTES_INIT_WRITABLE) ? t->ref : NULL;
-	t->combine_notes = combine_notes;
-	t->initialized = 1;
-	t->dirty = 0;
-
-	if (flags & NOTES_INIT_EMPTY || !notes_ref ||
-	    get_sha1_treeish(notes_ref, object_sha1))
-		return;
-	if (flags & NOTES_INIT_WRITABLE && read_ref(notes_ref, object_sha1))
-		die("Cannot use notes ref %s", notes_ref);
-	if (get_tree_entry(object_sha1, "", sha1, &mode))
-		die("Failed to read notes tree referenced by %s (%s)",
-		    notes_ref, sha1_to_hex(object_sha1));
-
-	hashclr(root_tree.key_sha1);
-	hashcpy(root_tree.val_sha1, sha1);
-	load_subtree(t, &root_tree, t->root, 0);
+	if (sorted)
+		skiplist.sorted = 1;
 }

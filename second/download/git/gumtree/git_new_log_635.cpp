@@ -1,1 +1,1 @@
-die(_("%%(trailers) does not take arguments"));
+error(_("unusable instruction sheet: '%s'"), todo_file);

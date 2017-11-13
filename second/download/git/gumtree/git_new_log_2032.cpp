@@ -1,1 +1,1 @@
-printf("%s %s\n", oid_to_hex(&posn->old_oid), posn->name);
+diagnose_missing_default(revs->def);

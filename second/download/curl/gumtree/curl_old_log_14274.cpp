@@ -1,8 +1,10 @@
 fputs(
-"              Options  and their parameters must be specified on the same con-\n"
-"              fig file line, separated by whitespace,  colon,  or  the  equals\n"
-"              sign.  Long  option  names can optionally be given in the config\n"
-"              file without the initial double dashes and if so, the  colon  or\n"
-"              equals  characters  can  be used as separators. If the option is\n"
-"              specified with one or two dashes,  there  can  be  no  colon  or\n"
+"       used with or without a space between it and its value, although a space\n"
+"       is a recommended separator. The long \"double-dash\" form, -d, --data for\n"
+"       example, requires a space between it and its value.\n"
+"\n"
+"       Short version options that don't need any additional values can be used\n"
+"       immediately next to each other, like for example you  can  specify  all\n"
+"       the options -O, -L and -v at once as -OLv.\n"
+"\n"
 , stdout);

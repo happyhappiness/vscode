@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00550)
-                  "Client sent malformed Host header");
+ap_log_perror(APLOG_MARK, APLOG_CRIT, status, process->pool, APLOGNO(00078)
+                          "alloc_listener: failed to get a socket for %s",
+                          addr);

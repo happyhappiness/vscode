@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf, APLOGNO(00404)
-                         "Child: Unable to read socket data from parent");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02030)
+                      "TLS upgrade handshake failed: not accepted by client!?");

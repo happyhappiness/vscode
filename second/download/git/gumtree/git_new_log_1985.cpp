@@ -1,1 +1,1 @@
-die("BUG: pack tmpfile does not end in .pack.temp?");
+die(_("editing patch failed"));

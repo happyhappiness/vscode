@@ -1,1 +1,1 @@
-hashcpy(cb->sha1, nsha1);
+WaitForSingleObject(hthread, INFINITE);

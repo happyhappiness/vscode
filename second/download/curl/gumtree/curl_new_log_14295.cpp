@@ -1,11 +1,11 @@
 fputs(
-"                     This will make curl URL-encode the content and pass  that\n"
-"                     on.  Just  be careful so that the content doesn't contain\n"
-"                     any = or @ symbols, as that will  then  make  the  syntax\n"
-"                     match one of the other cases below!\n"
+"              The file format of the file to read cookies from should be plain\n"
+"              HTTP  headers  (Set-Cookie style) or the Netscape/Mozilla cookie\n"
+"              file format.\n"
 "\n"
-"              =content\n"
-"                     This  will make curl URL-encode the content and pass that\n"
-"                     on. The preceding = symbol is not included in the data.\n"
+"              The file specified with -b, --cookie is only used as  input.  No\n"
+"              cookies  will  be written to the file. To store cookies, use the\n"
+"              -c, --cookie-jar option.\n"
 "\n"
+"              Exercise caution if you  are  using  this  option  and  multiple\n"
 , stdout);

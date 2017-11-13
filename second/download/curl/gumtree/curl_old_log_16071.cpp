@@ -1,11 +1,12 @@
 fputs(
+"              such a case curl first connects to the SOCKS proxy and then con-\n"
+"              nects (through SOCKS) to the HTTP or HTTPS proxy.\n"
+"\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       -y, --speed-time <seconds>\n"
-"              If a download is slower than speed-limit bytes per second during\n"
-"              a speed-time period, the download gets aborted. If speed-time is\n"
-"              used,  the  default  speed-limit  will  be 1 unless set with -Y,\n"
-"              --speed-limit.\n"
+"              Added in 7.18.0.\n"
 "\n"
-"              This option controls transfers and thus  will  not  affect  slow\n"
+"       --socks5-basic\n"
+"              Tells curl to use username/password authentication when connect-\n"
+"              ing to a SOCKS5 proxy.  The username/password authentication  is\n"
 , stdout);

@@ -1,85 +1,55 @@
-BOOL ssl_scache_dbm_store(server_rec *s, UCHAR *id, int idlen, time_t expiry, SSL_SESSION *sess)
+static const char *add_alias_internal(cmd_parms *cmd, void *dummy,
+                                      const char *f, const char *r,
+                                      int use_regex)
 {
-    SSLModConfigRec *mc = myModConfig(s);
-    apr_dbm_t *dbm;
-    apr_datum_t dbmkey;
-    apr_datum_t dbmval;
-    UCHAR ucaData[SSL_SESSION_MAX_DER];
-    int nData;
-    UCHAR *ucp;
-    apr_status_t rv;
+    server_rec *s = cmd->server;
+    alias_server_conf *conf = ap_get_module_config(s->module_config,
+                                                   &alias_module);
+    alias_entry *new = apr_array_push(conf->aliases);
+    alias_entry *entries = (alias_entry *)conf->aliases->elts;
+    int i;
 
-    /* streamline session data */
-    if ((nData = i2d_SSL_SESSION(sess, NULL)) > sizeof(ucaData)) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "streamline session data size too large: %d > %d",
-                 nData, sizeof(ucaData));
-        return FALSE;
+    /* XX r can NOT be relative to DocumentRoot here... compat bug. */
+
+    if (use_regex) {
+        new->regexp = ap_pregcomp(cmd->pool, f, REG_EXTENDED);
+        if (new->regexp == NULL)
+            return "Regular expression could not be compiled.";
+        new->real = r;
     }
-    ucp = ucaData;
-    i2d_SSL_SESSION(sess, &ucp);
-
-    /* be careful: do not try to store too much bytes in a DBM file! */
-#ifdef PAIRMAX
-    if ((idlen + nData) >= PAIRMAX) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "data size too large for DBM session cache: %d >= %d",
-                 (idlen + nData), PAIRMAX);
-        return FALSE;
+    else {
+        /* XXX This may be optimized, but we must know that new->real
+         * exists.  If so, we can dir merge later, trusing new->real
+         * and just canonicalizing the remainder.  Not till I finish
+         * cleaning out the old ap_canonical stuff first.
+         */
+        new->real = r;
     }
-#else
-    if ((idlen + nData) >= 950 /* at least less than approx. 1KB */) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "data size too large for DBM session cache: %d >= %d",
-                 (idlen + nData), 950);
-        return FALSE;
+    new->fake = f;
+    new->handler = cmd->info;
+
+    /* check for overlapping (Script)Alias directives
+     * and throw a warning if found one
+     */
+    if (!use_regex) {
+        for (i = 0; i < conf->aliases->nelts - 1; ++i) {
+            alias_entry *p = &entries[i];
+
+            if (  (!p->regexp &&  alias_matches(f, p->fake) > 0)
+                || (p->regexp && !ap_regexec(p->regexp, f, 0, NULL, 0))) {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                             "The %s directive in %s at line %d will probably "
+                             "never match because it overlaps an earlier "
+                             "%sAlias%s.",
+                             cmd->cmd->name, cmd->directive->filename,
+                             cmd->directive->line_num,
+                             p->handler ? "Script" : "",
+                             p->regexp ? "Match" : "");
+
+                break; /* one warning per alias should be sufficient */
+            }
+        }
     }
-#endif
 
-    /* create DBM key */
-    dbmkey.dptr  = (char *)id;
-    dbmkey.dsize = idlen;
-
-    /* create DBM value */
-    dbmval.dsize = sizeof(time_t) + nData;
-    dbmval.dptr  = (char *)malloc(dbmval.dsize);
-    if (dbmval.dptr == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "malloc error creating DBM value");
-        return FALSE;
-    }
-    memcpy((char *)dbmval.dptr, &expiry, sizeof(time_t));
-    memcpy((char *)dbmval.dptr+sizeof(time_t), ucaData, nData);
-
-    /* and store it to the DBM file */
-    ssl_mutex_on(s);
-    if ((rv = apr_dbm_open(&dbm, mc->szSessionCacheDataFile,
-	    APR_DBM_RWCREATE, SSL_DBM_FILE_MODE, mc->pPool)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                     "Cannot open SSLSessionCache DBM file `%s' for writing "
-                     "(store)",
-                     mc->szSessionCacheDataFile);
-        ssl_mutex_off(s);
-        free(dbmval.dptr);
-        return FALSE;
-    }
-    if ((rv = apr_dbm_store(dbm, dbmkey, dbmval)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                     "Cannot store SSL session to DBM file `%s'",
-                     mc->szSessionCacheDataFile);
-        apr_dbm_close(dbm);
-        ssl_mutex_off(s);
-        free(dbmval.dptr);
-        return FALSE;
-    }
-    apr_dbm_close(dbm);
-    ssl_mutex_off(s);
-
-    /* free temporary buffers */
-    free(dbmval.dptr);
-
-    /* allow the regular expiring to occur */
-    ssl_scache_dbm_expire(s);
-
-    return TRUE;
+    return NULL;
 }

@@ -1,1 +1,1 @@
-fprintf(f,"-e, --rsh COMMAND        specify rsh replacement\n");
+fprintf(FERROR,"ERROR: destination must be a directory when copying more than 1 file\n");

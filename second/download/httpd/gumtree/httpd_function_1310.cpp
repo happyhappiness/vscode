@@ -1,10 +1,9 @@
 int ssl_hook_Access(request_rec *r)
 {
-    SSLDirConfigRec *dc         = myDirConfig(r);
-    SSLSrvConfigRec *sc         = mySrvConfig(r->server);
-    SSLConnRec *sslconn         = myConnConfig(r->connection);
-    SSL *ssl                    = sslconn ? sslconn->ssl : NULL;
-    server_rec *handshakeserver = sslconn ? sslconn->server : NULL;
+    SSLDirConfigRec *dc = myDirConfig(r);
+    SSLSrvConfigRec *sc = mySrvConfig(r->server);
+    SSLConnRec *sslconn = myConnConfig(r->connection);
+    SSL *ssl            = sslconn ? sslconn->ssl : NULL;
     SSL_CTX *ctx = NULL;
     apr_array_header_t *requires;
     ssl_require_t *ssl_requires;
@@ -16,7 +15,7 @@ int ssl_hook_Access(request_rec *r)
     X509_STORE *cert_store = NULL;
     X509_STORE_CTX cert_store_ctx;
     STACK_OF(SSL_CIPHER) *cipher_list_old = NULL, *cipher_list = NULL;
-    const SSL_CIPHER *cipher = NULL;
+    SSL_CIPHER *cipher = NULL;
     int depth, verify_old, verify, n;
 
     if (ssl) {
@@ -98,7 +97,7 @@ int ssl_hook_Access(request_rec *r)
      *   has to enable this via ``SSLOptions +OptRenegotiate''. So we do no
      *   implicit optimizations.
      */
-    if (dc->szCipherSuite || (r->server != handshakeserver)) {
+    if (dc->szCipherSuite) {
         /* remember old state */
 
         if (dc->nOptions & SSL_OPT_OPTRENEGOTIATE) {
@@ -113,13 +112,11 @@ int ssl_hook_Access(request_rec *r)
         }
 
         /* configure new state */
-        if ((dc->szCipherSuite || sc->server->auth.cipher_suite) &&
-            !modssl_set_cipher_list(ssl, dc->szCipherSuite ?
-                                         dc->szCipherSuite :
-                                         sc->server->auth.cipher_suite)) {
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "Unable to reconfigure (per-directory) "
-                          "permitted SSL ciphers");
+        if (!modssl_set_cipher_list(ssl, dc->szCipherSuite)) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
+                         r->server,
+                         "Unable to reconfigure (per-directory) "
+                         "permitted SSL ciphers");
             ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, r->server);
 
             if (cipher_list_old) {
@@ -182,14 +179,9 @@ int ssl_hook_Access(request_rec *r)
             sk_SSL_CIPHER_free(cipher_list_old);
         }
 
+        /* tracing */
         if (renegotiate) {
-#ifdef SSL_OP_CIPHER_SERVER_PREFERENCE
-            if (sc->cipher_server_pref == TRUE) {
-                SSL_set_options(ssl, SSL_OP_CIPHER_SERVER_PREFERENCE);
-            }
-#endif
-            /* tracing */
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
                          "Reconfigured cipher suite will force renegotiation");
         }
     }
@@ -201,22 +193,24 @@ int ssl_hook_Access(request_rec *r)
      * function and not by OpenSSL internally (and our function is aware of
      * both the per-server and per-directory contexts). So we cannot ask
      * OpenSSL about the currently verify depth. Instead we remember it in our
-     * SSLConnRec attached to the SSL* of OpenSSL.  We've to force the
+     * ap_ctx attached to the SSL* of OpenSSL.  We've to force the
      * renegotiation if the reconfigured/new verify depth is less than the
      * currently active/remembered verify depth (because this means more
      * restriction on the certificate chain).
      */
-    n = sslconn->verify_depth ?
-        sslconn->verify_depth :
-        (mySrvConfig(handshakeserver))->server->auth.verify_depth;
-    /* determine the new depth */
-    sslconn->verify_depth = (dc->nVerifyDepth != UNSET) ?
-                            dc->nVerifyDepth : sc->server->auth.verify_depth;
-    if (sslconn->verify_depth < n) {
-        renegotiate = TRUE;
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                     "Reduced client verification depth will force "
-                     "renegotiation");
+    if (dc->nVerifyDepth != UNSET) {
+        /* XXX: doesnt look like sslconn->verify_depth is actually used */
+        if (!(n = sslconn->verify_depth)) {
+            sslconn->verify_depth = n = sc->server->auth.verify_depth;
+        }
+
+        /* determine whether a renegotiation has to be forced */
+        if (dc->nVerifyDepth < n) {
+            renegotiate = TRUE;
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "Reduced client verification depth will force "
+                         "renegotiation");
+        }
     }
 
     /*
@@ -233,22 +227,18 @@ int ssl_hook_Access(request_rec *r)
      * verification but at least skip the I/O-intensive renegotation
      * handshake.
      */
-    if ((dc->nVerifyClient != SSL_CVERIFY_UNSET) ||
-        (sc->server->auth.verify_mode != SSL_CVERIFY_UNSET)) {
+    if (dc->nVerifyClient != SSL_CVERIFY_UNSET) {
         /* remember old state */
         verify_old = SSL_get_verify_mode(ssl);
         /* configure new state */
         verify = SSL_VERIFY_NONE;
 
-        if ((dc->nVerifyClient == SSL_CVERIFY_REQUIRE) ||
-            (sc->server->auth.verify_mode == SSL_CVERIFY_REQUIRE)) {
+        if (dc->nVerifyClient == SSL_CVERIFY_REQUIRE) {
             verify |= SSL_VERIFY_PEER_STRICT;
         }
 
         if ((dc->nVerifyClient == SSL_CVERIFY_OPTIONAL) ||
-            (dc->nVerifyClient == SSL_CVERIFY_OPTIONAL_NO_CA) ||
-            (sc->server->auth.verify_mode == SSL_CVERIFY_OPTIONAL) ||
-            (sc->server->auth.verify_mode == SSL_CVERIFY_OPTIONAL_NO_CA))
+            (dc->nVerifyClient == SSL_CVERIFY_OPTIONAL_NO_CA))
         {
             verify |= SSL_VERIFY_PEER;
         }
@@ -278,50 +268,12 @@ int ssl_hook_Access(request_rec *r)
                     X509_free(peercert);
                 }
 
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "Changed client verification type will force "
-                              "%srenegotiation",
-                              renegotiate_quick ? "quick " : "");
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                             r->server,
+                             "Changed client verification type will force "
+                             "%srenegotiation",
+                             renegotiate_quick ? "quick " : "");
              }
-        }
-        /* If we're handling a request for a vhost other than the default one,
-         * then we need to make sure that client authentication is properly
-         * enforced. For clients supplying an SNI extension, the peer
-         * certificate verification has happened in the handshake already
-         * (and r->server == handshakeserver). For non-SNI requests,
-         * an additional check is needed here. If client authentication
-         * is configured as mandatory, then we can only proceed if the
-         * CA list doesn't have to be changed (OpenSSL doesn't provide
-         * an option to change the list for an existing session).
-         */
-        if ((r->server != handshakeserver)
-            && renegotiate
-            && ((verify & SSL_VERIFY_PEER) ||
-                (verify & SSL_VERIFY_FAIL_IF_NO_PEER_CERT))) {
-            SSLSrvConfigRec *hssc = mySrvConfig(handshakeserver);
-
-#define MODSSL_CFG_CA_NE(f, sc1, sc2) \
-            (sc1->server->auth.f && \
-             (!sc2->server->auth.f || \
-              strNE(sc1->server->auth.f, sc2->server->auth.f)))
-
-            if (MODSSL_CFG_CA_NE(ca_cert_file, sc, hssc) ||
-                MODSSL_CFG_CA_NE(ca_cert_path, sc, hssc)) {
-                if (verify & SSL_VERIFY_FAIL_IF_NO_PEER_CERT) {
-                    ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                         "Non-default virtual host with SSLVerify set to "
-                         "'require' and VirtualHost-specific CA certificate "
-                         "list is only available to clients with TLS server "
-                         "name indication (SNI) support");
-                    modssl_set_verify(ssl, verify_old, NULL);
-                    return HTTP_FORBIDDEN;
-                } else
-                    /* let it pass, possibly with an "incorrect" peer cert,
-                     * so make sure the SSL_CLIENT_VERIFY environment variable
-                     * will indicate partial success only, later on.
-                     */
-                    sslconn->verify_info = "GENEROUS";
-            }
         }
     }
 
@@ -354,9 +306,9 @@ int ssl_hook_Access(request_rec *r)
         cert_store = X509_STORE_new();
 
         if (!X509_STORE_load_locations(cert_store, ca_file, ca_path)) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Unable to reconfigure verify locations "
-                          "for client authentication");
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                         "Unable to reconfigure verify locations "
+                         "for client authentication");
             ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, r->server);
 
             X509_STORE_free(cert_store);
@@ -380,9 +332,9 @@ int ssl_hook_Access(request_rec *r)
         SSL_set_client_CA_list(ssl, ca_list);
         renegotiate = TRUE;
 
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "Changed client verification locations will force "
-                      "renegotiation");
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "Changed client verification locations will force "
+                     "renegotiation");
     }
 #endif /* HAVE_SSL_SET_CERT_STORE */
 
@@ -405,18 +357,9 @@ int ssl_hook_Access(request_rec *r)
                 && strcmp(apr_table_get(r->headers_in, "content-length"), "0")))
         && !r->expecting_100) {
         int rv;
-        apr_size_t rsize;
 
-        rsize = dc->nRenegBufferSize == UNSET ? DEFAULT_RENEG_BUFFER_SIZE :
-                                                dc->nRenegBufferSize;
-        if (rsize > 0) {
-            /* Fill the I/O buffer with the request body if possible. */
-            rv = ssl_io_buffer_fill(r, rsize);
-        }
-        else {
-            /* If the reneg buffer size is set to zero, just fail. */
-            rv = HTTP_REQUEST_ENTITY_TOO_LARGE;
-        }
+        /* Fill the I/O buffer with the request body if possible. */
+        rv = ssl_io_buffer_fill(r);
 
         if (rv) {
             ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
@@ -441,14 +384,14 @@ int ssl_hook_Access(request_rec *r)
          * here because it resets too much of the connection.  So we set the
          * state explicitly and continue the handshake manually.
          */
-        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                      "Requesting connection re-negotiation");
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                     "Requesting connection re-negotiation");
 
         if (renegotiate_quick) {
             STACK_OF(X509) *cert_stack;
 
             /* perform just a manual re-verification of the peer */
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
                          "Performing quick renegotiation: "
                          "just re-verifying the peer");
 
@@ -462,13 +405,13 @@ int ssl_hook_Access(request_rec *r)
                  * sk_X509_shift-ed the peer cert out of the chain.
                  * we put it back here for the purpose of quick_renegotiation.
                  */
-                cert_stack = sk_X509_new_null();
+                cert_stack = sk_new_null();
                 sk_X509_push(cert_stack, MODSSL_PCHAR_CAST cert);
             }
 
             if (!cert_stack || (sk_X509_num(cert_stack) == 0)) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Cannot find peer certificate chain");
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "Cannot find peer certificate chain");
 
                 return HTTP_FORBIDDEN;
             }
@@ -476,8 +419,8 @@ int ssl_hook_Access(request_rec *r)
             if (!(cert_store ||
                   (cert_store = SSL_CTX_get_cert_store(ctx))))
             {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Cannot find certificate storage");
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "Cannot find certificate storage");
 
                 return HTTP_FORBIDDEN;
             }
@@ -498,8 +441,8 @@ int ssl_hook_Access(request_rec *r)
                                        (char *)ssl);
 
             if (!modssl_X509_verify_cert(&cert_store_ctx)) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Re-negotiation verification step failed");
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "Re-negotiation verification step failed");
                 ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, r->server);
             }
 
@@ -512,60 +455,30 @@ int ssl_hook_Access(request_rec *r)
             }
         }
         else {
-            const char *reneg_support;
             request_rec *id = r->main ? r->main : r;
 
-            /* Additional mitigation for CVE-2009-3555: At this point,
-             * before renegotiating, an (entire) request has been read
-             * from the connection.  An attacker may have sent further
-             * data to "prefix" any subsequent request by the victim's
-             * client after the renegotiation; this data may already
-             * have been read and buffered.  Forcing a connection
-             * closure after the response ensures such data will be
-             * discarded.  Legimately pipelined HTTP requests will be
-             * retried anyway with this approach. */
-            if (has_buffered_data(r)) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "insecure SSL re-negotiation required, but "
-                              "a pipelined request is present; keepalive "
-                              "disabled");
-                r->connection->keepalive = AP_CONN_CLOSE;
-            }
-
-#if defined(SSL_get_secure_renegotiation_support)
-            reneg_support = SSL_get_secure_renegotiation_support(ssl) ?
-                            "client does" : "client does not";
-#else
-            reneg_support = "server does not";
-#endif
-            /* Perform a full renegotiation. */
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "Performing full renegotiation: complete handshake "
-                          "protocol (%s support secure renegotiation)",
-                          reneg_support);
+            /* do a full renegotiation */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "Performing full renegotiation: "
+                         "complete handshake protocol");
 
             SSL_set_session_id_context(ssl,
                                        (unsigned char *)&id,
                                        sizeof(id));
 
-            /* Toggle the renegotiation state to allow the new
-             * handshake to proceed. */
-            sslconn->reneg_state = RENEG_ALLOW;
-            
             SSL_renegotiate(ssl);
             SSL_do_handshake(ssl);
 
             if (SSL_get_state(ssl) != SSL_ST_OK) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Re-negotiation request failed");
-                ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, r->server);
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "Re-negotiation request failed");
 
                 r->connection->aborted = 1;
                 return HTTP_FORBIDDEN;
             }
 
-            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                          "Awaiting re-negotiation handshake");
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                         "Awaiting re-negotiation handshake");
 
             /* XXX: Should replace SSL_set_state with SSL_renegotiate(ssl);
              * However, this causes failures in perl-framework currently,
@@ -574,12 +487,10 @@ int ssl_hook_Access(request_rec *r)
             SSL_set_state(ssl, SSL_ST_ACCEPT);
             SSL_do_handshake(ssl);
 
-            sslconn->reneg_state = RENEG_REJECT;
-
             if (SSL_get_state(ssl) != SSL_ST_OK) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Re-negotiation handshake failed: "
-                              "Not accepted by client!?");
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "Re-negotiation handshake failed: "
+                        "Not accepted by client!?");
 
                 r->connection->aborted = 1;
                 return HTTP_FORBIDDEN;
@@ -600,24 +511,22 @@ int ssl_hook_Access(request_rec *r)
         /*
          * Finally check for acceptable renegotiation results
          */
-        if ((dc->nVerifyClient != SSL_CVERIFY_NONE) ||
-            (sc->server->auth.verify_mode != SSL_CVERIFY_NONE)) {
-            BOOL do_verify = ((dc->nVerifyClient == SSL_CVERIFY_REQUIRE) ||
-                              (sc->server->auth.verify_mode == SSL_CVERIFY_REQUIRE));
+        if (dc->nVerifyClient != SSL_CVERIFY_NONE) {
+            BOOL do_verify = (dc->nVerifyClient == SSL_CVERIFY_REQUIRE);
 
             if (do_verify && (SSL_get_verify_result(ssl) != X509_V_OK)) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Re-negotiation handshake failed: "
-                              "Client verification failed");
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "Re-negotiation handshake failed: "
+                             "Client verification failed");
 
                 return HTTP_FORBIDDEN;
             }
 
             if (do_verify) {
                 if ((peercert = SSL_get_peer_certificate(ssl)) == NULL) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                  "Re-negotiation handshake failed: "
-                                  "Client certificate missing");
+                    ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                                 "Re-negotiation handshake failed: "
+                                 "Client certificate missing");
 
                     return HTTP_FORBIDDEN;
                 }
@@ -683,13 +592,13 @@ int ssl_hook_Access(request_rec *r)
         }
 
         if (ok != 1) {
-            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                          "Access to %s denied for %s "
-                          "(requirement expression not fulfilled)",
-                          r->filename, r->connection->remote_ip);
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                         "Access to %s denied for %s "
+                         "(requirement expression not fulfilled)",
+                         r->filename, r->connection->remote_ip);
 
-            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                          "Failed expression: %s", req->cpExpr);
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                         "Failed expression: %s", req->cpExpr);
 
             ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
                           "access to %s failed, reason: %s",

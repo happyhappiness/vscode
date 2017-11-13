@@ -1,2 +1,1 @@
-fprintf(stderr, "Marking %s as complete\n",
-				oid_to_hex(&complete->item->object.oid));
+packet_write(1, "%s %s\n", oid_to_hex(oid), refname_nons);

@@ -1,11 +1,10 @@
 fputs(
-"              will get a warning displayed, but that is the only visible feed-\n"
-"              back you get about this possibly lethal situation.\n"
+"              enforced by using an URL that ends with \";type=A\".  This  option\n"
+"              causes data sent to stdout to be in text mode for win32 systems.\n"
 "\n"
-"              If this option is used several times, the  last  specified  file\n"
-"              name will be used.\n"
-"\n"
-"       -C, --continue-at <offset>\n"
-"              Continue/Resume  a  previous  file transfer at the given offset.\n"
-"              The given offset is the exact  number  of  bytes  that  will  be\n"
+"       --basic\n"
+"              (HTTP)  Tells curl to use HTTP Basic authentication. This is the\n"
+"              default and this option is usually pointless, unless you use  it\n"
+"              to  override  a  previously  set  option  that  sets a different\n"
+"              authentication method (such as --ntlm,  --digest,  or  --negoti-\n"
 , stdout);

@@ -1,1 +1,1 @@
-fprintf(stderr,"%s is newer\n",fname);
+fprintf(stderr, "sum=%.8x k=%d\n", sum, k);

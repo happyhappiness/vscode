@@ -1,5 +1,7 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00948)
-                 "CONNECT: sending the CONNECT request for %s:%d "
-                 "to the remote proxy %pI (%s)",
-                 forward->target_host, forward->target_port,
-                 backend->addr, backend->hostname);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01516)
+                MODNAME ": apprentice conf=%x file=%s m=%s m->next=%s last=%s",
+                conf,
+                conf->magicfile ? conf->magicfile : "NULL",
+                conf->magic ? "set" : "NULL",
+                (conf->magic && conf->magic->next) ? "set" : "NULL",
+                conf->last ? "set" : "NULL");

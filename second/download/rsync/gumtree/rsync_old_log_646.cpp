@@ -1,1 +1,1 @@
-io_printf(fd,"@ERROR: protocol startup error\n");
+out_of_memory("generate_sums");

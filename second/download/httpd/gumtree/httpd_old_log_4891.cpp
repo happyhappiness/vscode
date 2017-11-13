@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf,
-                     "write pipe_of_death");
+ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s,
+                         "Cannot reinit %s mutex", SSL_STAPLING_MUTEX_TYPE);

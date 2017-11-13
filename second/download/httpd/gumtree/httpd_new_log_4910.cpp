@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00567)
-                          "request failed: error reading the headers");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, cmd->server, APLOGNO(02175)
+                 "Platform does not support rlimit for %s", cmd->cmd->name);

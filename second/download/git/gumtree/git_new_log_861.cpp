@@ -1,1 +1,2 @@
-die("unable to lookup %s", oid_to_hex(oid));
+error(_("could not update HEAD to %s"),
+					head_ref.buf);

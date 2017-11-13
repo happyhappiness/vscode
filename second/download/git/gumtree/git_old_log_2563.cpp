@@ -1,1 +1,1 @@
-die(_("bad config line %d in %s %s"), cf->linenr, cf->origin_type, cf->name);
+error("bad ref for %s", name->buf);

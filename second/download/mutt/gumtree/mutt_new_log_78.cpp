@@ -1,1 +1,1 @@
-!ascii_strncasecmp ("user-agent", tmp->data, 10);
+printf ("%02X", p->fingerprint[i]);

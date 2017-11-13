@@ -1,11 +1,10 @@
 fputs(
-"              curl has connected this option is of no more use. See  also  the\n"
-"              -m, --max-time option.\n"
+"              (HTTP) Request a compressed response using one of the algorithms\n"
+"              libcurl supports, and save the uncompressed document.   If  this\n"
+"              option  is  used  and  the server sends an unsupported encoding,\n"
+"              curl will report an error.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --create-dirs\n"
-"              When  used  in  conjunction with the -o option, curl will create\n"
-"              the necessary local directory hierarchy as needed.  This  option\n"
-"              creates  the dirs mentioned with the -o option, nothing else. If\n"
+"       --connect-timeout <seconds>\n"
+"              Maximum time in seconds that you allow  the  connection  to  the\n"
+"              server  to  take.   This  only limits the connection phase, once\n"
 , stdout);

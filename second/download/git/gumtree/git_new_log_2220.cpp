@@ -1,1 +1,1 @@
-free(git_work_tree_cfg);
+die("Error reading %s", path);

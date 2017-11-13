@@ -1,1 +1,0 @@
-apr_file_printf(output, "Cache size      : %d" NL, cachesize);

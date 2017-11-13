@@ -1,42 +1,25 @@
-static void add_recent_object(const unsigned char *sha1,
-			      unsigned long mtime,
-			      struct recent_data *data)
+static struct child_process *git_proxy_connect(int fd[2], char *host)
 {
-	struct object *obj;
-	enum object_type type;
+	const char *port = STR(DEFAULT_GIT_PORT);
+	struct child_process *proxy;
 
-	if (mtime <= data->timestamp)
-		return;
+	get_host_and_port(&host, &port);
 
-	/*
-	 * We do not want to call parse_object here, because
-	 * inflating blobs and trees could be very expensive.
-	 * However, we do need to know the correct type for
-	 * later processing, and the revision machinery expects
-	 * commits and tags to have been parsed.
-	 */
-	type = sha1_object_info(sha1, NULL);
-	if (type < 0)
-		die("unable to get object info for %s", sha1_to_hex(sha1));
+	if (looks_like_command_line_option(host))
+		die("strange hostname '%s' blocked", host);
+	if (looks_like_command_line_option(port))
+		die("strange port '%s' blocked", port);
 
-	switch (type) {
-	case OBJ_TAG:
-	case OBJ_COMMIT:
-		obj = parse_object_or_die(sha1, NULL);
-		break;
-	case OBJ_TREE:
-		obj = (struct object *)lookup_tree(sha1);
-		break;
-	case OBJ_BLOB:
-		obj = (struct object *)lookup_blob(sha1);
-		break;
-	default:
-		die("unknown object type for %s: %s",
-		    sha1_to_hex(sha1), typename(type));
-	}
-
-	if (!obj)
-		die("unable to lookup %s", sha1_to_hex(sha1));
-
-	add_pending_object(data->revs, obj, "");
+	proxy = xmalloc(sizeof(*proxy));
+	child_process_init(proxy);
+	argv_array_push(&proxy->args, git_proxy_command);
+	argv_array_push(&proxy->args, host);
+	argv_array_push(&proxy->args, port);
+	proxy->in = -1;
+	proxy->out = -1;
+	if (start_command(proxy))
+		die("cannot start proxy %s", git_proxy_command);
+	fd[0] = proxy->out; /* read from proxy stdout */
+	fd[1] = proxy->in;  /* write to proxy stdin */
+	return proxy;
 }

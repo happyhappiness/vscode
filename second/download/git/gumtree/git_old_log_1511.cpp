@@ -1,1 +1,1 @@
-fprintf(stderr, "Invalid key pattern: %s\n", key_);
+die("unrecognized argument: %s", argv[1]);

@@ -1,9 +1,9 @@
 fputs(
-"              The  variables  present in the output format will be substituted\n"
-"              by the value or text that curl thinks fit, as  described  below.\n"
-"              All  variables are specified as %{variable_name} and to output a\n"
-"              normal % you just write them as %%. You can output a newline  by\n"
-"              using \\n, a carriage return with \\r and a tab space with \\t.\n"
+"              The  user  name  and  passwords are split up on the first colon,\n"
+"              which makes it impossible to use a colon in the user  name  with\n"
+"              this option. The password can, still.\n"
 "\n"
-"              NOTE: The %-symbol is a special symbol in the win32-environment,\n"
+"              When  using  Kerberos  V5 with a Windows based server you should\n"
+"              include the Windows domain name in the user name, in  order  for\n"
+"              the  server  to  successfully  obtain  a Kerberos Ticket. If you\n"
 , stdout);

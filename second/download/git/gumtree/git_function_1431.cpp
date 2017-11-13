@@ -1,34 +1,32 @@
-int ref_transaction_update(struct ref_transaction *transaction,
-			   const char *refname,
-			   const unsigned char *new_sha1,
-			   const unsigned char *old_sha1,
-			   int flags, int have_old, const char *msg,
-			   struct strbuf *err)
+static void wt_longstatus_print_tracking(struct wt_status *s)
 {
-	struct ref_update *update;
+	struct strbuf sb = STRBUF_INIT;
+	const char *cp, *ep, *branch_name;
+	struct branch *branch;
+	char comment_line_string[3];
+	int i;
 
-	assert(err);
+	assert(s->branch && !s->is_initial);
+	if (!skip_prefix(s->branch, "refs/heads/", &branch_name))
+		return;
+	branch = branch_get(branch_name);
+	if (!format_tracking_info(branch, &sb))
+		return;
 
-	if (transaction->state != REF_TRANSACTION_OPEN)
-		die("BUG: update called for transaction that is not open");
-
-	if (have_old && !old_sha1)
-		die("BUG: have_old is true but old_sha1 is NULL");
-
-	if (!is_null_sha1(new_sha1) &&
-	    check_refname_format(refname, REFNAME_ALLOW_ONELEVEL)) {
-		strbuf_addf(err, "refusing to update ref with bad name %s",
-			    refname);
-		return -1;
+	i = 0;
+	if (s->display_comment_prefix) {
+		comment_line_string[i++] = comment_line_char;
+		comment_line_string[i++] = ' ';
 	}
+	comment_line_string[i] = '\0';
 
-	update = add_update(transaction, refname);
-	hashcpy(update->new_sha1, new_sha1);
-	update->flags = flags;
-	update->have_old = have_old;
-	if (have_old)
-		hashcpy(update->old_sha1, old_sha1);
-	if (msg)
-		update->msg = xstrdup(msg);
-	return 0;
+	for (cp = sb.buf; (ep = strchr(cp, '\n')) != NULL; cp = ep + 1)
+		color_fprintf_ln(s->fp, color(WT_STATUS_HEADER, s),
+				 "%s%.*s", comment_line_string,
+				 (int)(ep - cp), cp);
+	if (s->display_comment_prefix)
+		color_fprintf_ln(s->fp, color(WT_STATUS_HEADER, s), "%c",
+				 comment_line_char);
+	else
+		fputs("", s->fp);
 }

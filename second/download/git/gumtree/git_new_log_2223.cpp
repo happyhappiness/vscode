@@ -1,1 +1,1 @@
-strbuf_addstr(err, _("unknown repository extensions found:"));
+die_errno("unable to read alternates file");

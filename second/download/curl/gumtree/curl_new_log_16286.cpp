@@ -1,11 +1,10 @@
 fputs(
-"              See  also  --dns-interface  and --dns-ipv6-addr. --dns-ipv4-addr\n"
-"              requires that the underlying libcurl was  built  to  support  c-\n"
-"              ares. Added in 7.33.0.\n"
+"              cause curl to pass the data to the server using the content-type\n"
+"              application/x-www-form-urlencoded.  Compare to -F, --form.\n"
 "\n"
-"       --dns-ipv6-addr <address>\n"
-"              (DNS)  Tell  curl  to  bind to <ip-address> when making IPv6 DNS\n"
-"              requests, so that the DNS requests originate from this  address.\n"
-"              The argument should be a single IPv6 address.\n"
+"              --data-raw is almost the same but does not have a special inter-\n"
+"              pretation  of  the  @ character. To post data purely binary, you\n"
+"              should instead use the --data-binary option.  To URL-encode  the\n"
+"              value of a form field you may use --data-urlencode.\n"
 "\n"
 , stdout);

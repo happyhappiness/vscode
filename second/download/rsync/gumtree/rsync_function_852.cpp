@@ -1,144 +1,55 @@
-void rwrite(enum logcode code, const char *buf, int len, int is_utf8)
+static void link_idev_data(void)
 {
-	int trailing_CR_or_NL;
-	FILE *f = msgs2stderr ? stderr : stdout;
-#ifdef ICONV_OPTION
-	iconv_t ic = is_utf8 && ic_recv != (iconv_t)-1 ? ic_recv : ic_chck;
-#else
-#ifdef ICONV_CONST
-	iconv_t ic = ic_chck;
-#endif
-#endif
+	int32 cur, from, to, start;
 
-	if (len < 0)
-		exit_cleanup(RERR_MESSAGEIO);
+	alloc_pool_t hlink_pool;
+	alloc_pool_t idev_pool = the_file_list->hlink_pool;
 
-	if (msgs2stderr) {
-		if (!am_daemon) {
-			if (code == FLOG)
-				return;
-			goto output_msg;
+	hlink_pool = pool_create(128 * 1024, sizeof (struct hlink),
+	    out_of_memory, POOL_INTERN);
+
+	for (from = to = 0; from < hlink_count; from++) {
+		start = from;
+		while (1) {
+			cur = hlink_list[from];
+			if (from == hlink_count-1
+			    || !LINKED(cur, hlink_list[from+1]))
+				break;
+			pool_free(idev_pool, 0, FPTR(cur)->link_u.idev);
+			FPTR(cur)->link_u.links = pool_talloc(hlink_pool,
+			    struct hlink, 1, "hlink_list");
+
+			FPTR(cur)->F_HLINDEX = to;
+			FPTR(cur)->F_NEXT = hlink_list[++from];
+			FPTR(cur)->link_u.links->link_dest_used = 0;
 		}
-		if (code == FCLIENT)
-			return;
-		code = FLOG;
-	} else if (send_msgs_to_gen) {
-		assert(!is_utf8);
-		/* Pass the message to our sibling in native charset. */
-		send_msg((enum msgcode)code, buf, len, 0);
-		return;
+		pool_free(idev_pool, 0, FPTR(cur)->link_u.idev);
+		if (from > start) {
+			int head = hlink_list[start];
+			FPTR(cur)->link_u.links = pool_talloc(hlink_pool,
+			    struct hlink, 1, "hlink_list");
+
+			FPTR(head)->flags |= FLAG_HLINK_TOL;
+			FPTR(cur)->F_HLINDEX = to;
+			FPTR(cur)->F_NEXT = head;
+			FPTR(cur)->flags |= FLAG_HLINK_EOL;
+			FPTR(cur)->link_u.links->link_dest_used = 0;
+			hlink_list[to++] = head;
+		} else
+			FPTR(cur)->link_u.links = NULL;
 	}
 
-	if (code == FERROR_SOCKET) /* This gets simplified for a non-sibling. */
-		code = FERROR;
-	else if (code == FERROR_UTF8) {
-		is_utf8 = 1;
-		code = FERROR;
+	if (!to) {
+		free(hlink_list);
+		hlink_list = NULL;
+		pool_destroy(hlink_pool);
+		hlink_pool = NULL;
+	} else {
+		hlink_count = to;
+		hlink_list = realloc_array(hlink_list, int32, hlink_count);
+		if (!hlink_list)
+			out_of_memory("init_hard_links");
 	}
-
-	if (code == FCLIENT)
-		code = FINFO;
-	else if (am_daemon || logfile_name) {
-		static int in_block;
-		char msg[2048];
-		int priority = code == FINFO || code == FLOG ? LOG_INFO :  LOG_WARNING;
-
-		if (in_block)
-			return;
-		in_block = 1;
-		if (!log_initialised)
-			log_init(0);
-		strlcpy(msg, buf, MIN((int)sizeof msg, len + 1));
-		logit(priority, msg);
-		in_block = 0;
-
-		if (code == FLOG || (am_daemon && !am_server))
-			return;
-	} else if (code == FLOG)
-		return;
-
-	if (quiet && code == FINFO)
-		return;
-
-	if (am_server) {
-		enum msgcode msg = (enum msgcode)code;
-		if (protocol_version < 30) {
-			if (msg == MSG_ERROR)
-				msg = MSG_ERROR_XFER;
-			else if (msg == MSG_WARNING)
-				msg = MSG_INFO;
-		}
-		/* Pass the message to the non-server side. */
-		if (send_msg(msg, buf, len, !is_utf8))
-			return;
-		if (am_daemon) {
-			/* TODO: can we send the error to the user somehow? */
-			return;
-		}
-		f = stderr;
-	}
-
-output_msg:
-	switch (code) {
-	case FERROR_XFER:
-		got_xfer_error = 1;
-		/* FALL THROUGH */
-	case FERROR:
-	case FERROR_UTF8:
-	case FERROR_SOCKET:
-	case FWARNING:
-		f = stderr;
-		break;
-	case FLOG:
-	case FINFO:
-	case FCLIENT:
-		break;
-	default:
-		fprintf(stderr, "Unknown logcode in rwrite(): %d [%s]\n", (int)code, who_am_i());
-		exit_cleanup(RERR_MESSAGEIO);
-	}
-
-	if (output_needs_newline) {
-		fputc('\n', f);
-		output_needs_newline = 0;
-	}
-
-	trailing_CR_or_NL = len && (buf[len-1] == '\n' || buf[len-1] == '\r')
-			  ? buf[--len] : 0;
-
-	if (len && buf[0] == '\r') {
-		fputc('\r', f);
-		buf++;
-		len--;
-	}
-
-#ifdef ICONV_CONST
-	if (ic != (iconv_t)-1) {
-		xbuf outbuf, inbuf;
-		char convbuf[1024];
-		int ierrno;
-
-		INIT_CONST_XBUF(outbuf, convbuf);
-		INIT_XBUF(inbuf, (char*)buf, len, (size_t)-1);
-
-		while (inbuf.len) {
-			iconvbufs(ic, &inbuf, &outbuf, inbuf.pos ? 0 : ICB_INIT);
-			ierrno = errno;
-			if (outbuf.len) {
-				filtered_fwrite(f, convbuf, outbuf.len, 0);
-				outbuf.len = 0;
-			}
-			if (!ierrno || ierrno == E2BIG)
-				continue;
-			fprintf(f, "\\#%03o", CVAL(inbuf.buf, inbuf.pos++));
-			inbuf.len--;
-		}
-	} else
-#endif
-		filtered_fwrite(f, buf, len, !allow_8bit_chars);
-
-	if (trailing_CR_or_NL) {
-		fputc(trailing_CR_or_NL, f);
-		fflush(f);
-	}
+	the_file_list->hlink_pool = hlink_pool;
+	pool_destroy(idev_pool);
 }

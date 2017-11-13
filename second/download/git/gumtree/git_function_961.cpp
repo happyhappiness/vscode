@@ -1,100 +1,80 @@
-const char *help_unknown_cmd(const char *cmd)
+static struct match_attr *parse_attr_line(const char *line, const char *src,
+					  int lineno, int macro_ok)
 {
-	int i, n, best_similarity = 0;
-	struct cmdnames main_cmds, other_cmds;
+	int namelen;
+	int num_attr, i;
+	const char *cp, *name, *states;
+	struct match_attr *res = NULL;
+	int is_macro;
 
-	memset(&main_cmds, 0, sizeof(main_cmds));
-	memset(&other_cmds, 0, sizeof(other_cmds));
-	memset(&aliases, 0, sizeof(aliases));
-
-	git_config(git_unknown_cmd_config, NULL);
-
-	load_command_list("git-", &main_cmds, &other_cmds);
-
-	add_cmd_list(&main_cmds, &aliases);
-	add_cmd_list(&main_cmds, &other_cmds);
-	QSORT(main_cmds.names, main_cmds.cnt, cmdname_compare);
-	uniq(&main_cmds);
-
-	/* This abuses cmdname->len for levenshtein distance */
-	for (i = 0, n = 0; i < main_cmds.cnt; i++) {
-		int cmp = 0; /* avoid compiler stupidity */
-		const char *candidate = main_cmds.names[i]->name;
-
-		/*
-		 * An exact match means we have the command, but
-		 * for some reason exec'ing it gave us ENOENT; probably
-		 * it's a bad interpreter in the #! line.
-		 */
-		if (!strcmp(candidate, cmd))
-			die(_(bad_interpreter_advice), cmd, cmd);
-
-		/* Does the candidate appear in common_cmds list? */
-		while (n < ARRAY_SIZE(common_cmds) &&
-		       (cmp = strcmp(common_cmds[n].name, candidate)) < 0)
-			n++;
-		if ((n < ARRAY_SIZE(common_cmds)) && !cmp) {
-			/* Yes, this is one of the common commands */
-			n++; /* use the entry from common_cmds[] */
-			if (starts_with(candidate, cmd)) {
-				/* Give prefix match a very good score */
-				main_cmds.names[i]->len = 0;
-				continue;
-			}
+	cp = line + strspn(line, blank);
+	if (!*cp || *cp == '#')
+		return NULL;
+	name = cp;
+	namelen = strcspn(name, blank);
+	if (strlen(ATTRIBUTE_MACRO_PREFIX) < namelen &&
+	    starts_with(name, ATTRIBUTE_MACRO_PREFIX)) {
+		if (!macro_ok) {
+			fprintf(stderr, "%s not allowed: %s:%d\n",
+				name, src, lineno);
+			return NULL;
 		}
+		is_macro = 1;
+		name += strlen(ATTRIBUTE_MACRO_PREFIX);
+		name += strspn(name, blank);
+		namelen = strcspn(name, blank);
+		if (invalid_attr_name(name, namelen)) {
+			fprintf(stderr,
+				"%.*s is not a valid attribute name: %s:%d\n",
+				namelen, name, src, lineno);
+			return NULL;
+		}
+	}
+	else
+		is_macro = 0;
 
-		main_cmds.names[i]->len =
-			levenshtein(cmd, candidate, 0, 2, 1, 3) + 1;
+	states = name + namelen;
+	states += strspn(states, blank);
+
+	/* First pass to count the attr_states */
+	for (cp = states, num_attr = 0; *cp; num_attr++) {
+		cp = parse_attr(src, lineno, cp, NULL);
+		if (!cp)
+			return NULL;
 	}
 
-	QSORT(main_cmds.names, main_cmds.cnt, levenshtein_compare);
-
-	if (!main_cmds.cnt)
-		die(_("Uh oh. Your system reports no Git commands at all."));
-
-	/* skip and count prefix matches */
-	for (n = 0; n < main_cmds.cnt && !main_cmds.names[n]->len; n++)
-		; /* still counting */
-
-	if (main_cmds.cnt <= n) {
-		/* prefix matches with everything? that is too ambiguous */
-		best_similarity = SIMILARITY_FLOOR + 1;
+	res = xcalloc(1,
+		      sizeof(*res) +
+		      sizeof(struct attr_state) * num_attr +
+		      (is_macro ? 0 : namelen + 1));
+	if (is_macro) {
+		res->u.attr = git_attr_internal(name, namelen);
+		res->u.attr->maybe_macro = 1;
 	} else {
-		/* count all the most similar ones */
-		for (best_similarity = main_cmds.names[n++]->len;
-		     (n < main_cmds.cnt &&
-		      best_similarity == main_cmds.names[n]->len);
-		     n++)
-			; /* still counting */
-	}
-	if (autocorrect && n == 1 && SIMILAR_ENOUGH(best_similarity)) {
-		const char *assumed = main_cmds.names[0]->name;
-		main_cmds.names[0] = NULL;
-		clean_cmdnames(&main_cmds);
-		fprintf_ln(stderr,
-			   _("WARNING: You called a Git command named '%s', "
-			     "which does not exist.\n"
-			     "Continuing under the assumption that you meant '%s'"),
-			cmd, assumed);
-		if (autocorrect > 0) {
-			fprintf_ln(stderr, _("in %0.1f seconds automatically..."),
-				(float)autocorrect/10.0);
-			sleep_millisec(autocorrect * 100);
+		char *p = (char *)&(res->state[num_attr]);
+		memcpy(p, name, namelen);
+		res->u.pat.pattern = p;
+		parse_exclude_pattern(&res->u.pat.pattern,
+				      &res->u.pat.patternlen,
+				      &res->u.pat.flags,
+				      &res->u.pat.nowildcardlen);
+		if (res->u.pat.flags & EXC_FLAG_NEGATIVE) {
+			warning(_("Negative patterns are ignored in git attributes\n"
+				  "Use '\\!' for literal leading exclamation."));
+			return NULL;
 		}
-		return assumed;
+	}
+	res->is_macro = is_macro;
+	res->num_attr = num_attr;
+
+	/* Second pass to fill the attr_states */
+	for (cp = states, i = 0; *cp; i++) {
+		cp = parse_attr(src, lineno, cp, &(res->state[i]));
+		if (!is_macro)
+			res->state[i].attr->maybe_real = 1;
+		if (res->state[i].attr->maybe_macro)
+			cannot_trust_maybe_real = 1;
 	}
 
-	fprintf_ln(stderr, _("git: '%s' is not a git command. See 'git --help'."), cmd);
-
-	if (SIMILAR_ENOUGH(best_similarity)) {
-		fprintf_ln(stderr,
-			   Q_("\nThe most similar command is",
-			      "\nThe most similar commands are",
-			   n));
-
-		for (i = 0; i < n; i++)
-			fprintf(stderr, "\t%s\n", main_cmds.names[i]->name);
-	}
-
-	exit(1);
+	return res;
 }

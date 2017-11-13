@@ -1,8 +1,20 @@
-void git_config_set_multivar_in_file(const char *config_filename,
-				     const char *key, const char *value,
-				     const char *value_regex, int multi_replace)
+static int verify_format(const char *format)
 {
-	if (git_config_set_multivar_in_file_gently(config_filename, key, value,
-						   value_regex, multi_replace) < 0)
-		die(_("Could not set '%s' to '%s'"), key, value);
+	const char *cp, *sp;
+
+	need_color_reset_at_eol = 0;
+	for (cp = format; *cp && (sp = find_next(cp)); ) {
+		const char *color, *ep = strchr(sp, ')');
+		int at;
+
+		if (!ep)
+			return error("malformed format string %s", sp);
+		/* sp points at "%(" and ep points at the closing ")" */
+		at = parse_atom(sp + 2, ep);
+		cp = ep + 1;
+
+		if (skip_prefix(used_atom[at], "color:", &color))
+			need_color_reset_at_eol = !!strcmp(color, "reset");
+	}
+	return 0;
 }

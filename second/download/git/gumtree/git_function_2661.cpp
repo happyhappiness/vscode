@@ -1,33 +1,37 @@
-int merge_recursive_generic(struct merge_options *o,
-			    const unsigned char *head,
-			    const unsigned char *merge,
-			    int num_base_list,
-			    const unsigned char **base_list,
-			    struct commit **result)
+static void update_remote_refs(const struct ref *refs,
+			       const struct ref *mapped_refs,
+			       const struct ref *remote_head_points_at,
+			       const char *branch_top,
+			       const char *msg,
+			       struct transport *transport,
+			       int check_connectivity)
 {
-	int clean;
-	struct lock_file *lock = xcalloc(1, sizeof(struct lock_file));
-	struct commit *head_commit = get_ref(head, o->branch1);
-	struct commit *next_commit = get_ref(merge, o->branch2);
-	struct commit_list *ca = NULL;
+	const struct ref *rm = mapped_refs;
 
-	if (base_list) {
-		int i;
-		for (i = 0; i < num_base_list; ++i) {
-			struct commit *base;
-			if (!(base = get_ref(base_list[i], sha1_to_hex(base_list[i]))))
-				return error(_("Could not parse object '%s'"),
-					sha1_to_hex(base_list[i]));
-			commit_list_insert(base, &ca);
-		}
+	if (check_connectivity) {
+		if (transport->progress)
+			fprintf(stderr, _("Checking connectivity... "));
+		if (check_everything_connected_with_transport(iterate_ref_map,
+							      0, &rm, transport))
+			die(_("remote did not send all necessary objects"));
+		if (transport->progress)
+			fprintf(stderr, _("done.\n"));
 	}
 
-	hold_locked_index(lock, 1);
-	clean = merge_recursive(o, head_commit, next_commit, ca,
-			result);
-	if (active_cache_changed &&
-	    write_locked_index(&the_index, lock, COMMIT_LOCK))
-		return error(_("Unable to write index."));
+	if (refs) {
+		write_remote_refs(mapped_refs);
+		if (option_single_branch)
+			write_followtags(refs, msg);
+	}
 
-	return clean ? 0 : 1;
+	if (remote_head_points_at && !option_bare) {
+		struct strbuf head_ref = STRBUF_INIT;
+		strbuf_addstr(&head_ref, branch_top);
+		strbuf_addstr(&head_ref, "HEAD");
+		if (create_symref(head_ref.buf,
+				  remote_head_points_at->peer_ref->name,
+				  msg) < 0)
+			die(_("unable to update %s"), head_ref.buf);
+		strbuf_release(&head_ref);
+	}
 }

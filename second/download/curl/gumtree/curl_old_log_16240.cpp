@@ -1,9 +1,11 @@
 fputs(
-"              When used, this option will make all  data  specified  with  -d,\n"
-"              --data,  --data-binary or --data-urlencode to be used in an HTTP\n"
-"              GET request instead of the POST request that otherwise would  be\n"
-"              used. The data will be appended to the URL with a '?' separator.\n"
-"              If  used  in  combination  with  -I,  --head, the POST data will\n"
-"              instead be appended to the URL with a HEAD request.\n"
+"              FTP(S) server. The method argument should be one of the  follow-\n"
+"              ing alternatives:\n"
+"\n"
+"              multicwd\n"
+"                     curl  does  a  single CWD operation for each path part in\n"
+"                     the given URL. For deep hierarchies this means very  many\n"
+"                     commands.  This  is  how RFC 1738 says it should be done.\n"
+"                     This is the default but the slowest behavior.\n"
 "\n"
 , stdout);

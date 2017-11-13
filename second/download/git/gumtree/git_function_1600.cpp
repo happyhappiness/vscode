@@ -1,49 +1,88 @@
-static int edit_patch(int argc, const char **argv, const char *prefix)
+void http_init(struct remote *remote, const char *url, int proactive_auth)
 {
-	char *file = git_pathdup("ADD_EDIT.patch");
-	const char *apply_argv[] = { "apply", "--recount", "--cached",
-		NULL, NULL };
-	struct child_process child = CHILD_PROCESS_INIT;
-	struct rev_info rev;
-	int out;
-	struct stat st;
+	char *low_speed_limit;
+	char *low_speed_time;
+	char *normalized_url;
+	struct urlmatch_config config = { STRING_LIST_INIT_DUP };
 
-	apply_argv[3] = file;
+	config.section = "http";
+	config.key = NULL;
+	config.collect_fn = http_options;
+	config.cascade_fn = git_default_config;
+	config.cb = NULL;
 
-	git_config(git_diff_basic_config, NULL); /* no "diff" UI options */
+	http_is_verbose = 0;
+	normalized_url = url_normalize(url, &config.url);
 
-	if (read_cache() < 0)
-		die(_("Could not read the index"));
+	git_config(urlmatch_config_entry, &config);
+	free(normalized_url);
 
-	init_revisions(&rev, prefix);
-	rev.diffopt.context = 7;
+	curl_global_init(CURL_GLOBAL_ALL);
 
-	argc = setup_revisions(argc, argv, &rev, NULL);
-	rev.diffopt.output_format = DIFF_FORMAT_PATCH;
-	rev.diffopt.use_color = 0;
-	DIFF_OPT_SET(&rev.diffopt, IGNORE_DIRTY_SUBMODULES);
-	out = open(file, O_CREAT | O_WRONLY, 0666);
-	if (out < 0)
-		die(_("Could not open '%s' for writing."), file);
-	rev.diffopt.file = xfdopen(out, "w");
-	rev.diffopt.close_file = 1;
-	if (run_diff_files(&rev, 0))
-		die(_("Could not write patch"));
+	http_proactive_auth = proactive_auth;
 
-	if (launch_editor(file, NULL, NULL))
-		die(_("editing patch failed"));
+	if (remote && remote->http_proxy)
+		curl_http_proxy = xstrdup(remote->http_proxy);
 
-	if (stat(file, &st))
-		die_errno(_("Could not stat '%s'"), file);
-	if (!st.st_size)
-		die(_("Empty patch. Aborted."));
+	pragma_header = curl_slist_append(pragma_header, "Pragma: no-cache");
+	no_pragma_header = curl_slist_append(no_pragma_header, "Pragma:");
 
-	child.git_cmd = 1;
-	child.argv = apply_argv;
-	if (run_command(&child))
-		die(_("Could not apply '%s'"), file);
+#ifdef USE_CURL_MULTI
+	{
+		char *http_max_requests = getenv("GIT_HTTP_MAX_REQUESTS");
+		if (http_max_requests != NULL)
+			max_requests = atoi(http_max_requests);
+	}
 
-	unlink(file);
-	free(file);
-	return 0;
+	curlm = curl_multi_init();
+	if (curlm == NULL) {
+		fprintf(stderr, "Error creating curl multi handle.\n");
+		exit(1);
+	}
+#endif
+
+	if (getenv("GIT_SSL_NO_VERIFY"))
+		curl_ssl_verify = 0;
+
+	set_from_env(&ssl_cert, "GIT_SSL_CERT");
+#if LIBCURL_VERSION_NUM >= 0x070903
+	set_from_env(&ssl_key, "GIT_SSL_KEY");
+#endif
+#if LIBCURL_VERSION_NUM >= 0x070908
+	set_from_env(&ssl_capath, "GIT_SSL_CAPATH");
+#endif
+	set_from_env(&ssl_cainfo, "GIT_SSL_CAINFO");
+
+	set_from_env(&user_agent, "GIT_HTTP_USER_AGENT");
+
+	low_speed_limit = getenv("GIT_HTTP_LOW_SPEED_LIMIT");
+	if (low_speed_limit != NULL)
+		curl_low_speed_limit = strtol(low_speed_limit, NULL, 10);
+	low_speed_time = getenv("GIT_HTTP_LOW_SPEED_TIME");
+	if (low_speed_time != NULL)
+		curl_low_speed_time = strtol(low_speed_time, NULL, 10);
+
+	if (curl_ssl_verify == -1)
+		curl_ssl_verify = 1;
+
+	curl_session_count = 0;
+#ifdef USE_CURL_MULTI
+	if (max_requests < 1)
+		max_requests = DEFAULT_MAX_REQUESTS;
+#endif
+
+	if (getenv("GIT_CURL_FTP_NO_EPSV"))
+		curl_ftp_no_epsv = 1;
+
+	if (url) {
+		credential_from_url(&http_auth, url);
+		if (!ssl_cert_password_required &&
+		    getenv("GIT_SSL_CERT_PASSWORD_PROTECTED") &&
+		    starts_with(url, "https://"))
+			ssl_cert_password_required = 1;
+	}
+
+#ifndef NO_CURL_EASY_DUPHANDLE
+	curl_default = get_curl_handle();
+#endif
 }

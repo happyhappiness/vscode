@@ -1,1 +1,0 @@
-die(_("Bad value '%s' in environment '%s'"), e, name);

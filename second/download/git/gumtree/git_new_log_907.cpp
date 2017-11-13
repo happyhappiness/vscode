@@ -1,2 +1,1 @@
-warning("ignoring git dir '%s': %s",
-			gitdir->buf + gitdir_offset, err.buf);
+error(ERRORMSG(o, e), super_prefixed(path));

@@ -1,1 +1,2 @@
-fprintf(FERROR,"\nError: MDupdate MD already done.");
+fprintf(FERROR,"rename %s -> %s : %s\n",
+		fnametmp,fname,strerror(errno));

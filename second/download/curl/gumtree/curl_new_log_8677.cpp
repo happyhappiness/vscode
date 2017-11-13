@@ -1,11 +1,11 @@
 fputs(
-"              Append this option to any ordinary curl command  line,  and  you\n"
-"              will  get a libcurl-using C source code written to the file that\n"
-"              does the equivalent of what your command-line operation does!\n"
+"              redirects to follow by using the --max-redirs option.\n"
 "\n"
-"              If this option is used several times, the last given  file  name\n"
-"              will be used. (Added in 7.16.1)\n"
+"              When curl follows a redirect and the request is not a plain  GET\n"
+"              (for example POST or PUT), it will do the following request with\n"
+"              a GET if the HTTP response was 301, 302, or 303. If the response\n"
+"              code  was  any  other  3xx code, curl will re-send the following\n"
+"              request using the same unmodified method.\n"
 "\n"
-"       --limit-rate <speed>\n"
-"              Specify  the  maximum  transfer  rate you want curl to use. This\n"
+"       --libcurl <file>\n"
 , stdout);

@@ -1,1 +1,1 @@
-die("unknown option --%s", a);
+die("%s", err.buf);

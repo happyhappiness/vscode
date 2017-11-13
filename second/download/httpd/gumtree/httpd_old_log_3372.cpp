@@ -1,1 +1,3 @@
-ap_rputs("<p>Scoreboard Key:<br />\n", r);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                          "ISAPI: %s: %s", cid->r->filename,
+                          (char*) buf_data);

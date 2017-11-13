@@ -1,62 +1,80 @@
-static int winnt_run(apr_pool_t *_pconf, apr_pool_t *plog, server_rec *s )
+static void ssl_log_cert_error(const char *file, int line, int level,
+                               apr_status_t rv, const server_rec *s,
+                               const conn_rec *c, const request_rec *r,
+                               apr_pool_t *p, X509 *cert, const char *format,
+                               va_list ap)
 {
-    static int restart = 0;            /* Default is "not a restart" */
+    char buf[HUGE_STRING_LEN];
+    int msglen, n;
+    char *name;
 
-    /* ### If non-graceful restarts are ever introduced - we need to rerun
-     * the pre_mpm hook on subsequent non-graceful restarts.  But Win32
-     * has only graceful style restarts - and we need this hook to act
-     * the same on Win32 as on Unix.
-     */
-    if (!restart && ((parent_pid == my_pid) || one_process)) {
-        /* Set up the scoreboard. */
-        if (ap_run_pre_mpm(s->process->pool, SB_SHARED) != OK) {
-            return DONE;
-        }
-    }
+    apr_vsnprintf(buf, sizeof buf, format, ap);
 
-    if ((parent_pid != my_pid) || one_process)
-    {
-        /* The child process or in one_process (debug) mode
-         */
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                     "Child %d: Child process is running", my_pid);
+    msglen = strlen(buf);
 
-        child_main(pconf);
+    if (cert) {
+        BIO *bio = BIO_new(BIO_s_mem());
 
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                     "Child %d: Child process is exiting", my_pid);
-        return DONE;
-    }
-    else
-    {
-        /* A real-honest to goodness parent */
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                     "%s configured -- resuming normal operations",
-                     ap_get_server_description());
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                     "Server built: %s", ap_get_server_built());
-        ap_log_command_line(plog, s);
+        if (bio) {
+            /*
+             * Limit the maximum length of the subject and issuer DN strings
+             * in the log message. 300 characters should always be sufficient
+             * for holding both the timestamp, module name, pid etc. stuff
+             * at the beginning of the line and the trailing information about
+             * serial, notbefore and notafter.
+             */
+            int maxdnlen = (HUGE_STRING_LEN - msglen - 300) / 2;
 
-        restart = master_main(ap_server_conf, shutdown_event, restart_event);
-
-        if (!restart)
-        {
-            /* Shutting down. Clean up... */
-            const char *pidfile = ap_server_root_relative (pconf, ap_pid_fname);
-
-            if (pidfile != NULL && unlink(pidfile) == 0) {
-                ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS,
-                             ap_server_conf, "removed PID file %s (pid=%ld)",
-                             pidfile, GetCurrentProcessId());
+            BIO_puts(bio, " [subject: ");
+            name = SSL_X509_NAME_to_string(p, X509_get_subject_name(cert),
+                                           maxdnlen);
+            if (!strIsEmpty(name)) {
+                BIO_puts(bio, name);
+            } else {
+                BIO_puts(bio, "-empty-");
             }
-            apr_proc_mutex_destroy(start_mutex);
 
-            CloseHandle(restart_event);
-            CloseHandle(shutdown_event);
+            BIO_puts(bio, " / issuer: ");
+            name = SSL_X509_NAME_to_string(p, X509_get_issuer_name(cert),
+                                           maxdnlen);
+            if (!strIsEmpty(name)) {
+                BIO_puts(bio, name);
+            } else {
+                BIO_puts(bio, "-empty-");
+            }
 
-            return DONE;
+            BIO_puts(bio, " / serial: ");
+            if (i2a_ASN1_INTEGER(bio, X509_get_serialNumber(cert)) == -1)
+                BIO_puts(bio, "(ERROR)");
+
+            BIO_puts(bio, " / notbefore: ");
+            ASN1_TIME_print(bio, X509_get_notBefore(cert));
+
+            BIO_puts(bio, " / notafter: ");
+            ASN1_TIME_print(bio, X509_get_notAfter(cert));
+
+            BIO_puts(bio, "]");
+
+            n = BIO_read(bio, buf + msglen, sizeof buf - msglen - 1);
+            if (n > 0)
+               buf[msglen + n] = '\0';
+
+            BIO_free(bio);
         }
     }
+    else {
+        apr_snprintf(buf + msglen, sizeof buf - msglen,
+                     " [certificate: -not available-]");
+    }
 
-    return OK; /* Restart */
+    if (r) {
+        ap_log_rerror(file, line, APLOG_MODULE_INDEX, level, rv, r, "%s", buf);
+    }
+    else if (c) {
+        ap_log_cerror(file, line, APLOG_MODULE_INDEX, level, rv, c, "%s", buf);
+    }
+    else if (s) {
+        ap_log_error(file, line, APLOG_MODULE_INDEX, level, rv, s, "%s", buf);
+    }
+
 }

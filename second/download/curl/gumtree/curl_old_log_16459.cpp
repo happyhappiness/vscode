@@ -1,10 +1,9 @@
 fputs(
-"              given time and date, or one that has been modified  before  that\n"
-"              time.  The <date expression> can be all sorts of date strings or\n"
-"              if it doesn't match any internal ones, it is taken as a filename\n"
-"              and  tries  to  get  the  modification  date (mtime) from <file>\n"
-"              instead. See the curl_getdate(3) man pages for  date  expression\n"
-"              details.\n"
+"              Since 7.21.7, this option is superfluous since you can specify a\n"
+"              socks5 proxy with -x, --proxy using a socks5:// protocol prefix.\n"
+"              Since 7.52.0, --preproxy can be used to specify a SOCKS proxy at\n"
+"              the  same  time -x, --proxy is used with an HTTP/HTTPS proxy. In\n"
+"              such a case curl first connects to the SOCKS proxy and then con-\n"
+"              nects (through SOCKS) to the HTTP or HTTPS proxy.\n"
 "\n"
-"              Start the date expression with a dash (-) to make it request for\n"
 , stdout);

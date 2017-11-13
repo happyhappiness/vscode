@@ -1,11 +1,11 @@
 fputs(
-"              This option can be used many times to add many connect rules.\n"
+"              url = \"https://curl.haxx.se/docs/\"\n"
 "\n"
-"              See also --resolve and -H, --header. Added in 7.49.0.\n"
+"              When  curl  is invoked, it always (unless -q, --disable is used)\n"
+"              checks for a default config file  and  uses  it  if  found.  The\n"
+"              default  config  file  is checked for in the following places in\n"
+"              this order:\n"
 "\n"
-"       -C, --continue-at <offset>\n"
-"              Continue/Resume  a  previous  file transfer at the given offset.\n"
-"              The given offset is the exact  number  of  bytes  that  will  be\n"
-"              skipped,  counting  from the beginning of the source file before\n"
-"              it is transferred to the destination.  If used with uploads, the\n"
+"              1) curl tries to find the \"home dir\": It first  checks  for  the\n"
+"              CURL_HOME and then the HOME environment variables. Failing that,\n"
 , stdout);

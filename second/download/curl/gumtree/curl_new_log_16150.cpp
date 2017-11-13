@@ -1,1 +1,2 @@
-warnf(config->global, "curl_mime_type failed!\n");
+warnf(config->global,
+          "Field headers not allowed here: %s\n", headers->data);

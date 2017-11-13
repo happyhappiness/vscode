@@ -1,33 +1,35 @@
-void setup_protocol(int f_out,int f_in)
+static void delete_files(struct file_list *flist)
 {
-  if (am_server) {
-    remote_version = read_int(f_in);
-    write_int(f_out,PROTOCOL_VERSION);
-    write_flush(f_out);
-  } else {
-    write_int(f_out,PROTOCOL_VERSION);
-    write_flush(f_out);
-    remote_version = read_int(f_in);
+  struct file_list *local_file_list;
+  int i, j;
+
+  if (cvs_exclude)
+    add_cvs_excludes();
+
+  if (io_error) {
+	  fprintf(FINFO,"IO error encountered - skipping file deletion\n");
+	  return;
   }
 
-  if (remote_version < MIN_PROTOCOL_VERSION ||
-      remote_version > MAX_PROTOCOL_VERSION) {
-    fprintf(FERROR,"protocol version mismatch - is your shell clean?\n");
-    exit_cleanup(1);
-  }	
+  for (j=0;j<flist->count;j++) {
+	  char *name = f_name(flist->files[j]);
 
-  if (verbose > 2)
-	  fprintf(FINFO, "local_version=%d remote_version=%d\n",
-		  PROTOCOL_VERSION, remote_version);
+	  if (!S_ISDIR(flist->files[j]->mode)) continue;
 
-  if (remote_version >= 12) {
-    if (am_server) {
-      checksum_seed = time(NULL);
-      write_int(f_out,checksum_seed);
-    } else {
-      checksum_seed = read_int(f_in);
-    }
+	  if (delete_already_done(flist, j)) continue;
+
+	  if (!(local_file_list = send_file_list(-1,1,&name)))
+		  continue;
+
+	  if (verbose > 1)
+		  fprintf(FINFO,"deleting in %s\n", name);
+
+	  for (i=local_file_list->count-1;i>=0;i--) {
+		  if (!local_file_list->files[i]->basename) continue;
+		  if (-1 == flist_find(flist,local_file_list->files[i])) {
+			  delete_one(local_file_list->files[i]);
+		  }    
+	  }
+	  flist_free(local_file_list);
   }
-
-  checksum_init();
 }

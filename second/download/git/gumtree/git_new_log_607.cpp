@@ -1,2 +1,2 @@
-printf("tagged %s %s", printable_type(tag->tagged),
-				describe_object(tag->tagged));
+error(_("your local changes would be overwritten by %s."),
+		_(action_name(opts)));

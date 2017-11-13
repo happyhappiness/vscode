@@ -1,1 +1,1 @@
-fprintf(stderr, "                -x[m"CRYPT_OPTION"ps]    [-TDBTYPE] database username\n");
+fprintf(stderr, "                -l                       [-TDBTYPE] database\n");

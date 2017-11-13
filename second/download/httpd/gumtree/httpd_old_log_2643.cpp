@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                         "unable to allocate new auth_digest client");
+ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, svr->pool,
+                      "DBD: failed to initialise");

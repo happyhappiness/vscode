@@ -1,59 +1,64 @@
-int cmd_merge_recursive(int argc, const char **argv, const char *prefix)
+static int parse_single_patch(struct apply_state *state,
+			      const char *line,
+			      unsigned long size,
+			      struct patch *patch)
 {
-	const struct object_id *bases[21];
-	unsigned bases_count = 0;
-	int i, failed;
-	struct object_id h1, h2;
-	struct merge_options o;
-	struct commit *result;
+	unsigned long offset = 0;
+	unsigned long oldlines = 0, newlines = 0, context = 0;
+	struct fragment **fragp = &patch->fragments;
 
-	init_merge_options(&o);
-	if (argv[0] && ends_with(argv[0], "-subtree"))
-		o.subtree_shift = "";
+	while (size > 4 && !memcmp(line, "@@ -", 4)) {
+		struct fragment *fragment;
+		int len;
 
-	if (argc < 4)
-		usagef(builtin_merge_recursive_usage, argv[0]);
+		fragment = xcalloc(1, sizeof(*fragment));
+		fragment->linenr = state->linenr;
+		len = parse_fragment(state, line, size, patch, fragment);
+		if (len <= 0)
+			die(_("corrupt patch at line %d"), state->linenr);
+		fragment->patch = line;
+		fragment->size = len;
+		oldlines += fragment->oldlines;
+		newlines += fragment->newlines;
+		context += fragment->leading + fragment->trailing;
 
-	for (i = 1; i < argc; ++i) {
-		const char *arg = argv[i];
+		*fragp = fragment;
+		fragp = &fragment->next;
 
-		if (starts_with(arg, "--")) {
-			if (!arg[2])
-				break;
-			if (parse_merge_opt(&o, arg + 2))
-				die("Unknown option %s", arg);
-			continue;
-		}
-		if (bases_count < ARRAY_SIZE(bases)-1) {
-			struct object_id *oid = xmalloc(sizeof(struct object_id));
-			if (get_oid(argv[i], oid))
-				die("Could not parse object '%s'", argv[i]);
-			bases[bases_count++] = oid;
-		}
-		else
-			warning("Cannot handle more than %d bases. "
-				"Ignoring %s.",
-				(int)ARRAY_SIZE(bases)-1, argv[i]);
+		offset += len;
+		line += len;
+		size -= len;
 	}
-	if (argc - i != 3) /* "--" "<head>" "<remote>" */
-		die("Not handling anything other than two heads merge.");
 
-	o.branch1 = argv[++i];
-	o.branch2 = argv[++i];
+	/*
+	 * If something was removed (i.e. we have old-lines) it cannot
+	 * be creation, and if something was added it cannot be
+	 * deletion.  However, the reverse is not true; --unified=0
+	 * patches that only add are not necessarily creation even
+	 * though they do not have any old lines, and ones that only
+	 * delete are not necessarily deletion.
+	 *
+	 * Unfortunately, a real creation/deletion patch do _not_ have
+	 * any context line by definition, so we cannot safely tell it
+	 * apart with --unified=0 insanity.  At least if the patch has
+	 * more than one hunk it is not creation or deletion.
+	 */
+	if (patch->is_new < 0 &&
+	    (oldlines || (patch->fragments && patch->fragments->next)))
+		patch->is_new = 0;
+	if (patch->is_delete < 0 &&
+	    (newlines || (patch->fragments && patch->fragments->next)))
+		patch->is_delete = 0;
 
-	if (get_oid(o.branch1, &h1))
-		die("Could not resolve ref '%s'", o.branch1);
-	if (get_oid(o.branch2, &h2))
-		die("Could not resolve ref '%s'", o.branch2);
+	if (0 < patch->is_new && oldlines)
+		die(_("new file %s depends on old contents"), patch->new_name);
+	if (0 < patch->is_delete && newlines)
+		die(_("deleted file %s still has contents"), patch->old_name);
+	if (!patch->is_delete && !newlines && context)
+		fprintf_ln(stderr,
+			   _("** warning: "
+			     "file %s becomes empty but is not deleted"),
+			   patch->new_name);
 
-	o.branch1 = better_branch_name(o.branch1);
-	o.branch2 = better_branch_name(o.branch2);
-
-	if (o.verbosity >= 3)
-		printf("Merging %s with %s\n", o.branch1, o.branch2);
-
-	failed = merge_recursive_generic(&o, &h1, &h2, bases_count, bases, &result);
-	if (failed < 0)
-		return 128; /* die() error code */
-	return failed;
+	return offset;
 }

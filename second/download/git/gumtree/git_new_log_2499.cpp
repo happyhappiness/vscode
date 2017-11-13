@@ -1,2 +1,1 @@
-fprintf(stderr, "Checking %s %s\n",
-			typename(obj->type), describe_object(obj));
+die(_("format: %%(end) atom used without corresponding atom"));

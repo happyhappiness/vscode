@@ -1,2 +1,1 @@
-fprintf(stderr, "%s in %s %s: %s\n",
-		msg_type, printable_type(obj), describe_object(obj), err);
+die("BUG: reference backend %s is unknown", be_name);

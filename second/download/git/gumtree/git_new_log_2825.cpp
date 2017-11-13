@@ -1,1 +1,1 @@
-error("could not unhide %s", filename);
+warning("could not mark '%s' as hidden.", filename);

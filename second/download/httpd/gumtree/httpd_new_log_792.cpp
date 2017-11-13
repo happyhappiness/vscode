@@ -1,1 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "inside shmcb_status");
+ap_rvputs(r, "</td><td>", worker->s->redirect, NULL);

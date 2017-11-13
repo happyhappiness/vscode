@@ -1,11 +1,11 @@
 fputs(
-"              PKCS#11 module (libnsspem.so) needs to  be  available  for  this\n"
-"              option to work properly.\n"
+"              path  to  a  PKCS#12-encoded certificate and private key. If you\n"
+"              want to use a file from the current directory, please precede it\n"
+"              with \"./\" prefix, in order to avoid confusion with a nickname.\n"
 "\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --capath <CA certificate directory>\n"
-"              (SSL)  Tells  curl to use the specified certificate directory to\n"
-"              verify the peer. Multiple paths can be  provided  by  separating\n"
-"              them with \":\" (e.g.  \"path1:path2:path3\"). The certificates must\n"
+"       --engine <name>\n"
+"              Select  the  OpenSSL crypto engine to use for cipher operations.\n"
+"              Use --engine list  to  print  a  list  of  build-time  supported\n"
 , stdout);

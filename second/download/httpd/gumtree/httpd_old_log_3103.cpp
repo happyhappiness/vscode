@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                     "DBD: failed to initialise");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "user %s: authentication failure for \"%s\": "
+                      "Password Mismatch",
+                      sent_user, r->uri);

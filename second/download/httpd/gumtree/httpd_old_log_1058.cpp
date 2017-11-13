@@ -1,2 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, pool,
-                      "DBD Pool: failed to initialise");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
+                             "integer overflow or out of memory condition." );

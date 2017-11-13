@@ -1,40 +1,40 @@
-static const char *set_shmem_size(cmd_parms *cmd, void *config,
-                                  const char *size_str)
+static int send_listeners_to_child(apr_pool_t *p, DWORD dwProcessId,
+                                   apr_file_t *child_in)
 {
-    char *endptr;
-    long  size, min;
+    apr_status_t rv;
+    int lcnt = 0;
+    ap_listen_rec *lr;
+    LPWSAPROTOCOL_INFO  lpWSAProtocolInfo;
+    apr_size_t BytesWritten;
 
-    size = strtol(size_str, &endptr, 10);
-    while (apr_isspace(*endptr)) endptr++;
-    if (*endptr == '\0' || *endptr == 'b' || *endptr == 'B') {
-        ;
-    }
-    else if (*endptr == 'k' || *endptr == 'K') {
-        size *= 1024;
-    }
-    else if (*endptr == 'm' || *endptr == 'M') {
-        size *= 1048576;
-    }
-    else {
-        return apr_pstrcat(cmd->pool, "Invalid size in AuthDigestShmemSize: ",
-                          size_str, NULL);
+    /* Run the chain of open sockets. For each socket, duplicate it
+     * for the target process then send the WSAPROTOCOL_INFO
+     * (returned by dup socket) to the child.
+     */
+    for (lr = ap_listeners; lr; lr = lr->next, ++lcnt) {
+        apr_os_sock_t nsd;
+        lpWSAProtocolInfo = apr_pcalloc(p, sizeof(WSAPROTOCOL_INFO));
+        apr_os_sock_get(&nsd,lr->sd);
+        ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, ap_server_conf,
+                     "Parent: Duplicating socket %d and sending it to child process %d",
+                     nsd, dwProcessId);
+        if (WSADuplicateSocket(nsd, dwProcessId,
+                               lpWSAProtocolInfo) == SOCKET_ERROR) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), ap_server_conf,
+                         "Parent: WSADuplicateSocket failed for socket %d. Check the FAQ.", lr->sd );
+            return -1;
+        }
+
+        if ((rv = apr_file_write_full(child_in, lpWSAProtocolInfo,
+                                      sizeof(WSAPROTOCOL_INFO), &BytesWritten))
+                != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                         "Parent: Unable to write duplicated socket %d to the child.", lr->sd );
+            return -1;
+        }
     }
 
-    min = sizeof(*client_list) + sizeof(client_entry*) + sizeof(client_entry);
-    if (size < min) {
-        return apr_psprintf(cmd->pool, "size in AuthDigestShmemSize too small: "
-                           "%ld < %ld", size, min);
-    }
-
-    shmem_size  = size;
-    num_buckets = (size - sizeof(*client_list)) /
-                  (sizeof(client_entry*) + HASH_DEPTH * sizeof(client_entry));
-    if (num_buckets == 0) {
-        num_buckets = 1;
-    }
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
-                 "Digest: Set shmem-size: %ld, num-buckets: %ld", shmem_size,
-                 num_buckets);
-
-    return NULL;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                 "Parent: Sent %d listeners to child %d", lcnt, dwProcessId);
+    return 0;
 }

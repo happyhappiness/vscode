@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, APR_FROM_OS_ERROR(rc), ap_server_conf, APLOGNO(00205)
-                         "unable to allocate shared memory for scoreboard , exiting");
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01819)
+                          "attempt made to save a session when the session had already expired, "
+                          "session not saved: %s", r->uri);

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(00120)
-                         "Limiting the subrequest depth to a very low level may"
-                         " cause normal requests to fail.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01046)
+                                  "apr_socket_opt_set(SO_RCVBUF): Failed to set ProxyReceiveBufferSize, using default");

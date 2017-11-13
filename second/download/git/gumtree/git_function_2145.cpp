@@ -1,17 +1,15 @@
-static void contents_atom_parser(struct used_atom *atom, const char *arg)
+int fsck_error_function(struct object *obj, int type, const char *fmt, ...)
 {
-	if (!arg)
-		atom->u.contents.option = C_BARE;
-	else if (!strcmp(arg, "body"))
-		atom->u.contents.option = C_BODY;
-	else if (!strcmp(arg, "signature"))
-		atom->u.contents.option = C_SIG;
-	else if (!strcmp(arg, "subject"))
-		atom->u.contents.option = C_SUB;
-	else if (skip_prefix(arg, "lines=", &arg)) {
-		atom->u.contents.option = C_LINES;
-		if (strtoul_ui(arg, 10, &atom->u.contents.nlines))
-			die(_("positive value expected contents:lines=%s"), arg);
-	} else
-		die(_("unrecognized %%(contents) argument: %s"), arg);
+	va_list ap;
+	struct strbuf sb = STRBUF_INIT;
+
+	strbuf_addf(&sb, "object %s:", sha1_to_hex(obj->sha1));
+
+	va_start(ap, fmt);
+	strbuf_vaddf(&sb, fmt, ap);
+	va_end(ap);
+
+	error("%s", sb.buf);
+	strbuf_release(&sb);
+	return 1;
 }

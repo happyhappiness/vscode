@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01501)
-                              "Failed to evaluate expression (%s) - ignoring",
-                              err);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02083)
+                   "Unable to close file: %s", path);

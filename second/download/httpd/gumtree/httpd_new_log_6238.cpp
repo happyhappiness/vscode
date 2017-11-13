@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, 
-                          H2_STRM_LOG(APLOGNO(03466), stream, 
-                          "no response, RST_STREAM"));
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(03040)
+                             "stapling_cb: success renewing response");

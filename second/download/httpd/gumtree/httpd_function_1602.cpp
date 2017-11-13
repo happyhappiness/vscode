@@ -1,121 +1,376 @@
-static void emit_head(request_rec *r, char *header_fname, int suppress_amble,
-                      int emit_xhtml, char *title)
+static void output_directories(struct ent **ar, int n,
+                               autoindex_config_rec *d, request_rec *r,
+                               apr_int32_t autoindex_opts, char keyid,
+                               char direction, const char *colargs)
 {
-    autoindex_config_rec *d;
-    apr_table_t *hdrs = r->headers_in;
-    apr_file_t *f = NULL;
-    request_rec *rr = NULL;
-    int emit_amble = 1;
-    int emit_H1 = 1;
-    const char *r_accept;
-    const char *r_accept_enc;
+    int x;
+    apr_size_t rv;
+    char *name = r->uri;
+    char *tp;
+    int static_columns = !!(autoindex_opts & SUPPRESS_COLSORT);
+    apr_pool_t *scratch;
+    int name_width;
+    int desc_width;
+    char *name_scratch;
+    char *pad_scratch;
+    char *breakrow = "";
 
-    /*
-     * If there's a header file, send a subrequest to look for it.  If it's
-     * found and html do the subrequest, otherwise handle it
-     */
-    r_accept = apr_table_get(hdrs, "Accept");
-    r_accept_enc = apr_table_get(hdrs, "Accept-Encoding");
-    apr_table_setn(hdrs, "Accept", "text/html, text/plain");
-    apr_table_unset(hdrs, "Accept-Encoding");
-
-
-    if ((header_fname != NULL) && r->args) {
-        header_fname = apr_pstrcat(r->pool, header_fname, "?", r->args, NULL);
+    apr_pool_create(&scratch, r->pool);
+    if (name[0] == '\0') {
+        name = "/";
     }
 
-    if ((header_fname != NULL)
-        && (rr = ap_sub_req_lookup_uri(header_fname, r, r->output_filters))
-        && (rr->status == HTTP_OK)
-        && (rr->filename != NULL)
-        && (rr->finfo.filetype == APR_REG)) {
-        /*
-         * Check for the two specific cases we allow: text/html and
-         * text/anything-else.  The former is allowed to be processed for
-         * SSIs.
-         */
-        if (rr->content_type != NULL) {
-            if (response_is_html(rr)) {
-                ap_filter_t *f;
-               /* Hope everything will work... */
-                emit_amble = 0;
-                emit_H1 = 0;
+    name_width = d->name_width;
+    desc_width = d->desc_width;
 
-                if (! suppress_amble) {
-                    emit_preamble(r, emit_xhtml, title);
-                }
-                /* This is a hack, but I can't find any better way to do this.
-                 * The problem is that we have already created the sub-request,
-                 * but we just inserted the OLD_WRITE filter, and the
-                 * sub-request needs to pass its data through the OLD_WRITE
-                 * filter, or things go horribly wrong (missing data, data in
-                 * the wrong order, etc).  To fix it, if you create a
-                 * sub-request and then insert the OLD_WRITE filter before you
-                 * run the request, you need to make sure that the sub-request
-                 * data goes through the OLD_WRITE filter.  Just steal this
-                 * code.  The long-term solution is to remove the ap_r*
-                 * functions.
-                 */
-                for (f=rr->output_filters;
-                     f->frec != ap_subreq_core_filter_handle; f = f->next);
-                f->next = r->output_filters;
-
-                /*
-                 * If there's a problem running the subrequest, display the
-                 * preamble if we didn't do it before -- the header file
-                 * didn't get displayed.
-                 */
-                if (ap_run_sub_req(rr) != OK) {
-                    /* It didn't work */
-                    emit_amble = suppress_amble;
-                    emit_H1 = 1;
+    if ((autoindex_opts & (FANCY_INDEXING | TABLE_INDEXING))
+                        == FANCY_INDEXING) {
+        if (d->name_adjust == K_ADJUST) {
+            for (x = 0; x < n; x++) {
+                int t = strlen(ar[x]->name);
+                if (t > name_width) {
+                    name_width = t;
                 }
             }
-            else if (!strncasecmp("text/", rr->content_type, 5)) {
-                /*
-                 * If we can open the file, prefix it with the preamble
-                 * regardless; since we'll be sending a <pre> block around
-                 * the file's contents, any HTML header it had won't end up
-                 * where it belongs.
-                 */
-                if (apr_file_open(&f, rr->filename, APR_READ,
-                                  APR_OS_DEFAULT, r->pool) == APR_SUCCESS) {
-                    emit_preamble(r, emit_xhtml, title);
-                    emit_amble = 0;
-                    do_emit_plain(r, f);
-                    apr_file_close(f);
-                    emit_H1 = 0;
+        }
+
+        if (d->desc_adjust == K_ADJUST) {
+            for (x = 0; x < n; x++) {
+                if (ar[x]->desc != NULL) {
+                    int t = strlen(ar[x]->desc);
+                    if (t > desc_width) {
+                        desc_width = t;
+                    }
                 }
             }
         }
     }
+    name_scratch = apr_palloc(r->pool, name_width + 1);
+    pad_scratch = apr_palloc(r->pool, name_width + 1);
+    memset(pad_scratch, ' ', name_width);
+    pad_scratch[name_width] = '\0';
 
-    if (r_accept) {
-        apr_table_setn(hdrs, "Accept", r_accept);
+    if (autoindex_opts & TABLE_INDEXING) {
+        int cols = 1;
+        ap_rputs("<table><tr>", r);
+        if (!(autoindex_opts & SUPPRESS_ICON)) {
+            ap_rputs("<th>", r);
+            if ((tp = find_default_icon(d, "^^BLANKICON^^"))) {
+                ap_rvputs(r, "<img src=\"", ap_escape_html(scratch, tp),
+                             "\" alt=\"[ICO]\"", NULL);
+                if (d->icon_width) {
+                    ap_rprintf(r, " width=\"%d\"", d->icon_width);
+                }
+                if (d->icon_height) {
+                    ap_rprintf(r, " height=\"%d\"", d->icon_height);
+                }
+
+                if (autoindex_opts & EMIT_XHTML) {
+                    ap_rputs(" /", r);
+                }
+                ap_rputs("></th>", r);
+            }
+            else {
+                ap_rputs("&nbsp;</th>", r);
+            }
+
+            ++cols;
+        }
+        ap_rputs("<th>", r);
+        emit_link(r, "Name", K_NAME, keyid, direction,
+                  colargs, static_columns);
+        if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
+            ap_rputs("</th><th>", r);
+            emit_link(r, "Last modified", K_LAST_MOD, keyid, direction,
+                      colargs, static_columns);
+            ++cols;
+        }
+        if (!(autoindex_opts & SUPPRESS_SIZE)) {
+            ap_rputs("</th><th>", r);
+            emit_link(r, "Size", K_SIZE, keyid, direction,
+                      colargs, static_columns);
+            ++cols;
+        }
+        if (!(autoindex_opts & SUPPRESS_DESC)) {
+            ap_rputs("</th><th>", r);
+            emit_link(r, "Description", K_DESC, keyid, direction,
+                      colargs, static_columns);
+            ++cols;
+        }
+        if (!(autoindex_opts & SUPPRESS_RULES)) {
+            breakrow = apr_psprintf(r->pool,
+                                    "<tr><th colspan=\"%d\">"
+                                    "<hr%s></th></tr>\n", cols,
+                                    (autoindex_opts & EMIT_XHTML) ? " /" : "");
+        }
+        ap_rvputs(r, "</th></tr>", breakrow, NULL);
+    }
+    else if (autoindex_opts & FANCY_INDEXING) {
+        ap_rputs("<pre>", r);
+        if (!(autoindex_opts & SUPPRESS_ICON)) {
+            if ((tp = find_default_icon(d, "^^BLANKICON^^"))) {
+                ap_rvputs(r, "<img src=\"", ap_escape_html(scratch, tp),
+                             "\" alt=\"Icon \"", NULL);
+                if (d->icon_width) {
+                    ap_rprintf(r, " width=\"%d\"", d->icon_width);
+                }
+                if (d->icon_height) {
+                    ap_rprintf(r, " height=\"%d\"", d->icon_height);
+                }
+
+                if (autoindex_opts & EMIT_XHTML) {
+                    ap_rputs(" /", r);
+                }
+                ap_rputs("> ", r);
+            }
+            else {
+                ap_rputs("      ", r);
+            }
+        }
+        emit_link(r, "Name", K_NAME, keyid, direction,
+                  colargs, static_columns);
+        ap_rputs(pad_scratch + 4, r);
+        /*
+         * Emit the guaranteed-at-least-one-space-between-columns byte.
+         */
+        ap_rputs(" ", r);
+        if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
+            emit_link(r, "Last modified", K_LAST_MOD, keyid, direction,
+                      colargs, static_columns);
+            ap_rputs("      ", r);
+        }
+        if (!(autoindex_opts & SUPPRESS_SIZE)) {
+            emit_link(r, "Size", K_SIZE, keyid, direction,
+                      colargs, static_columns);
+            ap_rputs("  ", r);
+        }
+        if (!(autoindex_opts & SUPPRESS_DESC)) {
+            emit_link(r, "Description", K_DESC, keyid, direction,
+                      colargs, static_columns);
+        }
+        if (!(autoindex_opts & SUPPRESS_RULES)) {
+            ap_rputs("<hr", r);
+            if (autoindex_opts & EMIT_XHTML) {
+                ap_rputs(" /", r);
+            }
+            ap_rputs(">", r);
+        }
+        else {
+            ap_rputc('\n', r);
+        }
     }
     else {
-        apr_table_unset(hdrs, "Accept");
+        ap_rputs("<ul>", r);
     }
 
-    if (r_accept_enc) {
-        apr_table_setn(hdrs, "Accept-Encoding", r_accept_enc);
-    }
+    for (x = 0; x < n; x++) {
+        char *anchor, *t, *t2;
+        int nwidth;
 
-    if (emit_amble) {
-        emit_preamble(r, emit_xhtml, title);
+        apr_pool_clear(scratch);
+
+        t = ar[x]->name;
+        anchor = ap_escape_html(scratch, ap_os_escape_path(scratch, t, 0));
+
+        if (!x && t[0] == '/') {
+            t2 = "Parent Directory";
+        }
+        else {
+            t2 = t;
+        }
+
+        if (autoindex_opts & TABLE_INDEXING) {
+            ap_rputs("<tr>", r);
+            if (!(autoindex_opts & SUPPRESS_ICON)) {
+                ap_rputs("<td valign=\"top\">", r);
+                if (autoindex_opts & ICONS_ARE_LINKS) {
+                    ap_rvputs(r, "<a href=\"", anchor, "\">", NULL);
+                }
+                if ((ar[x]->icon) || d->default_icon) {
+                    ap_rvputs(r, "<img src=\"",
+                              ap_escape_html(scratch,
+                                             ar[x]->icon ? ar[x]->icon
+                                                         : d->default_icon),
+                              "\" alt=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
+                              "]\"", NULL);
+                    if (d->icon_width) {
+                        ap_rprintf(r, " width=\"%d\"", d->icon_width);
+                    }
+                    if (d->icon_height) {
+                        ap_rprintf(r, " height=\"%d\"", d->icon_height);
+                    }
+
+                    if (autoindex_opts & EMIT_XHTML) {
+                        ap_rputs(" /", r);
+                    }
+                    ap_rputs(">", r);
+                }
+                else {
+                    ap_rputs("&nbsp;", r);
+                }
+                if (autoindex_opts & ICONS_ARE_LINKS) {
+                    ap_rputs("</a></td>", r);
+                }
+                else {
+                    ap_rputs("</td>", r);
+                }
+            }
+            if (d->name_adjust == K_ADJUST) {
+                ap_rvputs(r, "<td><a href=\"", anchor, "\">",
+                          ap_escape_html(scratch, t2), "</a>", NULL);
+            }
+            else {
+                nwidth = strlen(t2);
+                if (nwidth > name_width) {
+                  memcpy(name_scratch, t2, name_width - 3);
+                  name_scratch[name_width - 3] = '.';
+                  name_scratch[name_width - 2] = '.';
+                  name_scratch[name_width - 1] = '>';
+                  name_scratch[name_width] = 0;
+                  t2 = name_scratch;
+                  nwidth = name_width;
+                }
+                ap_rvputs(r, "<td><a href=\"", anchor, "\">",
+                          ap_escape_html(scratch, t2),
+                          "</a>", pad_scratch + nwidth, NULL);
+            }
+            if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
+                if (ar[x]->lm != -1) {
+                    char time_str[MAX_STRING_LEN];
+                    apr_time_exp_t ts;
+                    apr_time_exp_lt(&ts, ar[x]->lm);
+                    apr_strftime(time_str, &rv, MAX_STRING_LEN,
+                                 "</td><td align=\"right\">%d-%b-%Y %H:%M  ",
+                                 &ts);
+                    ap_rputs(time_str, r);
+                }
+                else {
+                    ap_rputs("</td><td>&nbsp;", r);
+                }
+            }
+            if (!(autoindex_opts & SUPPRESS_SIZE)) {
+                char buf[5];
+                ap_rvputs(r, "</td><td align=\"right\">",
+                          apr_strfsize(ar[x]->size, buf), NULL);
+            }
+            if (!(autoindex_opts & SUPPRESS_DESC)) {
+                if (ar[x]->desc) {
+                    if (d->desc_adjust == K_ADJUST) {
+                        ap_rvputs(r, "</td><td>", ar[x]->desc, NULL);
+                    }
+                    else {
+                        ap_rvputs(r, "</td><td>",
+                                  terminate_description(d, ar[x]->desc,
+                                                        autoindex_opts,
+                                                        desc_width), NULL);
+                    }
+                }
+            }
+            else {
+                ap_rputs("</td><td>&nbsp;", r);
+            }
+            ap_rputs("</td></tr>\n", r);
+        }
+        else if (autoindex_opts & FANCY_INDEXING) {
+            if (!(autoindex_opts & SUPPRESS_ICON)) {
+                if (autoindex_opts & ICONS_ARE_LINKS) {
+                    ap_rvputs(r, "<a href=\"", anchor, "\">", NULL);
+                }
+                if ((ar[x]->icon) || d->default_icon) {
+                    ap_rvputs(r, "<img src=\"",
+                              ap_escape_html(scratch,
+                                             ar[x]->icon ? ar[x]->icon
+                                                         : d->default_icon),
+                              "\" alt=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
+                              "]\"", NULL);
+                    if (d->icon_width) {
+                        ap_rprintf(r, " width=\"%d\"", d->icon_width);
+                    }
+                    if (d->icon_height) {
+                        ap_rprintf(r, " height=\"%d\"", d->icon_height);
+                    }
+
+                    if (autoindex_opts & EMIT_XHTML) {
+                        ap_rputs(" /", r);
+                    }
+                    ap_rputs(">", r);
+                }
+                else {
+                    ap_rputs("     ", r);
+                }
+                if (autoindex_opts & ICONS_ARE_LINKS) {
+                    ap_rputs("</a> ", r);
+                }
+                else {
+                    ap_rputc(' ', r);
+                }
+            }
+            nwidth = strlen(t2);
+            if (nwidth > name_width) {
+                memcpy(name_scratch, t2, name_width - 3);
+                name_scratch[name_width - 3] = '.';
+                name_scratch[name_width - 2] = '.';
+                name_scratch[name_width - 1] = '>';
+                name_scratch[name_width] = 0;
+                t2 = name_scratch;
+                nwidth = name_width;
+            }
+            ap_rvputs(r, "<a href=\"", anchor, "\">",
+                      ap_escape_html(scratch, t2),
+                      "</a>", pad_scratch + nwidth, NULL);
+            /*
+             * The blank before the storm.. er, before the next field.
+             */
+            ap_rputs(" ", r);
+            if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
+                if (ar[x]->lm != -1) {
+                    char time_str[MAX_STRING_LEN];
+                    apr_time_exp_t ts;
+                    apr_time_exp_lt(&ts, ar[x]->lm);
+                    apr_strftime(time_str, &rv, MAX_STRING_LEN,
+                                "%d-%b-%Y %H:%M  ", &ts);
+                    ap_rputs(time_str, r);
+                }
+                else {
+                    /*Length="22-Feb-1998 23:42  " (see 4 lines above) */
+                    ap_rputs("                   ", r);
+                }
+            }
+            if (!(autoindex_opts & SUPPRESS_SIZE)) {
+                char buf[5];
+                ap_rputs(apr_strfsize(ar[x]->size, buf), r);
+                ap_rputs("  ", r);
+            }
+            if (!(autoindex_opts & SUPPRESS_DESC)) {
+                if (ar[x]->desc) {
+                    ap_rputs(terminate_description(d, ar[x]->desc,
+                                                   autoindex_opts,
+                                                   desc_width), r);
+                }
+            }
+            ap_rputc('\n', r);
+        }
+        else {
+            ap_rvputs(r, "<li><a href=\"", anchor, "\"> ", t2,
+                         "</a></li>\n", NULL);
+        }
     }
-    
-    d = (autoindex_config_rec *) ap_get_module_config(r->per_dir_config, &autoindex_module);
-    
-    if (emit_H1) {
-        if (d->style_sheet != NULL) {
-    	    /* Insert style id if stylesheet used */
-    	    ap_rvputs(r, "  <h1 id=\"indextitle\">Index of ", title, "</h1>\n", NULL);
-    	} else {
-        ap_rvputs(r, "<h1>Index of ", title, "</h1>\n", NULL);
+    if (autoindex_opts & TABLE_INDEXING) {
+        ap_rvputs(r, breakrow, "</table>\n", NULL);
     }
+    else if (autoindex_opts & FANCY_INDEXING) {
+        if (!(autoindex_opts & SUPPRESS_RULES)) {
+            ap_rputs("<hr", r);
+            if (autoindex_opts & EMIT_XHTML) {
+                ap_rputs(" /", r);
+            }
+            ap_rputs("></pre>\n", r);
+        }
+        else {
+            ap_rputs("</pre>\n", r);
+        }
     }
-    if (rr != NULL) {
-        ap_destroy_sub_req(rr);
+    else {
+        ap_rputs("</ul>\n", r);
     }
 }

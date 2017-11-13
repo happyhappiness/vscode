@@ -1,2 +1,2 @@
-err(o, _("refusing to lose untracked file at '%s'"),
-			     path);
+die("size_t overflow: %"PRIuMAX" + %"PRIuMAX,
+		    (uintmax_t)a, (uintmax_t)b);

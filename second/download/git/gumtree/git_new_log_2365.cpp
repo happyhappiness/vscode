@@ -1,1 +1,2 @@
-die("'%s': not a non-negative integer", arg);
+die_errno(_("cannot symlink '%s' '%s'"),
+					  lnk.buf, path->buf);

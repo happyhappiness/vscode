@@ -1,1 +1,1 @@
-fputs(pp->children[i].err.buf, stderr);
+fputs(pp->buffered_output.buf, stderr);

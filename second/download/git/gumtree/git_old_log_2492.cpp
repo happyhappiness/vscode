@@ -1,2 +1,1 @@
-printf("broken link from %7s %s\n",
-				 typename(parent->type), oid_to_hex(&parent->oid));
+die("Object not in bitmap: %s\n", sha1_to_hex(object->sha1));

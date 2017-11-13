@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, errno, r,
-                      "Error restoring default privileges");
+fprintf(stderr, "    -p postfile     File containing data to POST\n");

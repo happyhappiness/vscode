@@ -1,1 +1,2 @@
-fprintf(stderr, "Closing file %s (%s)\n", finfo.name, finfo.fname);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+                     "could not create %s", fname);

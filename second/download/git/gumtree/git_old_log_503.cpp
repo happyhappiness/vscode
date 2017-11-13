@@ -1,1 +1,1 @@
-print_ref_status('X', "[no match]", ref, NULL, NULL, porcelain);
+error("read from external filter %s failed", cmd);

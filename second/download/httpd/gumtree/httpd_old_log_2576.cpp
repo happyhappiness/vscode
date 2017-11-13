@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
-                 "[%" APR_PID_T_FMT "] ldap cache: Setting cache TTL to %ld"
-                 " microseconds.", getpid(), st->search_cache_ttl);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache_disk: URL %s failed the size check "
+                         "(%" APR_OFF_T_FMT "<%" APR_SIZE_T_FMT ")",
+                         h->cache_obj->key, dobj->file_size, conf->minfs);

@@ -1,1 +1,1 @@
-warning("object %s: %s", oid_to_hex(&obj->oid), message);
+die("bad object %s", sha1_to_hex(tag->tagged->sha1));

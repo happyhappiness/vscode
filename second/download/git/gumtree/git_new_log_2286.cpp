@@ -1,1 +1,2 @@
-die(_("--[no-]autostash option is only valid with --rebase."));
+error("could not write config file %s: %s",
+			    config_filename, strerror(errno));

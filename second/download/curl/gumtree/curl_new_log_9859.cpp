@@ -1,10 +1,11 @@
 fputs(
-"              Allows secure authentication, but non-encrypted  data  transfers\n"
-"              for  efficiency.   Fails the transfer if the server doesn't sup-\n"
-"              port SSL/TLS.  (Added in 7.16.0) that can still be used but will\n"
-"              be removed in a future version.\n"
+"              Passive mode means that curl will try the EPSV command first and\n"
+"              then PASV, unless --disable-epsv is used.\n"
 "\n"
-"       --form-string <name=string>\n"
-"              (HTTP)  Similar  to  --form except that the value string for the\n"
-"              named parameter is used literally. Leading '@' and  '<'  charac-\n"
+"       --ftp-skip-pasv-ip\n"
+"              (FTP) Tell curl to not use the IP address the server suggests in\n"
+"              its  response to curl's PASV command when curl connects the data\n"
+"              connection. Instead curl will re-use  the  same  IP  address  it\n"
+"              already uses for the control connection. (Added in 7.14.2)\n"
+"\n"
 , stdout);

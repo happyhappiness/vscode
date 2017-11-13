@@ -1,1 +1,1 @@
-out_of_memory("init_hard_links");
+io_printf(f_out, "@ERROR: max connections (%d) reached - try again later\n", lp_max_connections(i));

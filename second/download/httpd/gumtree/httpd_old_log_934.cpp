@@ -1,2 +1,2 @@
-fprintf(stderr,
-                "apr_hash_overlay: base's pool is not an ancestor of p\n");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "Syntax error in -C/-c directive:");

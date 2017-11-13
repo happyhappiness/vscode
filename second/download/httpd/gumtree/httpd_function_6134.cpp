@@ -1,7 +1,28 @@
-void h2_slave_destroy(conn_rec *slave)
+apr_status_t h2_task_do(h2_task *task, apr_thread_cond_t *cond)
 {
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, slave,
-                  "h2_slave_conn(%ld): destroy (task=%s)", slave->id,
-                  apr_table_get(slave->notes, H2_TASK_ID_NOTE));
-    apr_pool_destroy(slave->pool);
+    apr_status_t status;
+    
+    AP_DEBUG_ASSERT(task);
+    task->io = cond;
+    task->input = h2_task_input_create(task, task->c);
+    task->output = h2_task_output_create(task, task->c);
+    
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c,
+                  "h2_task(%s): process connection", task->id);
+    ap_run_process_connection(task->c);
+    
+    if (task->frozen) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c,
+                      "h2_task(%s): process_conn returned frozen task", 
+                      task->id);
+        /* cleanup delayed */
+        status = APR_EAGAIN;
+    }
+    else {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c,
+                      "h2_task(%s): processing done", task->id);
+        status = APR_SUCCESS;
+    }
+    
+    return status;
 }

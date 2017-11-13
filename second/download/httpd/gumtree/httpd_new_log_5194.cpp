@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, status, f->c,
-                                  APLOGNO(02908) "protocol switch to '%s' failed",
-                                  protocol);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00185)
+                         "StartServers of %d not allowed, increasing to 1",
+                         ap_daemons_to_start);

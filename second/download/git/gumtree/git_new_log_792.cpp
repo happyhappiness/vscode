@@ -1,1 +1,2 @@
-die("Could not read blob %s", oid_to_hex(oid));
+die("process for submodule '%s' failed with exit code: %d",
+		    gs->name, status);

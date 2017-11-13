@@ -1,1 +1,1 @@
-die_errno("read");
+fputs(pp->children[i].err.buf, stderr);

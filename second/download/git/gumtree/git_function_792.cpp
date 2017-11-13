@@ -1,47 +1,73 @@
-static void export_blob(const unsigned char *sha1)
+static int grep_submodule_launch(struct grep_opt *opt,
+				 const struct grep_source *gs)
 {
-	unsigned long size;
-	enum object_type type;
-	char *buf;
-	struct object *object;
-	int eaten;
+	struct child_process cp = CHILD_PROCESS_INIT;
+	int status, i;
+	const char *end_of_base;
+	const char *name;
+	struct work_item *w = opt->output_priv;
 
-	if (no_data)
-		return;
+	end_of_base = strchr(gs->name, ':');
+	if (gs->identifier && end_of_base)
+		name = end_of_base + 1;
+	else
+		name = gs->name;
 
-	if (is_null_sha1(sha1))
-		return;
+	prepare_submodule_repo_env(&cp.env_array);
+	argv_array_push(&cp.env_array, GIT_DIR_ENVIRONMENT);
 
-	object = lookup_object(sha1);
-	if (object && object->flags & SHOWN)
-		return;
+	/* Add super prefix */
+	argv_array_pushf(&cp.args, "--super-prefix=%s%s/",
+			 super_prefix ? super_prefix : "",
+			 name);
+	argv_array_push(&cp.args, "grep");
 
-	if (anonymize) {
-		buf = anonymize_blob(&size);
-		object = (struct object *)lookup_blob(sha1);
-		eaten = 0;
-	} else {
-		buf = read_sha1_file(sha1, &type, &size);
-		if (!buf)
-			die ("Could not read blob %s", sha1_to_hex(sha1));
-		if (check_sha1_signature(sha1, buf, size, typename(type)) < 0)
-			die("sha1 mismatch in blob %s", sha1_to_hex(sha1));
-		object = parse_object_buffer(sha1, type, size, buf, &eaten);
+	/*
+	 * Add basename of parent project
+	 * When performing grep on a tree object the filename is prefixed
+	 * with the object's name: 'tree-name:filename'.  In order to
+	 * provide uniformity of output we want to pass the name of the
+	 * parent project's object name to the submodule so the submodule can
+	 * prefix its output with the parent's name and not its own SHA1.
+	 */
+	if (gs->identifier && end_of_base)
+		argv_array_pushf(&cp.args, "--parent-basename=%.*s",
+				 (int) (end_of_base - gs->name),
+				 gs->name);
+
+	/* Add options */
+	for (i = 0; i < submodule_options.argc; i++) {
+		/*
+		 * If there is a tree identifier for the submodule, add the
+		 * rev after adding the submodule options but before the
+		 * pathspecs.  To do this we listen for the '--' and insert the
+		 * sha1 before pushing the '--' onto the child process argv
+		 * array.
+		 */
+		if (gs->identifier &&
+		    !strcmp("--", submodule_options.argv[i])) {
+			argv_array_push(&cp.args, sha1_to_hex(gs->identifier));
+		}
+
+		argv_array_push(&cp.args, submodule_options.argv[i]);
 	}
 
-	if (!object)
-		die("Could not read blob %s", sha1_to_hex(sha1));
+	cp.git_cmd = 1;
+	cp.dir = gs->path;
 
-	mark_next_object(object);
+	/*
+	 * Capture output to output buffer and check the return code from the
+	 * child process.  A '0' indicates a hit, a '1' indicates no hit and
+	 * anything else is an error.
+	 */
+	status = capture_command(&cp, &w->out, 0);
+	if (status && (status != 1)) {
+		/* flush the buffer */
+		write_or_die(1, w->out.buf, w->out.len);
+		die("process for submodule '%s' failed with exit code: %d",
+		    gs->name, status);
+	}
 
-	printf("blob\nmark :%"PRIu32"\ndata %lu\n", last_idnum, size);
-	if (size && fwrite(buf, size, 1, stdout) != 1)
-		die_errno ("Could not write blob '%s'", sha1_to_hex(sha1));
-	printf("\n");
-
-	show_progress();
-
-	object->flags |= SHOWN;
-	if (!eaten)
-		free(buf);
+	/* invert the return code to make a hit equal to 1 */
+	return !status;
 }

@@ -1,1 +1,1 @@
-fprintf(stderr, "    -c concurrency  Number of multiple requests to make\n");
+fprintf(stderr, "    -t timelimit    Seconds to max. wait for responses\n");

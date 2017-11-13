@@ -1,1 +1,2 @@
-status_printf_ln(s, color, _("No commands done."));
+error("cannot stat '%s': %s", ce->name,
+				     strerror(errno));

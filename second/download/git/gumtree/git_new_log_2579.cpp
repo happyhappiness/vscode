@@ -1,2 +1,2 @@
-die("unable to read %s",
-				    oid_to_hex(&s->oid));
+packet_buf_write(&preamble, "%s %s\n",
+				 oid_to_hex(&ref->old_oid), ref->name);

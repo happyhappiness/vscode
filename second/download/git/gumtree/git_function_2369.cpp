@@ -1,114 +1,80 @@
-int start_async(struct async *async)
+int cmd_show(int argc, const char **argv, const char *prefix)
 {
-	int need_in, need_out;
-	int fdin[2], fdout[2];
-	int proc_in, proc_out;
+	struct rev_info rev;
+	struct object_array_entry *objects;
+	struct setup_revision_opt opt;
+	struct pathspec match_all;
+	int i, count, ret = 0;
 
-	need_in = async->in < 0;
-	if (need_in) {
-		if (pipe(fdin) < 0) {
-			if (async->out > 0)
-				close(async->out);
-			return error("cannot create pipe: %s", strerror(errno));
+	init_grep_defaults();
+	git_config(git_log_config, NULL);
+
+	memset(&match_all, 0, sizeof(match_all));
+	init_revisions(&rev, prefix);
+	rev.diff = 1;
+	rev.always_show_header = 1;
+	rev.no_walk = REVISION_WALK_NO_WALK_SORTED;
+	rev.diffopt.stat_width = -1; 	/* Scale to real terminal size */
+
+	memset(&opt, 0, sizeof(opt));
+	opt.def = "HEAD";
+	opt.tweak = show_setup_revisions_tweak;
+	cmd_log_init(argc, argv, prefix, &rev, &opt);
+
+	if (!rev.no_walk)
+		return cmd_log_walk(&rev);
+
+	count = rev.pending.nr;
+	objects = rev.pending.objects;
+	for (i = 0; i < count && !ret; i++) {
+		struct object *o = objects[i].item;
+		const char *name = objects[i].name;
+		switch (o->type) {
+		case OBJ_BLOB:
+			ret = show_blob_object(o->sha1, &rev, name);
+			break;
+		case OBJ_TAG: {
+			struct tag *t = (struct tag *)o;
+
+			if (rev.shown_one)
+				putchar('\n');
+			printf("%stag %s%s\n",
+					diff_get_color_opt(&rev.diffopt, DIFF_COMMIT),
+					t->tag,
+					diff_get_color_opt(&rev.diffopt, DIFF_RESET));
+			ret = show_tag_object(o->sha1, &rev);
+			rev.shown_one = 1;
+			if (ret)
+				break;
+			o = parse_object(t->tagged->sha1);
+			if (!o)
+				ret = error(_("Could not read object %s"),
+					    sha1_to_hex(t->tagged->sha1));
+			objects[i].item = o;
+			i--;
+			break;
 		}
-		async->in = fdin[1];
-	}
-
-	need_out = async->out < 0;
-	if (need_out) {
-		if (pipe(fdout) < 0) {
-			if (need_in)
-				close_pair(fdin);
-			else if (async->in)
-				close(async->in);
-			return error("cannot create pipe: %s", strerror(errno));
-		}
-		async->out = fdout[0];
-	}
-
-	if (need_in)
-		proc_in = fdin[0];
-	else if (async->in)
-		proc_in = async->in;
-	else
-		proc_in = -1;
-
-	if (need_out)
-		proc_out = fdout[1];
-	else if (async->out)
-		proc_out = async->out;
-	else
-		proc_out = -1;
-
-#ifdef NO_PTHREADS
-	/* Flush stdio before fork() to avoid cloning buffers */
-	fflush(NULL);
-
-	async->pid = fork();
-	if (async->pid < 0) {
-		error("fork (async) failed: %s", strerror(errno));
-		goto error;
-	}
-	if (!async->pid) {
-		if (need_in)
-			close(fdin[1]);
-		if (need_out)
-			close(fdout[0]);
-		git_atexit_clear();
-		process_is_async = 1;
-		exit(!!async->proc(proc_in, proc_out, async->data));
-	}
-
-	mark_child_for_cleanup(async->pid);
-
-	if (need_in)
-		close(fdin[0]);
-	else if (async->in)
-		close(async->in);
-
-	if (need_out)
-		close(fdout[1]);
-	else if (async->out)
-		close(async->out);
-#else
-	if (!main_thread_set) {
-		/*
-		 * We assume that the first time that start_async is called
-		 * it is from the main thread.
-		 */
-		main_thread_set = 1;
-		main_thread = pthread_self();
-		pthread_key_create(&async_key, NULL);
-		pthread_key_create(&async_die_counter, NULL);
-		set_die_routine(die_async);
-		set_die_is_recursing_routine(async_die_is_recursing);
-	}
-
-	if (proc_in >= 0)
-		set_cloexec(proc_in);
-	if (proc_out >= 0)
-		set_cloexec(proc_out);
-	async->proc_in = proc_in;
-	async->proc_out = proc_out;
-	{
-		int err = pthread_create(&async->tid, NULL, run_thread, async);
-		if (err) {
-			error("cannot create thread: %s", strerror(err));
-			goto error;
+		case OBJ_TREE:
+			if (rev.shown_one)
+				putchar('\n');
+			printf("%stree %s%s\n\n",
+					diff_get_color_opt(&rev.diffopt, DIFF_COMMIT),
+					name,
+					diff_get_color_opt(&rev.diffopt, DIFF_RESET));
+			read_tree_recursive((struct tree *)o, "", 0, 0, &match_all,
+					show_tree_object, NULL);
+			rev.shown_one = 1;
+			break;
+		case OBJ_COMMIT:
+			rev.pending.nr = rev.pending.alloc = 0;
+			rev.pending.objects = NULL;
+			add_object_array(o, name, &rev.pending);
+			ret = cmd_log_walk(&rev);
+			break;
+		default:
+			ret = error(_("Unknown type: %d"), o->type);
 		}
 	}
-#endif
-	return 0;
-
-error:
-	if (need_in)
-		close_pair(fdin);
-	else if (async->in)
-		close(async->in);
-
-	if (need_out)
-		close_pair(fdout);
-	else if (async->out)
-		close(async->out);
-	return -1;
+	free(objects);
+	return ret;
 }

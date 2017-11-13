@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                  "h2_task(%s): create request_rec", task->id);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02681)
+                          "ServerSupportFunction (%d) not supported: "
+                          "%s", HSE_code, r->filename);

@@ -1,16 +1,42 @@
-static void git_config_raw(config_fn_t fn, void *data)
+void shortlog_add_commit(struct shortlog *log, struct commit *commit)
 {
-	if (git_config_with_options(fn, data, NULL, 1) < 0)
-		/*
-		 * git_config_with_options() normally returns only
-		 * positive values, as most errors are fatal, and
-		 * non-fatal potential errors are guarded by "if"
-		 * statements that are entered only when no error is
-		 * possible.
-		 *
-		 * If we ever encounter a non-fatal error, it means
-		 * something went really wrong and we should stop
-		 * immediately.
-		 */
-		die(_("unknown error occured while reading the configuration files"));
+	const char *author = NULL, *buffer;
+	struct strbuf buf = STRBUF_INIT;
+	struct strbuf ufbuf = STRBUF_INIT;
+
+	pp_commit_easy(CMIT_FMT_RAW, commit, &buf);
+	buffer = buf.buf;
+	while (*buffer && *buffer != '\n') {
+		const char *eol = strchr(buffer, '\n');
+
+		if (eol == NULL)
+			eol = buffer + strlen(buffer);
+		else
+			eol++;
+
+		if (starts_with(buffer, "author "))
+			author = buffer + 7;
+		buffer = eol;
+	}
+	if (!author) {
+		warning(_("Missing author: %s"),
+		    sha1_to_hex(commit->object.sha1));
+		return;
+	}
+	if (log->user_format) {
+		struct pretty_print_context ctx = {0};
+		ctx.fmt = CMIT_FMT_USERFORMAT;
+		ctx.abbrev = log->abbrev;
+		ctx.subject = "";
+		ctx.after_subject = "";
+		ctx.date_mode.type = DATE_NORMAL;
+		ctx.output_encoding = get_log_output_encoding();
+		pretty_print_commit(&ctx, commit, &ufbuf);
+		buffer = ufbuf.buf;
+	} else if (*buffer) {
+		buffer++;
+	}
+	insert_one_record(log, author, !*buffer ? "<none>" : buffer);
+	strbuf_release(&ufbuf);
+	strbuf_release(&buf);
 }

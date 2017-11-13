@@ -1,190 +1,372 @@
-int cmd_index_pack(int argc, const char **argv, const char *prefix)
+int cmd_rev_parse(int argc, const char **argv, const char *prefix)
 {
-	int i, fix_thin_pack = 0, verify = 0, stat_only = 0;
-	const char *curr_index;
-	const char *index_name = NULL, *pack_name = NULL;
-	const char *keep_name = NULL, *keep_msg = NULL;
-	struct strbuf index_name_buf = STRBUF_INIT,
-		      keep_name_buf = STRBUF_INIT;
-	struct pack_idx_entry **idx_objects;
-	struct pack_idx_option opts;
-	unsigned char pack_sha1[20];
-	unsigned foreign_nr = 1;	/* zero is a "good" value, assume bad */
+	int i, as_is = 0, verify = 0, quiet = 0, revs_count = 0, type = 0;
+	int did_repo_setup = 0;
+	int has_dashdash = 0;
+	int output_prefix = 0;
+	unsigned char sha1[20];
+	unsigned int flags = 0;
+	const char *name = NULL;
+	struct object_context unused;
 
-	if (argc == 2 && !strcmp(argv[1], "-h"))
-		usage(index_pack_usage);
+	if (argc > 1 && !strcmp("--parseopt", argv[1]))
+		return cmd_parseopt(argc - 1, argv + 1, prefix);
 
-	check_replace_refs = 0;
-	fsck_options.walk = mark_link;
+	if (argc > 1 && !strcmp("--sq-quote", argv[1]))
+		return cmd_sq_quote(argc - 2, argv + 2);
 
-	reset_pack_idx_option(&opts);
-	git_config(git_index_pack_config, &opts);
-	if (prefix && chdir(prefix))
-		die(_("Cannot come back to cwd"));
+	if (argc > 1 && !strcmp("-h", argv[1]))
+		usage(builtin_rev_parse_usage);
+
+	for (i = 1; i < argc; i++) {
+		if (!strcmp(argv[i], "--")) {
+			has_dashdash = 1;
+			break;
+		}
+	}
+
+	/* No options; just report on whether we're in a git repo or not. */
+	if (argc == 1) {
+		setup_git_directory();
+		git_config(git_default_config, NULL);
+		return 0;
+	}
 
 	for (i = 1; i < argc; i++) {
 		const char *arg = argv[i];
 
-		if (*arg == '-') {
-			if (!strcmp(arg, "--stdin")) {
-				from_stdin = 1;
-			} else if (!strcmp(arg, "--fix-thin")) {
-				fix_thin_pack = 1;
-			} else if (!strcmp(arg, "--strict")) {
-				strict = 1;
-				do_fsck_object = 1;
-			} else if (skip_prefix(arg, "--strict=", &arg)) {
-				strict = 1;
-				do_fsck_object = 1;
-				fsck_set_msg_types(&fsck_options, arg);
-			} else if (!strcmp(arg, "--check-self-contained-and-connected")) {
-				strict = 1;
-				check_self_contained_and_connected = 1;
-			} else if (!strcmp(arg, "--verify")) {
-				verify = 1;
-			} else if (!strcmp(arg, "--verify-stat")) {
-				verify = 1;
-				show_stat = 1;
-			} else if (!strcmp(arg, "--verify-stat-only")) {
-				verify = 1;
-				show_stat = 1;
-				stat_only = 1;
-			} else if (!strcmp(arg, "--keep")) {
-				keep_msg = "";
-			} else if (starts_with(arg, "--keep=")) {
-				keep_msg = arg + 7;
-			} else if (starts_with(arg, "--threads=")) {
-				char *end;
-				nr_threads = strtoul(arg+10, &end, 0);
-				if (!arg[10] || *end || nr_threads < 0)
-					usage(index_pack_usage);
-#ifdef NO_PTHREADS
-				if (nr_threads != 1)
-					warning(_("no threads support, "
-						  "ignoring %s"), arg);
-				nr_threads = 1;
-#endif
-			} else if (starts_with(arg, "--pack_header=")) {
-				struct pack_header *hdr;
-				char *c;
-
-				hdr = (struct pack_header *)input_buffer;
-				hdr->hdr_signature = htonl(PACK_SIGNATURE);
-				hdr->hdr_version = htonl(strtoul(arg + 14, &c, 10));
-				if (*c != ',')
-					die(_("bad %s"), arg);
-				hdr->hdr_entries = htonl(strtoul(c + 1, &c, 10));
-				if (*c)
-					die(_("bad %s"), arg);
-				input_len = sizeof(*hdr);
-			} else if (!strcmp(arg, "-v")) {
-				verbose = 1;
-			} else if (!strcmp(arg, "-o")) {
-				if (index_name || (i+1) >= argc)
-					usage(index_pack_usage);
-				index_name = argv[++i];
-			} else if (starts_with(arg, "--index-version=")) {
-				char *c;
-				opts.version = strtoul(arg + 16, &c, 10);
-				if (opts.version > 2)
-					die(_("bad %s"), arg);
-				if (*c == ',')
-					opts.off32_limit = strtoul(c+1, &c, 0);
-				if (*c || opts.off32_limit & 0x80000000)
-					die(_("bad %s"), arg);
-			} else
-				usage(index_pack_usage);
+		if (!strcmp(arg, "--local-env-vars")) {
+			int i;
+			for (i = 0; local_repo_env[i]; i++)
+				printf("%s\n", local_repo_env[i]);
+			continue;
+		}
+		if (!strcmp(arg, "--resolve-git-dir")) {
+			const char *gitdir = argv[++i];
+			if (!gitdir)
+				die("--resolve-git-dir requires an argument");
+			gitdir = resolve_gitdir(gitdir);
+			if (!gitdir)
+				die("not a gitdir '%s'", argv[i]);
+			puts(gitdir);
 			continue;
 		}
 
-		if (pack_name)
-			usage(index_pack_usage);
-		pack_name = arg;
-	}
+		/* The rest of the options require a git repository. */
+		if (!did_repo_setup) {
+			prefix = setup_git_directory();
+			git_config(git_default_config, NULL);
+			did_repo_setup = 1;
+		}
 
-	if (!pack_name && !from_stdin)
-		usage(index_pack_usage);
-	if (fix_thin_pack && !from_stdin)
-		die(_("--fix-thin cannot be used without --stdin"));
-	if (!index_name && pack_name) {
-		size_t len;
-		if (!strip_suffix(pack_name, ".pack", &len))
-			die(_("packfile name '%s' does not end with '.pack'"),
-			    pack_name);
-		strbuf_add(&index_name_buf, pack_name, len);
-		strbuf_addstr(&index_name_buf, ".idx");
-		index_name = index_name_buf.buf;
-	}
-	if (keep_msg && !keep_name && pack_name) {
-		size_t len;
-		if (!strip_suffix(pack_name, ".pack", &len))
-			die(_("packfile name '%s' does not end with '.pack'"),
-			    pack_name);
-		strbuf_add(&keep_name_buf, pack_name, len);
-		strbuf_addstr(&keep_name_buf, ".idx");
-		keep_name = keep_name_buf.buf;
+		if (!strcmp(arg, "--git-path")) {
+			if (!argv[i + 1])
+				die("--git-path requires an argument");
+			puts(git_path("%s", argv[i + 1]));
+			i++;
+			continue;
+		}
+		if (as_is) {
+			if (show_file(arg, output_prefix) && as_is < 2)
+				verify_filename(prefix, arg, 0);
+			continue;
+		}
+		if (!strcmp(arg,"-n")) {
+			if (++i >= argc)
+				die("-n requires an argument");
+			if ((filter & DO_FLAGS) && (filter & DO_REVS)) {
+				show(arg);
+				show(argv[i]);
+			}
+			continue;
+		}
+		if (starts_with(arg, "-n")) {
+			if ((filter & DO_FLAGS) && (filter & DO_REVS))
+				show(arg);
+			continue;
+		}
+
+		if (*arg == '-') {
+			if (!strcmp(arg, "--")) {
+				as_is = 2;
+				/* Pass on the "--" if we show anything but files.. */
+				if (filter & (DO_FLAGS | DO_REVS))
+					show_file(arg, 0);
+				continue;
+			}
+			if (!strcmp(arg, "--default")) {
+				def = argv[++i];
+				if (!def)
+					die("--default requires an argument");
+				continue;
+			}
+			if (!strcmp(arg, "--prefix")) {
+				prefix = argv[++i];
+				if (!prefix)
+					die("--prefix requires an argument");
+				startup_info->prefix = prefix;
+				output_prefix = 1;
+				continue;
+			}
+			if (!strcmp(arg, "--revs-only")) {
+				filter &= ~DO_NOREV;
+				continue;
+			}
+			if (!strcmp(arg, "--no-revs")) {
+				filter &= ~DO_REVS;
+				continue;
+			}
+			if (!strcmp(arg, "--flags")) {
+				filter &= ~DO_NONFLAGS;
+				continue;
+			}
+			if (!strcmp(arg, "--no-flags")) {
+				filter &= ~DO_FLAGS;
+				continue;
+			}
+			if (!strcmp(arg, "--verify")) {
+				filter &= ~(DO_FLAGS|DO_NOREV);
+				verify = 1;
+				continue;
+			}
+			if (!strcmp(arg, "--quiet") || !strcmp(arg, "-q")) {
+				quiet = 1;
+				flags |= GET_SHA1_QUIETLY;
+				continue;
+			}
+			if (!strcmp(arg, "--short") ||
+			    starts_with(arg, "--short=")) {
+				filter &= ~(DO_FLAGS|DO_NOREV);
+				verify = 1;
+				abbrev = DEFAULT_ABBREV;
+				if (arg[7] == '=')
+					abbrev = strtoul(arg + 8, NULL, 10);
+				if (abbrev < MINIMUM_ABBREV)
+					abbrev = MINIMUM_ABBREV;
+				else if (40 <= abbrev)
+					abbrev = 40;
+				continue;
+			}
+			if (!strcmp(arg, "--sq")) {
+				output_sq = 1;
+				continue;
+			}
+			if (!strcmp(arg, "--not")) {
+				show_type ^= REVERSED;
+				continue;
+			}
+			if (!strcmp(arg, "--symbolic")) {
+				symbolic = SHOW_SYMBOLIC_ASIS;
+				continue;
+			}
+			if (!strcmp(arg, "--symbolic-full-name")) {
+				symbolic = SHOW_SYMBOLIC_FULL;
+				continue;
+			}
+			if (starts_with(arg, "--abbrev-ref") &&
+			    (!arg[12] || arg[12] == '=')) {
+				abbrev_ref = 1;
+				abbrev_ref_strict = warn_ambiguous_refs;
+				if (arg[12] == '=') {
+					if (!strcmp(arg + 13, "strict"))
+						abbrev_ref_strict = 1;
+					else if (!strcmp(arg + 13, "loose"))
+						abbrev_ref_strict = 0;
+					else
+						die("unknown mode for %s", arg);
+				}
+				continue;
+			}
+			if (!strcmp(arg, "--all")) {
+				for_each_ref(show_reference, NULL);
+				continue;
+			}
+			if (starts_with(arg, "--disambiguate=")) {
+				for_each_abbrev(arg + 15, show_abbrev, NULL);
+				continue;
+			}
+			if (!strcmp(arg, "--bisect")) {
+				for_each_ref_in("refs/bisect/bad", show_reference, NULL);
+				for_each_ref_in("refs/bisect/good", anti_reference, NULL);
+				continue;
+			}
+			if (starts_with(arg, "--branches=")) {
+				for_each_glob_ref_in(show_reference, arg + 11,
+					"refs/heads/", NULL);
+				clear_ref_exclusion(&ref_excludes);
+				continue;
+			}
+			if (!strcmp(arg, "--branches")) {
+				for_each_branch_ref(show_reference, NULL);
+				clear_ref_exclusion(&ref_excludes);
+				continue;
+			}
+			if (starts_with(arg, "--tags=")) {
+				for_each_glob_ref_in(show_reference, arg + 7,
+					"refs/tags/", NULL);
+				clear_ref_exclusion(&ref_excludes);
+				continue;
+			}
+			if (!strcmp(arg, "--tags")) {
+				for_each_tag_ref(show_reference, NULL);
+				clear_ref_exclusion(&ref_excludes);
+				continue;
+			}
+			if (starts_with(arg, "--glob=")) {
+				for_each_glob_ref(show_reference, arg + 7, NULL);
+				clear_ref_exclusion(&ref_excludes);
+				continue;
+			}
+			if (starts_with(arg, "--remotes=")) {
+				for_each_glob_ref_in(show_reference, arg + 10,
+					"refs/remotes/", NULL);
+				clear_ref_exclusion(&ref_excludes);
+				continue;
+			}
+			if (!strcmp(arg, "--remotes")) {
+				for_each_remote_ref(show_reference, NULL);
+				clear_ref_exclusion(&ref_excludes);
+				continue;
+			}
+			if (starts_with(arg, "--exclude=")) {
+				add_ref_exclusion(&ref_excludes, arg + 10);
+				continue;
+			}
+			if (!strcmp(arg, "--show-toplevel")) {
+				const char *work_tree = get_git_work_tree();
+				if (work_tree)
+					puts(work_tree);
+				continue;
+			}
+			if (!strcmp(arg, "--show-prefix")) {
+				if (prefix)
+					puts(prefix);
+				else
+					putchar('\n');
+				continue;
+			}
+			if (!strcmp(arg, "--show-cdup")) {
+				const char *pfx = prefix;
+				if (!is_inside_work_tree()) {
+					const char *work_tree =
+						get_git_work_tree();
+					if (work_tree)
+						printf("%s\n", work_tree);
+					continue;
+				}
+				while (pfx) {
+					pfx = strchr(pfx, '/');
+					if (pfx) {
+						pfx++;
+						printf("../");
+					}
+				}
+				putchar('\n');
+				continue;
+			}
+			if (!strcmp(arg, "--git-dir")) {
+				const char *gitdir = getenv(GIT_DIR_ENVIRONMENT);
+				char *cwd;
+				int len;
+				if (gitdir) {
+					puts(gitdir);
+					continue;
+				}
+				if (!prefix) {
+					puts(".git");
+					continue;
+				}
+				cwd = xgetcwd();
+				len = strlen(cwd);
+				printf("%s%s.git\n", cwd, len && cwd[len-1] != '/' ? "/" : "");
+				free(cwd);
+				continue;
+			}
+			if (!strcmp(arg, "--git-common-dir")) {
+				const char *pfx = prefix ? prefix : "";
+				puts(prefix_filename(pfx, strlen(pfx), get_git_common_dir()));
+				continue;
+			}
+			if (!strcmp(arg, "--is-inside-git-dir")) {
+				printf("%s\n", is_inside_git_dir() ? "true"
+						: "false");
+				continue;
+			}
+			if (!strcmp(arg, "--is-inside-work-tree")) {
+				printf("%s\n", is_inside_work_tree() ? "true"
+						: "false");
+				continue;
+			}
+			if (!strcmp(arg, "--is-bare-repository")) {
+				printf("%s\n", is_bare_repository() ? "true"
+						: "false");
+				continue;
+			}
+			if (!strcmp(arg, "--shared-index-path")) {
+				if (read_cache() < 0)
+					die(_("Could not read the index"));
+				if (the_index.split_index) {
+					const unsigned char *sha1 = the_index.split_index->base_sha1;
+					puts(git_path("sharedindex.%s", sha1_to_hex(sha1)));
+				}
+				continue;
+			}
+			if (starts_with(arg, "--since=")) {
+				show_datestring("--max-age=", arg+8);
+				continue;
+			}
+			if (starts_with(arg, "--after=")) {
+				show_datestring("--max-age=", arg+8);
+				continue;
+			}
+			if (starts_with(arg, "--before=")) {
+				show_datestring("--min-age=", arg+9);
+				continue;
+			}
+			if (starts_with(arg, "--until=")) {
+				show_datestring("--min-age=", arg+8);
+				continue;
+			}
+			if (show_flag(arg) && verify)
+				die_no_single_rev(quiet);
+			continue;
+		}
+
+		/* Not a flag argument */
+		if (try_difference(arg))
+			continue;
+		if (try_parent_shorthands(arg))
+			continue;
+		name = arg;
+		type = NORMAL;
+		if (*arg == '^') {
+			name++;
+			type = REVERSED;
+		}
+		if (!get_sha1_with_context(name, flags, sha1, &unused)) {
+			if (verify)
+				revs_count++;
+			else
+				show_rev(type, sha1, name);
+			continue;
+		}
+		if (verify)
+			die_no_single_rev(quiet);
+		if (has_dashdash)
+			die("bad revision '%s'", arg);
+		as_is = 1;
+		if (!show_file(arg, output_prefix))
+			continue;
+		verify_filename(prefix, arg, 1);
 	}
 	if (verify) {
-		if (!index_name)
-			die(_("--verify with no packfile name given"));
-		read_idx_option(&opts, index_name);
-		opts.flags |= WRITE_IDX_VERIFY | WRITE_IDX_STRICT;
-	}
-	if (strict)
-		opts.flags |= WRITE_IDX_STRICT;
-
-#ifndef NO_PTHREADS
-	if (!nr_threads) {
-		nr_threads = online_cpus();
-		/* An experiment showed that more threads does not mean faster */
-		if (nr_threads > 3)
-			nr_threads = 3;
-	}
-#endif
-
-	curr_pack = open_pack_file(pack_name);
-	parse_pack_header();
-	objects = xcalloc(st_add(nr_objects, 1), sizeof(struct object_entry));
-	if (show_stat)
-		obj_stat = xcalloc(st_add(nr_objects, 1), sizeof(struct object_stat));
-	ofs_deltas = xcalloc(nr_objects, sizeof(struct ofs_delta_entry));
-	parse_pack_objects(pack_sha1);
-	resolve_deltas();
-	conclude_pack(fix_thin_pack, curr_pack, pack_sha1);
-	free(ofs_deltas);
-	free(ref_deltas);
-	if (strict)
-		foreign_nr = check_objects();
-
-	if (show_stat)
-		show_pack_info(stat_only);
-
-	ALLOC_ARRAY(idx_objects, nr_objects);
-	for (i = 0; i < nr_objects; i++)
-		idx_objects[i] = &objects[i].idx;
-	curr_index = write_idx_file(index_name, idx_objects, nr_objects, &opts, pack_sha1);
-	free(idx_objects);
-
-	if (!verify)
-		final(pack_name, curr_pack,
-		      index_name, curr_index,
-		      keep_name, keep_msg,
-		      pack_sha1);
-	else
-		close(input_fd);
-	free(objects);
-	strbuf_release(&index_name_buf);
-	strbuf_release(&keep_name_buf);
-	if (pack_name == NULL)
-		free((void *) curr_pack);
-	if (index_name == NULL)
-		free((void *) curr_index);
-
-	/*
-	 * Let the caller know this pack is not self contained
-	 */
-	if (check_self_contained_and_connected && foreign_nr)
-		return 1;
-
+		if (revs_count == 1) {
+			show_rev(type, sha1, name);
+			return 0;
+		} else if (revs_count == 0 && show_default())
+			return 0;
+		die_no_single_rev(quiet);
+	} else
+		show_default();
 	return 0;
 }

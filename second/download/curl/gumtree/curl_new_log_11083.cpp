@@ -1,10 +1,11 @@
 fputs(
-"              ftp_entry_path The initial path curl ended up in when logging on\n"
-"                             to the remote FTP server. (Added in 7.15.4)\n"
+"              Specify  a  URL  to  fetch. This option is mostly handy when you\n"
+"              want to specify URL(s) in a config file.\n"
 "\n"
-"              http_code      The numerical response code that was found in the\n"
-"                             last  retrieved  HTTP(S)  or  FTP(s) transfer. In\n"
-"                             7.18.2 the alias response_code was added to  show\n"
-"                             the same info.\n"
-"\n"
+"              This option may be used any number of times.  To  control  where\n"
+"              this  URL  is written, use the -o, --output or the -O, --remote-\n"
+"              name options.\n"
+"       -v, --verbose\n"
+"              Be more  verbose/talkative  during  the  operation.  Useful  for\n"
+"              debugging  and  seeing  what's going on \"under the hood\". A line\n"
 , stdout);
