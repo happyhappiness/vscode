@@ -32,10 +32,6 @@ def regenerate_rule(reanalyze_gumtree=False):
     analyze_control_old_new_cluster.cluster()
     analyze_control_old_new_cluster.generate_class()
 
-    # close jvm
-    if reanalyze_gumtree:
-        gumtree_api.close_jvm()
-
 def seek_clone_for_given_repos(repos_list, repos_name_list, reanalyze_rule=False, reanalyze_repos=False, reanalyze_gumtree=False):
     """
     @ param repos list, all the reposes you want to deal with, true if srcml api update, true if gumtree api update\n
@@ -68,6 +64,10 @@ def seek_clone_for_lastest_repos(repos_list, reanalyze_rule=False, reanalyze_rep
         # seek clone
         analyze_control_clone.seek_clone_for_lastest_repos(reanalyze_repos)
 
+    # close jvm
+    if reanalyze_rule:
+        gumtree_api.close_jvm()
+
 def seek_clone_for_corresponding_repos(repos_list, reanalyze_rule=False, reanalyze_repos=False, reanalyze_gumtree=False):
     """
     @ param repos list, true if srcml api update, true if gumtree api update\n
@@ -82,6 +82,9 @@ def seek_clone_for_corresponding_repos(repos_list, reanalyze_rule=False, reanaly
             regenerate_rule(reanalyze_gumtree)
         # seek clone
         analyze_control_clone.seek_clone_for_corresponding_repos(reanalyze_repos)
+    # close jvm
+    if reanalyze_rule:
+        gumtree_api.close_jvm()
 
 def do_statistics(repos_list):
     """
@@ -105,11 +108,12 @@ if __name__ == "__main__":
     # seek_clone_for_given_repos(reposes, repos_names)
     # seek_clone_for_corresponding_repos(reposes[0:1], True, False, False)
     # seek_clone_for_corresponding_repos(reposes, False, False, False)
+    # seek_clone_for_corresponding_repos(reposes[0:1], True, False, False)    
     # seek_clone_for_corresponding_repos(reposes[0:1], False, True, False)
     # seek_clone_for_corresponding_repos(reposes, False, False, True)
-    seek_clone_for_lastest_repos(reposes, False, False, False)
+    # seek_clone_for_lastest_repos(reposes, False, False, False)
 
     # regenerate_hunk(reposes)
-    # do_statistics(reposes)
+    do_statistics(reposes)
 
 

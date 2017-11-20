@@ -280,18 +280,16 @@ public class GumTreeApi {
 	{
 		// true if is in new hunk
 		this.ddgFlag = isNewHunk;
+		// if new hunk, swap the old and new file
+		if(this.ddgFlag)
+		{
+			this.setOldAndNewFile(this.newFile, this.oldFile);
+		}
 	}
 
 	public void addDDGNode(int line) {
 		ITree ddgNode;
-		if(this.ddgFlag)
-		{
-			ddgNode = this.getDDGNodeOfLine(line, this.newTree, this.newTreeContext, this.newFile);
-		}
-		else
-		{
-			ddgNode = this.getDDGNodeOfLine(line, this.oldTree, this.oldTreeContext, this.oldFile);
-		}
+		ddgNode = this.getDDGNodeOfLine(line, this.oldTree, this.oldTreeContext, this.oldFile);
 		if (ddgNode != null)
 			this.ddgNodes.add(ddgNode);
 	}
@@ -301,7 +299,7 @@ public class GumTreeApi {
 		// no need to check for null ddgs
 		if(this.ddgNodes.size() == 0)
 			return false;
-		
+	
 		Iterator<Action> actionIter = actions.iterator();
 		Action action;
 		ITree tempNode;
