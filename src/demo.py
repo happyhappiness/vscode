@@ -111,9 +111,9 @@ if __name__ == "__main__":
     # seek_clone_for_corresponding_repos(reposes[0:1], True, False, False)    
     # seek_clone_for_corresponding_repos(reposes[0:1], False, True, False)
     # seek_clone_for_corresponding_repos(reposes, False, False, True)
-    # seek_clone_for_lastest_repos(reposes, False, False, False)
+    seek_clone_for_lastest_repos(reposes, False, False, False)
 
     # regenerate_hunk(reposes)
-    do_statistics(reposes)
+    # do_statistics(reposes)
 
 
