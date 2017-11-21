@@ -91,14 +91,14 @@ def statistical_rule_class(csv_file_name):
     reading_file.close()
     return insert_counter, modify_counter
 
-def perform_statistic():
+def perform_statistic(statistic_file_name = 'data/evaluate/statistics.txt'):
     """
-    @ param nothing\n
+    @ param statistic file name\n
     @ return nothing\n
     @ involve get statistical info about cluster and log,
             edit type info and cluster info (no.cluster, no.>1cluster, no.repeted log)\n 
     """
-    statistic_file = open('data/evaluate/statistics.txt', 'ab')
+    statistic_file = open(statistic_file_name, 'ab')
     print >> statistic_file, "\n#now analyzing repos:%s" %(my_constant.REPOS)
     # statistics about edition cluster
     print >> statistic_file, "#edition cluster info"
