@@ -98,6 +98,27 @@ def do_statistics(repos_list):
         my_constant.reset_repos(repos)
         statistics.perform_statistic()
 
+def perform_series(repos_list):
+    """
+    @ param repos list\n
+    @ return nothing \n
+    @ involve do everything for this repos\n
+    """
+    for repos in repos_list:
+        print '\n****************now analyzing repos %s***************' %repos
+        # analyze hunk
+        fetch_hunk.fetch_version_diff(True)
+        analyze_hunk.fetch_hunk()
+        # analyze gumtree and srcml
+        analyze_control_old_new.analyze_old_new(True)
+        # generate rule
+        analyze_control_old_new_cluster.cluster()
+        analyze_control_old_new_cluster.generate_class()
+        statistics.perform_statistic('data/evaluate/series.txt')
+        # apply rule
+        analyze_control_clone.seek_clone_for_corresponding_repos()
+        analyze_control_clone.seek_clone_for_lastest_repos()
+
 """
 main function
 """
