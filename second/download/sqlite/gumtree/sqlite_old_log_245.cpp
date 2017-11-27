@@ -1,1 +1,0 @@
-sqlite3MPrintf(db, "%s%s", zNeg, pExpr->u.zToken);

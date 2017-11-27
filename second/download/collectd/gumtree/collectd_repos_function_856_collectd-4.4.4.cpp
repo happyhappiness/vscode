@@ -1,0 +1,23 @@
+static void cipvs_submit_if (char *pi, char *t, char *ti,
+		counter_t rx, counter_t tx)
+{
+	value_t values[2];
+	value_list_t vl = VALUE_LIST_INIT;
+
+	values[0].counter = rx;
+	values[1].counter = tx;
+
+	vl.values     = values;
+	vl.values_len = 2;
+
+	vl.time     = time (NULL);
+	vl.interval = interval_g;
+
+	sstrncpy (vl.host, hostname_g, sizeof (vl.host));
+	sstrncpy (vl.plugin, "ipvs", sizeof (vl.plugin));
+	sstrncpy (vl.plugin_instance, pi, sizeof (vl.plugin_instance));
+	sstrncpy (vl.type_instance, (NULL != ti) ? ti : "total", sizeof (vl.type_instance));
+
+	plugin_dispatch_values (t, &vl);
+	return;
+}

@@ -1,0 +1,1 @@
+fprintf (stderr, "Bytes 0, 1: 0x%04hx\n", us);

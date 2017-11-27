@@ -1,1 +1,0 @@
-sqlite3MPrintf(db, "%s OR name=%Q", zWhere, pTrig->name);

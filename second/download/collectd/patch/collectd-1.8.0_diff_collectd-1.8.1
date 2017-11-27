@@ -1,0 +1,2151 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/ChangeLog /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/ChangeLog
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/ChangeLog	2005-08-29 23:09:37.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/ChangeLog	2005-09-02 03:38:28.000000000 +0800
+@@ -1,6 +1,11 @@
++2005-09-01, Version 1.8.1 (Revision 123)
++	* Much improved configure-script: libraries and features may now be
++	  disabled.
++	* More detailed warnings/error messages when RRD update failes.
++
+ 2005-08-29, Version 1.8.0:
+ 	* Support for collecting disk statistics under Solaris.
+ 
+ 2005-08-25, Version 1.7.0:
+ 	* Support for libstatgrab[1] for load, memory usage and network
+ 	  traffic. CPU- and disk-usage are not (yet) supported, since
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/collectd.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/collectd.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/collectd.spec	2005-08-29 23:09:37.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/collectd.spec	2005-09-02 03:26:35.000000000 +0800
+@@ -1,9 +1,9 @@
+ Summary:	Statistics collection daemon for filling RRD files.
+ Name:           collectd
+-Version:	1.8.0
++Version:	1.8.1
+ Release:	1
+ Source:		http://verplant.org/collectd/%{name}-%{version}.tar.gz
+ License:	GPL
+ Group:		System Environment/Daemons
+ BuildRoot:	%{_tmppath}/%{name}-%{version}-root
+ BuildPrereq:	lm_sensors-devel
+@@ -44,12 +44,15 @@
+ %config /etc/default/collectd
+ %attr(0755,root,root) /etc/rc.d/init.d/collectd
+ %attr(0755,root,root) /usr/sbin/collectd
+ %dir /var/lib/collectd
+ 
+ %changelog
++* Mon Sep 01 2005 Florian octo Forster <octo@verplant.org> 1.8.1-1
++- New upstream version
++
+ * Mon Aug 29 2005 Florian octo Forster <octo@verplant.org> 1.8.0-1
+ - New upstream version
+ 
+ * Sun Aug 25 2005 Florian octo Forster <octo@verplant.org> 1.7.0-1
+ - New upstream version
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/configure	2005-08-29 23:15:55.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/configure	2005-09-02 03:38:58.000000000 +0800
+@@ -1029,23 +1029,33 @@
+                           build shared libraries [default=yes]
+   --enable-static[=PKGS]
+                           build static libraries [default=yes]
+   --enable-fast-install[=PKGS]
+                           optimize for fast installation [default=yes]
+   --disable-libtool-lock  avoid locking (might break parallel builds)
++  --disable-cpu           Disable CPU usage statistics
++  --disable-disk          Disable disk/partition statistics
++  --disable-load          Disable system load statistics
++  --disable-memory        Disable memory statistics
++  --disable-ping          Disable ping statistics
++  --disable-sensors       Disable lm_sensors statistics
++  --disable-traffic       Disable system traffic statistics
+ 
+ Optional Packages:
+   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
+   --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
+   --with-gnu-ld           assume the C compiler uses GNU ld [default=no]
+   --with-pic              try to use only PIC/non-PIC objects [default=use
+                           both]
+   --with-tags[=TAGS]
+                           include additional configurations [automatic]
+   --with-rrdtool=PFX      Path to rrdtool.
+-  --with-libstatgrab=PFX  Path to libstatgrab.
++  --with-libstatgrab[=PFX]
++                          Path to libstatgrab.
++  --with-lm-sensors[=PFX]
++                          Path to lm_sensors.
+ 
+ Some influential environment variables:
+   CC          C compiler command
+   CFLAGS      C compiler flags
+   LDFLAGS     linker flags, e.g. -L<lib dir> if you have libraries in a
+               nonstandard directory <lib dir>
+@@ -1800,13 +1810,13 @@
+   fi
+ fi
+ 
+ 
+ # Define the identity of the package.
+  PACKAGE=collectd
+- VERSION=1.8.0
++ VERSION=1.8.1
+ 
+ 
+ cat >>confdefs.h <<_ACEOF
+ #define PACKAGE "$PACKAGE"
+ _ACEOF
+ 
+@@ -3949,13 +3959,13 @@
+     esac
+   fi
+   rm -rf conftest*
+   ;;
+ *-*-irix6*)
+   # Find out which ABI we are using.
+-  echo '#line 3955 "configure"' > conftest.$ac_ext
++  echo '#line 3965 "configure"' > conftest.$ac_ext
+   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+   (eval $ac_compile) 2>&5
+   ac_status=$?
+   echo "$as_me:$LINENO: \$? = $ac_status" >&5
+   (exit $ac_status); }; then
+    if test "$lt_cv_prog_gnu_ld" = yes; then
+@@ -5279,13 +5289,13 @@
+ 
+   F77=$ac_ct_F77
+ fi
+ 
+ 
+ # Provide some information about the compiler.
+-echo "$as_me:5285:" \
++echo "$as_me:5295:" \
+      "checking for Fortran 77 compiler version" >&5
+ ac_compiler=`set X $ac_compile; echo $2`
+ { (eval echo "$as_me:$LINENO: \"$ac_compiler --version </dev/null >&5\"") >&5
+   (eval $ac_compiler --version </dev/null >&5) 2>&5
+   ac_status=$?
+   echo "$as_me:$LINENO: \$? = $ac_status" >&5
+@@ -6311,17 +6321,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}? :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:6317: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:6327: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:6321: \$? = $ac_status" >&5
++   echo "$as_me:6331: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      if test ! -s conftest.err; then
+        lt_cv_prog_compiler_rtti_exceptions=yes
+      fi
+@@ -6544,17 +6554,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}? :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:6550: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:6560: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:6554: \$? = $ac_status" >&5
++   echo "$as_me:6564: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      if test ! -s conftest.err; then
+        lt_prog_compiler_pic_works=yes
+      fi
+@@ -6604,17 +6614,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}? :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:6610: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:6620: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:6614: \$? = $ac_status" >&5
++   echo "$as_me:6624: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      if test ! -s out/conftest.err; then
+        lt_cv_prog_compiler_c_o=yes
+@@ -8792,13 +8802,13 @@
+   	  if test "$cross_compiling" = yes; then :
+   lt_cv_dlopen_self=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 8798 "configure"
++#line 8808 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -8890,13 +8900,13 @@
+   	  if test "$cross_compiling" = yes; then :
+   lt_cv_dlopen_self_static=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 8896 "configure"
++#line 8906 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -11067,17 +11077,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}? :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:11073: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:11083: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:11077: \$? = $ac_status" >&5
++   echo "$as_me:11087: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      if test ! -s conftest.err; then
+        lt_prog_compiler_pic_works_CXX=yes
+      fi
+@@ -11127,17 +11137,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}? :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:11133: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:11143: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:11137: \$? = $ac_status" >&5
++   echo "$as_me:11147: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      if test ! -s out/conftest.err; then
+        lt_cv_prog_compiler_c_o_CXX=yes
+@@ -12496,13 +12506,13 @@
+   	  if test "$cross_compiling" = yes; then :
+   lt_cv_dlopen_self=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 12502 "configure"
++#line 12512 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -12594,13 +12604,13 @@
+   	  if test "$cross_compiling" = yes; then :
+   lt_cv_dlopen_self_static=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 12600 "configure"
++#line 12610 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -13421,17 +13431,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}? :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:13427: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:13437: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:13431: \$? = $ac_status" >&5
++   echo "$as_me:13441: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      if test ! -s conftest.err; then
+        lt_prog_compiler_pic_works_F77=yes
+      fi
+@@ -13481,17 +13491,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}? :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:13487: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:13497: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:13491: \$? = $ac_status" >&5
++   echo "$as_me:13501: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      if test ! -s out/conftest.err; then
+        lt_cv_prog_compiler_c_o_F77=yes
+@@ -15526,17 +15536,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}? :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:15532: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:15542: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:15536: \$? = $ac_status" >&5
++   echo "$as_me:15546: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      if test ! -s conftest.err; then
+        lt_cv_prog_compiler_rtti_exceptions=yes
+      fi
+@@ -15759,17 +15769,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}? :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:15765: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:15775: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:15769: \$? = $ac_status" >&5
++   echo "$as_me:15779: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      if test ! -s conftest.err; then
+        lt_prog_compiler_pic_works_GCJ=yes
+      fi
+@@ -15819,17 +15829,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}? :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:15825: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:15835: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:15829: \$? = $ac_status" >&5
++   echo "$as_me:15839: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      if test ! -s out/conftest.err; then
+        lt_cv_prog_compiler_c_o_GCJ=yes
+@@ -18007,13 +18017,13 @@
+   	  if test "$cross_compiling" = yes; then :
+   lt_cv_dlopen_self=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 18013 "configure"
++#line 18023 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -18105,13 +18115,13 @@
+   	  if test "$cross_compiling" = yes; then :
+   lt_cv_dlopen_self_static=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 18111 "configure"
++#line 18121 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -19326,13 +19336,13 @@
+ 
+ 
+ 
+ # Check whether --with-rrdtool or --without-rrdtool was given.
+ if test "${with_rrdtool+set}" = set; then
+   withval="$with_rrdtool"
+-  	if test "x$with_rrdtool" != "x"
++  	if test "x$withval" != "xno" -a "x$withval" != "xyes"
+ 	then
+ 		LDFLAGS="$LDFLAGS -L$withval/lib"
+ 		CPPFLAGS="$CPPFLAGS -I$withval/include"
+ 	fi
+ 
+ fi;
+@@ -19405,20 +19415,167 @@
+ #define HAVE_LIBRRD 1
+ _ACEOF
+ 
+   LIBS="-lrrd $LIBS"
+ 
+ else
+-  { { echo "$as_me:$LINENO: error: librrd could not be found. Be sure to install it first!" >&5
+-echo "$as_me: error: librrd could not be found. Be sure to install it first!" >&2;}
++  { { echo "$as_me:$LINENO: error: librrd could not be found. Be sure to install rrdtool first!" >&5
++echo "$as_me: error: librrd could not be found. Be sure to install rrdtool first!" >&2;}
+    { (exit 1); exit 1; }; }
+ fi
+ 
++if test "${ac_cv_header_rrd_h+set}" = set; then
++  echo "$as_me:$LINENO: checking for rrd.h" >&5
++echo $ECHO_N "checking for rrd.h... $ECHO_C" >&6
++if test "${ac_cv_header_rrd_h+set}" = set; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++fi
++echo "$as_me:$LINENO: result: $ac_cv_header_rrd_h" >&5
++echo "${ECHO_T}$ac_cv_header_rrd_h" >&6
++else
++  # Is the header compilable?
++echo "$as_me:$LINENO: checking rrd.h usability" >&5
++echo $ECHO_N "checking rrd.h usability... $ECHO_C" >&6
++cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++$ac_includes_default
++#include <rrd.h>
++_ACEOF
++rm -f conftest.$ac_objext
++if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
++  (eval $ac_compile) 2>conftest.er1
++  ac_status=$?
++  grep -v '^ *+' conftest.er1 >conftest.err
++  rm -f conftest.er1
++  cat conftest.err >&5
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } &&
++	 { ac_try='test -z "$ac_c_werror_flag"			 || test ! -s conftest.err'
++  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
++  (eval $ac_try) 2>&5
++  ac_status=$?
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); }; } &&
++	 { ac_try='test -s conftest.$ac_objext'
++  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
++  (eval $ac_try) 2>&5
++  ac_status=$?
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); }; }; then
++  ac_header_compiler=yes
++else
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++ac_header_compiler=no
++fi
++rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
++echo "${ECHO_T}$ac_header_compiler" >&6
++
++# Is the header present?
++echo "$as_me:$LINENO: checking rrd.h presence" >&5
++echo $ECHO_N "checking rrd.h presence... $ECHO_C" >&6
++cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++#include <rrd.h>
++_ACEOF
++if { (eval echo "$as_me:$LINENO: \"$ac_cpp conftest.$ac_ext\"") >&5
++  (eval $ac_cpp conftest.$ac_ext) 2>conftest.er1
++  ac_status=$?
++  grep -v '^ *+' conftest.er1 >conftest.err
++  rm -f conftest.er1
++  cat conftest.err >&5
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } >/dev/null; then
++  if test -s conftest.err; then
++    ac_cpp_err=$ac_c_preproc_warn_flag
++    ac_cpp_err=$ac_cpp_err$ac_c_werror_flag
++  else
++    ac_cpp_err=
++  fi
++else
++  ac_cpp_err=yes
++fi
++if test -z "$ac_cpp_err"; then
++  ac_header_preproc=yes
++else
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++  ac_header_preproc=no
++fi
++rm -f conftest.err conftest.$ac_ext
++echo "$as_me:$LINENO: result: $ac_header_preproc" >&5
++echo "${ECHO_T}$ac_header_preproc" >&6
++
++# So?  What about this header?
++case $ac_header_compiler:$ac_header_preproc:$ac_c_preproc_warn_flag in
++  yes:no: )
++    { echo "$as_me:$LINENO: WARNING: rrd.h: accepted by the compiler, rejected by the preprocessor!" >&5
++echo "$as_me: WARNING: rrd.h: accepted by the compiler, rejected by the preprocessor!" >&2;}
++    { echo "$as_me:$LINENO: WARNING: rrd.h: proceeding with the compiler's result" >&5
++echo "$as_me: WARNING: rrd.h: proceeding with the compiler's result" >&2;}
++    ac_header_preproc=yes
++    ;;
++  no:yes:* )
++    { echo "$as_me:$LINENO: WARNING: rrd.h: present but cannot be compiled" >&5
++echo "$as_me: WARNING: rrd.h: present but cannot be compiled" >&2;}
++    { echo "$as_me:$LINENO: WARNING: rrd.h:     check for missing prerequisite headers?" >&5
++echo "$as_me: WARNING: rrd.h:     check for missing prerequisite headers?" >&2;}
++    { echo "$as_me:$LINENO: WARNING: rrd.h: see the Autoconf documentation" >&5
++echo "$as_me: WARNING: rrd.h: see the Autoconf documentation" >&2;}
++    { echo "$as_me:$LINENO: WARNING: rrd.h:     section \"Present But Cannot Be Compiled\"" >&5
++echo "$as_me: WARNING: rrd.h:     section \"Present But Cannot Be Compiled\"" >&2;}
++    { echo "$as_me:$LINENO: WARNING: rrd.h: proceeding with the preprocessor's result" >&5
++echo "$as_me: WARNING: rrd.h: proceeding with the preprocessor's result" >&2;}
++    { echo "$as_me:$LINENO: WARNING: rrd.h: in the future, the compiler will take precedence" >&5
++echo "$as_me: WARNING: rrd.h: in the future, the compiler will take precedence" >&2;}
++    (
++      cat <<\_ASBOX
++## ------------------------------------------ ##
++## Report this to the AC_PACKAGE_NAME lists.  ##
++## ------------------------------------------ ##
++_ASBOX
++    ) |
++      sed "s/^/$as_me: WARNING:     /" >&2
++    ;;
++esac
++echo "$as_me:$LINENO: checking for rrd.h" >&5
++echo $ECHO_N "checking for rrd.h... $ECHO_C" >&6
++if test "${ac_cv_header_rrd_h+set}" = set; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++else
++  ac_cv_header_rrd_h=$ac_header_preproc
++fi
++echo "$as_me:$LINENO: result: $ac_cv_header_rrd_h" >&5
++echo "${ECHO_T}$ac_cv_header_rrd_h" >&6
++
++fi
++if test $ac_cv_header_rrd_h = yes; then
++  :
++else
++  { { echo "$as_me:$LINENO: error: rrd.h could not be found. Be sure to install rrdtool first!" >&5
++echo "$as_me: error: rrd.h could not be found. Be sure to install rrdtool first!" >&2;}
++   { (exit 1); exit 1; }; }
++fi
++
++
++with_rrdtool="yes"
+ 
+ if test "$ac_system" = "Solaris"
+ then
++	with_kstat="yes"
+ 
+ echo "$as_me:$LINENO: checking for kstat_open in -lkstat" >&5
+ echo $ECHO_N "checking for kstat_open in -lkstat... $ECHO_C" >&6
+ if test "${ac_cv_lib_kstat_kstat_open+set}" = set; then
+   echo $ECHO_N "(cached) $ECHO_C" >&6
+ else
+@@ -19484,12 +19641,14 @@
+   cat >>confdefs.h <<_ACEOF
+ #define HAVE_LIBKSTAT 1
+ _ACEOF
+ 
+   LIBS="-lkstat $LIBS"
+ 
++else
++  with_kstat="no (not found)"
+ fi
+ 
+ 
+ echo "$as_me:$LINENO: checking for di_init in -ldevinfo" >&5
+ echo $ECHO_N "checking for di_init in -ldevinfo... $ECHO_C" >&6
+ if test "${ac_cv_lib_devinfo_di_init+set}" = set; then
+@@ -19559,34 +19718,461 @@
+ _ACEOF
+ 
+   LIBS="-ldevinfo $LIBS"
+ 
+ fi
+ 
++
++for ac_header in kstat.h
++do
++as_ac_Header=`echo "ac_cv_header_$ac_header" | $as_tr_sh`
++if eval "test \"\${$as_ac_Header+set}\" = set"; then
++  echo "$as_me:$LINENO: checking for $ac_header" >&5
++echo $ECHO_N "checking for $ac_header... $ECHO_C" >&6
++if eval "test \"\${$as_ac_Header+set}\" = set"; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++fi
++echo "$as_me:$LINENO: result: `eval echo '${'$as_ac_Header'}'`" >&5
++echo "${ECHO_T}`eval echo '${'$as_ac_Header'}'`" >&6
++else
++  # Is the header compilable?
++echo "$as_me:$LINENO: checking $ac_header usability" >&5
++echo $ECHO_N "checking $ac_header usability... $ECHO_C" >&6
++cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++$ac_includes_default
++#include <$ac_header>
++_ACEOF
++rm -f conftest.$ac_objext
++if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
++  (eval $ac_compile) 2>conftest.er1
++  ac_status=$?
++  grep -v '^ *+' conftest.er1 >conftest.err
++  rm -f conftest.er1
++  cat conftest.err >&5
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } &&
++	 { ac_try='test -z "$ac_c_werror_flag"			 || test ! -s conftest.err'
++  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
++  (eval $ac_try) 2>&5
++  ac_status=$?
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); }; } &&
++	 { ac_try='test -s conftest.$ac_objext'
++  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
++  (eval $ac_try) 2>&5
++  ac_status=$?
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); }; }; then
++  ac_header_compiler=yes
++else
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++ac_header_compiler=no
++fi
++rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
++echo "${ECHO_T}$ac_header_compiler" >&6
++
++# Is the header present?
++echo "$as_me:$LINENO: checking $ac_header presence" >&5
++echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6
++cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++#include <$ac_header>
++_ACEOF
++if { (eval echo "$as_me:$LINENO: \"$ac_cpp conftest.$ac_ext\"") >&5
++  (eval $ac_cpp conftest.$ac_ext) 2>conftest.er1
++  ac_status=$?
++  grep -v '^ *+' conftest.er1 >conftest.err
++  rm -f conftest.er1
++  cat conftest.err >&5
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } >/dev/null; then
++  if test -s conftest.err; then
++    ac_cpp_err=$ac_c_preproc_warn_flag
++    ac_cpp_err=$ac_cpp_err$ac_c_werror_flag
++  else
++    ac_cpp_err=
++  fi
++else
++  ac_cpp_err=yes
++fi
++if test -z "$ac_cpp_err"; then
++  ac_header_preproc=yes
++else
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++  ac_header_preproc=no
++fi
++rm -f conftest.err conftest.$ac_ext
++echo "$as_me:$LINENO: result: $ac_header_preproc" >&5
++echo "${ECHO_T}$ac_header_preproc" >&6
++
++# So?  What about this header?
++case $ac_header_compiler:$ac_header_preproc:$ac_c_preproc_warn_flag in
++  yes:no: )
++    { echo "$as_me:$LINENO: WARNING: $ac_header: accepted by the compiler, rejected by the preprocessor!" >&5
++echo "$as_me: WARNING: $ac_header: accepted by the compiler, rejected by the preprocessor!" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header: proceeding with the compiler's result" >&5
++echo "$as_me: WARNING: $ac_header: proceeding with the compiler's result" >&2;}
++    ac_header_preproc=yes
++    ;;
++  no:yes:* )
++    { echo "$as_me:$LINENO: WARNING: $ac_header: present but cannot be compiled" >&5
++echo "$as_me: WARNING: $ac_header: present but cannot be compiled" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header:     check for missing prerequisite headers?" >&5
++echo "$as_me: WARNING: $ac_header:     check for missing prerequisite headers?" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header: see the Autoconf documentation" >&5
++echo "$as_me: WARNING: $ac_header: see the Autoconf documentation" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header:     section \"Present But Cannot Be Compiled\"" >&5
++echo "$as_me: WARNING: $ac_header:     section \"Present But Cannot Be Compiled\"" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header: proceeding with the preprocessor's result" >&5
++echo "$as_me: WARNING: $ac_header: proceeding with the preprocessor's result" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header: in the future, the compiler will take precedence" >&5
++echo "$as_me: WARNING: $ac_header: in the future, the compiler will take precedence" >&2;}
++    (
++      cat <<\_ASBOX
++## ------------------------------------------ ##
++## Report this to the AC_PACKAGE_NAME lists.  ##
++## ------------------------------------------ ##
++_ASBOX
++    ) |
++      sed "s/^/$as_me: WARNING:     /" >&2
++    ;;
++esac
++echo "$as_me:$LINENO: checking for $ac_header" >&5
++echo $ECHO_N "checking for $ac_header... $ECHO_C" >&6
++if eval "test \"\${$as_ac_Header+set}\" = set"; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++else
++  eval "$as_ac_Header=\$ac_header_preproc"
++fi
++echo "$as_me:$LINENO: result: `eval echo '${'$as_ac_Header'}'`" >&5
++echo "${ECHO_T}`eval echo '${'$as_ac_Header'}'`" >&6
++
++fi
++if test `eval echo '${'$as_ac_Header'}'` = yes; then
++  cat >>confdefs.h <<_ACEOF
++#define `echo "HAVE_$ac_header" | $as_tr_cpp` 1
++_ACEOF
++
++else
++  with_kstat="no (kstat.h not found)"
++fi
++
++done
++
++else
++	with_kstat="no (Solaris only)"
++fi
++
++
++# Check whether --with-libstatgrab or --without-libstatgrab was given.
++if test "${with_libstatgrab+set}" = set; then
++  withval="$with_libstatgrab"
++
++	# given..
++	if test "x$withval" != "xno"
++	then
++		if test "x$withval" != "xyes"
++		then
++			LDFLAGS="$LDFLAGS -L$withval/lib"
++			CPPFLAGS="$CPPFLAGS -I$withval/include"
++			with_libstatgrab="yes"
++		fi
++	fi
++
++else
++
++	# not given..
++	if test "x$ac_system" != "xunknown"
++	then
++		with_libstatgrab="no"
++	else
++		with_libstatgrab="yes"
++	fi
++
++fi;
++if test "x$with_lm_sensors" = "xyes"
++then
++
++echo "$as_me:$LINENO: checking for sg_init in -lstatgrab" >&5
++echo $ECHO_N "checking for sg_init in -lstatgrab... $ECHO_C" >&6
++if test "${ac_cv_lib_statgrab_sg_init+set}" = set; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++else
++  ac_check_lib_save_LIBS=$LIBS
++LIBS="-lstatgrab  $LIBS"
++cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++
++/* Override any gcc2 internal prototype to avoid an error.  */
++#ifdef __cplusplus
++extern "C"
++#endif
++/* We use char because int might match the return type of a gcc2
++   builtin and then its argument prototype would still apply.  */
++char sg_init ();
++int
++main ()
++{
++sg_init ();
++  ;
++  return 0;
++}
++_ACEOF
++rm -f conftest.$ac_objext conftest$ac_exeext
++if { (eval echo "$as_me:$LINENO: \"$ac_link\"") >&5
++  (eval $ac_link) 2>conftest.er1
++  ac_status=$?
++  grep -v '^ *+' conftest.er1 >conftest.err
++  rm -f conftest.er1
++  cat conftest.err >&5
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } &&
++	 { ac_try='test -z "$ac_c_werror_flag"			 || test ! -s conftest.err'
++  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
++  (eval $ac_try) 2>&5
++  ac_status=$?
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); }; } &&
++	 { ac_try='test -s conftest$ac_exeext'
++  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
++  (eval $ac_try) 2>&5
++  ac_status=$?
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); }; }; then
++  ac_cv_lib_statgrab_sg_init=yes
++else
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++ac_cv_lib_statgrab_sg_init=no
++fi
++rm -f conftest.err conftest.$ac_objext \
++      conftest$ac_exeext conftest.$ac_ext
++LIBS=$ac_check_lib_save_LIBS
++fi
++echo "$as_me:$LINENO: result: $ac_cv_lib_statgrab_sg_init" >&5
++echo "${ECHO_T}$ac_cv_lib_statgrab_sg_init" >&6
++if test $ac_cv_lib_statgrab_sg_init = yes; then
++  cat >>confdefs.h <<_ACEOF
++#define HAVE_LIBSTATGRAB 1
++_ACEOF
++
++  LIBS="-lstatgrab $LIBS"
++
++else
++  with_libstatgrab="no (not found)"
++fi
++
++
++for ac_header in statgrab.h
++do
++as_ac_Header=`echo "ac_cv_header_$ac_header" | $as_tr_sh`
++if eval "test \"\${$as_ac_Header+set}\" = set"; then
++  echo "$as_me:$LINENO: checking for $ac_header" >&5
++echo $ECHO_N "checking for $ac_header... $ECHO_C" >&6
++if eval "test \"\${$as_ac_Header+set}\" = set"; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++fi
++echo "$as_me:$LINENO: result: `eval echo '${'$as_ac_Header'}'`" >&5
++echo "${ECHO_T}`eval echo '${'$as_ac_Header'}'`" >&6
++else
++  # Is the header compilable?
++echo "$as_me:$LINENO: checking $ac_header usability" >&5
++echo $ECHO_N "checking $ac_header usability... $ECHO_C" >&6
++cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++$ac_includes_default
++#include <$ac_header>
++_ACEOF
++rm -f conftest.$ac_objext
++if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
++  (eval $ac_compile) 2>conftest.er1
++  ac_status=$?
++  grep -v '^ *+' conftest.er1 >conftest.err
++  rm -f conftest.er1
++  cat conftest.err >&5
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } &&
++	 { ac_try='test -z "$ac_c_werror_flag"			 || test ! -s conftest.err'
++  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
++  (eval $ac_try) 2>&5
++  ac_status=$?
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); }; } &&
++	 { ac_try='test -s conftest.$ac_objext'
++  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
++  (eval $ac_try) 2>&5
++  ac_status=$?
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); }; }; then
++  ac_header_compiler=yes
++else
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++ac_header_compiler=no
++fi
++rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
++echo "${ECHO_T}$ac_header_compiler" >&6
++
++# Is the header present?
++echo "$as_me:$LINENO: checking $ac_header presence" >&5
++echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6
++cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++#include <$ac_header>
++_ACEOF
++if { (eval echo "$as_me:$LINENO: \"$ac_cpp conftest.$ac_ext\"") >&5
++  (eval $ac_cpp conftest.$ac_ext) 2>conftest.er1
++  ac_status=$?
++  grep -v '^ *+' conftest.er1 >conftest.err
++  rm -f conftest.er1
++  cat conftest.err >&5
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } >/dev/null; then
++  if test -s conftest.err; then
++    ac_cpp_err=$ac_c_preproc_warn_flag
++    ac_cpp_err=$ac_cpp_err$ac_c_werror_flag
++  else
++    ac_cpp_err=
++  fi
++else
++  ac_cpp_err=yes
++fi
++if test -z "$ac_cpp_err"; then
++  ac_header_preproc=yes
++else
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++  ac_header_preproc=no
++fi
++rm -f conftest.err conftest.$ac_ext
++echo "$as_me:$LINENO: result: $ac_header_preproc" >&5
++echo "${ECHO_T}$ac_header_preproc" >&6
++
++# So?  What about this header?
++case $ac_header_compiler:$ac_header_preproc:$ac_c_preproc_warn_flag in
++  yes:no: )
++    { echo "$as_me:$LINENO: WARNING: $ac_header: accepted by the compiler, rejected by the preprocessor!" >&5
++echo "$as_me: WARNING: $ac_header: accepted by the compiler, rejected by the preprocessor!" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header: proceeding with the compiler's result" >&5
++echo "$as_me: WARNING: $ac_header: proceeding with the compiler's result" >&2;}
++    ac_header_preproc=yes
++    ;;
++  no:yes:* )
++    { echo "$as_me:$LINENO: WARNING: $ac_header: present but cannot be compiled" >&5
++echo "$as_me: WARNING: $ac_header: present but cannot be compiled" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header:     check for missing prerequisite headers?" >&5
++echo "$as_me: WARNING: $ac_header:     check for missing prerequisite headers?" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header: see the Autoconf documentation" >&5
++echo "$as_me: WARNING: $ac_header: see the Autoconf documentation" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header:     section \"Present But Cannot Be Compiled\"" >&5
++echo "$as_me: WARNING: $ac_header:     section \"Present But Cannot Be Compiled\"" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header: proceeding with the preprocessor's result" >&5
++echo "$as_me: WARNING: $ac_header: proceeding with the preprocessor's result" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header: in the future, the compiler will take precedence" >&5
++echo "$as_me: WARNING: $ac_header: in the future, the compiler will take precedence" >&2;}
++    (
++      cat <<\_ASBOX
++## ------------------------------------------ ##
++## Report this to the AC_PACKAGE_NAME lists.  ##
++## ------------------------------------------ ##
++_ASBOX
++    ) |
++      sed "s/^/$as_me: WARNING:     /" >&2
++    ;;
++esac
++echo "$as_me:$LINENO: checking for $ac_header" >&5
++echo $ECHO_N "checking for $ac_header... $ECHO_C" >&6
++if eval "test \"\${$as_ac_Header+set}\" = set"; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++else
++  eval "$as_ac_Header=\$ac_header_preproc"
+ fi
++echo "$as_me:$LINENO: result: `eval echo '${'$as_ac_Header'}'`" >&5
++echo "${ECHO_T}`eval echo '${'$as_ac_Header'}'`" >&6
+ 
++fi
++if test `eval echo '${'$as_ac_Header'}'` = yes; then
++  cat >>confdefs.h <<_ACEOF
++#define `echo "HAVE_$ac_header" | $as_tr_cpp` 1
++_ACEOF
++
++else
++  with_libstatgrab="no (not found)"
++fi
++
++done
++
++fi
++
++
++# Check whether --with-lm-sensors or --without-lm-sensors was given.
++if test "${with_lm_sensors+set}" = set; then
++  withval="$with_lm_sensors"
++
++	# given..
++	if test "x$withval" != "xno"
++	then
++		if test "x$withval" != "xyes"
++		then
++			LDFLAGS="$LDFLAGS -L$withval/lib"
++			CPPFLAGS="$CPPFLAGS -I$withval/include"
++			with_lm_sensors="yes"
++		fi
++	fi
+ 
+-# Check whether --with-libstatgrab or --without-libstatgrab was given.
+-if test "${with_libstatgrab+set}" = set; then
+-  withval="$with_libstatgrab"
++else
+ 
+-	if test "x$with_libstatgrab" != "x"
++	# not given..
++	if test "x$ac_system" = "xLinux"
+ 	then
+-		LDFLAGS="$LDFLAGS -L$withval/lib"
+-		CPPFLAGS="$CPPFLAGS -I$withval/include"
++		with_lm_sensors="yes"
++	else
++		with_lm_sensors="no"
+ 	fi
+ 
+ fi;
++if test "x$with_lm_sensors" = "xyes"
++then
+ 
+-echo "$as_me:$LINENO: checking for sg_init in -lstatgrab" >&5
+-echo $ECHO_N "checking for sg_init in -lstatgrab... $ECHO_C" >&6
+-if test "${ac_cv_lib_statgrab_sg_init+set}" = set; then
++echo "$as_me:$LINENO: checking for sensors_init in -lsensors" >&5
++echo $ECHO_N "checking for sensors_init in -lsensors... $ECHO_C" >&6
++if test "${ac_cv_lib_sensors_sensors_init+set}" = set; then
+   echo $ECHO_N "(cached) $ECHO_C" >&6
+ else
+   ac_check_lib_save_LIBS=$LIBS
+-LIBS="-lstatgrab  $LIBS"
++LIBS="-lsensors  $LIBS"
+ cat >conftest.$ac_ext <<_ACEOF
+ /* confdefs.h.  */
+ _ACEOF
+ cat confdefs.h >>conftest.$ac_ext
+ cat >>conftest.$ac_ext <<_ACEOF
+ /* end confdefs.h.  */
+@@ -19594,17 +20180,17 @@
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ #ifdef __cplusplus
+ extern "C"
+ #endif
+ /* We use char because int might match the return type of a gcc2
+    builtin and then its argument prototype would still apply.  */
+-char sg_init ();
++char sensors_init ();
+ int
+ main ()
+ {
+-sg_init ();
++sensors_init ();
+   ;
+   return 0;
+ }
+ _ACEOF
+ rm -f conftest.$ac_objext conftest$ac_exeext
+ if { (eval echo "$as_me:$LINENO: \"$ac_link\"") >&5
+@@ -19624,108 +20210,303 @@
+ 	 { ac_try='test -s conftest$ac_exeext'
+   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+   (eval $ac_try) 2>&5
+   ac_status=$?
+   echo "$as_me:$LINENO: \$? = $ac_status" >&5
+   (exit $ac_status); }; }; then
+-  ac_cv_lib_statgrab_sg_init=yes
++  ac_cv_lib_sensors_sensors_init=yes
+ else
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+-ac_cv_lib_statgrab_sg_init=no
++ac_cv_lib_sensors_sensors_init=no
+ fi
+ rm -f conftest.err conftest.$ac_objext \
+       conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+-echo "$as_me:$LINENO: result: $ac_cv_lib_statgrab_sg_init" >&5
+-echo "${ECHO_T}$ac_cv_lib_statgrab_sg_init" >&6
+-if test $ac_cv_lib_statgrab_sg_init = yes; then
++echo "$as_me:$LINENO: result: $ac_cv_lib_sensors_sensors_init" >&5
++echo "${ECHO_T}$ac_cv_lib_sensors_sensors_init" >&6
++if test $ac_cv_lib_sensors_sensors_init = yes; then
+   cat >>confdefs.h <<_ACEOF
+-#define HAVE_LIBSTATGRAB 1
++#define HAVE_LIBSENSORS 1
+ _ACEOF
+ 
+-  LIBS="-lstatgrab $LIBS"
++  LIBS="-lsensors $LIBS"
+ 
++else
++  with_lm_sensors="no (not found)"
+ fi
+ 
+ 
+-
+-echo "$as_me:$LINENO: checking for sensors_init in -lsensors" >&5
+-echo $ECHO_N "checking for sensors_init in -lsensors... $ECHO_C" >&6
+-if test "${ac_cv_lib_sensors_sensors_init+set}" = set; then
++for ac_header in sensors/sensors.h
++do
++as_ac_Header=`echo "ac_cv_header_$ac_header" | $as_tr_sh`
++if eval "test \"\${$as_ac_Header+set}\" = set"; then
++  echo "$as_me:$LINENO: checking for $ac_header" >&5
++echo $ECHO_N "checking for $ac_header... $ECHO_C" >&6
++if eval "test \"\${$as_ac_Header+set}\" = set"; then
+   echo $ECHO_N "(cached) $ECHO_C" >&6
++fi
++echo "$as_me:$LINENO: result: `eval echo '${'$as_ac_Header'}'`" >&5
++echo "${ECHO_T}`eval echo '${'$as_ac_Header'}'`" >&6
+ else
+-  ac_check_lib_save_LIBS=$LIBS
+-LIBS="-lsensors  $LIBS"
++  # Is the header compilable?
++echo "$as_me:$LINENO: checking $ac_header usability" >&5
++echo $ECHO_N "checking $ac_header usability... $ECHO_C" >&6
+ cat >conftest.$ac_ext <<_ACEOF
+ /* confdefs.h.  */
+ _ACEOF
+ cat confdefs.h >>conftest.$ac_ext
+ cat >>conftest.$ac_ext <<_ACEOF
+ /* end confdefs.h.  */
+-
+-/* Override any gcc2 internal prototype to avoid an error.  */
+-#ifdef __cplusplus
+-extern "C"
+-#endif
+-/* We use char because int might match the return type of a gcc2
+-   builtin and then its argument prototype would still apply.  */
+-char sensors_init ();
+-int
+-main ()
+-{
+-sensors_init ();
+-  ;
+-  return 0;
+-}
++$ac_includes_default
++#include <$ac_header>
+ _ACEOF
+-rm -f conftest.$ac_objext conftest$ac_exeext
+-if { (eval echo "$as_me:$LINENO: \"$ac_link\"") >&5
+-  (eval $ac_link) 2>conftest.er1
++rm -f conftest.$ac_objext
++if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
++  (eval $ac_compile) 2>conftest.er1
+   ac_status=$?
+   grep -v '^ *+' conftest.er1 >conftest.err
+   rm -f conftest.er1
+   cat conftest.err >&5
+   echo "$as_me:$LINENO: \$? = $ac_status" >&5
+   (exit $ac_status); } &&
+ 	 { ac_try='test -z "$ac_c_werror_flag"			 || test ! -s conftest.err'
+   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+   (eval $ac_try) 2>&5
+   ac_status=$?
+   echo "$as_me:$LINENO: \$? = $ac_status" >&5
+   (exit $ac_status); }; } &&
+-	 { ac_try='test -s conftest$ac_exeext'
++	 { ac_try='test -s conftest.$ac_objext'
+   { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
+   (eval $ac_try) 2>&5
+   ac_status=$?
+   echo "$as_me:$LINENO: \$? = $ac_status" >&5
+   (exit $ac_status); }; }; then
+-  ac_cv_lib_sensors_sensors_init=yes
++  ac_header_compiler=yes
+ else
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+-ac_cv_lib_sensors_sensors_init=no
++ac_header_compiler=no
+ fi
+-rm -f conftest.err conftest.$ac_objext \
+-      conftest$ac_exeext conftest.$ac_ext
+-LIBS=$ac_check_lib_save_LIBS
++rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
++echo "${ECHO_T}$ac_header_compiler" >&6
++
++# Is the header present?
++echo "$as_me:$LINENO: checking $ac_header presence" >&5
++echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6
++cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++#include <$ac_header>
++_ACEOF
++if { (eval echo "$as_me:$LINENO: \"$ac_cpp conftest.$ac_ext\"") >&5
++  (eval $ac_cpp conftest.$ac_ext) 2>conftest.er1
++  ac_status=$?
++  grep -v '^ *+' conftest.er1 >conftest.err
++  rm -f conftest.er1
++  cat conftest.err >&5
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } >/dev/null; then
++  if test -s conftest.err; then
++    ac_cpp_err=$ac_c_preproc_warn_flag
++    ac_cpp_err=$ac_cpp_err$ac_c_werror_flag
++  else
++    ac_cpp_err=
++  fi
++else
++  ac_cpp_err=yes
+ fi
+-echo "$as_me:$LINENO: result: $ac_cv_lib_sensors_sensors_init" >&5
+-echo "${ECHO_T}$ac_cv_lib_sensors_sensors_init" >&6
+-if test $ac_cv_lib_sensors_sensors_init = yes; then
++if test -z "$ac_cpp_err"; then
++  ac_header_preproc=yes
++else
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++  ac_header_preproc=no
++fi
++rm -f conftest.err conftest.$ac_ext
++echo "$as_me:$LINENO: result: $ac_header_preproc" >&5
++echo "${ECHO_T}$ac_header_preproc" >&6
++
++# So?  What about this header?
++case $ac_header_compiler:$ac_header_preproc:$ac_c_preproc_warn_flag in
++  yes:no: )
++    { echo "$as_me:$LINENO: WARNING: $ac_header: accepted by the compiler, rejected by the preprocessor!" >&5
++echo "$as_me: WARNING: $ac_header: accepted by the compiler, rejected by the preprocessor!" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header: proceeding with the compiler's result" >&5
++echo "$as_me: WARNING: $ac_header: proceeding with the compiler's result" >&2;}
++    ac_header_preproc=yes
++    ;;
++  no:yes:* )
++    { echo "$as_me:$LINENO: WARNING: $ac_header: present but cannot be compiled" >&5
++echo "$as_me: WARNING: $ac_header: present but cannot be compiled" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header:     check for missing prerequisite headers?" >&5
++echo "$as_me: WARNING: $ac_header:     check for missing prerequisite headers?" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header: see the Autoconf documentation" >&5
++echo "$as_me: WARNING: $ac_header: see the Autoconf documentation" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header:     section \"Present But Cannot Be Compiled\"" >&5
++echo "$as_me: WARNING: $ac_header:     section \"Present But Cannot Be Compiled\"" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header: proceeding with the preprocessor's result" >&5
++echo "$as_me: WARNING: $ac_header: proceeding with the preprocessor's result" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header: in the future, the compiler will take precedence" >&5
++echo "$as_me: WARNING: $ac_header: in the future, the compiler will take precedence" >&2;}
++    (
++      cat <<\_ASBOX
++## ------------------------------------------ ##
++## Report this to the AC_PACKAGE_NAME lists.  ##
++## ------------------------------------------ ##
++_ASBOX
++    ) |
++      sed "s/^/$as_me: WARNING:     /" >&2
++    ;;
++esac
++echo "$as_me:$LINENO: checking for $ac_header" >&5
++echo $ECHO_N "checking for $ac_header... $ECHO_C" >&6
++if eval "test \"\${$as_ac_Header+set}\" = set"; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++else
++  eval "$as_ac_Header=\$ac_header_preproc"
++fi
++echo "$as_me:$LINENO: result: `eval echo '${'$as_ac_Header'}'`" >&5
++echo "${ECHO_T}`eval echo '${'$as_ac_Header'}'`" >&6
++
++fi
++if test `eval echo '${'$as_ac_Header'}'` = yes; then
+   cat >>confdefs.h <<_ACEOF
+-#define HAVE_LIBSENSORS 1
++#define `echo "HAVE_$ac_header" | $as_tr_cpp` 1
+ _ACEOF
+ 
+-  LIBS="-lsensors $LIBS"
++else
++  with_lm_sensors="no (not found)"
++fi
++
++done
++
++fi
++
++#
++# Check for disabled features
++#
++# Check whether --enable-cpu or --disable-cpu was given.
++if test "${enable_cpu+set}" = set; then
++  enableval="$enable_cpu"
++
++else
++  enable_cpu="yes"
++fi;
++if test "x$enable_cpu" = "xno"
++then
++
++cat >>confdefs.h <<\_ACEOF
++#define COLLECT_CPU 0
++_ACEOF
++
++fi
++
++# Check whether --enable-disk or --disable-disk was given.
++if test "${enable_disk+set}" = set; then
++  enableval="$enable_disk"
++
++else
++  enable_disk="yes"
++fi;
++if test "x$enable_disk" = "xno"
++then
++
++cat >>confdefs.h <<\_ACEOF
++#define COLLECT_DISK 0
++_ACEOF
++
++fi
++
++# Check whether --enable-load or --disable-load was given.
++if test "${enable_load+set}" = set; then
++  enableval="$enable_load"
++
++else
++  enable_load="yes"
++fi;
++if test "x$enable_load" = "xno"
++then
++
++cat >>confdefs.h <<\_ACEOF
++#define COLLECT_LOAD 0
++_ACEOF
++
++fi
++
++# Check whether --enable-memory or --disable-memory was given.
++if test "${enable_memory+set}" = set; then
++  enableval="$enable_memory"
++
++else
++  enable_memory="yes"
++fi;
++if test "x$enable_memory" = "xno"
++then
++
++cat >>confdefs.h <<\_ACEOF
++#define COLLECT_MEMORY 0
++_ACEOF
+ 
+ fi
+ 
++# Check whether --enable-ping or --disable-ping was given.
++if test "${enable_ping+set}" = set; then
++  enableval="$enable_ping"
++
++else
++  enable_ping="yes"
++fi;
++if test "x$enable_ping" = "xno"
++then
++
++cat >>confdefs.h <<\_ACEOF
++#define COLLECT_PING 0
++_ACEOF
++
++fi
++
++# Check whether --enable-sensors or --disable-sensors was given.
++if test "${enable_sensors+set}" = set; then
++  enableval="$enable_sensors"
++
++else
++  enable_sensors=$with_lm_sensors
++fi;
++if test "x$enable_sensors" = "xno"
++then
++
++cat >>confdefs.h <<\_ACEOF
++#define COLLECT_SENSORS 0
++_ACEOF
++
++fi
++
++# Check whether --enable-traffic or --disable-traffic was given.
++if test "${enable_traffic+set}" = set; then
++  enableval="$enable_traffic"
++
++else
++  enable_traffic="yes"
++fi;
++if test "x$enable_traffic" = "xno"
++then
++
++cat >>confdefs.h <<\_ACEOF
++#define COLLECT_TRAFFIC 0
++_ACEOF
++
++fi
+ 
+ echo "$as_me:$LINENO: checking for ANSI C header files" >&5
+ echo $ECHO_N "checking for ANSI C header files... $ECHO_C" >&6
+ if test "${ac_cv_header_stdc+set}" = set; then
+   echo $ECHO_N "(cached) $ECHO_C" >&6
+ else
+@@ -24346,6 +25127,29 @@
+   exec 5>>config.log
+   # Use ||, not &&, to avoid exiting from the if with $? = 1, which
+   # would make configure fail if this is the last instruction.
+   $ac_cs_success || { (exit 1); exit 1; }
+ fi
+ 
++
++cat <<EOF;
++
++Configuration:
++  Libraries:
++    librrd  . . . . . . $with_rrdtool
++    lm_sensors  . . . . $with_lm_sensors
++    libstatgrab . . . . $with_libstatgrab
++    libkstat  . . . . . $with_kstat
++
++  Features (*):
++    cpu . . . . . . . . $enable_cpu
++    disk  . . . . . . . $enable_disk
++    load  . . . . . . . $enable_load
++    memory  . . . . . . $enable_memory
++    ping  . . . . . . . $enable_ping
++    sensors . . . . . . $enable_sensors
++    traffic . . . . . . $enable_traffic
++
++(*) Enabled features are not neccessarily compiled in. Wether or not a feature
++    is included depends on wether or not your system provides the required
++    information and/or if you have the required libraries installed.
++EOF
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/configure.in	2005-08-29 23:09:37.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/configure.in	2005-09-02 02:40:40.000000000 +0800
+@@ -1,9 +1,9 @@
+ dnl Process this file with autoconf to produce a configure script.
+ AC_INIT(src/collectd.c)
+-AM_INIT_AUTOMAKE(collectd, 1.8.0)
++AM_INIT_AUTOMAKE(collectd, 1.8.1)
+ AM_CONFIG_HEADER(src/config.h src/libping/config.h)
+ AC_LANG(C)
+ 
+ dnl Checks for programs.
+ AC_PROG_CC
+ AC_PROG_CPP
+@@ -30,37 +30,132 @@
+ 
+ dnl Checks for libraries.
+ AC_CHECK_LIB(socket, socket)
+ AC_CHECK_LIB(resolv, res_search)
+ 
+ AC_ARG_WITH(rrdtool, AC_HELP_STRING([--with-rrdtool=PFX], [Path to rrdtool.]),
+-[	if test "x$with_rrdtool" != "x"
++[	if test "x$withval" != "xno" -a "x$withval" != "xyes"
+ 	then
+ 		LDFLAGS="$LDFLAGS -L$withval/lib"
+ 		CPPFLAGS="$CPPFLAGS -I$withval/include"
+ 	fi
+ ])
+-AC_CHECK_LIB(rrd, rrd_update,, [AC_MSG_ERROR([librrd could not be found. Be sure to install it first!])])
++AC_CHECK_LIB(rrd, rrd_update,, [AC_MSG_ERROR([librrd could not be found. Be sure to install rrdtool first!])])
++AC_CHECK_HEADER(rrd.h,, [AC_MSG_ERROR([rrd.h could not be found. Be sure to install rrdtool first!])])
++with_rrdtool="yes"
+ 
+ if test "$ac_system" = "Solaris"
+ then
+-	AC_CHECK_LIB(kstat, kstat_open)
++	with_kstat="yes"
++	AC_CHECK_LIB(kstat, kstat_open,, [with_kstat="no (not found)"])
+ 	AC_CHECK_LIB(devinfo, di_init)
++	AC_CHECK_HEADERS(kstat.h,, [with_kstat="no (kstat.h not found)"])
++else
++	with_kstat="no (Solaris only)"
+ fi
+ 
+-AC_ARG_WITH(libstatgrab, AC_HELP_STRING([--with-libstatgrab=PFX], [Path to libstatgrab.]),
++AC_ARG_WITH(libstatgrab, AC_HELP_STRING([--with-libstatgrab@<:@=PFX@:>@], [Path to libstatgrab.]),
+ [
+-	if test "x$with_libstatgrab" != "x"
++	# given..
++	if test "x$withval" != "xno"
+ 	then
+-		LDFLAGS="$LDFLAGS -L$withval/lib"
+-		CPPFLAGS="$CPPFLAGS -I$withval/include"
++		if test "x$withval" != "xyes"
++		then
++			LDFLAGS="$LDFLAGS -L$withval/lib"
++			CPPFLAGS="$CPPFLAGS -I$withval/include"
++			with_libstatgrab="yes"
++		fi
++	fi
++],
++[
++	# not given..
++	if test "x$ac_system" != "xunknown"
++	then
++		with_libstatgrab="no"
++	else
++		with_libstatgrab="yes"
++	fi
++])
++if test "x$with_lm_sensors" = "xyes"
++then
++	AC_CHECK_LIB(statgrab, sg_init,, [with_libstatgrab="no (not found)"])
++	AC_CHECK_HEADERS(statgrab.h,,    [with_libstatgrab="no (not found)"])
++fi
++
++AC_ARG_WITH(lm-sensors, AC_HELP_STRING([--with-lm-sensors@<:@=PFX@:>@], [Path to lm_sensors.]),
++[
++	# given..
++	if test "x$withval" != "xno"
++	then
++		if test "x$withval" != "xyes"
++		then
++			LDFLAGS="$LDFLAGS -L$withval/lib"
++			CPPFLAGS="$CPPFLAGS -I$withval/include"
++			with_lm_sensors="yes"
++		fi
++	fi
++],
++[
++	# not given..
++	if test "x$ac_system" = "xLinux"
++	then
++		with_lm_sensors="yes"
++	else
++		with_lm_sensors="no"
+ 	fi
+ ])
+-AC_CHECK_LIB(statgrab, sg_init)
++if test "x$with_lm_sensors" = "xyes"
++then
++	AC_CHECK_LIB(sensors, sensors_init,, [with_lm_sensors="no (not found)"])
++	AC_CHECK_HEADERS(sensors/sensors.h,, [with_lm_sensors="no (not found)"])
++fi
+ 
+-AC_CHECK_LIB(sensors, sensors_init)
++#
++# Check for disabled features
++#
++AC_ARG_ENABLE(cpu, AC_HELP_STRING([--disable-cpu], [Disable CPU usage statistics]),, [enable_cpu="yes"])
++if test "x$enable_cpu" = "xno"
++then
++	AC_DEFINE(COLLECT_CPU, 0, [Wether or not to collect CPU usage statistics])
++fi
++
++AC_ARG_ENABLE(disk, AC_HELP_STRING([--disable-disk], [Disable disk/partition statistics]),, [enable_disk="yes"])
++if test "x$enable_disk" = "xno"
++then
++	AC_DEFINE(COLLECT_DISK, 0, [Wether or not to collect diskstats])
++fi
++
++AC_ARG_ENABLE(load, AC_HELP_STRING([--disable-load], [Disable system load statistics]),, [enable_load="yes"])
++if test "x$enable_load" = "xno"
++then
++	AC_DEFINE(COLLECT_LOAD, 0, [Wether or not to collect system load statistics])
++fi
++
++AC_ARG_ENABLE(memory, AC_HELP_STRING([--disable-memory], [Disable memory statistics]),, [enable_memory="yes"])
++if test "x$enable_memory" = "xno"
++then
++	AC_DEFINE(COLLECT_MEMORY, 0, [Wether or not to collect memory statistics])
++fi
++
++AC_ARG_ENABLE(ping, AC_HELP_STRING([--disable-ping], [Disable ping statistics]),, [enable_ping="yes"])
++if test "x$enable_ping" = "xno"
++then
++	AC_DEFINE(COLLECT_PING, 0, [Wether or not to collect ping statistics])
++fi
++
++AC_ARG_ENABLE(sensors, AC_HELP_STRING([--disable-sensors], [Disable lm_sensors statistics]),, [enable_sensors=$with_lm_sensors])
++if test "x$enable_sensors" = "xno"
++then
++	AC_DEFINE(COLLECT_SENSORS, 0, [Wether or not to collect lm_sensors statistics])
++fi
++
++AC_ARG_ENABLE(traffic, AC_HELP_STRING([--disable-traffic], [Disable system traffic statistics]),, [enable_traffic="yes"])
++if test "x$enable_traffic" = "xno"
++then
++	AC_DEFINE(COLLECT_TRAFFIC, 0, [Wether or not to collect network traffic statistics])
++fi
+ 
+ dnl Checks for header files.
+ AC_HEADER_STDC
+ AC_HEADER_SYS_WAIT
+ AC_CHECK_HEADERS(fcntl.h unistd.h)
+ AC_CHECK_HEADERS(signal.h)
+@@ -89,6 +184,29 @@
+ AC_CHECK_FUNCS(socket, , AC_CHECK_LIB(socket, socket))
+ AC_CHECK_FUNCS(gethostbyname, , AC_CHECK_LIB(nsl, gethostbyname))
+ AC_CHECK_FUNCS(strchr memcpy strstr strcmp strncmp strncpy strlen)
+ AC_CHECK_FUNCS(strncasecmp strcasecmp strncmp)
+ 
+ AC_OUTPUT(Makefile src/libping/Makefile src/Makefile)
++
++cat <<EOF;
++
++Configuration:
++  Libraries:
++    librrd  . . . . . . $with_rrdtool
++    lm_sensors  . . . . $with_lm_sensors
++    libstatgrab . . . . $with_libstatgrab
++    libkstat  . . . . . $with_kstat
++
++  Features (*):
++    cpu . . . . . . . . $enable_cpu
++    disk  . . . . . . . $enable_disk
++    load  . . . . . . . $enable_load
++    memory  . . . . . . $enable_memory
++    ping  . . . . . . . $enable_ping
++    sensors . . . . . . $enable_sensors
++    traffic . . . . . . $enable_traffic
++
++(*) Enabled features are not neccessarily compiled in. Wether or not a feature
++    is included depends on wether or not your system provides the required
++    information and/or if you have the required libraries installed.
++EOF
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/debian/changelog /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/debian/changelog
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/debian/changelog	2005-08-29 23:09:37.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/debian/changelog	2005-09-02 03:27:00.000000000 +0800
+@@ -1,6 +1,12 @@
++collectd (1.8.1-1) unstable; urgency=low
++
++  * New upstream version
++
++ -- Florian Forster <octo@verplant.org>  Mon, 01 Sep 2005 21:27:16 +0200
++
+ collectd (1.8.0-1) unstable; urgency=low
+ 
+   * New upstream version
+ 
+  -- Florian Forster <octo@verplant.org>  Mon, 29 Aug 2005 12:09:20 +0200
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/README /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/README
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/README	2005-08-25 16:53:18.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/README	2005-09-02 03:26:00.000000000 +0800
+@@ -73,15 +73,15 @@
+   * Usual suspects: C compiler, linker, preprocessor, make, ...
+ 
+   * rrdtool (headers and library; rrdtool 1.2 has successfully been tested)
+ 
+   * lm-sensors (optional)
+ 
+-  * libstatgrab may be used to collect statistics on systems other than Linux.
+-    Note that CPU- and disk-statistics, while being provided by this library,
+-    are not supported in collectd right now..
++  * libstatgrab may be used to collect statistics on systems other than Linux
++    and/or Solaris. Note that CPU- and disk-statistics, while being provided by
++    this library, are not supported in collectd right now..
+     <http://www.i-scream.org/libstatgrab/> 
+ 
+ Author
+ ------
+ 
+   Florian octo Forster <octo at verplant.org>
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/collectd.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/src/collectd.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/collectd.h	2005-08-24 15:32:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/src/collectd.h	2005-09-02 03:32:12.000000000 +0800
+@@ -15,18 +15,28 @@
+ #include <limits.h>
+ 
+ #include "config.h"
+ 
+ #ifndef DEBUG
+ #define DEBUG 0
+-#endif /* DEBUG */
++#endif
++
++/* Won't work without the header file */
++#ifndef HAVE_KSTAT_H
++#undef HAVE_LIBKSTAT
++#endif
+ 
+ #ifdef HAVE_LIBKSTAT
+ #include <kstat.h>
+ #include <sys/param.h>
+ #endif /* HAVE_LIBKSTAT */
+ 
++/* Won't work without the header file */
++#ifndef HAVE_STATGRAB_H
++#undef HAVE_LIBSTATGRAB
++#endif
++
+ #ifdef HAVE_LIBSTATGRAB
+ #include <statgrab.h>
+ #endif
+ 
+ #endif /* COLLECTD_H */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/common.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/src/common.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/common.c	2005-08-21 19:44:01.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/src/common.c	2005-08-31 16:17:03.000000000 +0800
+@@ -66,13 +66,13 @@
+ 	argv[j] = NULL;
+ 
+ 	optind = 0; /* bug in librrd? */
+ 	rrd_clear_error ();
+ 	if (rrd_create (argc, argv) == -1)
+ 	{
+-		syslog (LOG_ERR, "rrd_create failed: %s", rrd_get_error ());
++		syslog (LOG_ERR, "rrd_create failed: %s: %s", filename, rrd_get_error ());
+ 		status = -1;
+ 	}
+ 
+ 	free (argv);
+ 	
+ 	return (status);
+@@ -103,13 +103,13 @@
+ 	}
+ 
+ 	optind = 0; /* bug in librrd? */
+ 	rrd_clear_error ();
+ 	if (rrd_update (3, argv) == -1)
+ 	{
+-		syslog (LOG_WARNING, "rrd_update: %s", rrd_get_error ());
++		syslog (LOG_WARNING, "rrd_update failed: %s: %s", filename, rrd_get_error ());
+ 		return (-1);
+ 	}
+ 
+ 	return (0);
+ }
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/config.h.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/src/config.h.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/config.h.in	2005-08-29 23:16:18.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/src/config.h.in	2005-09-02 03:39:21.000000000 +0800
+@@ -1,8 +1,29 @@
+ /* src/config.h.in.  Generated from configure.in by autoheader.  */
+ 
++/* Wether or not to collect CPU usage statistics */
++#undef COLLECT_CPU
++
++/* Wether or not to collect diskstats */
++#undef COLLECT_DISK
++
++/* Wether or not to collect system load statistics */
++#undef COLLECT_LOAD
++
++/* Wether or not to collect memory statistics */
++#undef COLLECT_MEMORY
++
++/* Wether or not to collect ping statistics */
++#undef COLLECT_PING
++
++/* Wether or not to collect lm_sensors statistics */
++#undef COLLECT_SENSORS
++
++/* Wether or not to collect network traffic statistics */
++#undef COLLECT_TRAFFIC
++
+ /* Define to 1 if you have the <arpa/inet.h> header file. */
+ #undef HAVE_ARPA_INET_H
+ 
+ /* Define to 1 if you have the <dlfcn.h> header file. */
+ #undef HAVE_DLFCN_H
+ 
+@@ -18,12 +39,15 @@
+ /* Define to 1 if you have the `gettimeofday' function. */
+ #undef HAVE_GETTIMEOFDAY
+ 
+ /* Define to 1 if you have the <inttypes.h> header file. */
+ #undef HAVE_INTTYPES_H
+ 
++/* Define to 1 if you have the <kstat.h> header file. */
++#undef HAVE_KSTAT_H
++
+ /* Define to 1 if you have the `devinfo' library (-ldevinfo). */
+ #undef HAVE_LIBDEVINFO
+ 
+ /* Define to 1 if you have the `kstat' library (-lkstat). */
+ #undef HAVE_LIBKSTAT
+ 
+@@ -57,18 +81,24 @@
+ /* Define to 1 if you have the <netinet/in.h> header file. */
+ #undef HAVE_NETINET_IN_H
+ 
+ /* Define to 1 if you have the `select' function. */
+ #undef HAVE_SELECT
+ 
++/* Define to 1 if you have the <sensors/sensors.h> header file. */
++#undef HAVE_SENSORS_SENSORS_H
++
+ /* Define to 1 if you have the <signal.h> header file. */
+ #undef HAVE_SIGNAL_H
+ 
+ /* Define to 1 if you have the `socket' function. */
+ #undef HAVE_SOCKET
+ 
++/* Define to 1 if you have the <statgrab.h> header file. */
++#undef HAVE_STATGRAB_H
++
+ /* Define to 1 if you have the <stdint.h> header file. */
+ #undef HAVE_STDINT_H
+ 
+ /* Define to 1 if you have the <stdlib.h> header file. */
+ #undef HAVE_STDLIB_H
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/cpu.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/src/cpu.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/cpu.h	2005-08-21 22:23:39.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/src/cpu.h	2005-09-02 00:01:40.000000000 +0800
+@@ -1,17 +1,19 @@
+ #ifndef CPU_H
+ #define CPU_H
+ 
+ #include "collectd.h"
+ #include "common.h"
+ 
++#ifndef COLLECT_CPU
+ #if defined(KERNEL_LINUX) || defined(HAVE_LIBKSTAT)
+ #define COLLECT_CPU 1
+ #else
+ #define COLLECT_CPU 0
+ #endif
++#endif /* !defined(COLLECT_CPU) */
+ 
+ #if COLLECT_CPU
+ 
+ #ifdef HAVE_LIBKSTAT
+ #include <sys/sysinfo.h>
+ #endif /* HAVE_LIBKSTAT */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/diskstats.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/src/diskstats.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/diskstats.h	2005-08-28 18:22:58.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/src/diskstats.h	2005-09-02 00:16:49.000000000 +0800
+@@ -1,17 +1,19 @@
+ #ifndef DISKSTATS_H
+ #define DISKSTATS_H
+ 
+ #include "collectd.h"
+ #include "common.h"
+ 
++#ifndef COLLECT_DISK
+ #if defined(KERNEL_LINUX) || defined(HAVE_LIBKSTAT)
+ #define COLLECT_DISK 1
+ #else
+ #define COLLECT_DISK 0
+ #endif
++#endif /* !defined(COLLECT_DISK) */
+ 
+ #if COLLECT_DISK
+ 
+ void diskstats_init (char *new_disk_file, char *new_part_file);
+ int diskstats_update (void);
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/load.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/src/load.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/load.h	2005-08-24 23:33:42.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/src/load.h	2005-09-02 00:17:08.000000000 +0800
+@@ -1,17 +1,19 @@
+ #ifndef LOAD_H
+ #define LOAD_H
+ 
+ #include "collectd.h"
+ #include "common.h"
+ 
++#ifndef COLLECT_LOAD
+ #if defined(KERNEL_LINUX) || defined(HAVE_LIBKSTAT) || defined(HAVE_LIBSTATGRAB)
+ #define COLLECT_LOAD 1
+ #else
+ #define COLLECT_LOAD 0
+ #endif
++#endif /* !defined(COLLECT_LOAD) */
+ 
+ #if COLLECT_LOAD
+ 
+ void load_init (char *);
+ int load_update (void);
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/meminfo.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/src/meminfo.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/meminfo.c	2005-08-24 16:33:00.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/src/meminfo.c	2005-09-02 00:32:44.000000000 +0800
+@@ -11,14 +11,26 @@
+ 	"DS:buffers:GAUGE:25:0:4294967296",
+ 	"DS:cached:GAUGE:25:0:4294967296",
+ 	NULL
+ };
+ static int ds_num = 4;
+ 
++#ifdef HAVE_LIBKSTAT
++static int pagesize;
++static kstat_t *ksp;
++#endif /* HAVE_LIBKSTAT */
++
++
+ void mem_init (char *new_mem_file)
+ {
++#ifdef HAVE_LIBKSTAT
++	/* getpagesize(3C) tells me this does not fail.. */
++	pagesize = getpagesize ();
++	get_kstat (&ksp, "unix", 0, "system_pages");
++#endif /* HAVE_LIBKSTAT */
++
+ 	if (new_mem_file != NULL)
+ 		mem_file = new_mem_file;
+ }
+ 
+ void mem_update_rrd (long long mem_used, long long mem_buffered,
+ 		long long mem_cached, long long mem_free)
+@@ -80,19 +92,44 @@
+ 
+ 	if (mem_used >= (mem_free + mem_buffered + mem_cached))
+ 	{
+ 		mem_used -= mem_free + mem_buffered + mem_cached;
+ 		mem_update_rrd (mem_used, mem_buffered, mem_cached, mem_free);
+ 	}
+-/* KERNEL_LINUX */
++/* #endif defined(KERNEL_LINUX) */
++
++#elif defined(HAVE_LIBKSTAT)
++	long long mem_used;
++	long long mem_free;
++	long long mem_lock;
++
++	if (ksp == NULL)
++		return (1);
++
++	mem_used = get_kstat_value (ksp, "pagestotal");
++	mem_free = get_kstat_value (ksp, "pagesfree");
++	mem_lock = get_kstat_value (ksp, "pageslocked");
++
++	if ((mem_used < 0LL) || (mem_free < 0LL) || (mem_lock < 0LL))
++		return (1);
++	if (mem_used < (mem_free + mem_lock))
++		return (1);
++
++	mem_used -= mem_free + mem_lock;
++	mem_used *= pagesize; /* If this overflows you have some serious */
++	mem_free *= pagesize; /* memory.. Why not call me up and give me */
++	mem_lock *= pagesize; /* some? ;) */
++
++	mem_update_rrd (mem_used, mem_lock, 0LL, mem_free);
++/* #endif defined(HAVE_LIBKSTAT) */
++
+ #elif defined(HAVE_LIBSTATGRAB)
+ 	sg_mem_stats *ios;
+ 
+ 	if ((ios = sg_get_mem_stats ()) != NULL)
+ 		mem_update_rrd (ios->used, 0LL, ios->cache, ios->free);
+-
+ #endif /* HAVE_LIBSTATGRAB */
+ 
+ 	return (0);
+ }
+ 
+ #endif /* COLLECT_MEMORY */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/meminfo.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/src/meminfo.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/meminfo.h	2005-08-24 16:35:04.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/src/meminfo.h	2005-09-02 00:21:57.000000000 +0800
+@@ -1,17 +1,19 @@
+ #ifndef MEMINFO_H
+ #define MEMINFO_H
+ 
+ #include "collectd.h"
+ #include "common.h"
+ 
+-#if defined(KERNEL_LINUX) || defined(HAVE_LIBSTATGRAB)
++#ifndef COLLECT_MEMORY
++#if defined(KERNEL_LINUX) || defined(HAVE_LIBKSTAT) || defined(HAVE_LIBSTATGRAB)
+ #define COLLECT_MEMORY 1
+ #else
+ #define COLLECT_MEMORY 0
+ #endif
++#endif /* !defined(COLLECT_MEMORY) */
+ 
+ #if COLLECT_MEMORY
+ 
+ void mem_init (char *mem_file);
+ int mem_update (void);
+  
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/ping.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/src/ping.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/ping.c	2005-08-22 22:58:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/src/ping.c	2005-09-02 00:26:07.000000000 +0800
+@@ -1,8 +1,10 @@
+ #include "ping.h"
+ 
++#if COLLECT_PING
++
+ #include <netinet/in.h>
+ #include "libping/ping.h"
+ 
+ static char *ping_host;
+ static char *ping_file = "ping.rrd";
+ 
+@@ -142,6 +144,8 @@
+ 			errorflags = 0x00;
+ 			ping_update_rrd (ping);
+ 	}
+ 
+ 	return (0);
+ }
++
++#endif /* COLLECT_PING */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/ping.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/src/ping.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/ping.h	2005-08-21 16:57:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/src/ping.h	2005-09-02 00:32:03.000000000 +0800
+@@ -1,17 +1,17 @@
+ #ifndef COLLECTD_PING_H
+ #define COLLECTD_PING_H
+ 
+ #include "collectd.h"
+ #include "common.h"
+ 
+-#if defined(KERNEL_LINUX) || defined(KERNEL_SOLARIS)
++#ifndef COLLECT_PING
++#if defined(HAVE_NETINET_IN_H)
+ #define COLLECT_PING 1
+-#else
+-#define COLLECT_PING 1
+-#endif
++#endif /* defined(HAVE_NETINET_IN_H) */
++#endif /* !defined(COLLECT_PING) */
+ 
+ #if COLLECT_PING
+ 
+ void ping_init (char *ping_file, char *ping_host);
+ int ping_update (void);
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/sensors.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/src/sensors.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/sensors.c	2005-08-19 20:11:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/src/sensors.c	2005-09-01 21:13:45.000000000 +0800
+@@ -1,9 +1,9 @@
+ #include "sensors.h"
+ 
+-#if HAVE_LIBSENSORS
++#if COLLECT_SENSORS
+ 
+ typedef struct featurelist
+ {
+ 	const sensors_chip_name    *chip;
+ 	const sensors_feature_data *data;
+ 	struct featurelist         *next;
+@@ -120,7 +120,7 @@
+ 		sensor_update_rrd (feature->data->name, value);
+ 	}
+ 
+ 	return (0);
+ }
+ 
+-#endif /* HAVE_LIBSENSORS */
++#endif /* COLLECT_SENSORS */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/sensors.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/src/sensors.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/sensors.h	2005-08-19 21:28:46.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/src/sensors.h	2005-09-02 03:32:58.000000000 +0800
+@@ -1,17 +1,24 @@
+ #ifndef SENSORS_H
+ #define SENSORS_H
+ 
+ #include "collectd.h"
+ #include "common.h"
+ 
++/* Won't compile without header file */
++#ifndef HAVE_SENSORS_SENSORS_H
++#undef HAVE_LIBSENSORS
++#endif
++
++#ifndef COLLECT_SENSORS
+ #ifdef HAVE_LIBSENSORS
+ #define COLLECT_SENSORS 1
+ #else
+ #define COLLECT_SENSORS 0
+ #endif
++#endif /* !defined(COLLECT_SENSORS) */
+ 
+ #if COLLECT_SENSORS
+ 
+ #include <sensors/sensors.h>
+ 
+ void collectd_sensors_init (char *);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/traffic.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/src/traffic.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/traffic.h	2005-08-29 23:09:26.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/src/traffic.h	2005-09-02 00:19:32.000000000 +0800
+@@ -1,17 +1,19 @@
+ #ifndef TRAFFIC_H
+ #define TRAFFIC_H
+ 
+ #include "collectd.h"
+ #include "common.h"
+ 
++#ifndef COLLECT_TRAFFIC
+ #if defined(KERNEL_LINUX) || defined(HAVE_LIBKSTAT) || defined(HAVE_LIBSTATGRAB)
+ #define COLLECT_TRAFFIC 1
+ #else
+ #define COLLECT_TRAFFIC 0
+ #endif
++#endif /* !defined(COLLECT_TRAFFIC) */
+ 
+ #if COLLECT_TRAFFIC
+ 
+ void traffic_init (char *traffic_file);
+ int traffic_update (void);
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/TODO /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/TODO
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/TODO	2005-08-29 23:09:48.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.1/TODO	2005-09-02 02:41:18.000000000 +0800
+@@ -1,4 +1,5 @@
+ For version 2.*:
+ * Change CPU rrd layout: Add DS for wait-io, maybe swap and others..
+ * Change diskstats rrd layout: Remove `sectors' and replace with `bytes'. Find
+   out how to calculate bytes from sectors under Linux
++* Ping multiple hosts

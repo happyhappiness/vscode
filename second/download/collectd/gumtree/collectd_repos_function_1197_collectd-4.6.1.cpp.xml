@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/gumtree/collectd_repos_function_1197_collectd-4.6.1.cpp" pos:tabs="8"><function><type><name pos:line="1" pos:column="1">int<pos:position pos:line="1" pos:column="4"/></name></type>
+<name pos:line="2" pos:column="1">TC_GET_RAW_SOCKET<pos:position pos:line="2" pos:column="18"/></name><parameter_list pos:line="2" pos:column="18">(<parameter><decl><type><name pos:line="2" pos:column="19">void<pos:position pos:line="2" pos:column="23"/></name></type></decl></parameter>)<pos:position pos:line="2" pos:column="24"/></parameter_list>
+<block pos:line="3" pos:column="1">{
+	<return pos:line="4" pos:column="9">return <expr><name pos:line="4" pos:column="16">sockfd<pos:position pos:line="4" pos:column="22"/></name></expr>;<pos:position pos:line="4" pos:column="23"/></return>
+}<pos:position pos:line="5" pos:column="2"/></block></function></unit>

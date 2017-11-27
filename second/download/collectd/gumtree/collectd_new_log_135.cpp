@@ -1,0 +1,1 @@
+printf ("%s: ", notif->type_instance);

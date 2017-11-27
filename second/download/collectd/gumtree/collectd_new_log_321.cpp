@@ -1,0 +1,1 @@
+fprintf (fhout, "-1 Internal error\n");

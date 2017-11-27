@@ -1,1 +1,0 @@
-sqlite3_result_error(context, zErr, -1);

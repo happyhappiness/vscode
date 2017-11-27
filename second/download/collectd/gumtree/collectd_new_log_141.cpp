@@ -1,0 +1,1 @@
+fprintf (fh, "Type: %s\n", n->type);

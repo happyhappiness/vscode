@@ -1,1 +1,0 @@
-sqlite3_mprintf("%z, langid", zContentCols, zLanguageid);

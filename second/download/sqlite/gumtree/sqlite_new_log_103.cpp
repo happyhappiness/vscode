@@ -1,1 +1,0 @@
-sqlite3VdbeAddOp1(pParse->pVdbe, OP_Statement, iDb);

@@ -1,0 +1,1 @@
+cmd_error(CMD_OK, &err, "Done: %i successful, %i errors", success, error);

@@ -1,1 +1,0 @@
-dlrDocData(readers[0].pReader);

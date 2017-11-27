@@ -1,0 +1,1 @@
+fprintf (fh, "TypeInstance: %s\n", n->type_instance);

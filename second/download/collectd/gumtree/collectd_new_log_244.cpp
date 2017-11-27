@@ -1,0 +1,1 @@
+ERROR ("ipmi plugin: thread_init failed.\n");

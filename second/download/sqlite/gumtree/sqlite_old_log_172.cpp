@@ -1,1 +1,0 @@
-sqlite3MPrintf(db, "%z - %s", z, zExtra);

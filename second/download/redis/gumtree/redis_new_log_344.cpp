@@ -1,1 +1,0 @@
-serverLog(LL_NOTICE,"AOF rewrite child asks to stop sending diffs.");

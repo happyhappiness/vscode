@@ -1,0 +1,1 @@
+fprintf (stderr, "Error: Cannot read plugin directory `%s'\n", dir);

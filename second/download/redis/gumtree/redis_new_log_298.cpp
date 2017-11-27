@@ -1,1 +1,0 @@
-addReplyError(c,"min or max not valid string range item");

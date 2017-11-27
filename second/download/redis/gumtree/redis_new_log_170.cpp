@@ -1,1 +1,0 @@
-json_encode_exception(l, cfg, json, lindex, "must not be NaN or Inf");

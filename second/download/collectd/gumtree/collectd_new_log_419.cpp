@@ -1,0 +1,1 @@
+printf("Run the command \"reset\" to get it back into a usable state.\n");

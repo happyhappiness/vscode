@@ -1,4 +1,6 @@
+
 import urllib2
+import os
 import re
 import my_constant
 
@@ -8,10 +10,16 @@ def download_file(main_url, file_name):
     @ return true if success\n
     @ involve download tar.gz from given url\n
     """
+    # main_url = 'https://git.gnome.org/browse/gedit/snapshot/'
+    # do not download file downloaded
+    store_file_name = 'second/download/collectd/repos/' + file_name
+    if os.path.isfile(store_file_name):
+        print 'already downloaded %s' %store_file_name
+        return True
     file_url = main_url + file_name
     file_content = urllib2.urlopen(file_url)
 
-    download_tar_file = open('second/download/rsync/repos/' + file_name, 'wb')
+    download_tar_file = open( store_file_name, 'wb')
     block_size = 8192
     while True:
         cache = file_content.read(block_size)
@@ -32,7 +40,8 @@ def analyze_html(url):
     response = urllib2.urlopen(url)
     html = response.read()
     html = html.split("\n")
-    target_href_pattern = r'(?:href|HREF)="(rsync-3\..*\.tar\.gz)"'
+    target_href_pattern = r'(?:href|HREF)=.*(collectd-.*\.tar\.bz2)">'
+    # target_href_pattern = r'Changes for Version (\d\.\d+) \(.*\)'
     count = 0
     # check html content against git-2.*.tar.gz
     for line in html:
@@ -47,4 +56,4 @@ def analyze_html(url):
 main function
 """
 if __name__ == "__main__":
-    analyze_html("https://download.samba.org/pub/rsync/src/")
+    analyze_html("http://collectd.org/files/")

@@ -1,1 +1,0 @@
-serverLog(LL_NOTICE,"Partial resynchronization not possible (no cached master)");

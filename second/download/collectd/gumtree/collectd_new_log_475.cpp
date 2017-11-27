@@ -1,0 +1,1 @@
+PyErr_Format(PyExc_TypeError, "meta must be a dict");

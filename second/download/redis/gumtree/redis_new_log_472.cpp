@@ -1,1 +1,0 @@
-serverLog(LL_WARNING,"CONFIG REWRITE executed with success.");

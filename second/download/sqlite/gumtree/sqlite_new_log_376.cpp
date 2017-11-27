@@ -1,1 +1,0 @@
-reportError(SQLITE_CORRUPT, lineno, "database corruption");

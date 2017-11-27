@@ -1,1 +1,0 @@
-addReply(c,shared.noautherr);

@@ -1,0 +1,1 @@
+cdtime_t plugin_get_interval(void) { return mock_context.interval; }

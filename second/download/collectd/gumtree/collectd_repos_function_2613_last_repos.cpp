@@ -1,0 +1,1 @@
+plugin_ctx_t plugin_get_ctx(void) { return mock_context; }

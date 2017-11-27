@@ -1,0 +1,1 @@
+PyErr_SetString(PyExc_TypeError, "argument 1 must be str");

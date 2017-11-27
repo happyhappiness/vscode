@@ -1,0 +1,1 @@
+fprintf (stderr, "calloc failed: %s\n", strerror (errno));

@@ -1,0 +1,1 @@
+int fc_configure(const oconfig_item_t *ci) { return ENOTSUP; }

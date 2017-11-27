@@ -1,0 +1,4 @@
+void Shutdown()
+	{
+		server_->Shutdown();
+	}

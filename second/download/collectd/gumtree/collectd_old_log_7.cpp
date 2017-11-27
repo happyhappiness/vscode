@@ -1,0 +1,1 @@
+fputs ("Starting update\n", stdout);

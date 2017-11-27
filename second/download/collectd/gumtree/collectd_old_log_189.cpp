@@ -1,0 +1,1 @@
+fprintf (fh, "-1 Option `severity' missing.\n");

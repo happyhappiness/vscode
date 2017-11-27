@@ -1,1 +1,0 @@
-"Protocol error (%s) from client: %s. %s";

@@ -1,1 +1,0 @@
-sqlite3ErrorMsg(pParse,"subqueries prohibited in CHECK constraints");

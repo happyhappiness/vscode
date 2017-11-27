@@ -1,1 +1,0 @@
-memcpy(server.replid,server.master->replid,sizeof(server.replid));

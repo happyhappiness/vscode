@@ -1,1 +1,0 @@
-sqlite3DbStrDup(0, zRight);

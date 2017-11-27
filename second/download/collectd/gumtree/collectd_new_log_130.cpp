@@ -1,0 +1,1 @@
+printf ("NOTIF (%s): %i - ", time_str, notif->severity);

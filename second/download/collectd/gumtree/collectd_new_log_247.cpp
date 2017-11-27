@@ -1,0 +1,1 @@
+plugin_log (level, "%s", message);

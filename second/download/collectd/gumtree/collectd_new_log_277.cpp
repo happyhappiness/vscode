@@ -1,0 +1,1 @@
+printf ("WARNING: Values sum up to zero\n");

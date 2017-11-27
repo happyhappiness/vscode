@@ -1,1 +1,0 @@
-rdbCheckError("RDB CRC error");

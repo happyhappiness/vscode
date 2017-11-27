@@ -1,0 +1,1 @@
+fputs (value_list[i], fh);

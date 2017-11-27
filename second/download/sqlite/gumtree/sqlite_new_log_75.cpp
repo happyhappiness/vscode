@@ -1,1 +1,0 @@
-sqlite3StackFree(pErrorDb, pParse);

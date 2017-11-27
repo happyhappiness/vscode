@@ -1,0 +1,1 @@
+fprintf (fh, "%i Values found\n", value_list_len);

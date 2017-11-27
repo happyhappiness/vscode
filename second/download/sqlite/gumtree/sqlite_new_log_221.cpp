@@ -1,1 +1,0 @@
-sqlite3MPrintf(db, sqlite3_errmsg(db));

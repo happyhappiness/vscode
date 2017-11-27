@@ -1,0 +1,44 @@
+static int sensor_list_add (ipmi_sensor_t *sensor)
+{
+  ipmi_sensor_id_t sensor_id;
+  c_ipmi_sensor_list_t *list_item;
+  c_ipmi_sensor_list_t *list_prev;
+
+  sensor_id = ipmi_sensor_convert_to_id (sensor);
+
+  pthread_mutex_lock (&sensor_list_lock);
+
+  list_prev = NULL;
+  for (list_item = sensor_list;
+      list_item != NULL;
+      list_item = list_item->next)
+  {
+    if (ipmi_cmp_sensor_id (sensor_id, list_item->sensor_id) == 0)
+      break;
+    list_prev = list_item;
+  } /* for (list_item) */
+
+  if (list_item != NULL)
+  {
+    pthread_mutex_unlock (&sensor_list_lock);
+    return (0);
+  }
+
+  list_item = (c_ipmi_sensor_list_t *) calloc (1, sizeof (c_ipmi_sensor_list_t));
+  if (list_item == NULL)
+  {
+    pthread_mutex_unlock (&sensor_list_lock);
+    return (-1);
+  }
+
+  list_item->sensor_id = ipmi_sensor_convert_to_id (sensor);
+
+  if (list_prev != NULL)
+    list_prev->next = list_item;
+  else
+    sensor_list = list_item;
+
+  pthread_mutex_unlock (&sensor_list_lock);
+
+  return (0);
+}

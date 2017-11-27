@@ -1,1 +1,0 @@
-sqlite3ErrorWithMsg(db, db->errCode, sqlite3ErrStr(db->errCode));

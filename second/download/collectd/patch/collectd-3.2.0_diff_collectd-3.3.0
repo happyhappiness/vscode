@@ -1,0 +1,1956 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/AUTHORS /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/AUTHORS
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/AUTHORS	2005-10-13 15:29:03.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/AUTHORS	2005-11-08 16:59:58.000000000 +0800
+@@ -1,10 +1,22 @@
+ This package was written by:
+   Florian octo Forster <octo@verplant.org>
+ 
+-hddtemp support by:
++hddtemp module by:
+   Vincent Stehlé <vincent.stehle@free.fr>
+ 
+-It is available at:
+-  http://verplant.org/collectd/
++nfs module by:
++  Jason Pepas <cell@ices.utexas.edu>
++
++processes module by:
++  Lyonel Vincent <lyonel@ezix.org>
++
++serial module by:
++  David Bacher <drbacher@gmail.com>
++
++tape module by:
++  Scott Garrett <sgarrett@technomancer.com>
++
++collectd is available at:
++  <http://verplant.org/collectd/>
+ 
+ Enjoy :)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/ChangeLog /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/ChangeLog
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/ChangeLog	2005-10-26 15:54:39.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/ChangeLog	2005-11-08 19:23:21.000000000 +0800
+@@ -1,6 +1,13 @@
++2005-11-04, Version 3.3.0 (Revision 216)
++	* New modules have been added:
++	  - `serial', for monitoring traffic on the serial interfaces
++	  - `nfs', for graphing NFS procedure calls
++	  - `tape', traffic from/to tape devices
++	* The the memory.rrd now accepts more than 4Gig of memory.
++
+ 2005-10-26, Version 3.2.0 (Revision 200)
+ 	* Support for graphing the processes has been added (thanks to Lyonel
+ 	  Vincent)
+ 	* If reading from hddtemp failes collectd will increase the time
+ 	  between polls up to one day.
+ 	* The init.d files have been improved.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/collectd.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/collectd.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/collectd.spec	2005-10-26 15:33:46.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/collectd.spec	2005-11-08 17:03:18.000000000 +0800
+@@ -1,9 +1,9 @@
+ Summary:	Statistics collection daemon for filling RRD files.
+ Name:           collectd
+-Version:	3.2.0
++Version:	3.3.0
+ Release:	1
+ Source:		http://verplant.org/collectd/%{name}-%{version}.tar.gz
+ License:	GPL
+ Group:		System Environment/Daemons
+ BuildRoot:	%{_tmppath}/%{name}-%{version}-root
+ BuildPrereq:	lm_sensors-devel, rrdtool-devel
+@@ -64,12 +64,13 @@
+ %attr(0755,root,root) %{_sbindir}/collectd
+ %attr(0444,root,root) %{_mandir}/man1/*
+ %attr(0444,root,root) %{_libdir}/%{name}/cpu.so*
+ %attr(0444,root,root) %{_libdir}/%{name}/disk.so*
+ %attr(0444,root,root) %{_libdir}/%{name}/load.so*
+ %attr(0444,root,root) %{_libdir}/%{name}/memory.so*
++%attr(0444,root,root) %{_libdir}/%{name}/nfs.so*
+ %attr(0444,root,root) %{_libdir}/%{name}/ping.so*
+ %attr(0444,root,root) %{_libdir}/%{name}/processes.so*
+ %attr(0444,root,root) %{_libdir}/%{name}/swap.so*
+ %attr(0444,root,root) %{_libdir}/%{name}/traffic.so*
+ %attr(0444,root,root) %{_libdir}/%{name}/hddtemp.so*
+ %dir /var/lib/collectd
+@@ -78,12 +79,15 @@
+ %attr(0444,root,root) %{_libdir}/%{name}/sensors.so*
+ 
+ %files hddtemp
+ %attr(0444,root,root) %{_libdir}/%{name}/hddtemp.so*
+ 
+ %changelog
++* Sat Nov 05 2005 Florian octo Forster <octo@verplant.org> 3.3.0-1
++- New upstream version
++
+ * Tue Oct 26 2005 Florian octo Forster <octo@verplant.org> 3.2.0-1
+ - New upstream version
+ - Added statement to remove the `*.la' files. This fixes a problem when
+   `Unpackaged files terminate build' is in effect.
+ - Added `processes.so*' to the main package
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/configure	2005-10-26 15:36:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/configure	2005-11-05 19:15:16.000000000 +0800
+@@ -460,13 +460,13 @@
+ # endif
+ #endif
+ #if HAVE_UNISTD_H
+ # include <unistd.h>
+ #endif"
+ 
+-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE CPP LN_S build build_cpu build_vendor build_os host host_cpu host_vendor host_os EGREP ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL BUILD_MODULE_CPU_TRUE BUILD_MODULE_CPU_FALSE BUILD_MODULE_DISK_TRUE BUILD_MODULE_DISK_FALSE BUILD_MODULE_HDDTEMP_TRUE BUILD_MODULE_HDDTEMP_FALSE BUILD_MODULE_LOAD_TRUE BUILD_MODULE_LOAD_FALSE BUILD_MODULE_MEMORY_TRUE BUILD_MODULE_MEMORY_FALSE BUILD_MODULE_PING_TRUE BUILD_MODULE_PING_FALSE BUILD_MODULE_PROCESSES_TRUE BUILD_MODULE_PROCESSES_FALSE BUILD_MODULE_SENSORS_TRUE BUILD_MODULE_SENSORS_FALSE BUILD_MODULE_SWAP_TRUE BUILD_MODULE_SWAP_FALSE BUILD_MODULE_TRAFFIC_TRUE BUILD_MODULE_TRAFFIC_FALSE LIBOBJS LTLIBOBJS'
++ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE CPP LN_S build build_cpu build_vendor build_os host host_cpu host_vendor host_os EGREP ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL BUILD_MODULE_CPU_TRUE BUILD_MODULE_CPU_FALSE BUILD_MODULE_DISK_TRUE BUILD_MODULE_DISK_FALSE BUILD_MODULE_HDDTEMP_TRUE BUILD_MODULE_HDDTEMP_FALSE BUILD_MODULE_LOAD_TRUE BUILD_MODULE_LOAD_FALSE BUILD_MODULE_MEMORY_TRUE BUILD_MODULE_MEMORY_FALSE BUILD_MODULE_NFS_TRUE BUILD_MODULE_NFS_FALSE BUILD_MODULE_PING_TRUE BUILD_MODULE_PING_FALSE BUILD_MODULE_PROCESSES_TRUE BUILD_MODULE_PROCESSES_FALSE BUILD_MODULE_SENSORS_TRUE BUILD_MODULE_SENSORS_FALSE BUILD_MODULE_SERIAL_TRUE BUILD_MODULE_SERIAL_FALSE BUILD_MODULE_SWAP_TRUE BUILD_MODULE_SWAP_FALSE BUILD_MODULE_TAPE_TRUE BUILD_MODULE_TAPE_FALSE BUILD_MODULE_TRAFFIC_TRUE BUILD_MODULE_TRAFFIC_FALSE LIBOBJS LTLIBOBJS'
+ ac_subst_files=''
+ 
+ # Initialize some variables set by options.
+ ac_init_help=
+ ac_init_version=false
+ # The variables have the same names as the options, with
+@@ -1022,28 +1022,31 @@
+ 
+ Optional Features:
+   --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
+   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
+   --disable-dependency-tracking  speeds up one-time build
+   --enable-dependency-tracking   do not reject slow dependency extractors
++  --enable-static[=PKGS]
++                          build static libraries [default=no]
+   --enable-shared[=PKGS]
+                           build shared libraries [default=yes]
+-  --enable-static[=PKGS]
+-                          build static libraries [default=yes]
+   --enable-fast-install[=PKGS]
+                           optimize for fast installation [default=yes]
+   --disable-libtool-lock  avoid locking (might break parallel builds)
+   --disable-cpu           Disable CPU usage statistics
+   --disable-disk          Disable disk/partition statistics
+   --disable-hddtemp       Disable hdd temperature statistics
+   --disable-load          Disable system load statistics
+   --disable-memory        Disable memory statistics
++  --disable-nfs           Disable nfs statistics
+   --disable-ping          Disable ping statistics
+   --disable-processes     Disable processes statistics
+   --disable-sensors       Disable lm_sensors statistics
++  --disable-serial        Disable serial statistics
+   --disable-swap          Disable swap statistics
++  --disable-tape          Disable tape statistics
+   --disable-traffic       Disable system traffic statistics
+ 
+ Optional Packages:
+   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
+   --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
+   --with-gnu-ld           assume the C compiler uses GNU ld [default=no]
+@@ -1813,13 +1816,13 @@
+   fi
+ fi
+ 
+ 
+ # Define the identity of the package.
+  PACKAGE=collectd
+- VERSION=3.2.0
++ VERSION=3.3.0
+ 
+ 
+ cat >>confdefs.h <<_ACEOF
+ #define PACKAGE "$PACKAGE"
+ _ACEOF
+ 
+@@ -3374,58 +3377,91 @@
+ echo "${ECHO_T}yes" >&6
+ else
+   echo "$as_me:$LINENO: result: no, using $LN_S" >&5
+ echo "${ECHO_T}no, using $LN_S" >&6
+ fi
+ 
+-# Check whether --enable-shared or --disable-shared was given.
+-if test "${enable_shared+set}" = set; then
+-  enableval="$enable_shared"
++echo "$as_me:$LINENO: checking whether ${MAKE-make} sets \$(MAKE)" >&5
++echo $ECHO_N "checking whether ${MAKE-make} sets \$(MAKE)... $ECHO_C" >&6
++set dummy ${MAKE-make}; ac_make=`echo "$2" | sed 'y,:./+-,___p_,'`
++if eval "test \"\${ac_cv_prog_make_${ac_make}_set+set}\" = set"; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++else
++  cat >conftest.make <<\_ACEOF
++all:
++	@echo 'ac_maketemp="$(MAKE)"'
++_ACEOF
++# GNU make sometimes prints "make[1]: Entering...", which would confuse us.
++eval `${MAKE-make} -f conftest.make 2>/dev/null | grep temp=`
++if test -n "$ac_maketemp"; then
++  eval ac_cv_prog_make_${ac_make}_set=yes
++else
++  eval ac_cv_prog_make_${ac_make}_set=no
++fi
++rm -f conftest.make
++fi
++if eval "test \"`echo '$ac_cv_prog_make_'${ac_make}_set`\" = yes"; then
++  echo "$as_me:$LINENO: result: yes" >&5
++echo "${ECHO_T}yes" >&6
++  SET_MAKE=
++else
++  echo "$as_me:$LINENO: result: no" >&5
++echo "${ECHO_T}no" >&6
++  SET_MAKE="MAKE=${MAKE-make}"
++fi
++
++
++# Check whether --enable-static or --disable-static was given.
++if test "${enable_static+set}" = set; then
++  enableval="$enable_static"
+   p=${PACKAGE-default}
+     case $enableval in
+-    yes) enable_shared=yes ;;
+-    no) enable_shared=no ;;
++    yes) enable_static=yes ;;
++    no) enable_static=no ;;
+     *)
+-      enable_shared=no
++     enable_static=no
+       # Look at the argument we got.  We use all the common list separators.
+       lt_save_ifs="$IFS"; IFS="${IFS}$PATH_SEPARATOR,"
+       for pkg in $enableval; do
+ 	IFS="$lt_save_ifs"
+ 	if test "X$pkg" = "X$p"; then
+-	  enable_shared=yes
++	  enable_static=yes
+ 	fi
+       done
+       IFS="$lt_save_ifs"
+       ;;
+     esac
+ else
+-  enable_shared=yes
++  enable_static=no
+ fi;
+ 
+-# Check whether --enable-static or --disable-static was given.
+-if test "${enable_static+set}" = set; then
+-  enableval="$enable_static"
++
++
++
++# Check whether --enable-shared or --disable-shared was given.
++if test "${enable_shared+set}" = set; then
++  enableval="$enable_shared"
+   p=${PACKAGE-default}
+     case $enableval in
+-    yes) enable_static=yes ;;
+-    no) enable_static=no ;;
++    yes) enable_shared=yes ;;
++    no) enable_shared=no ;;
+     *)
+-     enable_static=no
++      enable_shared=no
+       # Look at the argument we got.  We use all the common list separators.
+       lt_save_ifs="$IFS"; IFS="${IFS}$PATH_SEPARATOR,"
+       for pkg in $enableval; do
+ 	IFS="$lt_save_ifs"
+ 	if test "X$pkg" = "X$p"; then
+-	  enable_static=yes
++	  enable_shared=yes
+ 	fi
+       done
+       IFS="$lt_save_ifs"
+       ;;
+     esac
+ else
+-  enable_static=yes
++  enable_shared=yes
+ fi;
+ 
+ # Check whether --enable-fast-install or --disable-fast-install was given.
+ if test "${enable_fast_install+set}" = set; then
+   enableval="$enable_fast_install"
+   p=${PACKAGE-default}
+@@ -3969,13 +4005,13 @@
+     esac
+   fi
+   rm -rf conftest*
+   ;;
+ *-*-irix6*)
+   # Find out which ABI we are using.
+-  echo '#line 3975 "configure"' > conftest.$ac_ext
++  echo '#line 4011 "configure"' > conftest.$ac_ext
+   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+   (eval $ac_compile) 2>&5
+   ac_status=$?
+   echo "$as_me:$LINENO: \$? = $ac_status" >&5
+   (exit $ac_status); }; then
+    if test "$lt_cv_prog_gnu_ld" = yes; then
+@@ -5306,13 +5342,13 @@
+ 
+   F77=$ac_ct_F77
+ fi
+ 
+ 
+ # Provide some information about the compiler.
+-echo "$as_me:5312:" \
++echo "$as_me:5348:" \
+      "checking for Fortran 77 compiler version" >&5
+ ac_compiler=`set X $ac_compile; echo $2`
+ { (eval echo "$as_me:$LINENO: \"$ac_compiler --version </dev/null >&5\"") >&5
+   (eval $ac_compiler --version </dev/null >&5) 2>&5
+   ac_status=$?
+   echo "$as_me:$LINENO: \$? = $ac_status" >&5
+@@ -6247,13 +6283,13 @@
+ fi
+ 
+   fi
+   ;;
+ esac
+ 
+-enable_dlopen=no
++enable_dlopen=yes
+ enable_win32_dll=no
+ 
+ # Check whether --enable-libtool-lock or --disable-libtool-lock was given.
+ if test "${enable_libtool_lock+set}" = set; then
+   enableval="$enable_libtool_lock"
+ 
+@@ -6402,17 +6438,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:6408: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:6444: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:6412: \$? = $ac_status" >&5
++   echo "$as_me:6448: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed >conftest.exp
+      $SED '/^$/d' conftest.err >conftest.er2
+      if test ! -s conftest.err || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -6664,17 +6700,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:6670: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:6706: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:6674: \$? = $ac_status" >&5
++   echo "$as_me:6710: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed >conftest.exp
+      $SED '/^$/d' conftest.err >conftest.er2
+      if test ! -s conftest.err || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -6726,17 +6762,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:6732: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:6768: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:6736: \$? = $ac_status" >&5
++   echo "$as_me:6772: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed > out/conftest.exp
+      $SED '/^$/d' out/conftest.err >out/conftest.er2
+@@ -8978,13 +9014,13 @@
+   	  if test "$cross_compiling" = yes; then :
+   lt_cv_dlopen_self=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 8984 "configure"
++#line 9020 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -9076,13 +9112,13 @@
+   	  if test "$cross_compiling" = yes; then :
+   lt_cv_dlopen_self_static=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 9082 "configure"
++#line 9118 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -11329,17 +11365,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:11335: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:11371: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:11339: \$? = $ac_status" >&5
++   echo "$as_me:11375: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed >conftest.exp
+      $SED '/^$/d' conftest.err >conftest.er2
+      if test ! -s conftest.err || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -11391,17 +11427,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:11397: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:11433: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:11401: \$? = $ac_status" >&5
++   echo "$as_me:11437: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed > out/conftest.exp
+      $SED '/^$/d' out/conftest.err >out/conftest.er2
+@@ -12776,13 +12812,13 @@
+   	  if test "$cross_compiling" = yes; then :
+   lt_cv_dlopen_self=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 12782 "configure"
++#line 12818 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -12874,13 +12910,13 @@
+   	  if test "$cross_compiling" = yes; then :
+   lt_cv_dlopen_self_static=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 12880 "configure"
++#line 12916 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -13759,17 +13795,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:13765: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:13801: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:13769: \$? = $ac_status" >&5
++   echo "$as_me:13805: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed >conftest.exp
+      $SED '/^$/d' conftest.err >conftest.er2
+      if test ! -s conftest.err || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -13821,17 +13857,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:13827: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:13863: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:13831: \$? = $ac_status" >&5
++   echo "$as_me:13867: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed > out/conftest.exp
+      $SED '/^$/d' out/conftest.err >out/conftest.er2
+@@ -15962,17 +15998,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:15968: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:16004: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:15972: \$? = $ac_status" >&5
++   echo "$as_me:16008: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed >conftest.exp
+      $SED '/^$/d' conftest.err >conftest.er2
+      if test ! -s conftest.err || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -16224,17 +16260,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:16230: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:16266: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:16234: \$? = $ac_status" >&5
++   echo "$as_me:16270: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed >conftest.exp
+      $SED '/^$/d' conftest.err >conftest.er2
+      if test ! -s conftest.err || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -16286,17 +16322,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:16292: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:16328: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:16296: \$? = $ac_status" >&5
++   echo "$as_me:16332: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed > out/conftest.exp
+      $SED '/^$/d' out/conftest.err >out/conftest.er2
+@@ -18538,13 +18574,13 @@
+   	  if test "$cross_compiling" = yes; then :
+   lt_cv_dlopen_self=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 18544 "configure"
++#line 18580 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -18636,13 +18672,13 @@
+   	  if test "$cross_compiling" = yes; then :
+   lt_cv_dlopen_self_static=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 18642 "configure"
++#line 18678 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -19686,41 +19722,12 @@
+ 
+ 
+ 
+ 
+ 
+ 
+-echo "$as_me:$LINENO: checking whether ${MAKE-make} sets \$(MAKE)" >&5
+-echo $ECHO_N "checking whether ${MAKE-make} sets \$(MAKE)... $ECHO_C" >&6
+-set dummy ${MAKE-make}; ac_make=`echo "$2" | sed 'y,:./+-,___p_,'`
+-if eval "test \"\${ac_cv_prog_make_${ac_make}_set+set}\" = set"; then
+-  echo $ECHO_N "(cached) $ECHO_C" >&6
+-else
+-  cat >conftest.make <<\_ACEOF
+-all:
+-	@echo 'ac_maketemp="$(MAKE)"'
+-_ACEOF
+-# GNU make sometimes prints "make[1]: Entering...", which would confuse us.
+-eval `${MAKE-make} -f conftest.make 2>/dev/null | grep temp=`
+-if test -n "$ac_maketemp"; then
+-  eval ac_cv_prog_make_${ac_make}_set=yes
+-else
+-  eval ac_cv_prog_make_${ac_make}_set=no
+-fi
+-rm -f conftest.make
+-fi
+-if eval "test \"`echo '$ac_cv_prog_make_'${ac_make}_set`\" = yes"; then
+-  echo "$as_me:$LINENO: result: yes" >&5
+-echo "${ECHO_T}yes" >&6
+-  SET_MAKE=
+-else
+-  echo "$as_me:$LINENO: result: no" >&5
+-echo "${ECHO_T}no" >&6
+-  SET_MAKE="MAKE=${MAKE-make}"
+-fi
+-
+ #AC_PROG_RANLIB
+ 
+ echo "$as_me:$LINENO: checking for ANSI C header files" >&5
+ echo $ECHO_N "checking for ANSI C header files... $ECHO_C" >&6
+ if test "${ac_cv_header_stdc+set}" = set; then
+   echo $ECHO_N "(cached) $ECHO_C" >&6
+@@ -24605,12 +24612,47 @@
+ else
+   BUILD_MODULE_MEMORY_TRUE='#'
+   BUILD_MODULE_MEMORY_FALSE=
+ fi
+ 
+ 
++# Check whether --enable-nfs or --disable-nfs was given.
++if test "${enable_nfs+set}" = set; then
++  enableval="$enable_nfs"
++
++else
++  enable_nfs="yes"
++fi;
++if test "x$enable_nfs" != "xno"
++then
++	if test "x$ac_system" = "xLinux"
++	then
++		enable_nfs="yes"
++	else
++		enable_nfs="no"
++	fi
++fi
++if test "x$enable_nfs" = "xno"
++then
++
++cat >>confdefs.h <<\_ACEOF
++#define COLLECT_NFS 0
++_ACEOF
++
++fi
++
++
++if test "x$enable_nfs" = "xyes"; then
++  BUILD_MODULE_NFS_TRUE=
++  BUILD_MODULE_NFS_FALSE='#'
++else
++  BUILD_MODULE_NFS_TRUE='#'
++  BUILD_MODULE_NFS_FALSE=
++fi
++
++
+ # Check whether --enable-ping or --disable-ping was given.
+ if test "${enable_ping+set}" = set; then
+   enableval="$enable_ping"
+ 
+ else
+   enable_ping="yes"
+@@ -24705,12 +24747,42 @@
+ else
+   BUILD_MODULE_SENSORS_TRUE='#'
+   BUILD_MODULE_SENSORS_FALSE=
+ fi
+ 
+ 
++# Check whether --enable-serial or --disable-serial was given.
++if test "${enable_serial+set}" = set; then
++  enableval="$enable_serial"
++
++else
++  enable_serial="no"
++fi;
++if test "x$enable_serial" != "xyes"
++then
++	enable_serial="no"
++fi
++if test "x$enable_serial" = "xno"
++then
++
++cat >>confdefs.h <<\_ACEOF
++#define COLLECT_SERIAL 0
++_ACEOF
++
++fi
++
++
++if test "x$enable_serial" = "xyes"; then
++  BUILD_MODULE_SERIAL_TRUE=
++  BUILD_MODULE_SERIAL_FALSE='#'
++else
++  BUILD_MODULE_SERIAL_TRUE='#'
++  BUILD_MODULE_SERIAL_FALSE=
++fi
++
++
+ # Check whether --enable-swap or --disable-swap was given.
+ if test "${enable_swap+set}" = set; then
+   enableval="$enable_swap"
+ 
+ else
+   enable_swap="yes"
+@@ -24740,12 +24812,47 @@
+ else
+   BUILD_MODULE_SWAP_TRUE='#'
+   BUILD_MODULE_SWAP_FALSE=
+ fi
+ 
+ 
++# Check whether --enable-tape or --disable-tape was given.
++if test "${enable_tape+set}" = set; then
++  enableval="$enable_tape"
++
++else
++  enable_tape="yes"
++fi;
++if test "x$enable_tape" != "xno"
++then
++	if test "x$with_kstat" = "xyes"
++	then
++		enable_tape="yes"
++	else
++		enable_tape="no"
++	fi
++fi
++if test "x$enable_tape" = "xno"
++then
++
++cat >>confdefs.h <<\_ACEOF
++#define COLLECT_TAPE 0
++_ACEOF
++
++fi
++
++
++if test "x$enable_tape" = "xyes"; then
++  BUILD_MODULE_TAPE_TRUE=
++  BUILD_MODULE_TAPE_FALSE='#'
++else
++  BUILD_MODULE_TAPE_TRUE='#'
++  BUILD_MODULE_TAPE_FALSE=
++fi
++
++
+ # Check whether --enable-traffic or --disable-traffic was given.
+ if test "${enable_traffic+set}" = set; then
+   enableval="$enable_traffic"
+ 
+ else
+   enable_traffic="yes"
+@@ -24923,12 +25030,19 @@
+   { { echo "$as_me:$LINENO: error: conditional \"BUILD_MODULE_MEMORY\" was never defined.
+ Usually this means the macro was only invoked conditionally." >&5
+ echo "$as_me: error: conditional \"BUILD_MODULE_MEMORY\" was never defined.
+ Usually this means the macro was only invoked conditionally." >&2;}
+    { (exit 1); exit 1; }; }
+ fi
++if test -z "${BUILD_MODULE_NFS_TRUE}" && test -z "${BUILD_MODULE_NFS_FALSE}"; then
++  { { echo "$as_me:$LINENO: error: conditional \"BUILD_MODULE_NFS\" was never defined.
++Usually this means the macro was only invoked conditionally." >&5
++echo "$as_me: error: conditional \"BUILD_MODULE_NFS\" was never defined.
++Usually this means the macro was only invoked conditionally." >&2;}
++   { (exit 1); exit 1; }; }
++fi
+ if test -z "${BUILD_MODULE_PING_TRUE}" && test -z "${BUILD_MODULE_PING_FALSE}"; then
+   { { echo "$as_me:$LINENO: error: conditional \"BUILD_MODULE_PING\" was never defined.
+ Usually this means the macro was only invoked conditionally." >&5
+ echo "$as_me: error: conditional \"BUILD_MODULE_PING\" was never defined.
+ Usually this means the macro was only invoked conditionally." >&2;}
+    { (exit 1); exit 1; }; }
+@@ -24944,19 +25058,33 @@
+   { { echo "$as_me:$LINENO: error: conditional \"BUILD_MODULE_SENSORS\" was never defined.
+ Usually this means the macro was only invoked conditionally." >&5
+ echo "$as_me: error: conditional \"BUILD_MODULE_SENSORS\" was never defined.
+ Usually this means the macro was only invoked conditionally." >&2;}
+    { (exit 1); exit 1; }; }
+ fi
++if test -z "${BUILD_MODULE_SERIAL_TRUE}" && test -z "${BUILD_MODULE_SERIAL_FALSE}"; then
++  { { echo "$as_me:$LINENO: error: conditional \"BUILD_MODULE_SERIAL\" was never defined.
++Usually this means the macro was only invoked conditionally." >&5
++echo "$as_me: error: conditional \"BUILD_MODULE_SERIAL\" was never defined.
++Usually this means the macro was only invoked conditionally." >&2;}
++   { (exit 1); exit 1; }; }
++fi
+ if test -z "${BUILD_MODULE_SWAP_TRUE}" && test -z "${BUILD_MODULE_SWAP_FALSE}"; then
+   { { echo "$as_me:$LINENO: error: conditional \"BUILD_MODULE_SWAP\" was never defined.
+ Usually this means the macro was only invoked conditionally." >&5
+ echo "$as_me: error: conditional \"BUILD_MODULE_SWAP\" was never defined.
+ Usually this means the macro was only invoked conditionally." >&2;}
+    { (exit 1); exit 1; }; }
+ fi
++if test -z "${BUILD_MODULE_TAPE_TRUE}" && test -z "${BUILD_MODULE_TAPE_FALSE}"; then
++  { { echo "$as_me:$LINENO: error: conditional \"BUILD_MODULE_TAPE\" was never defined.
++Usually this means the macro was only invoked conditionally." >&5
++echo "$as_me: error: conditional \"BUILD_MODULE_TAPE\" was never defined.
++Usually this means the macro was only invoked conditionally." >&2;}
++   { (exit 1); exit 1; }; }
++fi
+ if test -z "${BUILD_MODULE_TRAFFIC_TRUE}" && test -z "${BUILD_MODULE_TRAFFIC_FALSE}"; then
+   { { echo "$as_me:$LINENO: error: conditional \"BUILD_MODULE_TRAFFIC\" was never defined.
+ Usually this means the macro was only invoked conditionally." >&5
+ echo "$as_me: error: conditional \"BUILD_MODULE_TRAFFIC\" was never defined.
+ Usually this means the macro was only invoked conditionally." >&2;}
+    { (exit 1); exit 1; }; }
+@@ -25568,20 +25696,26 @@
+ s,@BUILD_MODULE_HDDTEMP_TRUE@,$BUILD_MODULE_HDDTEMP_TRUE,;t t
+ s,@BUILD_MODULE_HDDTEMP_FALSE@,$BUILD_MODULE_HDDTEMP_FALSE,;t t
+ s,@BUILD_MODULE_LOAD_TRUE@,$BUILD_MODULE_LOAD_TRUE,;t t
+ s,@BUILD_MODULE_LOAD_FALSE@,$BUILD_MODULE_LOAD_FALSE,;t t
+ s,@BUILD_MODULE_MEMORY_TRUE@,$BUILD_MODULE_MEMORY_TRUE,;t t
+ s,@BUILD_MODULE_MEMORY_FALSE@,$BUILD_MODULE_MEMORY_FALSE,;t t
++s,@BUILD_MODULE_NFS_TRUE@,$BUILD_MODULE_NFS_TRUE,;t t
++s,@BUILD_MODULE_NFS_FALSE@,$BUILD_MODULE_NFS_FALSE,;t t
+ s,@BUILD_MODULE_PING_TRUE@,$BUILD_MODULE_PING_TRUE,;t t
+ s,@BUILD_MODULE_PING_FALSE@,$BUILD_MODULE_PING_FALSE,;t t
+ s,@BUILD_MODULE_PROCESSES_TRUE@,$BUILD_MODULE_PROCESSES_TRUE,;t t
+ s,@BUILD_MODULE_PROCESSES_FALSE@,$BUILD_MODULE_PROCESSES_FALSE,;t t
+ s,@BUILD_MODULE_SENSORS_TRUE@,$BUILD_MODULE_SENSORS_TRUE,;t t
+ s,@BUILD_MODULE_SENSORS_FALSE@,$BUILD_MODULE_SENSORS_FALSE,;t t
++s,@BUILD_MODULE_SERIAL_TRUE@,$BUILD_MODULE_SERIAL_TRUE,;t t
++s,@BUILD_MODULE_SERIAL_FALSE@,$BUILD_MODULE_SERIAL_FALSE,;t t
+ s,@BUILD_MODULE_SWAP_TRUE@,$BUILD_MODULE_SWAP_TRUE,;t t
+ s,@BUILD_MODULE_SWAP_FALSE@,$BUILD_MODULE_SWAP_FALSE,;t t
++s,@BUILD_MODULE_TAPE_TRUE@,$BUILD_MODULE_TAPE_TRUE,;t t
++s,@BUILD_MODULE_TAPE_FALSE@,$BUILD_MODULE_TAPE_FALSE,;t t
+ s,@BUILD_MODULE_TRAFFIC_TRUE@,$BUILD_MODULE_TRAFFIC_TRUE,;t t
+ s,@BUILD_MODULE_TRAFFIC_FALSE@,$BUILD_MODULE_TRAFFIC_FALSE,;t t
+ s,@LIBOBJS@,$LIBOBJS,;t t
+ s,@LTLIBOBJS@,$LTLIBOBJS,;t t
+ CEOF
+ 
+@@ -26312,13 +26446,16 @@
+   Features:
+     cpu . . . . . . . . $enable_cpu
+     disk  . . . . . . . $enable_disk
+     hddtemp . . . . . . $enable_hddtemp
+     load  . . . . . . . $enable_load
+     memory  . . . . . . $enable_memory
++    nfs . . . . . . . . $enable_nfs
+     ping  . . . . . . . $enable_ping
+     processes . . . . . $enable_processes
+     sensors . . . . . . $enable_sensors
++    serial  . . . . . . $enable_serial
+     swap  . . . . . . . $enable_swap
++    tape  . . . . . . . $enable_tape
+     traffic . . . . . . $enable_traffic
+ 
+ EOF
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/configure.in	2005-10-26 15:36:18.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/configure.in	2005-11-05 19:15:02.000000000 +0800
+@@ -1,19 +1,23 @@
+ dnl Process this file with autoconf to produce a configure script.
+ AC_INIT(src/collectd.c)
+-AM_INIT_AUTOMAKE(collectd, 3.2.0)
++AM_INIT_AUTOMAKE(collectd, 3.3.0)
+ AM_CONFIG_HEADER(src/config.h src/libping/config.h)
+ AC_LANG(C)
+ 
+ dnl Checks for programs.
+ AC_PROG_CC
+ AC_PROG_CPP
+ AC_PROG_INSTALL
+ AC_PROG_LN_S
+-AC_PROG_LIBTOOL
+ AC_PROG_MAKE_SET
++
++dnl configure libtool
++AC_DISABLE_STATIC
++AC_LIBTOOL_DLOPEN
++AC_PROG_LIBTOOL
+ #AC_PROG_RANLIB
+ 
+ dnl Checks for header files.
+ AC_HEADER_STDC
+ AC_HEADER_SYS_WAIT
+ AC_CHECK_HEADERS(fcntl.h unistd.h)
+@@ -227,12 +231,28 @@
+ if test "x$enable_memory" = "xno"
+ then
+ 	AC_DEFINE(COLLECT_MEMORY, 0, [Wether or not to collect memory statistics])
+ fi
+ AM_CONDITIONAL(BUILD_MODULE_MEMORY, test "x$enable_memory" = "xyes")
+ 
++AC_ARG_ENABLE(nfs, AC_HELP_STRING([--disable-nfs], [Disable nfs statistics]),, [enable_nfs="yes"])
++if test "x$enable_nfs" != "xno"
++then
++	if test "x$ac_system" = "xLinux"
++	then
++		enable_nfs="yes"
++	else
++		enable_nfs="no"
++	fi
++fi
++if test "x$enable_nfs" = "xno"
++then
++	AC_DEFINE(COLLECT_NFS, 0, [Wether or not to collect nfs statistics])
++fi
++AM_CONDITIONAL(BUILD_MODULE_NFS, test "x$enable_nfs" = "xyes")
++
+ AC_ARG_ENABLE(ping, AC_HELP_STRING([--disable-ping], [Disable ping statistics]),, [enable_ping="yes"])
+ if test "x$enable_ping" != "xno"
+ then
+ 	enable_ping="yes"
+ fi
+ if test "x$enable_ping" = "xno"
+@@ -270,12 +290,23 @@
+ if test "x$enable_sensors" = "xno"
+ then
+ 	AC_DEFINE(COLLECT_SENSORS, 0, [Wether or not to collect lm_sensors statistics])
+ fi
+ AM_CONDITIONAL(BUILD_MODULE_SENSORS, test "x$enable_sensors" = "xyes")
+ 
++AC_ARG_ENABLE(serial, AC_HELP_STRING([--disable-serial], [Disable serial statistics]),, [enable_serial="no"])
++if test "x$enable_serial" != "xyes"
++then
++	enable_serial="no"
++fi
++if test "x$enable_serial" = "xno"
++then
++	AC_DEFINE(COLLECT_SERIAL, 0, [Wether or not to collect serial statistics])
++fi
++AM_CONDITIONAL(BUILD_MODULE_SERIAL, test "x$enable_serial" = "xyes")
++
+ AC_ARG_ENABLE(swap, AC_HELP_STRING([--disable-swap], [Disable swap statistics]),, [enable_swap="yes"])
+ if test "x$enable_swap" != "xno"
+ then
+ 	if test "x$ac_system" = "xLinux" -o "x$with_kstat" = "xyes" -o "x$with_libstatgrab" = "xyes"
+ 	then
+ 		enable_swap="yes"
+@@ -286,12 +317,28 @@
+ if test "x$enable_swap" = "xno"
+ then
+ 	AC_DEFINE(COLLECT_SWAP, 0, [Wether or not to collect swap statistics])
+ fi
+ AM_CONDITIONAL(BUILD_MODULE_SWAP, test "x$enable_swap" = "xyes")
+ 
++AC_ARG_ENABLE(tape, AC_HELP_STRING([--disable-tape], [Disable tape statistics]),, [enable_tape="yes"])
++if test "x$enable_tape" != "xno"
++then
++	if test "x$with_kstat" = "xyes"
++	then
++		enable_tape="yes"
++	else
++		enable_tape="no"
++	fi
++fi
++if test "x$enable_tape" = "xno"
++then
++	AC_DEFINE(COLLECT_TAPE, 0, [Wether or not to collect tape statistics])
++fi
++AM_CONDITIONAL(BUILD_MODULE_TAPE, test "x$enable_tape" = "xyes")
++
+ AC_ARG_ENABLE(traffic, AC_HELP_STRING([--disable-traffic], [Disable system traffic statistics]),, [enable_traffic="yes"])
+ if test "x$enable_traffic" != "xno"
+ then
+ 	if test "x$ac_system" = "xLinux" -o "x$with_kstat" = "xyes" -o "x$with_libstatgrab" = "xyes"
+ 	then
+ 		enable_traffic="yes"
+@@ -319,13 +366,16 @@
+   Features:
+     cpu . . . . . . . . $enable_cpu
+     disk  . . . . . . . $enable_disk
+     hddtemp . . . . . . $enable_hddtemp
+     load  . . . . . . . $enable_load
+     memory  . . . . . . $enable_memory
++    nfs . . . . . . . . $enable_nfs
+     ping  . . . . . . . $enable_ping
+     processes . . . . . $enable_processes
+     sensors . . . . . . $enable_sensors
++    serial  . . . . . . $enable_serial
+     swap  . . . . . . . $enable_swap
++    tape  . . . . . . . $enable_tape
+     traffic . . . . . . $enable_traffic
+ 
+ EOF
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/contrib/museum/collection.cgi /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/contrib/museum/collection.cgi
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/contrib/museum/collection.cgi	2005-10-18 03:49:11.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/contrib/museum/collection.cgi	2005-11-04 00:21:03.000000000 +0800
+@@ -15,13 +15,13 @@
+ our $AbsDir;
+ our $RelDir;
+ our $Type;
+ our $Inst;
+ our $TimeSpan;
+ 
+-for (qw(Red Green Blue Yellow))
++for (qw(Red Green Blue Yellow Cyan Magenta))
+ {
+ 	$Config->{'Colors'}{"Half$_"} = color_calculate_transparent ($Config->{'Colors'}{'Alpha'},
+ 		$Config->{'Colors'}{'Canvas'}, $Config->{'Colors'}{"Full$_"});
+ }
+ 
+ $Config->{'Colors'}{'HalfBlueGreen'} = color_calculate_transparent ($Config->{'Colors'}{'Alpha'},
+@@ -35,17 +35,21 @@
+ 	my $Canvas = $Config->{'Colors'}{'Canvas'};
+ 
+ 	my $FullRed    = $Config->{'Colors'}{'FullRed'};
+ 	my $FullGreen  = $Config->{'Colors'}{'FullGreen'};
+ 	my $FullBlue   = $Config->{'Colors'}{'FullBlue'};
+ 	my $FullYellow = $Config->{'Colors'}{'FullYellow'};
++	my $FullCyan   = $Config->{'Colors'}{'FullCyan'};
++	my $FullMagenta= $Config->{'Colors'}{'FullMagenta'};
+ 
+ 	my $HalfRed    = $Config->{'Colors'}{'HalfRed'};
+ 	my $HalfGreen  = $Config->{'Colors'}{'HalfGreen'};
+ 	my $HalfBlue   = $Config->{'Colors'}{'HalfBlue'};
+ 	my $HalfYellow = $Config->{'Colors'}{'HalfYellow'};
++	my $HalfCyan   = $Config->{'Colors'}{'HalfCyan'};
++	my $HalfMagenta= $Config->{'Colors'}{'HalfMagenta'};
+ 
+ 	my $HalfBlueGreen = $Config->{'Colors'}{'HalfBlueGreen'};
+ 	my $HalfRedBlue   = $Config->{'Colors'}{'HalfRedBlue'};
+ 	
+ 	$GraphDefs =
+ 	{
+@@ -257,12 +261,74 @@
+ 			"AREA:ping_min#$Canvas",
+ 			"LINE1:ping_avg#$FullBlue:Ping",
+ 			'GPRINT:ping_min:MIN:%4.1lf ms Min,',
+ 			'GPRINT:ping_avg:AVERAGE:%4.1lf ms Avg,',
+ 			'GPRINT:ping_max:MAX:%4.1lf ms Max,',
+ 			'GPRINT:ping_avg:LAST:%4.1lf ms Last'],
++		processes => [
++			"DEF:running_avg={file}:running:AVERAGE",
++			"DEF:running_min={file}:running:MIN",
++			"DEF:running_max={file}:running:MAX",
++			"DEF:sleeping_avg={file}:sleeping:AVERAGE",
++			"DEF:sleeping_min={file}:sleeping:MIN",
++			"DEF:sleeping_max={file}:sleeping:MAX",
++			"DEF:zombies_avg={file}:zombies:AVERAGE",
++			"DEF:zombies_min={file}:zombies:MIN",
++			"DEF:zombies_max={file}:zombies:MAX",
++			"DEF:stopped_avg={file}:stopped:AVERAGE",
++			"DEF:stopped_min={file}:stopped:MIN",
++			"DEF:stopped_max={file}:stopped:MAX",
++			"DEF:paging_avg={file}:paging:AVERAGE",
++			"DEF:paging_min={file}:paging:MIN",
++			"DEF:paging_max={file}:paging:MAX",
++			"DEF:blocked_avg={file}:blocked:AVERAGE",
++			"DEF:blocked_min={file}:blocked:MIN",
++			"DEF:blocked_max={file}:blocked:MAX",
++			'CDEF:paging_acc=sleeping_avg,running_avg,stopped_avg,zombies_avg,blocked_avg,paging_avg,+,+,+,+,+',
++			'CDEF:blocked_acc=sleeping_avg,running_avg,stopped_avg,zombies_avg,blocked_avg,+,+,+,+',
++			'CDEF:zombies_acc=sleeping_avg,running_avg,stopped_avg,zombies_avg,+,+,+',
++			'CDEF:stopped_acc=sleeping_avg,running_avg,stopped_avg,+,+',
++			'CDEF:running_acc=sleeping_avg,running_avg,+',
++			'CDEF:sleeping_acc=sleeping_avg',
++			"AREA:paging_acc#$HalfYellow",
++			"AREA:blocked_acc#$HalfCyan",
++			"AREA:zombies_acc#$HalfRed",
++			"AREA:stopped_acc#$HalfMagenta",
++			"AREA:running_acc#$HalfGreen",
++			"AREA:sleeping_acc#$HalfBlue",
++			"LINE1:paging_acc#$FullYellow:Paging  ",
++			'GPRINT:paging_min:MIN:%5.1lf Min,',
++			'GPRINT:paging_avg:AVERAGE:%5.1lf Average,',
++			'GPRINT:paging_max:MAX:%5.1lf Max,',
++			'GPRINT:paging_avg:LAST:%5.1lf Last\l',
++			"LINE1:blocked_acc#$FullCyan:Blocked ",
++			'GPRINT:blocked_min:MIN:%5.1lf Min,',
++			'GPRINT:blocked_avg:AVERAGE:%5.1lf Average,',
++			'GPRINT:blocked_max:MAX:%5.1lf Max,',
++			'GPRINT:blocked_avg:LAST:%5.1lf Last\l',
++			"LINE1:zombies_acc#$FullRed:Zombies ",
++			'GPRINT:zombies_min:MIN:%5.1lf Min,',
++			'GPRINT:zombies_avg:AVERAGE:%5.1lf Average,',
++			'GPRINT:zombies_max:MAX:%5.1lf Max,',
++			'GPRINT:zombies_avg:LAST:%5.1lf Last\l',
++			"LINE1:stopped_acc#$FullMagenta:Stopped ",
++			'GPRINT:stopped_min:MIN:%5.1lf Min,',
++			'GPRINT:stopped_avg:AVERAGE:%5.1lf Average,',
++			'GPRINT:stopped_max:MAX:%5.1lf Max,',
++			'GPRINT:stopped_avg:LAST:%5.1lf Last\l',
++			"LINE1:running_acc#$FullGreen:Running ",
++			'GPRINT:running_min:MIN:%5.1lf Min,',
++			'GPRINT:running_avg:AVERAGE:%5.1lf Average,',
++			'GPRINT:running_max:MAX:%5.1lf Max,',
++			'GPRINT:running_avg:LAST:%5.1lf Last\l',
++			"LINE1:sleeping_acc#$FullBlue:Sleeping",
++			'GPRINT:sleeping_min:MIN:%5.1lf Min,',
++			'GPRINT:sleeping_avg:AVERAGE:%5.1lf Average,',
++			'GPRINT:sleeping_max:MAX:%5.1lf Max,',
++			'GPRINT:sleeping_avg:LAST:%5.1lf Last\l'
++		],
+ 		sensors => [
+ 			'DEF:temp_avg={file}:value:AVERAGE',
+ 			'DEF:temp_min={file}:value:MIN',
+ 			'DEF:temp_max={file}:value:MAX',
+ 			"AREA:temp_max#$HalfBlue",
+ 			"AREA:temp_min#$Canvas",
+@@ -429,13 +495,13 @@
+ 	else
+ 	{
+ 		$host = $Config->{'HostName'};
+ 	}
+ 
+ 	my $file = $AbsDir . '/';
+-	if (length ("$Inst"))
++	if (defined ($Inst) and length ("$Inst"))
+ 	{
+ 		$file .= sprintf (defined ($GraphFile->{$Type}) ? $GraphFile->{$Type} : '%s-%s.rrd', $Type, $Inst);
+ 	}
+ 	else
+ 	{
+ 		$file .= sprintf (defined ($GraphFile->{$Type}) ? $GraphFile->{$Type} : "$Type.rrd");
+@@ -503,37 +569,53 @@
+ 
+ 	<body>
+ HEADER
+ 
+ 	my $MySelf = defined ($ENV{'GATEWAY_INTERFACE'}) ? $ENV{'SCRIPT_NAME'} : $0;
+ 
+-	if (@$dirs)
++	if ((length ($Type) != 0) and (length ($Inst) == 0) and (ref ($GraphMulti->{$Inst}) == 'CODE'))
+ 	{
+-		print "<ul>\n";
+-		for (@$dirs)
+-		{
+-			print qq(<li>$AbsDir/<a href="$MySelf$RelDir/$_">$_</a></li>\n);
+-		}
+-		print "</ul>\n";
++		print qq(<div><a href="$MySelf$RelDir">Go up</a></div>\n);
+ 	}
+-
+-	for (sort (keys %$files))
++	elsif (length ($Type) != 0)
+ 	{
+-		my $type = $_;
+-
+-		for (@{$files->{$type}})
++	}
++	else
++	{
++		if ($RelDir)
+ 		{
+-			my $inst = "$_";
++			my ($up) = $RelDir =~ m#(.*)/[^/]+$#;
++			print qq(<div><a href="$MySelf$up">Go up</a></div>\n);
++		}
+ 
+-			if (length ($inst))
++		if (@$dirs)
++		{
++			print "<ul>\n";
++			for (@$dirs)
+ 			{
+-				print qq(<img src="$MySelf$RelDir/$type/$inst/day" /><br />\n);
++				print qq(<li>$AbsDir/<a href="$MySelf$RelDir/$_">$_</a></li>\n);
+ 			}
+-			else
++			print "</ul>\n";
++		}
++
++		for (sort (keys %$files))
++		{
++			my $type = $_;
++
++			for (@{$files->{$type}})
+ 			{
+-				print qq(<img src="$MySelf$RelDir/$type/day" /><br />\n);
++				my $inst = "$_";
++
++				if (length ($inst))
++				{
++					print qq(<img src="$MySelf$RelDir/$type/$inst/day" /><br />\n);
++				}
++				else
++				{
++					print qq(<img src="$MySelf$RelDir/$type/day" /><br />\n);
++				}
+ 			}
+ 		}
+ 	}
+ 
+ 	print STDOUT <<FOOTER if (defined ($ENV{'GATEWAY_INTERFACE'}));
+ 	</body>
+@@ -588,12 +670,14 @@
+ 					Arrow	=> 'FF0000',
+ 
+ 					FullRed		=> 'FF0000',
+ 					FullBlue	=> '0000FF',
+ 					FullGreen	=> '00E000',
+ 					FullYellow	=> 'F0A000',
++					FullCyan	=> '00A0FF',
++					FullMagenta	=> 'A000FF',
+ 					Alpha		=> 0.25,
+ 					HalfRed		=> 'F8B8B8',
+ 					HalfBlue	=> 'B8B8F8',
+ 					HalfGreen	=> 'B8F0B8',
+ 					HalfYellow	=> 'F4F4B8'
+ 				},
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/debian/changelog /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/debian/changelog
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/debian/changelog	2005-10-26 15:34:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/debian/changelog	2005-11-05 19:02:51.000000000 +0800
+@@ -1,6 +1,12 @@
++collectd (3.3.0-1) unstable; urgency=low
++
++  * New upstream version
++
++ -- Florian Forster <octo@verplant.org>  Sat, 05 Nov 2005 12:02:50 +0200
++
+ collectd (3.2.0-1) unstable; urgency=low
+ 
+   * New upstream version
+   * Problems with the debian init.d file have been fixed.
+   * Added `processes.so*' to the main package
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/debian/collectd.files /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/debian/collectd.files
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/debian/collectd.files	2005-10-26 15:23:27.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/debian/collectd.files	2005-11-05 19:03:21.000000000 +0800
+@@ -1,9 +1,10 @@
+ usr/lib/collectd/cpu.so*
+ usr/lib/collectd/disk.so*
+ usr/lib/collectd/load.so*
+ usr/lib/collectd/memory.so*
++usr/lib/collectd/nfs.so*
+ usr/lib/collectd/ping.so*
+ usr/lib/collectd/processes.so*
+ usr/lib/collectd/swap.so*
+ usr/lib/collectd/traffic.so*
+ usr/sbin/collectd
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/debian/rules /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/debian/rules
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/debian/rules	2005-10-15 18:43:11.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/debian/rules	2005-11-08 17:08:49.000000000 +0800
+@@ -66,13 +66,14 @@
+ 
+ 	mkdir -p $(CURDIR)/debian/collectd-hddtemp/usr/lib/collectd
+ 	mkdir -p $(CURDIR)/debian/collectd-sensors/usr/lib/collectd
+ 
+ 	# Add here commands to install the package into debian/collectd.
+ 	$(MAKE) DESTDIR=$(CURDIR)/debian/collectd install
+-	rm $(CURDIR)/debian/collectd/usr/lib/collectd/*.{a,la}
++	rm $(CURDIR)/debian/collectd/usr/lib/collectd/*.a  || true
++	rm $(CURDIR)/debian/collectd/usr/lib/collectd/*.la || true
+ 
+ 	mv $(CURDIR)/debian/collectd/usr/lib/collectd/hddtemp.* $(CURDIR)/debian/collectd-hddtemp/usr/lib/collectd
+ 	mv $(CURDIR)/debian/collectd/usr/lib/collectd/sensors.* $(CURDIR)/debian/collectd-sensors/usr/lib/collectd
+ 
+ # Build architecture-independent files here.
+ binary-indep: build install
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/Makefile.in	2005-10-26 15:36:29.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/Makefile.in	2005-11-05 19:15:14.000000000 +0800
+@@ -88,20 +88,26 @@
+ BUILD_MODULE_HDDTEMP_FALSE = @BUILD_MODULE_HDDTEMP_FALSE@
+ BUILD_MODULE_HDDTEMP_TRUE = @BUILD_MODULE_HDDTEMP_TRUE@
+ BUILD_MODULE_LOAD_FALSE = @BUILD_MODULE_LOAD_FALSE@
+ BUILD_MODULE_LOAD_TRUE = @BUILD_MODULE_LOAD_TRUE@
+ BUILD_MODULE_MEMORY_FALSE = @BUILD_MODULE_MEMORY_FALSE@
+ BUILD_MODULE_MEMORY_TRUE = @BUILD_MODULE_MEMORY_TRUE@
++BUILD_MODULE_NFS_FALSE = @BUILD_MODULE_NFS_FALSE@
++BUILD_MODULE_NFS_TRUE = @BUILD_MODULE_NFS_TRUE@
+ BUILD_MODULE_PING_FALSE = @BUILD_MODULE_PING_FALSE@
+ BUILD_MODULE_PING_TRUE = @BUILD_MODULE_PING_TRUE@
+ BUILD_MODULE_PROCESSES_FALSE = @BUILD_MODULE_PROCESSES_FALSE@
+ BUILD_MODULE_PROCESSES_TRUE = @BUILD_MODULE_PROCESSES_TRUE@
+ BUILD_MODULE_SENSORS_FALSE = @BUILD_MODULE_SENSORS_FALSE@
+ BUILD_MODULE_SENSORS_TRUE = @BUILD_MODULE_SENSORS_TRUE@
++BUILD_MODULE_SERIAL_FALSE = @BUILD_MODULE_SERIAL_FALSE@
++BUILD_MODULE_SERIAL_TRUE = @BUILD_MODULE_SERIAL_TRUE@
+ BUILD_MODULE_SWAP_FALSE = @BUILD_MODULE_SWAP_FALSE@
+ BUILD_MODULE_SWAP_TRUE = @BUILD_MODULE_SWAP_TRUE@
++BUILD_MODULE_TAPE_FALSE = @BUILD_MODULE_TAPE_FALSE@
++BUILD_MODULE_TAPE_TRUE = @BUILD_MODULE_TAPE_TRUE@
+ BUILD_MODULE_TRAFFIC_FALSE = @BUILD_MODULE_TRAFFIC_FALSE@
+ BUILD_MODULE_TRAFFIC_TRUE = @BUILD_MODULE_TRAFFIC_TRUE@
+ CC = @CC@
+ CCDEPMODE = @CCDEPMODE@
+ CFLAGS = @CFLAGS@
+ CPP = @CPP@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/README /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/README
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/README	2005-10-15 01:57:01.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/README	2005-11-05 18:42:16.000000000 +0800
+@@ -26,21 +26,30 @@
+     - System load
+       (Load average over the last 1, 5 and 15 minutes)
+ 
+     - Memory utilization
+       (Memory occupied by running processes, page cache, buffer cache and free)
+ 
++    - NFS Procedures
++      (Which NFS command were called how often. Only NFSv2 and NFSv3 right now)
++
+     - Ping latency
+       (Time to reach the default gateway or another given host)
+ 
++    - Serial
++      (RX and TX of serial interfaces)
++
+     - Sensors
+       (System temperatured and fan rotation speeds)
+ 
+     - Swap
+       (Pages swapped out onto harddisk or whatever is called `swap' by the OS..)
+ 
++    - Tape
++      (Read and write bytes and operations on tape devices)
++
+     - Traffic
+       (In/Outbound traffic on the interfaces)
+ 
+   * Performance: Running as a daemon collectd doesn't spend much time in
+     startup. Since collectd links against libping, librrd and libsensors it
+     doesn't need to start any other processes.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/src/collectd.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/src/collectd.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/src/collectd.1	2005-10-26 15:54:42.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/src/collectd.1	2005-11-08 17:06:01.000000000 +0800
+@@ -126,43 +126,49 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD 1"
+-.TH COLLECTD 1 "2005-10-26" "3.2.0" "collectd"
++.TH COLLECTD 1 "2005-11-08" "3.3.0" "collectd"
+ .SH "NAME"
+ collectd \- System statistics collection daemon
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ collectd \fI[options]\fR
+ .SH "DESCRIPTION"
+ .IX Header "DESCRIPTION"
+ collectd is a daemon that collects various system statistics periodically and
+ stores them into RRD\-files. Which data is collected depends on compile-time
+ settings. The following features may be available:
+ .IP "\(bu" 4
+-\&\s-1CPU\s0 utilization
++\&\s-1CPU\s0 utilization (\fIcpu\fR)
+ .IP "\(bu" 4
+-Disk and partition usage/throughput
++Disk and partition usage/throughput (\fIdisk\fR)
+ .IP "\(bu" 4
+-Harddisk temperatures
++Harddisk temperatures (\fIhddtemp\fR)
+ .IP "\(bu" 4
+-System load averages
++System load averages (\fIload\fR)
+ .IP "\(bu" 4
+-Memory usage
++Memory usage (\fImemory\fR)
+ .IP "\(bu" 4
+-Network latency (mostly called `ping' here)
++\&\s-1NFS\s0 utilization (\fInfs\fR, Linux only)
+ .IP "\(bu" 4
+-Number of processes
++Network latency (\fIping\fR)
+ .IP "\(bu" 4
+-lm_sensors information
++Number of processes (\fIprocesses\fR, Linux only)
+ .IP "\(bu" 4
+-Swap usage
++lm_sensors information (\fIsensors\fR, Linux only)
+ .IP "\(bu" 4
+-Network traffic
++Serial port traffic (\fIserial\fR, Linux only)
++.IP "\(bu" 4
++Swap usage (\fIswap\fR)
++.IP "\(bu" 4
++Tape drive usage (\fItape\fR, Solaris only)
++.IP "\(bu" 4
++Network traffic (\fItraffic\fR)
+ .SH "OPTIONS"
+ .IX Header "OPTIONS"
+ .IP "\fB\-c\fR" 4
+ .IX Item "-c"
+ Start in client (transmitter) mode. Data will be sent to the multicast group.
+ See \*(L"\s-1MODES\s0\*(R".
+@@ -256,16 +262,64 @@
+ \&  DS:midterm:GAUGE:25:0:100
+ \&  DS:longterm:GAUGE:25:0:100
+ .Ve
+ .IP "Memory usage (\fImemory.rrd\fR)" 4
+ .IX Item "Memory usage (memory.rrd)"
+ .Vb 4
+-\&  DS:used:GAUGE:25:0:4294967296
+-\&  DS:free:GAUGE:25:0:4294967296
+-\&  DS:buffers:GAUGE:25:0:4294967296
+-\&  DS:cached:GAUGE:25:0:4294967296
++\&  DS:used:GAUGE:25:0:9223372036854775807
++\&  DS:free:GAUGE:25:0:9223372036854775807
++\&  DS:buffers:GAUGE:25:0:9223372036854775807
++\&  DS:cached:GAUGE:25:0:9223372036854775807
++.Ve
++.IP "NFSv2 Procedures (\fInfs2_procedures\-\fI(client|server)\fI.rrd\fR)" 4
++.IX Item "NFSv2 Procedures (nfs2_procedures-(client|server).rrd)"
++.Vb 18
++\&  DS:null:COUNTER:25:0:U
++\&  DS:getattr:COUNTER:25:0:U
++\&  DS:setattr:COUNTER:25:0:U
++\&  DS:root:COUNTER:25:0:U
++\&  DS:lookup:COUNTER:25:0:U
++\&  DS:readlink:COUNTER:25:0:U
++\&  DS:read:COUNTER:25:0:U
++\&  DS:wrcache:COUNTER:25:0:U
++\&  DS:write:COUNTER:25:0:U
++\&  DS:create:COUNTER:25:0:U
++\&  DS:remove:COUNTER:25:0:U
++\&  DS:rename:COUNTER:25:0:U
++\&  DS:link:COUNTER:25:0:U
++\&  DS:symlink:COUNTER:25:0:U
++\&  DS:mkdir:COUNTER:25:0:U
++\&  DS:rmdir:COUNTER:25:0:U
++\&  DS:readdir:COUNTER:25:0:U
++\&  DS:fsstat:COUNTER:25:0:U
++.Ve
++.IP "NFSv3 Procedures (\fInfs3_procedures\-\fI(client|server)\fI.rrd\fR)" 4
++.IX Item "NFSv3 Procedures (nfs3_procedures-(client|server).rrd)"
++.Vb 22
++\&  DS:null:COUNTER:25:0:U
++\&  DS:getattr:COUNTER:25:0:U
++\&  DS:setattr:COUNTER:25:0:U
++\&  DS:lookup:COUNTER:25:0:U
++\&  DS:access:COUNTER:25:0:U
++\&  DS:readlink:COUNTER:25:0:U
++\&  DS:read:COUNTER:25:0:U
++\&  DS:write:COUNTER:25:0:U
++\&  DS:create:COUNTER:25:0:U
++\&  DS:mkdir:COUNTER:25:0:U
++\&  DS:symlink:COUNTER:25:0:U
++\&  DS:mknod:COUNTER:25:0:U
++\&  DS:remove:COUNTER:25:0:U
++\&  DS:rmdir:COUNTER:25:0:U
++\&  DS:rename:COUNTER:25:0:U
++\&  DS:link:COUNTER:25:0:U
++\&  DS:readdir:COUNTER:25:0:U
++\&  DS:readdirplus:COUNTER:25:0:U
++\&  DS:fsstat:COUNTER:25:0:U
++\&  DS:fsinfo:COUNTER:25:0:U
++\&  DS:pathconf:COUNTER:25:0:U
++\&  DS:commit:COUNTER:25:0:U
+ .Ve
+ .IP "Network latency / Ping (\fIping\-\fI<hostname>\fI.rrd\fR)" 4
+ .IX Item "Network latency / Ping (ping-<hostname>.rrd)"
+ .Vb 1
+ \&  DS:ping:GAUGE:25:0:65535
+ .Ve
+@@ -281,20 +335,38 @@
+ .Ve
+ .IP "lm_sensors (\fIsensors\-\fI<chip>\fI\-\fI<feature>\fI.rrd\fR)" 4
+ .IX Item "lm_sensors (sensors-<chip>-<feature>.rrd)"
+ .Vb 1
+ \&  DS:value:GAUGE:25:U:U
+ .Ve
++.IP "Serial port traffic (\fIserial\-\fI<num>\fI.rrd\fR)" 4
++.IX Item "Serial port traffic (serial-<num>.rrd)"
++.Vb 2
++\&  DS:incoming:COUNTER:25:0:U
++\&  DS:outgoing:COUNTER:25:0:U
++.Ve
+ .IP "Swap usage (\fIswap.rrd\fR)" 4
+ .IX Item "Swap usage (swap.rrd)"
+ .Vb 4
+ \&  DS:used:GAUGE:25:0:1099511627776
+ \&  DS:free:GAUGE:25:0:1099511627776
+ \&  DS:cached:GAUGE:25:0:1099511627776
+ \&  DS:resv:GAUGE:25:0:1099511627776
+ .Ve
++.IP "Tape drive usage (\fItape\-\fI<name>\fI.rrd\fR)" 4
++.IX Item "Tape drive usage (tape-<name>.rrd)"
++.Vb 8
++\&  DS:rcount:COUNTER:25:0:
++\&  DS:rmerged:COUNTER:25:0:U
++\&  DS:rbytes:COUNTER:25:0:U
++\&  DS:rtime:COUNTER:25:0:U
++\&  DS:wcount:COUNTER:25:0:U
++\&  DS:wmerged:COUNTER:25:0:U
++\&  DS:wbytes:COUNTER:25:0:U
++\&  DS:wtime:COUNTER:25:0:U
++.Ve
+ .IP "Network traffic (\fItraffic\-\fI<name>\fI.rrd\fR)" 4
+ .IX Item "Network traffic (traffic-<name>.rrd)"
+ .Vb 2
+ \&  DS:incoming:COUNTER:25:0:U
+ \&  DS:outgoing:COUNTER:25:0:U
+ .Ve
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/src/common.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/src/common.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/src/common.c	2005-09-24 21:06:16.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/src/common.c	2005-11-05 03:54:17.000000000 +0800
+@@ -208,12 +208,28 @@
+ 
+ long long get_kstat_value (kstat_t *ksp, char *name)
+ {
+ 	kstat_named_t *kn;
+ 	long long retval = -1LL;
+ 
++#ifdef assert
++	assert (ksp != NULL);
++	assert (ksp->ks_type == KSTAT_TYPE_NAMED);
++#else
++	if (ksp == NULL)
++	{
++		fprintf (stderr, "ERROR: %s:%i: ksp == NULL\n", __FILE__, __LINE__);
++		return (-1LL);
++	}
++	else if (ksp->ks_type != KSTAT_TYPE_NAMED)
++	{
++		fprintf (stderr, "ERROR: %s:%i: ksp->ks_type != KSTAT_TYPE_NAMED\n", __FILE__, __LINE__);
++		return (-1LL);
++	}
++#endif
++
+ 	if ((kn = (kstat_named_t *) kstat_data_lookup (ksp, name)) == NULL)
+ 		return (retval);
+ 
+ 	if (kn->data_type == KSTAT_DATA_INT32)
+ 		retval = (long long) kn->value.i32;
+ 	else if (kn->data_type == KSTAT_DATA_UINT32)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/src/config.h.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/src/config.h.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/src/config.h.in	2005-10-26 15:36:54.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/src/config.h.in	2005-11-05 19:15:39.000000000 +0800
+@@ -12,24 +12,33 @@
+ /* Wether or not to collect system load statistics */
+ #undef COLLECT_LOAD
+ 
+ /* Wether or not to collect memory statistics */
+ #undef COLLECT_MEMORY
+ 
++/* Wether or not to collect nfs statistics */
++#undef COLLECT_NFS
++
+ /* Wether or not to collect ping statistics */
+ #undef COLLECT_PING
+ 
+ /* Wether or not to collect processes statistics */
+ #undef COLLECT_PROCESSES
+ 
+ /* Wether or not to collect lm_sensors statistics */
+ #undef COLLECT_SENSORS
+ 
++/* Wether or not to collect serial statistics */
++#undef COLLECT_SERIAL
++
+ /* Wether or not to collect swap statistics */
+ #undef COLLECT_SWAP
+ 
++/* Wether or not to collect tape statistics */
++#undef COLLECT_TAPE
++
+ /* Wether or not to collect network traffic statistics */
+ #undef COLLECT_TRAFFIC
+ 
+ /* Define to 1 if you have the <arpa/inet.h> header file. */
+ #undef HAVE_ARPA_INET_H
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/src/libping/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/src/libping/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/src/libping/Makefile.in	2005-10-26 15:36:29.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/src/libping/Makefile.in	2005-11-05 19:15:14.000000000 +0800
+@@ -83,20 +83,26 @@
+ BUILD_MODULE_HDDTEMP_FALSE = @BUILD_MODULE_HDDTEMP_FALSE@
+ BUILD_MODULE_HDDTEMP_TRUE = @BUILD_MODULE_HDDTEMP_TRUE@
+ BUILD_MODULE_LOAD_FALSE = @BUILD_MODULE_LOAD_FALSE@
+ BUILD_MODULE_LOAD_TRUE = @BUILD_MODULE_LOAD_TRUE@
+ BUILD_MODULE_MEMORY_FALSE = @BUILD_MODULE_MEMORY_FALSE@
+ BUILD_MODULE_MEMORY_TRUE = @BUILD_MODULE_MEMORY_TRUE@
++BUILD_MODULE_NFS_FALSE = @BUILD_MODULE_NFS_FALSE@
++BUILD_MODULE_NFS_TRUE = @BUILD_MODULE_NFS_TRUE@
+ BUILD_MODULE_PING_FALSE = @BUILD_MODULE_PING_FALSE@
+ BUILD_MODULE_PING_TRUE = @BUILD_MODULE_PING_TRUE@
+ BUILD_MODULE_PROCESSES_FALSE = @BUILD_MODULE_PROCESSES_FALSE@
+ BUILD_MODULE_PROCESSES_TRUE = @BUILD_MODULE_PROCESSES_TRUE@
+ BUILD_MODULE_SENSORS_FALSE = @BUILD_MODULE_SENSORS_FALSE@
+ BUILD_MODULE_SENSORS_TRUE = @BUILD_MODULE_SENSORS_TRUE@
++BUILD_MODULE_SERIAL_FALSE = @BUILD_MODULE_SERIAL_FALSE@
++BUILD_MODULE_SERIAL_TRUE = @BUILD_MODULE_SERIAL_TRUE@
+ BUILD_MODULE_SWAP_FALSE = @BUILD_MODULE_SWAP_FALSE@
+ BUILD_MODULE_SWAP_TRUE = @BUILD_MODULE_SWAP_TRUE@
++BUILD_MODULE_TAPE_FALSE = @BUILD_MODULE_TAPE_FALSE@
++BUILD_MODULE_TAPE_TRUE = @BUILD_MODULE_TAPE_TRUE@
+ BUILD_MODULE_TRAFFIC_FALSE = @BUILD_MODULE_TRAFFIC_FALSE@
+ BUILD_MODULE_TRAFFIC_TRUE = @BUILD_MODULE_TRAFFIC_TRUE@
+ CC = @CC@
+ CCDEPMODE = @CCDEPMODE@
+ CFLAGS = @CFLAGS@
+ CPP = @CPP@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/src/Makefile.am /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/src/Makefile.am
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/src/Makefile.am	2005-10-26 13:38:48.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/src/Makefile.am	2005-11-04 23:15:33.000000000 +0800
+@@ -6,13 +6,13 @@
+ 
+ collectd_SOURCES = collectd.c collectd.h \
+ 		   common.c common.h \
+ 		   multicast.c multicast.h \
+ 		   plugin.c plugin.h
+ collectd_CFLAGS = -DPLUGINDIR='"$(pkglibdir)"'
+-collectd_LDFLAGS = -rdynamic -lrrd
++collectd_LDFLAGS = -lrrd -dlopen self
+ 
+ pkglib_LTLIBRARIES = 
+ 
+ if BUILD_MODULE_CPU
+ pkglib_LTLIBRARIES += cpu.la
+ cpu_la_SOURCES = cpu.c cpu.h
+@@ -40,12 +40,18 @@
+ if BUILD_MODULE_MEMORY
+ pkglib_LTLIBRARIES += memory.la
+ memory_la_SOURCES = memory.c memory.h
+ memory_la_LDFLAGS = -module
+ endif
+ 
++if BUILD_MODULE_NFS
++pkglib_LTLIBRARIES += nfs.la
++nfs_la_SOURCES = nfs.c nfs.h
++nfs_la_LDFLAGS = -module
++endif
++
+ if BUILD_MODULE_PING
+ pkglib_LTLIBRARIES += ping.la
+ ping_la_SOURCES = ping.c ping.h
+ ping_la_LDFLAGS = -module
+ ping_la_LIBADD  = libping/libping.la
+ ping_la_DEPENDENCIES = libping/libping.la
+@@ -60,25 +66,37 @@
+ if BUILD_MODULE_SENSORS
+ pkglib_LTLIBRARIES += sensors.la
+ sensors_la_SOURCES = sensors.c sensors.h
+ sensors_la_LDFLAGS = -module -lsensors
+ endif
+ 
++if BUILD_MODULE_SERIAL
++pkglib_LTLIBRARIES += serial.la
++serial_la_SOURCES = serial.c serial.h
++serial_la_LDFLAGS = -module
++endif
++
+ if BUILD_MODULE_SWAP
+ pkglib_LTLIBRARIES += swap.la
+ swap_la_SOURCES = swap.c swap.h
+ swap_la_LDFLAGS = -module
+ endif
+ 
++if BUILD_MODULE_TAPE
++pkglib_LTLIBRARIES += tape.la
++tape_la_SOURCES = tape.c tape.h
++tape_la_LDFLAGS = -module
++endif
++
+ if BUILD_MODULE_TRAFFIC
+ pkglib_LTLIBRARIES += traffic.la
+ traffic_la_SOURCES = traffic.c traffic.h
+ traffic_la_LDFLAGS = -module
+ endif
+ 
+ man_MANS = collectd.1
+-collectd_1_SOURCES = collectd.pod
++#collectd_1_SOURCES = collectd.pod
+ 
+ EXTRA_DIST = $(man_MANS)
+ 
+ .pod.1:
+ 	pod2man --release=$(VERSION) --center=$(PACKAGE) $< >$@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/src/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/src/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/src/Makefile.in	2005-10-26 15:36:29.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/src/Makefile.in	2005-11-05 19:15:14.000000000 +0800
+@@ -40,17 +40,20 @@
+ sbin_PROGRAMS = collectd$(EXEEXT)
+ @BUILD_MODULE_CPU_TRUE@am__append_1 = cpu.la
+ @BUILD_MODULE_DISK_TRUE@am__append_2 = disk.la
+ @BUILD_MODULE_HDDTEMP_TRUE@am__append_3 = hddtemp.la
+ @BUILD_MODULE_LOAD_TRUE@am__append_4 = load.la
+ @BUILD_MODULE_MEMORY_TRUE@am__append_5 = memory.la
+-@BUILD_MODULE_PING_TRUE@am__append_6 = ping.la
+-@BUILD_MODULE_PROCESSES_TRUE@am__append_7 = processes.la
+-@BUILD_MODULE_SENSORS_TRUE@am__append_8 = sensors.la
+-@BUILD_MODULE_SWAP_TRUE@am__append_9 = swap.la
+-@BUILD_MODULE_TRAFFIC_TRUE@am__append_10 = traffic.la
++@BUILD_MODULE_NFS_TRUE@am__append_6 = nfs.la
++@BUILD_MODULE_PING_TRUE@am__append_7 = ping.la
++@BUILD_MODULE_PROCESSES_TRUE@am__append_8 = processes.la
++@BUILD_MODULE_SENSORS_TRUE@am__append_9 = sensors.la
++@BUILD_MODULE_SERIAL_TRUE@am__append_10 = serial.la
++@BUILD_MODULE_SWAP_TRUE@am__append_11 = swap.la
++@BUILD_MODULE_TAPE_TRUE@am__append_12 = tape.la
++@BUILD_MODULE_TRAFFIC_TRUE@am__append_13 = traffic.la
+ subdir = src
+ DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in \
+ 	$(srcdir)/config.h.in
+ ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
+ am__aclocal_m4_deps = $(top_srcdir)/configure.in
+ am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
+@@ -90,12 +93,17 @@
+ @BUILD_MODULE_LOAD_TRUE@am_load_la_rpath = -rpath $(pkglibdir)
+ memory_la_LIBADD =
+ am__memory_la_SOURCES_DIST = memory.c memory.h
+ @BUILD_MODULE_MEMORY_TRUE@am_memory_la_OBJECTS = memory.lo
+ memory_la_OBJECTS = $(am_memory_la_OBJECTS)
+ @BUILD_MODULE_MEMORY_TRUE@am_memory_la_rpath = -rpath $(pkglibdir)
++nfs_la_LIBADD =
++am__nfs_la_SOURCES_DIST = nfs.c nfs.h
++@BUILD_MODULE_NFS_TRUE@am_nfs_la_OBJECTS = nfs.lo
++nfs_la_OBJECTS = $(am_nfs_la_OBJECTS)
++@BUILD_MODULE_NFS_TRUE@am_nfs_la_rpath = -rpath $(pkglibdir)
+ am__ping_la_SOURCES_DIST = ping.c ping.h
+ @BUILD_MODULE_PING_TRUE@am_ping_la_OBJECTS = ping.lo
+ ping_la_OBJECTS = $(am_ping_la_OBJECTS)
+ @BUILD_MODULE_PING_TRUE@am_ping_la_rpath = -rpath $(pkglibdir)
+ processes_la_LIBADD =
+ am__processes_la_SOURCES_DIST = processes.c processes.h
+@@ -105,17 +113,27 @@
+ @BUILD_MODULE_PROCESSES_TRUE@	$(pkglibdir)
+ sensors_la_LIBADD =
+ am__sensors_la_SOURCES_DIST = sensors.c sensors.h
+ @BUILD_MODULE_SENSORS_TRUE@am_sensors_la_OBJECTS = sensors.lo
+ sensors_la_OBJECTS = $(am_sensors_la_OBJECTS)
+ @BUILD_MODULE_SENSORS_TRUE@am_sensors_la_rpath = -rpath $(pkglibdir)
++serial_la_LIBADD =
++am__serial_la_SOURCES_DIST = serial.c serial.h
++@BUILD_MODULE_SERIAL_TRUE@am_serial_la_OBJECTS = serial.lo
++serial_la_OBJECTS = $(am_serial_la_OBJECTS)
++@BUILD_MODULE_SERIAL_TRUE@am_serial_la_rpath = -rpath $(pkglibdir)
+ swap_la_LIBADD =
+ am__swap_la_SOURCES_DIST = swap.c swap.h
+ @BUILD_MODULE_SWAP_TRUE@am_swap_la_OBJECTS = swap.lo
+ swap_la_OBJECTS = $(am_swap_la_OBJECTS)
+ @BUILD_MODULE_SWAP_TRUE@am_swap_la_rpath = -rpath $(pkglibdir)
++tape_la_LIBADD =
++am__tape_la_SOURCES_DIST = tape.c tape.h
++@BUILD_MODULE_TAPE_TRUE@am_tape_la_OBJECTS = tape.lo
++tape_la_OBJECTS = $(am_tape_la_OBJECTS)
++@BUILD_MODULE_TAPE_TRUE@am_tape_la_rpath = -rpath $(pkglibdir)
+ traffic_la_LIBADD =
+ am__traffic_la_SOURCES_DIST = traffic.c traffic.h
+ @BUILD_MODULE_TRAFFIC_TRUE@am_traffic_la_OBJECTS = traffic.lo
+ traffic_la_OBJECTS = $(am_traffic_la_OBJECTS)
+ @BUILD_MODULE_TRAFFIC_TRUE@am_traffic_la_rpath = -rpath $(pkglibdir)
+ sbinPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
+@@ -134,20 +152,22 @@
+ 	$(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) \
+ 	$(AM_CFLAGS) $(CFLAGS)
+ CCLD = $(CC)
+ LINK = $(LIBTOOL) --tag=CC --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
+ 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
+ SOURCES = $(cpu_la_SOURCES) $(disk_la_SOURCES) $(hddtemp_la_SOURCES) \
+-	$(load_la_SOURCES) $(memory_la_SOURCES) $(ping_la_SOURCES) \
+-	$(processes_la_SOURCES) $(sensors_la_SOURCES) \
+-	$(swap_la_SOURCES) $(traffic_la_SOURCES) $(collectd_SOURCES)
++	$(load_la_SOURCES) $(memory_la_SOURCES) $(nfs_la_SOURCES) \
++	$(ping_la_SOURCES) $(processes_la_SOURCES) \
++	$(sensors_la_SOURCES) $(serial_la_SOURCES) $(swap_la_SOURCES) \
++	$(tape_la_SOURCES) $(traffic_la_SOURCES) $(collectd_SOURCES)
+ DIST_SOURCES = $(am__cpu_la_SOURCES_DIST) $(am__disk_la_SOURCES_DIST) \
+ 	$(am__hddtemp_la_SOURCES_DIST) $(am__load_la_SOURCES_DIST) \
+-	$(am__memory_la_SOURCES_DIST) $(am__ping_la_SOURCES_DIST) \
+-	$(am__processes_la_SOURCES_DIST) \
+-	$(am__sensors_la_SOURCES_DIST) $(am__swap_la_SOURCES_DIST) \
++	$(am__memory_la_SOURCES_DIST) $(am__nfs_la_SOURCES_DIST) \
++	$(am__ping_la_SOURCES_DIST) $(am__processes_la_SOURCES_DIST) \
++	$(am__sensors_la_SOURCES_DIST) $(am__serial_la_SOURCES_DIST) \
++	$(am__swap_la_SOURCES_DIST) $(am__tape_la_SOURCES_DIST) \
+ 	$(am__traffic_la_SOURCES_DIST) $(collectd_SOURCES)
+ RECURSIVE_TARGETS = all-recursive check-recursive dvi-recursive \
+ 	html-recursive info-recursive install-data-recursive \
+ 	install-exec-recursive install-info-recursive \
+ 	install-recursive installcheck-recursive installdirs-recursive \
+ 	pdf-recursive ps-recursive uninstall-info-recursive \
+@@ -175,20 +195,26 @@
+ BUILD_MODULE_HDDTEMP_FALSE = @BUILD_MODULE_HDDTEMP_FALSE@
+ BUILD_MODULE_HDDTEMP_TRUE = @BUILD_MODULE_HDDTEMP_TRUE@
+ BUILD_MODULE_LOAD_FALSE = @BUILD_MODULE_LOAD_FALSE@
+ BUILD_MODULE_LOAD_TRUE = @BUILD_MODULE_LOAD_TRUE@
+ BUILD_MODULE_MEMORY_FALSE = @BUILD_MODULE_MEMORY_FALSE@
+ BUILD_MODULE_MEMORY_TRUE = @BUILD_MODULE_MEMORY_TRUE@
++BUILD_MODULE_NFS_FALSE = @BUILD_MODULE_NFS_FALSE@
++BUILD_MODULE_NFS_TRUE = @BUILD_MODULE_NFS_TRUE@
+ BUILD_MODULE_PING_FALSE = @BUILD_MODULE_PING_FALSE@
+ BUILD_MODULE_PING_TRUE = @BUILD_MODULE_PING_TRUE@
+ BUILD_MODULE_PROCESSES_FALSE = @BUILD_MODULE_PROCESSES_FALSE@
+ BUILD_MODULE_PROCESSES_TRUE = @BUILD_MODULE_PROCESSES_TRUE@
+ BUILD_MODULE_SENSORS_FALSE = @BUILD_MODULE_SENSORS_FALSE@
+ BUILD_MODULE_SENSORS_TRUE = @BUILD_MODULE_SENSORS_TRUE@
++BUILD_MODULE_SERIAL_FALSE = @BUILD_MODULE_SERIAL_FALSE@
++BUILD_MODULE_SERIAL_TRUE = @BUILD_MODULE_SERIAL_TRUE@
+ BUILD_MODULE_SWAP_FALSE = @BUILD_MODULE_SWAP_FALSE@
+ BUILD_MODULE_SWAP_TRUE = @BUILD_MODULE_SWAP_TRUE@
++BUILD_MODULE_TAPE_FALSE = @BUILD_MODULE_TAPE_FALSE@
++BUILD_MODULE_TAPE_TRUE = @BUILD_MODULE_TAPE_TRUE@
+ BUILD_MODULE_TRAFFIC_FALSE = @BUILD_MODULE_TRAFFIC_FALSE@
+ BUILD_MODULE_TRAFFIC_TRUE = @BUILD_MODULE_TRAFFIC_TRUE@
+ CC = @CC@
+ CCDEPMODE = @CCDEPMODE@
+ CFLAGS = @CFLAGS@
+ CPP = @CPP@
+@@ -279,41 +305,48 @@
+ collectd_SOURCES = collectd.c collectd.h \
+ 		   common.c common.h \
+ 		   multicast.c multicast.h \
+ 		   plugin.c plugin.h
+ 
+ collectd_CFLAGS = -DPLUGINDIR='"$(pkglibdir)"'
+-collectd_LDFLAGS = -rdynamic -lrrd
++collectd_LDFLAGS = -lrrd -dlopen self
+ pkglib_LTLIBRARIES = $(am__append_1) $(am__append_2) $(am__append_3) \
+ 	$(am__append_4) $(am__append_5) $(am__append_6) \
+ 	$(am__append_7) $(am__append_8) $(am__append_9) \
+-	$(am__append_10)
++	$(am__append_10) $(am__append_11) $(am__append_12) \
++	$(am__append_13)
+ @BUILD_MODULE_CPU_TRUE@cpu_la_SOURCES = cpu.c cpu.h
+ @BUILD_MODULE_CPU_TRUE@cpu_la_LDFLAGS = -module
+ @BUILD_MODULE_DISK_TRUE@disk_la_SOURCES = disk.c disk.h
+ @BUILD_MODULE_DISK_TRUE@disk_la_LDFLAGS = -module
+ @BUILD_MODULE_HDDTEMP_TRUE@hddtemp_la_SOURCES = hddtemp.c hddtemp.h
+ @BUILD_MODULE_HDDTEMP_TRUE@hddtemp_la_LDFLAGS = -module
+ @BUILD_MODULE_LOAD_TRUE@load_la_SOURCES = load.c load.h
+ @BUILD_MODULE_LOAD_TRUE@load_la_LDFLAGS = -module
+ @BUILD_MODULE_MEMORY_TRUE@memory_la_SOURCES = memory.c memory.h
+ @BUILD_MODULE_MEMORY_TRUE@memory_la_LDFLAGS = -module
++@BUILD_MODULE_NFS_TRUE@nfs_la_SOURCES = nfs.c nfs.h
++@BUILD_MODULE_NFS_TRUE@nfs_la_LDFLAGS = -module
+ @BUILD_MODULE_PING_TRUE@ping_la_SOURCES = ping.c ping.h
+ @BUILD_MODULE_PING_TRUE@ping_la_LDFLAGS = -module
+ @BUILD_MODULE_PING_TRUE@ping_la_LIBADD = libping/libping.la
+ @BUILD_MODULE_PING_TRUE@ping_la_DEPENDENCIES = libping/libping.la
+ @BUILD_MODULE_PROCESSES_TRUE@processes_la_SOURCES = processes.c processes.h
+ @BUILD_MODULE_PROCESSES_TRUE@processes_la_LDFLAGS = -module
+ @BUILD_MODULE_SENSORS_TRUE@sensors_la_SOURCES = sensors.c sensors.h
+ @BUILD_MODULE_SENSORS_TRUE@sensors_la_LDFLAGS = -module -lsensors
++@BUILD_MODULE_SERIAL_TRUE@serial_la_SOURCES = serial.c serial.h
++@BUILD_MODULE_SERIAL_TRUE@serial_la_LDFLAGS = -module
+ @BUILD_MODULE_SWAP_TRUE@swap_la_SOURCES = swap.c swap.h
+ @BUILD_MODULE_SWAP_TRUE@swap_la_LDFLAGS = -module
++@BUILD_MODULE_TAPE_TRUE@tape_la_SOURCES = tape.c tape.h
++@BUILD_MODULE_TAPE_TRUE@tape_la_LDFLAGS = -module
+ @BUILD_MODULE_TRAFFIC_TRUE@traffic_la_SOURCES = traffic.c traffic.h
+ @BUILD_MODULE_TRAFFIC_TRUE@traffic_la_LDFLAGS = -module
+ man_MANS = collectd.1
+-collectd_1_SOURCES = collectd.pod
++#collectd_1_SOURCES = collectd.pod
+ EXTRA_DIST = $(man_MANS)
+ all: config.h
+ 	$(MAKE) $(AM_MAKEFLAGS) all-recursive
+ 
+ .SUFFIXES:
+ .SUFFIXES: .1 .c .lo .o .obj .pod
+@@ -397,20 +430,26 @@
+ hddtemp.la: $(hddtemp_la_OBJECTS) $(hddtemp_la_DEPENDENCIES) 
+ 	$(LINK) $(am_hddtemp_la_rpath) $(hddtemp_la_LDFLAGS) $(hddtemp_la_OBJECTS) $(hddtemp_la_LIBADD) $(LIBS)
+ load.la: $(load_la_OBJECTS) $(load_la_DEPENDENCIES) 
+ 	$(LINK) $(am_load_la_rpath) $(load_la_LDFLAGS) $(load_la_OBJECTS) $(load_la_LIBADD) $(LIBS)
+ memory.la: $(memory_la_OBJECTS) $(memory_la_DEPENDENCIES) 
+ 	$(LINK) $(am_memory_la_rpath) $(memory_la_LDFLAGS) $(memory_la_OBJECTS) $(memory_la_LIBADD) $(LIBS)
++nfs.la: $(nfs_la_OBJECTS) $(nfs_la_DEPENDENCIES) 
++	$(LINK) $(am_nfs_la_rpath) $(nfs_la_LDFLAGS) $(nfs_la_OBJECTS) $(nfs_la_LIBADD) $(LIBS)
+ ping.la: $(ping_la_OBJECTS) $(ping_la_DEPENDENCIES) 
+ 	$(LINK) $(am_ping_la_rpath) $(ping_la_LDFLAGS) $(ping_la_OBJECTS) $(ping_la_LIBADD) $(LIBS)
+ processes.la: $(processes_la_OBJECTS) $(processes_la_DEPENDENCIES) 
+ 	$(LINK) $(am_processes_la_rpath) $(processes_la_LDFLAGS) $(processes_la_OBJECTS) $(processes_la_LIBADD) $(LIBS)
+ sensors.la: $(sensors_la_OBJECTS) $(sensors_la_DEPENDENCIES) 
+ 	$(LINK) $(am_sensors_la_rpath) $(sensors_la_LDFLAGS) $(sensors_la_OBJECTS) $(sensors_la_LIBADD) $(LIBS)
++serial.la: $(serial_la_OBJECTS) $(serial_la_DEPENDENCIES) 
++	$(LINK) $(am_serial_la_rpath) $(serial_la_LDFLAGS) $(serial_la_OBJECTS) $(serial_la_LIBADD) $(LIBS)
+ swap.la: $(swap_la_OBJECTS) $(swap_la_DEPENDENCIES) 
+ 	$(LINK) $(am_swap_la_rpath) $(swap_la_LDFLAGS) $(swap_la_OBJECTS) $(swap_la_LIBADD) $(LIBS)
++tape.la: $(tape_la_OBJECTS) $(tape_la_DEPENDENCIES) 
++	$(LINK) $(am_tape_la_rpath) $(tape_la_LDFLAGS) $(tape_la_OBJECTS) $(tape_la_LIBADD) $(LIBS)
+ traffic.la: $(traffic_la_OBJECTS) $(traffic_la_DEPENDENCIES) 
+ 	$(LINK) $(am_traffic_la_rpath) $(traffic_la_LDFLAGS) $(traffic_la_OBJECTS) $(traffic_la_LIBADD) $(LIBS)
+ install-sbinPROGRAMS: $(sbin_PROGRAMS)
+ 	@$(NORMAL_INSTALL)
+ 	test -z "$(sbindir)" || $(mkdir_p) "$(DESTDIR)$(sbindir)"
+ 	@list='$(sbin_PROGRAMS)'; for p in $$list; do \
+@@ -454,16 +493,19 @@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/collectd-plugin.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cpu.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/disk.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hddtemp.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/load.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/memory.Plo@am__quote@
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nfs.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ping.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/processes.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sensors.Plo@am__quote@
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/serial.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/swap.Plo@am__quote@
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tape.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/traffic.Plo@am__quote@
+ 
+ .c.o:
+ @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
+ @am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/$*.Tpo" "$(DEPDIR)/$*.Po"; else rm -f "$(DEPDIR)/$*.Tpo"; exit 1; fi
+ @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/src/memory.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/src/memory.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/src/memory.c	2005-10-06 15:31:32.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/src/memory.c	2005-11-05 03:14:34.000000000 +0800
+@@ -5,18 +5,19 @@
+ 
+ #include "plugin.h"
+ #include "common.h"
+ 
+ static char *memory_file = "memory.rrd";
+ 
++/* 9223372036854775807 == LLONG_MAX */
+ static char *ds_def[] =
+ {
+-	"DS:used:GAUGE:25:0:4294967296",
+-	"DS:free:GAUGE:25:0:4294967296",
+-	"DS:buffers:GAUGE:25:0:4294967296",
+-	"DS:cached:GAUGE:25:0:4294967296",
++	"DS:used:GAUGE:25:0:9223372036854775807",
++	"DS:free:GAUGE:25:0:9223372036854775807",
++	"DS:buffers:GAUGE:25:0:9223372036854775807",
++	"DS:cached:GAUGE:25:0:9223372036854775807",
+ 	NULL
+ };
+ static int ds_num = 4;
+ 
+ #ifdef HAVE_LIBKSTAT
+ static int pagesize;
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/src: nfs.c
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/src: nfs.h
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/src: serial.c
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/src: serial.h
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/src: tape.c
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/src: tape.h
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/TODO /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/TODO
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.2.0/TODO	2005-09-23 05:35:08.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.3.0/TODO	2005-11-08 17:02:42.000000000 +0800
+@@ -1,3 +1,4 @@
+ For version 3.*:
+-* Ignore child process..
+-
++* Port nfs module to solaris
++* Port tape module to Linux
++* Maybe look into porting the serial module

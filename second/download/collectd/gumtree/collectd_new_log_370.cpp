@@ -1,0 +1,1 @@
+printf ("UNKNOWN: %s\n", lcc_strerror (connection));

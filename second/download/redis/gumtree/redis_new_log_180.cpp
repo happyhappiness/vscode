@@ -1,1 +1,0 @@
-luaL_error(L,"Bad data format in input.");

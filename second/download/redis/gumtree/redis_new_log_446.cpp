@@ -1,1 +1,0 @@
-serverLog(LL_WARNING,"Forced failover user request accepted.");

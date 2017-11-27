@@ -1,1 +1,0 @@
-checkAppendMsg(pCheck, zContext, "invalid page number %d", iPage);

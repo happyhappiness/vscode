@@ -124,7 +124,7 @@ main function
 """
 if __name__ == "__main__":
     # 'httpd', 'git',
-    reposes = ['httpd', 'git', 'mutt', 'curl', 'rsync']
+    reposes = ['httpd', 'git', 'mutt', 'curl', 'rsync', 'collectd']
     repos_names = ['httpd-2.3.8', 'git-2.6.7', 'mutt-1.7.2', 'curl-7.41.0', 'rsync-1.4.4']
     # seek_clone_for_given_repos(reposes, repos_names)
     # seek_clone_for_corresponding_repos(reposes[0:1], True, False, False)
@@ -132,8 +132,10 @@ if __name__ == "__main__":
     # seek_clone_for_corresponding_repos(reposes[0:1], True, False, False)    
     # seek_clone_for_corresponding_repos(reposes[0:1], False, True, False)
     # seek_clone_for_corresponding_repos(reposes, False, False, True)
-    seek_clone_for_lastest_repos(reposes, False, False, False)
-
+    # seek_clone_for_lastest_repos(reposes, False, False, False)
+    repos_name = 'collectd'
+    # perform_series([repos_name])
+    do_statistics([repos_name])
     # regenerate_hunk(reposes)
     # do_statistics(reposes)
 

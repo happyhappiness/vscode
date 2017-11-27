@@ -1,1 +1,0 @@
-checkAppendMsg(pCheck, "Failed to read ptrmap key=%d", iChild);

@@ -1,1 +1,0 @@
-luaL_error(L, "integral size overflow");

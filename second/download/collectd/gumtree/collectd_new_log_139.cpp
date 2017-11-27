@@ -1,0 +1,1 @@
+fprintf (fh, "Plugin: %s\n", n->plugin);

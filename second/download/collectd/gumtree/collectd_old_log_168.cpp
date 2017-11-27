@@ -1,0 +1,1 @@
+fprintf (fh, "GETVAL %s/%s\n", hostname_g, value_string_g);

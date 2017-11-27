@@ -1,1 +1,0 @@
-sqlite3VdbeError(p, "too many levels of trigger recursion");

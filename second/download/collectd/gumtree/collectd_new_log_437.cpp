@@ -1,0 +1,1 @@
+cmd_error(CMD_PARSE_ERROR, err, "Invalid identifier `%s'.", opt_value);

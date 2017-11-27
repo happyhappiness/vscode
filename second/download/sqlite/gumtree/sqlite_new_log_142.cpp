@@ -1,1 +1,0 @@
-releaseLockInfo(pFile->pLock);

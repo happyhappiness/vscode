@@ -1,0 +1,1 @@
+fprintf(stderr, "ERROR: NULL pointer chain_index[%d]\n", pos);

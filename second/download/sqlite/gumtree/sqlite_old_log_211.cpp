@@ -1,1 +1,0 @@
-sqlite3_log(SQLITE_FULL, "MJ collide: %s", zMaster);

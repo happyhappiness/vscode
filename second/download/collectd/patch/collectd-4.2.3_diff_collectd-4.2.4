@@ -1,0 +1,610 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/bindings/Makefile.am /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/bindings/Makefile.am
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/bindings/Makefile.am	2007-12-29 01:26:59.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/bindings/Makefile.am	2008-01-21 18:00:58.000000000 +0800
+@@ -1,26 +1,28 @@
+ EXTRA_DIST = perl/Collectd.pm perl/Makefile.PL perl/Collectd/Makefile.PL perl/Collectd/Unixsock.pm
+ 
+ all-local: @PERL_BINDINGS@
+ 
+ install-exec-local:
+-	[ ! -f perl/Makefile ] || $(MAKE) -C perl install
++	[ ! -f perl/Makefile ] || ( cd perl && $(MAKE) install )
+ 
+ clean-local:
+-	[ ! -f perl/Makefile ] || $(MAKE) -C perl realclean
++	[ ! -f perl/Makefile ] || ( cd perl && $(MAKE) realclean )
+ 
+ perl: perl/Makefile
+-	$(MAKE) -C perl
++	cd perl && $(MAKE)
+ 
+ perl/Makefile: .perl-directory-stamp perl/Makefile.PL perl/Collectd/Makefile.PL
+ 	cd perl && @PERL@ Makefile.PL PREFIX=$(prefix) @PERL_BINDINGS_OPTIONS@
+ 
+ .perl-directory-stamp:
+ 	if test ! -d perl; then \
+ 	  mkdir -p perl/Collectd; \
+-	  cp $(srcdir)/perl/{Collectd.pm,Makefile.PL} perl/; \
+-	  cp $(srcdir)/perl/Collectd/{Unixsock.pm,Makefile.PL} perl/Collectd/; \
++	  cp $(srcdir)/perl/Collectd.pm perl/; \
++	  cp $(srcdir)/perl/Makefile.PL perl/; \
++	  cp $(srcdir)/perl/Collectd/Unixsock.pm perl/Collectd/; \
++	  cp $(srcdir)/perl/Collectd/Makefile.PL perl/Collectd/; \
+ 	fi
+ 	touch $@
+ 
+ .PHONY: perl
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/bindings/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/bindings/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/bindings/Makefile.in	2007-12-29 01:34:39.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/bindings/Makefile.in	2008-01-21 18:01:55.000000000 +0800
+@@ -490,28 +490,30 @@
+ 	uninstall-info-am
+ 
+ 
+ all-local: @PERL_BINDINGS@
+ 
+ install-exec-local:
+-	[ ! -f perl/Makefile ] || $(MAKE) -C perl install
++	[ ! -f perl/Makefile ] || ( cd perl && $(MAKE) install )
+ 
+ clean-local:
+-	[ ! -f perl/Makefile ] || $(MAKE) -C perl realclean
++	[ ! -f perl/Makefile ] || ( cd perl && $(MAKE) realclean )
+ 
+ perl: perl/Makefile
+-	$(MAKE) -C perl
++	cd perl && $(MAKE)
+ 
+ perl/Makefile: .perl-directory-stamp perl/Makefile.PL perl/Collectd/Makefile.PL
+ 	cd perl && @PERL@ Makefile.PL PREFIX=$(prefix) @PERL_BINDINGS_OPTIONS@
+ 
+ .perl-directory-stamp:
+ 	if test ! -d perl; then \
+ 	  mkdir -p perl/Collectd; \
+-	  cp $(srcdir)/perl/{Collectd.pm,Makefile.PL} perl/; \
+-	  cp $(srcdir)/perl/Collectd/{Unixsock.pm,Makefile.PL} perl/Collectd/; \
++	  cp $(srcdir)/perl/Collectd.pm perl/; \
++	  cp $(srcdir)/perl/Makefile.PL perl/; \
++	  cp $(srcdir)/perl/Collectd/Unixsock.pm perl/Collectd/; \
++	  cp $(srcdir)/perl/Collectd/Makefile.PL perl/Collectd/; \
+ 	fi
+ 	touch $@
+ 
+ .PHONY: perl
+ # Tell versions [3.59,3.63) of GNU make to not export all variables.
+ # Otherwise a system limit (for SysV at least) may be exceeded.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/ChangeLog /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/ChangeLog
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/ChangeLog	2007-12-29 01:33:19.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/ChangeLog	2008-01-21 18:00:58.000000000 +0800
+@@ -1,6 +1,12 @@
++2008-01-21, Version 4.2.4
++	* unixsock plugin: A bug in the unixsock plugin caused it not to set
++	  the permission on the socket as documented in the manpage. Thanks to
++	  Evgeny Chukreev for fixing this issue.
++	* collectd: The documentation has been improved.
++
+ 2007-12-28, Version 4.2.3
+ 	* sensors plugin: Updated the plugin to build and work with version 3
+ 	  of the libsensors library.
+ 
+ 2007-12-15, Version 4.2.2
+ 	* nginx plugin: Incorrect comparison of strings lead to a segfault
+@@ -39,12 +45,18 @@
+ 	  option allows to add arbitrary prefixes to the type-instance.
+ 	* tcpconns plugin: The new `tcpconns' plugin collects the number of
+ 	  certain TCP connections and what state they're in. This can be used
+ 	  to see how many connections your FTP server has to handle or how
+ 	  many outgoing connections your mailserver has open.
+ 
++2008-01-11, Version 4.1.6
++	* unixsock plugin: A bug in the unixsock plugin caused it not to set
++	  the permission on the socket as documented in the manpage. Thanks to
++	  Evgeny Chukreev for fixing this issue.
++	* collectd: The documentation has been improved.
++
+ 2007-12-27, Version 4.1.5
+ 	* rrdtool plugin: Fix a memory leak that only occured in very-low-
+ 	  memory situations.
+ 	* sensors plugin: Updated the plugin to build and work with version 3
+ 	  of the libsensors library.
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/configure	2007-12-29 01:34:47.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/configure	2008-01-21 18:02:00.000000000 +0800
+@@ -1,9 +1,9 @@
+ #! /bin/sh
+ # Guess values for system-dependent variables and create Makefiles.
+-# Generated by GNU Autoconf 2.61 for collectd 4.2.3.
++# Generated by GNU Autoconf 2.61 for collectd 4.2.4.
+ #
+ # Copyright (C) 1992, 1993, 1994, 1995, 1996, 1998, 1999, 2000, 2001,
+ # 2002, 2003, 2004, 2005, 2006 Free Software Foundation, Inc.
+ # This configure script is free software; the Free Software Foundation
+ # gives unlimited permission to copy, distribute and modify it.
+ ## --------------------- ##
+@@ -723,14 +723,14 @@
+ MAKEFLAGS=
+ SHELL=${CONFIG_SHELL-/bin/sh}
+ 
+ # Identity of this package.
+ PACKAGE_NAME='collectd'
+ PACKAGE_TARNAME='collectd'
+-PACKAGE_VERSION='4.2.3'
+-PACKAGE_STRING='collectd 4.2.3'
++PACKAGE_VERSION='4.2.4'
++PACKAGE_STRING='collectd 4.2.4'
+ PACKAGE_BUGREPORT=''
+ 
+ ac_unique_file="src/collectd.c"
+ ac_default_prefix="/opt/collectd"
+ # Factoring default headers for most tests.
+ ac_includes_default="\
+@@ -1565,13 +1565,13 @@
+ # Report the --help message.
+ #
+ if test "$ac_init_help" = "long"; then
+   # Omit some internal or obsolete options to make the list less imposing.
+   # This message is too long to be a string in the A/UX 3.1 sh.
+   cat <<_ACEOF
+-\`configure' configures collectd 4.2.3 to adapt to many kinds of systems.
++\`configure' configures collectd 4.2.4 to adapt to many kinds of systems.
+ 
+ Usage: $0 [OPTION]... [VAR=VALUE]...
+ 
+ To assign environment variables (e.g., CC, CFLAGS...), specify them as
+ VAR=VALUE.  See below for descriptions of some of the useful variables.
+ 
+@@ -1635,13 +1635,13 @@
+   --host=HOST       cross-compile to build programs to run on HOST [BUILD]
+ _ACEOF
+ fi
+ 
+ if test -n "$ac_init_help"; then
+   case $ac_init_help in
+-     short | recursive ) echo "Configuration of collectd 4.2.3:";;
++     short | recursive ) echo "Configuration of collectd 4.2.4:";;
+    esac
+   cat <<\_ACEOF
+ 
+ Optional Features:
+   --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
+   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
+@@ -1825,13 +1825,13 @@
+   done
+ fi
+ 
+ test -n "$ac_init_help" && exit $ac_status
+ if $ac_init_version; then
+   cat <<\_ACEOF
+-collectd configure 4.2.3
++collectd configure 4.2.4
+ generated by GNU Autoconf 2.61
+ 
+ Copyright (C) 1992, 1993, 1994, 1995, 1996, 1998, 1999, 2000, 2001,
+ 2002, 2003, 2004, 2005, 2006 Free Software Foundation, Inc.
+ This configure script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it.
+@@ -1839,13 +1839,13 @@
+   exit
+ fi
+ cat >config.log <<_ACEOF
+ This file contains any messages produced by compilers while
+ running configure, to aid debugging if configure makes a mistake.
+ 
+-It was created by collectd $as_me 4.2.3, which was
++It was created by collectd $as_me 4.2.4, which was
+ generated by GNU Autoconf 2.61.  Invocation command line was
+ 
+   $ $0 $@
+ 
+ _ACEOF
+ exec 5>>config.log
+@@ -2512,13 +2512,13 @@
+   fi
+ fi
+ 
+ 
+ # Define the identity of the package.
+  PACKAGE='collectd'
+- VERSION='4.2.3'
++ VERSION='4.2.4'
+ 
+ 
+ cat >>confdefs.h <<_ACEOF
+ #define PACKAGE "$PACKAGE"
+ _ACEOF
+ 
+@@ -38085,13 +38085,13 @@
+ exec 6>&1
+ 
+ # Save the log message, to keep $[0] and so on meaningful, and to
+ # report actual input values of CONFIG_FILES etc. instead of their
+ # values after options handling.
+ ac_log="
+-This file was extended by collectd $as_me 4.2.3, which was
++This file was extended by collectd $as_me 4.2.4, which was
+ generated by GNU Autoconf 2.61.  Invocation command line was
+ 
+   CONFIG_FILES    = $CONFIG_FILES
+   CONFIG_HEADERS  = $CONFIG_HEADERS
+   CONFIG_LINKS    = $CONFIG_LINKS
+   CONFIG_COMMANDS = $CONFIG_COMMANDS
+@@ -38138,13 +38138,13 @@
+ 
+ Report bugs to <bug-autoconf@gnu.org>."
+ 
+ _ACEOF
+ cat >>$CONFIG_STATUS <<_ACEOF
+ ac_cs_version="\\
+-collectd config.status 4.2.3
++collectd config.status 4.2.4
+ configured by $0, generated by GNU Autoconf 2.61,
+   with options \\"`echo "$ac_configure_args" | sed 's/^ //; s/[\\""\`\$]/\\\\&/g'`\\"
+ 
+ Copyright (C) 2006 Free Software Foundation, Inc.
+ This config.status script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it."
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/contrib: notification-to-festival.pl
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/src/collectd.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd.1	2007-12-29 01:38:58.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/src/collectd.1	2008-01-21 18:05:12.000000000 +0800
+@@ -126,13 +126,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD 1"
+-.TH COLLECTD 1 "2007-10-24" "4.2.3" "collectd"
++.TH COLLECTD 1 "2007-10-24" "4.2.4" "collectd"
+ .SH "NAME"
+ collectd \- System statistics collection daemon
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ collectd \fI[options]\fR
+ .SH "DESCRIPTION"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd.conf.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/src/collectd.conf.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd.conf.5	2007-12-29 01:38:59.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/src/collectd.conf.5	2008-01-21 18:05:13.000000000 +0800
+@@ -126,13 +126,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD.CONF 5"
+-.TH COLLECTD.CONF 5 "2007-12-28" "4.2.3" "collectd"
++.TH COLLECTD.CONF 5 "2008-01-21" "4.2.4" "collectd"
+ .SH "NAME"
+ collectd.conf \- Configuration for the system statistics collection daemon \fBcollectd\fR
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ .Vb 3
+ \&  BaseDir "/path/to/data/"
+@@ -164,15 +164,17 @@
+ section-start or \-end. Empty lines and everything after the hash-symbol `#' is
+ ignored. Values are either string, enclosed in double\-quotes,
+ (floating\-point\-)numbers or a boolean expression, i.\ e. either \fBtrue\fR or
+ \&\fBfalse\fR. String containing of only alphanumeric characters and underscores do
+ not need to be quoted.
+ .PP
+-Plugins are loaded in the order listed in this config file. It is a good idea
+-to load any logging plugins first in order to catch messages from plugins
+-during configuration.
++The configuration is read and processed in order, i.\ e. from top to
++bottom. So the plugins are loaded in the order listed in this config file. It
++is a good idea to load any logging plugins first in order to catch messages
++from plugins during configuration. Also, the \f(CW\*(C`LoadPlugin\*(C'\fR option \fBmust\fR occur
++\&\fBbefore\fR the \f(CW\*(C`<Plugin ...>\*(C'\fR block.
+ .SH "GLOBAL OPTIONS"
+ .IX Header "GLOBAL OPTIONS"
+ .IP "\fBBaseDir\fR \fIDirectory\fR" 4
+ .IX Item "BaseDir Directory"
+ Sets the base directory. This is the directory beneath all RRD-files are
+ created. Possibly more subdirectories are created. This is also the working
+@@ -425,12 +427,15 @@
+ .el .Sh "Plugin \f(CWlogfile\fP"
+ .IX Subsection "Plugin logfile"
+ .IP "\fBLogLevel\fR \fBdebug|info|notice|warning|err\fR" 4
+ .IX Item "LogLevel debug|info|notice|warning|err"
+ Sets the log\-level. If, for example, set to \fBnotice\fR, then all events with
+ severity \fBnotice\fR, \fBwarning\fR, or \fBerr\fR will be written to the logfile.
++.Sp
++Please note that \fBdebug\fR is only available if collectd has been compiled with
++debugging support.
+ .IP "\fBFile\fR \fIFile\fR" 4
+ .IX Item "File File"
+ Sets the file to write log messages to. The special strings \fBstdout\fR and
+ \&\fBstderr\fR can be used to write to the standard output and standard error
+ channels, respectively. This, of course, only makes much sense when collectd is
+ running in foreground\- or non\-daemon\-mode.
+@@ -795,12 +800,15 @@
+ .IX Subsection "Plugin syslog"
+ .IP "\fBLogLevel\fR \fBdebug|info|notice|warning|err\fR" 4
+ .IX Item "LogLevel debug|info|notice|warning|err"
+ Sets the log\-level. If, for example, set to \fBnotice\fR, then all events with
+ severity \fBnotice\fR, \fBwarning\fR, or \fBerr\fR will be submitted to the
+ syslog\-daemon.
++.Sp
++Please note that \fBdebug\fR is only available if collectd has been compiled with
++debugging support.
+ .ie n .Sh "Plugin ""tcpconns"""
+ .el .Sh "Plugin \f(CWtcpconns\fP"
+ .IX Subsection "Plugin tcpconns"
+ The \f(CW\*(C`tcpconns plugin\*(C'\fR counts the number of currently established \s-1TCP\s0
+ connections based on the local port and/or the remote port. Since there may be
+ a lot of connections the default if to count all connections with a local port,
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd.conf.pod /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/src/collectd.conf.pod
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd.conf.pod	2007-12-29 01:26:59.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/src/collectd.conf.pod	2008-01-21 18:00:58.000000000 +0800
+@@ -29,15 +29,17 @@
+ section-start or -end. Empty lines and everything after the hash-symbol `#' is
+ ignored. Values are either string, enclosed in double-quotes,
+ (floating-point-)numbers or a boolean expression, i.E<nbsp>e. either B<true> or
+ B<false>. String containing of only alphanumeric characters and underscores do
+ not need to be quoted.
+ 
+-Plugins are loaded in the order listed in this config file. It is a good idea
+-to load any logging plugins first in order to catch messages from plugins
+-during configuration.
++The configuration is read and processed in order, i.E<nbsp>e. from top to
++bottom. So the plugins are loaded in the order listed in this config file. It
++is a good idea to load any logging plugins first in order to catch messages
++from plugins during configuration. Also, the C<LoadPlugin> option B<must> occur
++B<before> the C<E<lt>Plugin ...E<gt>> block.
+ 
+ =head1 GLOBAL OPTIONS
+ 
+ =over 4
+ 
+ =item B<BaseDir> I<Directory>
+@@ -365,12 +367,15 @@
+ 
+ =item B<LogLevel> B<debug|info|notice|warning|err>
+ 
+ Sets the log-level. If, for example, set to B<notice>, then all events with
+ severity B<notice>, B<warning>, or B<err> will be written to the logfile.
+ 
++Please note that B<debug> is only available if collectd has been compiled with
++debugging support.
++
+ =item B<File> I<File>
+ 
+ Sets the file to write log messages to. The special strings B<stdout> and
+ B<stderr> can be used to write to the standard output and standard error
+ channels, respectively. This, of course, only makes much sense when collectd is
+ running in foreground- or non-daemon-mode.
+@@ -809,12 +814,15 @@
+ =item B<LogLevel> B<debug|info|notice|warning|err>
+ 
+ Sets the log-level. If, for example, set to B<notice>, then all events with
+ severity B<notice>, B<warning>, or B<err> will be submitted to the
+ syslog-daemon.
+ 
++Please note that B<debug> is only available if collectd has been compiled with
++debugging support.
++
+ =back
+ 
+ =head2 Plugin C<tcpconns>
+ 
+ The C<tcpconns plugin> counts the number of currently established TCP
+ connections based on the local port and/or the remote port. Since there may be
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd-email.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/src/collectd-email.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd-email.5	2007-12-29 01:38:59.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/src/collectd-email.5	2008-01-21 18:05:13.000000000 +0800
+@@ -126,13 +126,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-EMAIL 5"
+-.TH COLLECTD-EMAIL 5 "2007-10-24" "4.2.3" "collectd"
++.TH COLLECTD-EMAIL 5 "2007-10-24" "4.2.4" "collectd"
+ .SH "NAME"
+ collectd\-email \- Documentation of collectd's \f(CW\*(C`email plugin\*(C'\fR
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ .Vb 8
+ \&  # See collectd.conf(5)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd-exec.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/src/collectd-exec.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd-exec.5	2007-12-29 01:38:59.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/src/collectd-exec.5	2008-01-21 18:05:13.000000000 +0800
+@@ -126,13 +126,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-EXEC 5"
+-.TH COLLECTD-EXEC 5 "2007-12-27" "4.2.3" "collectd"
++.TH COLLECTD-EXEC 5 "2008-01-21" "4.2.4" "collectd"
+ .SH "NAME"
+ collectd\-exec \- Documentation of collectd's \f(CW\*(C`exec plugin\*(C'\fR
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ .Vb 7
+ \&  # See collectd.conf(5)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd-nagios.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/src/collectd-nagios.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd-nagios.1	2007-12-29 01:38:58.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/src/collectd-nagios.1	2008-01-21 18:05:13.000000000 +0800
+@@ -126,13 +126,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-NAGIOS 1"
+-.TH COLLECTD-NAGIOS 1 "2007-10-27" "4.2.3" "collectd"
++.TH COLLECTD-NAGIOS 1 "2007-10-27" "4.2.4" "collectd"
+ .SH "NAME"
+ collectd\-nagios \- Nagios plugin for querying collectd
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ collectd-nagios \fB\-s\fR \fIsocket\fR \fB\-n\fR \fIvalue_spec\fR \fB\-H\fR \fIhostname\fR \fI[options]\fR
+ .SH "DESCRIPTION"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd-perl.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/src/collectd-perl.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd-perl.5	2007-12-29 01:38:59.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/src/collectd-perl.5	2008-01-21 18:05:13.000000000 +0800
+@@ -126,13 +126,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-PERL 5"
+-.TH COLLECTD-PERL 5 "2007-12-28" "4.2.3" "collectd"
++.TH COLLECTD-PERL 5 "2008-01-21" "4.2.4" "collectd"
+ .SH "NAME"
+ collectd\-perl \- Documentation of collectd's \f(CW\*(C`perl plugin\*(C'\fR
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ .Vb 8
+ \&  LoadPlugin perl
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd-snmp.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/src/collectd-snmp.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd-snmp.5	2007-12-29 01:38:59.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/src/collectd-snmp.5	2008-01-21 18:05:14.000000000 +0800
+@@ -126,13 +126,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-SNMP 5"
+-.TH COLLECTD-SNMP 5 "2007-12-27" "4.2.3" "collectd"
++.TH COLLECTD-SNMP 5 "2008-01-21" "4.2.4" "collectd"
+ .SH "NAME"
+ collectd\-snmp \- Documentation of collectd's \f(CW\*(C`snmp plugin\*(C'\fR
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ .Vb 23
+ \&  LoadPlugin snmp
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd-unixsock.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/src/collectd-unixsock.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd-unixsock.5	2007-12-29 01:39:00.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/src/collectd-unixsock.5	2008-01-21 18:05:14.000000000 +0800
+@@ -126,13 +126,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-UNIXSOCK 5"
+-.TH COLLECTD-UNIXSOCK 5 "2007-12-27" "4.2.3" "collectd"
++.TH COLLECTD-UNIXSOCK 5 "2008-01-21" "4.2.4" "collectd"
+ .SH "NAME"
+ collectd\-unixsock \- Documentation of collectd's \f(CW\*(C`unixsock plugin\*(C'\fR
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ .Vb 8
+ \&  # See collectd.conf(5)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/configfile.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/src/configfile.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/configfile.c	2007-12-29 01:26:59.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/src/configfile.c	2008-01-21 18:00:58.000000000 +0800
+@@ -1,9 +1,9 @@
+ /**
+  * collectd - src/configfile.c
+- * Copyright (C) 2005,2006  Florian octo Forster
++ * Copyright (C) 2005-2008  Florian octo Forster
+  *
+  * This program is free software; you can redistribute it and/or modify it
+  * under the terms of the GNU General Public License as published by the
+  * Free Software Foundation; either version 2 of the License, or (at your
+  * option) any later version.
+  *
+@@ -123,13 +123,15 @@
+ 			ESCAPE_NULL(type),
+ 			ESCAPE_NULL(orig_key),
+ 			ESCAPE_NULL(orig_value));
+ 
+ 	if ((cf_cb = cf_search (type)) == NULL)
+ 	{
+-		WARNING ("Plugin `%s' did not register a callback.", type);
++		WARNING ("Found a configuration for the `%s' plugin, but "
++				"the plugin isn't loaded or didn't register "
++				"a configuration callback.", type);
+ 		return (-1);
+ 	}
+ 
+ 	if ((key = strdup (orig_key)) == NULL)
+ 		return (1);
+ 	if ((value = strdup (orig_value)) == NULL)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/logfile.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/src/logfile.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/logfile.c	2007-12-29 01:26:59.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/src/logfile.c	2008-01-21 18:01:03.000000000 +0800
+@@ -1,9 +1,10 @@
+ /**
+  * collectd - src/logfile.c
+  * Copyright (C) 2007  Sebastian Harl
++ * Copyright (C) 2007  Florian Forster
+  *
+  * This program is free software; you can redistribute it and/or modify it
+  * under the terms of the GNU General Public License as published by the
+  * Free Software Foundation; only version 2 of the License is applicable.
+  *
+  * This program is distributed in the hope that it will be useful, but
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/network.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/src/network.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/network.c	2007-12-29 01:26:59.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/src/network.c	2008-01-21 18:01:02.000000000 +0800
+@@ -986,13 +986,13 @@
+ 		/* seek end */;
+ 
+ 	se_ptr->next = se;
+ 	return (0);
+ } /* int network_get_listen_socket */
+ 
+-int network_receive (void)
++static int network_receive (void)
+ {
+ 	char buffer[BUFF_SIZE];
+ 	int  buffer_len;
+ 
+ 	int i;
+ 	int status;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/unixsock.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/src/unixsock.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/unixsock.c	2007-11-10 23:15:39.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/src/unixsock.c	2008-01-10 16:45:31.000000000 +0800
+@@ -26,12 +26,13 @@
+ #include "utils_cmd_putval.h"
+ 
+ /* Folks without pthread will need to disable this plugin. */
+ #include <pthread.h>
+ 
+ #include <sys/socket.h>
++#include <sys/stat.h>
+ #include <sys/un.h>
+ 
+ #include <grp.h>
+ 
+ #ifndef UNIX_PATH_MAX
+ # define UNIX_PATH_MAX sizeof (((struct sockaddr_un *)0)->sun_path)
+@@ -362,12 +363,14 @@
+ 		ERROR ("unixsock plugin: bind failed: %s", errbuf);
+ 		close (sock_fd);
+ 		sock_fd = -1;
+ 		return (-1);
+ 	}
+ 
++	chmod (sa.sun_path, sock_perms);
++
+ 	status = listen (sock_fd, 8);
+ 	if (status != 0)
+ 	{
+ 		char errbuf[1024];
+ 		ERROR ("unixsock plugin: listen failed: %s",
+ 				sstrerror (errno, errbuf, sizeof (errbuf)));
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/version-gen.sh /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/version-gen.sh
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/version-gen.sh	2007-12-29 01:27:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.4/version-gen.sh	2008-01-21 18:00:58.000000000 +0800
+@@ -1,9 +1,9 @@
+ #!/bin/sh
+ 
+-DEFAULT_VERSION="4.2.3.git"
++DEFAULT_VERSION="4.2.4.git"
+ 
+ VERSION="$( git describe 2> /dev/null | sed -e 's/^collectd-//' )"
+ 
+ if test -z "$VERSION"; then
+ 	VERSION="$DEFAULT_VERSION"
+ fi

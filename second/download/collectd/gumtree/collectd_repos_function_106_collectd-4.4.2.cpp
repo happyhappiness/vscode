@@ -1,0 +1,4 @@
+int llist_size (llist_t *l)
+{
+	return (l ? l->size : 0);
+}

@@ -1,0 +1,1 @@
+fprintf (fh, "[%s] %s%s\n", timestamp_str, level_str, msg);

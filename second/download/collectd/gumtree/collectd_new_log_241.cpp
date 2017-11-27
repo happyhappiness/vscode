@@ -1,0 +1,1 @@
+fprintf (fh, "%s: %e\n", meta->name, meta->nm_value.nm_double);

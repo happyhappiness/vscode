@@ -1,1 +1,0 @@
-fprintf(stderr, "Non ARRAY response from SCAN!\n");

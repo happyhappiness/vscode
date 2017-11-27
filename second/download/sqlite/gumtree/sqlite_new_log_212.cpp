@@ -1,1 +1,0 @@
-sqlite3BtreeEnterAll(p->db);

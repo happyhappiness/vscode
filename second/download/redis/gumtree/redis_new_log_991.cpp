@@ -1,2 +1,0 @@
-serverLogHexDump(LL_WARNING, "dump of function",
-                    info.dli_saddr ,len);

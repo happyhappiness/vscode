@@ -1,0 +1,1 @@
+PyErr_NewException("collectd.CollectdError", NULL, errordict);

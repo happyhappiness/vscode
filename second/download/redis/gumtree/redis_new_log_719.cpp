@@ -1,1 +1,0 @@
-addReplyError(c,"Please use EVAL instead of EVALSHA for debugging");

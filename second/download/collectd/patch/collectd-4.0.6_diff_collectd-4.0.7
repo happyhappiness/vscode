@@ -1,0 +1,3458 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/ChangeLog /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/ChangeLog
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/ChangeLog	2007-08-03 16:58:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/ChangeLog	2007-08-28 21:22:36.000000000 +0800
+@@ -1,6 +1,18 @@
++2007-08-26, Version 4.0.7
++	* documentation: Some typos have been fixed and some information has
++	  been improved.
++	* build system: Many fixes for detecting libraries in unusual places,
++	  such as on RedHat systems. The affected libraries are `libcurl',
++	  `libmysql', and `libupsclient'.
++	* network plugin: Allow the `Port' option to be specified as a number
++	  (i. e. without quotes).
++	* nut plugin: A fix allows linking the nut plugin against
++	  libupsclient, version >= 2.2.0.
++	* processes plugin: Fix a potential segmentation fault.
++
+ 2007-07-30, Version 4.0.6
+ 	* sensors plugin: Fix the ignorelist functionality: Only the `type
+ 	  instance' was used to match against the list, but the documentation
+ 	  told otherwise. This release fixes the code, so it complies with the
+ 	  documentation.
+ 	* syslog plugin: Call `openlog' right when the plugin is loaded, so
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/config.guess /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/config.guess
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/config.guess	2007-04-20 10:09:10.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/config.guess	2007-08-17 11:14:13.000000000 +0800
+@@ -1,13 +1,13 @@
+ #! /bin/sh
+ # Attempt to guess a canonical system name.
+ #   Copyright (C) 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
+ #   2000, 2001, 2002, 2003, 2004, 2005, 2006 Free Software Foundation,
+ #   Inc.
+ 
+-timestamp='2007-03-06'
++timestamp='2007-07-22'
+ 
+ # This file is free software; you can redistribute it and/or modify it
+ # under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 2 of the License, or
+ # (at your option) any later version.
+ #
+@@ -327,13 +327,13 @@
+     sun4H:SunOS:5.*:*)
+ 	echo sparc-hal-solaris2`echo ${UNAME_RELEASE}|sed -e 's/[^.]*//'`
+ 	exit ;;
+     sun4*:SunOS:5.*:* | tadpole*:SunOS:5.*:*)
+ 	echo sparc-sun-solaris2`echo ${UNAME_RELEASE}|sed -e 's/[^.]*//'`
+ 	exit ;;
+-    i86pc:SunOS:5.*:*)
++    i86pc:SunOS:5.*:* | i86xen:SunOS:5.*:*)
+ 	echo i386-pc-solaris2`echo ${UNAME_RELEASE}|sed -e 's/[^.]*//'`
+ 	exit ;;
+     sun4*:SunOS:6*:*)
+ 	# According to config.sub, this is the proper way to canonicalize
+ 	# SunOS6.  Hard to guess exactly what SunOS6 will be like, but
+ 	# it's likely to be more like Solaris than SunOS4.
+@@ -790,13 +790,13 @@
+ 	exit ;;
+     i*:PW*:*)
+ 	echo ${UNAME_MACHINE}-pc-pw32
+ 	exit ;;
+     *:Interix*:[3456]*)
+     	case ${UNAME_MACHINE} in
+-	    x86) 
++	    x86)
+ 		echo i586-pc-interix${UNAME_RELEASE}
+ 		exit ;;
+ 	    EM64T | authenticamd)
+ 		echo x86_64-unknown-interix${UNAME_RELEASE}
+ 		exit ;;
+ 	esac ;;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/config.sub /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/config.sub
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/config.sub	2007-04-20 10:09:10.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/config.sub	2007-08-17 11:14:13.000000000 +0800
+@@ -1,13 +1,13 @@
+ #! /bin/sh
+ # Configuration validation subroutine script.
+ #   Copyright (C) 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
+ #   2000, 2001, 2002, 2003, 2004, 2005, 2006 Free Software Foundation,
+ #   Inc.
+ 
+-timestamp='2007-01-18'
++timestamp='2007-06-28'
+ 
+ # This file is (in principle) common to ALL GNU software.
+ # The presence of a machine in this file suggests that SOME GNU software
+ # can handle that machine.  It does not imply ALL GNU software can.
+ #
+ # This file is free software; you can redistribute it and/or modify
+@@ -472,14 +472,14 @@
+ 		os=-unicos
+ 		;;
+ 	craynv)
+ 		basic_machine=craynv-cray
+ 		os=-unicosmp
+ 		;;
+-	cr16c)
+-		basic_machine=cr16c-unknown
++	cr16)
++		basic_machine=cr16-unknown
+ 		os=-elf
+ 		;;
+ 	crds | unos)
+ 		basic_machine=m68k-crds
+ 		;;
+ 	crisv32 | crisv32-* | etraxfs*)
+@@ -680,12 +680,16 @@
+ 		os=-sysv
+ 		;;
+ 	mingw32)
+ 		basic_machine=i386-pc
+ 		os=-mingw32
+ 		;;
++	mingw32ce)
++		basic_machine=arm-unknown
++		os=-mingw32ce
++		;;
+ 	miniframe)
+ 		basic_machine=m68000-convergent
+ 		;;
+ 	*mint | -mint[0-9]* | *MiNT | *MiNT[0-9]*)
+ 		basic_machine=m68k-atari
+ 		os=-mint
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/configure	2007-08-03 16:59:03.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/configure	2007-08-27 01:36:49.000000000 +0800
+@@ -1,9 +1,9 @@
+ #! /bin/sh
+ # Guess values for system-dependent variables and create Makefiles.
+-# Generated by GNU Autoconf 2.61 for collectd 4.0.6.
++# Generated by GNU Autoconf 2.61 for collectd 4.0.7.
+ #
+ # Copyright (C) 1992, 1993, 1994, 1995, 1996, 1998, 1999, 2000, 2001,
+ # 2002, 2003, 2004, 2005, 2006 Free Software Foundation, Inc.
+ # This configure script is free software; the Free Software Foundation
+ # gives unlimited permission to copy, distribute and modify it.
+ ## --------------------- ##
+@@ -723,14 +723,14 @@
+ MAKEFLAGS=
+ SHELL=${CONFIG_SHELL-/bin/sh}
+ 
+ # Identity of this package.
+ PACKAGE_NAME='collectd'
+ PACKAGE_TARNAME='collectd'
+-PACKAGE_VERSION='4.0.6'
+-PACKAGE_STRING='collectd 4.0.6'
++PACKAGE_VERSION='4.0.7'
++PACKAGE_STRING='collectd 4.0.7'
+ PACKAGE_BUGREPORT=''
+ 
+ ac_unique_file="src/collectd.c"
+ ac_default_prefix="/opt/collectd"
+ # Factoring default headers for most tests.
+ ac_includes_default="\
+@@ -890,12 +890,13 @@
+ BUILD_WITH_LIBPTHREAD_TRUE
+ BUILD_WITH_LIBPTHREAD_FALSE
+ BUILD_WITH_LIBKSTAT_TRUE
+ BUILD_WITH_LIBKSTAT_FALSE
+ BUILD_WITH_LIBDEVINFO_TRUE
+ BUILD_WITH_LIBDEVINFO_FALSE
++BUILD_WITH_LIBCURL_CFLAGS
+ BUILD_WITH_LIBCURL_LIBS
+ BUILD_WITH_LIBCURL_TRUE
+ BUILD_WITH_LIBCURL_FALSE
+ BUILD_WITH_LIBIOKIT_TRUE
+ BUILD_WITH_LIBIOKIT_FALSE
+ BUILD_WITH_LIBSTATGRAB_TRUE
+@@ -903,12 +904,14 @@
+ BUILD_WITH_LIBDEVSTAT_TRUE
+ BUILD_WITH_LIBDEVSTAT_FALSE
+ BUILD_WITH_LIBKVM_TRUE
+ BUILD_WITH_LIBKVM_FALSE
+ BUILD_WITH_LM_SENSORS_TRUE
+ BUILD_WITH_LM_SENSORS_FALSE
++BUILD_WITH_LIBMYSQL_CFLAGS
++BUILD_WITH_LIBMYSQL_LIBS
+ BUILD_WITH_LIBMYSQL_TRUE
+ BUILD_WITH_LIBMYSQL_FALSE
+ BUILD_WITH_OWN_LIBOCONFIG_TRUE
+ BUILD_WITH_OWN_LIBOCONFIG_FALSE
+ BUILD_WITH_LIBOPING_TRUE
+ BUILD_WITH_LIBOPING_FALSE
+@@ -1527,13 +1530,13 @@
+ # Report the --help message.
+ #
+ if test "$ac_init_help" = "long"; then
+   # Omit some internal or obsolete options to make the list less imposing.
+   # This message is too long to be a string in the A/UX 3.1 sh.
+   cat <<_ACEOF
+-\`configure' configures collectd 4.0.6 to adapt to many kinds of systems.
++\`configure' configures collectd 4.0.7 to adapt to many kinds of systems.
+ 
+ Usage: $0 [OPTION]... [VAR=VALUE]...
+ 
+ To assign environment variables (e.g., CC, CFLAGS...), specify them as
+ VAR=VALUE.  See below for descriptions of some of the useful variables.
+ 
+@@ -1597,13 +1600,13 @@
+   --host=HOST       cross-compile to build programs to run on HOST [BUILD]
+ _ACEOF
+ fi
+ 
+ if test -n "$ac_init_help"; then
+   case $ac_init_help in
+-     short | recursive ) echo "Configuration of collectd 4.0.6:";;
++     short | recursive ) echo "Configuration of collectd 4.0.7:";;
+    esac
+   cat <<\_ACEOF
+ 
+ Optional Features:
+   --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
+   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
+@@ -1774,13 +1777,13 @@
+   done
+ fi
+ 
+ test -n "$ac_init_help" && exit $ac_status
+ if $ac_init_version; then
+   cat <<\_ACEOF
+-collectd configure 4.0.6
++collectd configure 4.0.7
+ generated by GNU Autoconf 2.61
+ 
+ Copyright (C) 1992, 1993, 1994, 1995, 1996, 1998, 1999, 2000, 2001,
+ 2002, 2003, 2004, 2005, 2006 Free Software Foundation, Inc.
+ This configure script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it.
+@@ -1788,13 +1791,13 @@
+   exit
+ fi
+ cat >config.log <<_ACEOF
+ This file contains any messages produced by compilers while
+ running configure, to aid debugging if configure makes a mistake.
+ 
+-It was created by collectd $as_me 4.0.6, which was
++It was created by collectd $as_me 4.0.7, which was
+ generated by GNU Autoconf 2.61.  Invocation command line was
+ 
+   $ $0 $@
+ 
+ _ACEOF
+ exec 5>>config.log
+@@ -2461,13 +2464,13 @@
+   fi
+ fi
+ 
+ 
+ # Define the identity of the package.
+  PACKAGE='collectd'
+- VERSION='4.0.6'
++ VERSION='4.0.7'
+ 
+ 
+ cat >>confdefs.h <<_ACEOF
+ #define PACKAGE "$PACKAGE"
+ _ACEOF
+ 
+@@ -6024,13 +6027,13 @@
+     esac
+   fi
+   rm -rf conftest*
+   ;;
+ *-*-irix6*)
+   # Find out which ABI we are using.
+-  echo '#line 6030 "configure"' > conftest.$ac_ext
++  echo '#line 6033 "configure"' > conftest.$ac_ext
+   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+   (eval $ac_compile) 2>&5
+   ac_status=$?
+   echo "$as_me:$LINENO: \$? = $ac_status" >&5
+   (exit $ac_status); }; then
+    if test "$lt_cv_prog_gnu_ld" = yes; then
+@@ -8532,17 +8535,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:8538: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:8541: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:8542: \$? = $ac_status" >&5
++   echo "$as_me:8545: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -8822,17 +8825,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:8828: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:8831: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:8832: \$? = $ac_status" >&5
++   echo "$as_me:8835: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -8926,17 +8929,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:8932: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:8935: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:8936: \$? = $ac_status" >&5
++   echo "$as_me:8939: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -11288,13 +11291,13 @@
+   	  if test "$cross_compiling" = yes; then :
+   lt_cv_dlopen_self=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 11294 "configure"
++#line 11297 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -11388,13 +11391,13 @@
+   	  if test "$cross_compiling" = yes; then :
+   lt_cv_dlopen_self_static=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 11394 "configure"
++#line 11397 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -13808,17 +13811,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:13814: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:13817: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:13818: \$? = $ac_status" >&5
++   echo "$as_me:13821: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -13912,17 +13915,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:13918: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:13921: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:13922: \$? = $ac_status" >&5
++   echo "$as_me:13925: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -15489,17 +15492,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:15495: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:15498: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:15499: \$? = $ac_status" >&5
++   echo "$as_me:15502: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -15593,17 +15596,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:15599: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:15602: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:15603: \$? = $ac_status" >&5
++   echo "$as_me:15606: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -17793,17 +17796,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:17799: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:17802: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:17803: \$? = $ac_status" >&5
++   echo "$as_me:17806: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -18083,17 +18086,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:18089: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:18092: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:18093: \$? = $ac_status" >&5
++   echo "$as_me:18096: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -18187,17 +18190,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:18193: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:18196: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:18197: \$? = $ac_status" >&5
++   echo "$as_me:18200: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -39580,39 +39583,198 @@
+   BUILD_WITH_LIBDEVINFO_FALSE=
+ fi
+ 
+ 
+ ### BEGIN of check for libcurl ###
+ with_curl_config="curl-config"
+-with_curl_prefix=0
++with_curl_cflags=""
+ with_curl_libs=""
+ 
+ # Check whether --with-libcurl was given.
+ if test "${with_libcurl+set}" = set; then
+   withval=$with_libcurl;
+-	if test "x$withval" != "xno" -a "x$withval" != "xyes"
++	if test "x$withval" = "xno"
++	then
++		with_libcurl="no"
++	else if test "x$withval" = "xyes"
+ 	then
+-		if test -x "$withval/bin/curl-config"
++		with_libcurl="yes"
++	else
++		if test -x "$withval"
++		then
++			with_curl_config="$withval"
++		else if test -x "$withval/bin/curl-config"
+ 		then
+ 			with_curl_config="$withval/bin/curl-config"
+-			with_curl_prefix=1
+-		fi
+-	fi
+-	if test "x$withval" = "xno"
++		fi; fi
++	fi; fi
++
++else
++
++	with_libcurl="yes"
++
++fi
++
++if test "x$with_libcurl" = "xyes"
++then
++	with_curl_cflags=`$with_curl_config --cflags 2>/dev/null`
++	curl_config_status=$?
++
++	if test $curl_config_status -ne 0
+ 	then
+ 		with_libcurl="no"
+ 	else
+-		with_libcurl="yes"
+-	fi
++		SAVE_CFLAGS=$CFLAGS
++		CFLAGS="$CFLAGS $with_curl_cflags"
++
+ 
++for ac_header in curl/curl.h
++do
++as_ac_Header=`echo "ac_cv_header_$ac_header" | $as_tr_sh`
++if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
++  { echo "$as_me:$LINENO: checking for $ac_header" >&5
++echo $ECHO_N "checking for $ac_header... $ECHO_C" >&6; }
++if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++fi
++ac_res=`eval echo '${'$as_ac_Header'}'`
++	       { echo "$as_me:$LINENO: result: $ac_res" >&5
++echo "${ECHO_T}$ac_res" >&6; }
+ else
++  # Is the header compilable?
++{ echo "$as_me:$LINENO: checking $ac_header usability" >&5
++echo $ECHO_N "checking $ac_header usability... $ECHO_C" >&6; }
++cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++$ac_includes_default
++#include <$ac_header>
++_ACEOF
++rm -f conftest.$ac_objext
++if { (ac_try="$ac_compile"
++case "(($ac_try" in
++  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
++  *) ac_try_echo=$ac_try;;
++esac
++eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
++  (eval "$ac_compile") 2>conftest.er1
++  ac_status=$?
++  grep -v '^ *+' conftest.er1 >conftest.err
++  rm -f conftest.er1
++  cat conftest.err >&5
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } && {
++	 test -z "$ac_c_werror_flag" ||
++	 test ! -s conftest.err
++       } && test -s conftest.$ac_objext; then
++  ac_header_compiler=yes
++else
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
+ 
+-	with_libcurl="yes"
++	ac_header_compiler=no
++fi
++
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
++{ echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
++echo "${ECHO_T}$ac_header_compiler" >&6; }
++
++# Is the header present?
++{ echo "$as_me:$LINENO: checking $ac_header presence" >&5
++echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
++cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++#include <$ac_header>
++_ACEOF
++if { (ac_try="$ac_cpp conftest.$ac_ext"
++case "(($ac_try" in
++  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
++  *) ac_try_echo=$ac_try;;
++esac
++eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
++  (eval "$ac_cpp conftest.$ac_ext") 2>conftest.er1
++  ac_status=$?
++  grep -v '^ *+' conftest.er1 >conftest.err
++  rm -f conftest.er1
++  cat conftest.err >&5
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } >/dev/null && {
++	 test -z "$ac_c_preproc_warn_flag$ac_c_werror_flag" ||
++	 test ! -s conftest.err
++       }; then
++  ac_header_preproc=yes
++else
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++  ac_header_preproc=no
++fi
++
++rm -f conftest.err conftest.$ac_ext
++{ echo "$as_me:$LINENO: result: $ac_header_preproc" >&5
++echo "${ECHO_T}$ac_header_preproc" >&6; }
++
++# So?  What about this header?
++case $ac_header_compiler:$ac_header_preproc:$ac_c_preproc_warn_flag in
++  yes:no: )
++    { echo "$as_me:$LINENO: WARNING: $ac_header: accepted by the compiler, rejected by the preprocessor!" >&5
++echo "$as_me: WARNING: $ac_header: accepted by the compiler, rejected by the preprocessor!" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header: proceeding with the compiler's result" >&5
++echo "$as_me: WARNING: $ac_header: proceeding with the compiler's result" >&2;}
++    ac_header_preproc=yes
++    ;;
++  no:yes:* )
++    { echo "$as_me:$LINENO: WARNING: $ac_header: present but cannot be compiled" >&5
++echo "$as_me: WARNING: $ac_header: present but cannot be compiled" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header:     check for missing prerequisite headers?" >&5
++echo "$as_me: WARNING: $ac_header:     check for missing prerequisite headers?" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header: see the Autoconf documentation" >&5
++echo "$as_me: WARNING: $ac_header: see the Autoconf documentation" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header:     section \"Present But Cannot Be Compiled\"" >&5
++echo "$as_me: WARNING: $ac_header:     section \"Present But Cannot Be Compiled\"" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header: proceeding with the preprocessor's result" >&5
++echo "$as_me: WARNING: $ac_header: proceeding with the preprocessor's result" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header: in the future, the compiler will take precedence" >&5
++echo "$as_me: WARNING: $ac_header: in the future, the compiler will take precedence" >&2;}
+ 
++    ;;
++esac
++{ echo "$as_me:$LINENO: checking for $ac_header" >&5
++echo $ECHO_N "checking for $ac_header... $ECHO_C" >&6; }
++if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++else
++  eval "$as_ac_Header=\$ac_header_preproc"
+ fi
++ac_res=`eval echo '${'$as_ac_Header'}'`
++	       { echo "$as_me:$LINENO: result: $ac_res" >&5
++echo "${ECHO_T}$ac_res" >&6; }
++
++fi
++if test `eval echo '${'$as_ac_Header'}'` = yes; then
++  cat >>confdefs.h <<_ACEOF
++#define `echo "HAVE_$ac_header" | $as_tr_cpp` 1
++_ACEOF
++
++else
++  with_libcurl="no (curl/curl.h not found)"
++fi
++
++done
++
+ 
++		CFLAGS="$SAVE_CFLAGS"
++	fi
++fi
+ if test "x$with_libcurl" = "xyes"
+ then
+ 	with_curl_libs=`$with_curl_config --libs 2>/dev/null`
+ 	curl_config_status=$?
+ 
+ 	if test $curl_config_status -ne 0
+@@ -39679,49 +39841,33 @@
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_lib_curl_curl_easy_init" >&5
+ echo "${ECHO_T}$ac_cv_lib_curl_curl_easy_init" >&6; }
+ if test $ac_cv_lib_curl_curl_easy_init = yes; then
+ 
+-			BUILD_WITH_LIBCURL_LIBS="$with_curl_libs"
++		  # We need to do this to have `HAVE_LIBCURL' defined but
++		  # `-lcurl' NOT added to the default LDFLAGS.
+ 
++cat >>confdefs.h <<\_ACEOF
++#define HAVE_LIBCURL 1
++_ACEOF
+ 
+-else
+-
+-			with_libcurl="no"
+ 
++else
++  with_libcurl="no (symbol 'curl_easy_init' not found)"
+ fi
+ 
+ 	fi
+ fi
+-if test "x$with_libcurl" = "xyes" -a $with_curl_prefix -ne 0
+-then
+-	with_curl_prefix=`$with_curl_config --libs 2>/dev/null`
+-	curl_config_status=$?
+-
+-	if test $curl_config_status -ne 0
+-	then
+-		with_libcurl="no"
+-	else
+-		if test -d "$with_curl_prefix/include"
+-		then
+-			CPPFLAGS="$CPPFLAGS -I$with_curl_prefix/include"
+-		fi
+-	fi
+-fi
+-
+-with_libcurl_numeric=0
+ if test "x$with_libcurl" = "xyes"
+ then
+-	with_libcurl_numeric=1
+-fi
++	BUILD_WITH_LIBCURL_CFLAGS="$with_curl_cflags"
++	BUILD_WITH_LIBCURL_LIBS="$with_curl_libs"
+ 
+-cat >>confdefs.h <<_ACEOF
+-#define HAVE_LIBCURL $with_libcurl_numeric
+-_ACEOF
+ 
++fi
+ 
+ 
+ if test "x$with_libcurl" = "xyes"; then
+   BUILD_WITH_LIBCURL_TRUE=
+   BUILD_WITH_LIBCURL_FALSE='#'
+ else
+@@ -40517,107 +40663,53 @@
+ else
+   BUILD_WITH_LM_SENSORS_TRUE='#'
+   BUILD_WITH_LM_SENSORS_FALSE=
+ fi
+ 
+ 
++with_mysql_config="mysql_config"
++with_mysql_cflags=""
++with_mysql_libs=""
+ 
+ # Check whether --with-libmysql was given.
+ if test "${with_libmysql+set}" = set; then
+   withval=$with_libmysql;
+-	if test "x$withval" != "xno" && test "x$withval" != "xyes"
++	if test "x$withval" = "xno"
++	then
++		with_libmysql="no"
++	else if test "x$withval" = "xyes"
+ 	then
+-		LDFLAGS="$LDFLAGS -L$withval/lib"
+-		CPPFLAGS="$CPPFLAGS -I$withval/include"
+ 		with_libmysql="yes"
+-	fi
++	else
++		if test -x "$withval";
++		then
++			with_mysql_config="$withval"
++		else if test -x "$withval/bin/mysql_config"
++		then
++			with_mysql_config="$withval/bin/mysql_config"
++		fi; fi
++	fi; fi
+ 
+ else
+ 
+ 	with_libmysql="yes"
+ 
+ fi
+ 
+ if test "x$with_libmysql" = "xyes"
+ then
+-	{ echo "$as_me:$LINENO: checking for mysql_init in -lmysqlclient" >&5
+-echo $ECHO_N "checking for mysql_init in -lmysqlclient... $ECHO_C" >&6; }
+-if test "${ac_cv_lib_mysqlclient_mysql_init+set}" = set; then
+-  echo $ECHO_N "(cached) $ECHO_C" >&6
+-else
+-  ac_check_lib_save_LIBS=$LIBS
+-LIBS="-lmysqlclient  $LIBS"
+-cat >conftest.$ac_ext <<_ACEOF
+-/* confdefs.h.  */
+-_ACEOF
+-cat confdefs.h >>conftest.$ac_ext
+-cat >>conftest.$ac_ext <<_ACEOF
+-/* end confdefs.h.  */
+-
+-/* Override any GCC internal prototype to avoid an error.
+-   Use char because int might match the return type of a GCC
+-   builtin and then its argument prototype would still apply.  */
+-#ifdef __cplusplus
+-extern "C"
+-#endif
+-char mysql_init ();
+-int
+-main ()
+-{
+-return mysql_init ();
+-  ;
+-  return 0;
+-}
+-_ACEOF
+-rm -f conftest.$ac_objext conftest$ac_exeext
+-if { (ac_try="$ac_link"
+-case "(($ac_try" in
+-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+-  *) ac_try_echo=$ac_try;;
+-esac
+-eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+-  (eval "$ac_link") 2>conftest.er1
+-  ac_status=$?
+-  grep -v '^ *+' conftest.er1 >conftest.err
+-  rm -f conftest.er1
+-  cat conftest.err >&5
+-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+-  (exit $ac_status); } && {
+-	 test -z "$ac_c_werror_flag" ||
+-	 test ! -s conftest.err
+-       } && test -s conftest$ac_exeext &&
+-       $as_test_x conftest$ac_exeext; then
+-  ac_cv_lib_mysqlclient_mysql_init=yes
+-else
+-  echo "$as_me: failed program was:" >&5
+-sed 's/^/| /' conftest.$ac_ext >&5
+-
+-	ac_cv_lib_mysqlclient_mysql_init=no
+-fi
+-
+-rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+-      conftest$ac_exeext conftest.$ac_ext
+-LIBS=$ac_check_lib_save_LIBS
+-fi
+-{ echo "$as_me:$LINENO: result: $ac_cv_lib_mysqlclient_mysql_init" >&5
+-echo "${ECHO_T}$ac_cv_lib_mysqlclient_mysql_init" >&6; }
+-if test $ac_cv_lib_mysqlclient_mysql_init = yes; then
+-
++	with_mysql_cflags=`$with_mysql_config --cflags 2>/dev/null`
++	mysql_config_status=$?
+ 
+-cat >>confdefs.h <<\_ACEOF
+-#define HAVE_LIBMYSQLCLIENT 1
+-_ACEOF
+-
+-
+-else
+-  with_libmysql="no (libmysql not found)"
+-fi
++	if test $mysql_config_status -ne 0
++	then
++		with_libmysql="no"
++	else
++		SAVE_CFLAGS=$CFLAGS
++		CFLAGS="$CFLAGS $with_mysql_cflags"
+ 
+-fi
+-if test "x$with_libmysql" = "xyes"
+-then
+ 
+ for ac_header in mysql/mysql.h
+ do
+ as_ac_Header=`echo "ac_cv_header_$ac_header" | $as_tr_sh`
+ if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
+   { echo "$as_me:$LINENO: checking for $ac_header" >&5
+@@ -40748,37 +40840,116 @@
+ fi
+ if test `eval echo '${'$as_ac_Header'}'` = yes; then
+   cat >>confdefs.h <<_ACEOF
+ #define `echo "HAVE_$ac_header" | $as_tr_cpp` 1
+ _ACEOF
+ 
+-
+-cat >>confdefs.h <<\_ACEOF
+-#define HAVE_MYSQL_MYSQL_H 1
+-_ACEOF
+-
+-
+ else
+   with_libmysql="no (mysql/mysql.h not found)"
+ fi
+ 
+ done
+ 
++
++		CFLAGS="$SAVE_CFLAGS"
++	fi
+ fi
+ if test "x$with_libmysql" = "xyes"
+ then
+-	collect_libmysql=1
++	with_mysql_libs=`$with_mysql_config --libs 2>/dev/null`
++	mysql_config_status=$?
++
++	if test $mysql_config_status -ne 0
++	then
++		with_libmysql="no"
++	else
++		{ echo "$as_me:$LINENO: checking for mysql_init in -lmysqlclient" >&5
++echo $ECHO_N "checking for mysql_init in -lmysqlclient... $ECHO_C" >&6; }
++if test "${ac_cv_lib_mysqlclient_mysql_init+set}" = set; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
+ else
+-	collect_libmysql=0
++  ac_check_lib_save_LIBS=$LIBS
++LIBS="-lmysqlclient $with_mysql_libs $LIBS"
++cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++
++/* Override any GCC internal prototype to avoid an error.
++   Use char because int might match the return type of a GCC
++   builtin and then its argument prototype would still apply.  */
++#ifdef __cplusplus
++extern "C"
++#endif
++char mysql_init ();
++int
++main ()
++{
++return mysql_init ();
++  ;
++  return 0;
++}
++_ACEOF
++rm -f conftest.$ac_objext conftest$ac_exeext
++if { (ac_try="$ac_link"
++case "(($ac_try" in
++  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
++  *) ac_try_echo=$ac_try;;
++esac
++eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
++  (eval "$ac_link") 2>conftest.er1
++  ac_status=$?
++  grep -v '^ *+' conftest.er1 >conftest.err
++  rm -f conftest.er1
++  cat conftest.err >&5
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } && {
++	 test -z "$ac_c_werror_flag" ||
++	 test ! -s conftest.err
++       } && test -s conftest$ac_exeext &&
++       $as_test_x conftest$ac_exeext; then
++  ac_cv_lib_mysqlclient_mysql_init=yes
++else
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++	ac_cv_lib_mysqlclient_mysql_init=no
+ fi
+ 
+-cat >>confdefs.h <<_ACEOF
+-#define COLLECT_LIBMYSQL $collect_libmysql
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
++      conftest$ac_exeext conftest.$ac_ext
++LIBS=$ac_check_lib_save_LIBS
++fi
++{ echo "$as_me:$LINENO: result: $ac_cv_lib_mysqlclient_mysql_init" >&5
++echo "${ECHO_T}$ac_cv_lib_mysqlclient_mysql_init" >&6; }
++if test $ac_cv_lib_mysqlclient_mysql_init = yes; then
++
++		  # We need to do this to have `HAVE_LIBMYSQLCLIENT' defined
++		  # but `-lmysqlclient' NOT added to the default LDFLAGS.
++
++cat >>confdefs.h <<\_ACEOF
++#define HAVE_LIBMYSQLCLIENT 1
+ _ACEOF
+ 
+ 
++else
++  with_libmysql="no (libmysql not found)"
++fi
++
++	fi
++fi
++if test "x$with_libmysql" = "xyes"
++then
++	BUILD_WITH_LIBMYSQL_CFLAGS="$with_mysql_cflags"
++	BUILD_WITH_LIBMYSQL_LIBS="$with_mysql_libs"
++
++
++fi
++
+ 
+ if test "x$with_libmysql" = "xyes"; then
+   BUILD_WITH_LIBMYSQL_TRUE=
+   BUILD_WITH_LIBMYSQL_FALSE='#'
+ else
+   BUILD_WITH_LIBMYSQL_TRUE='#'
+@@ -41700,12 +41871,13 @@
+ else
+   BUILD_WITH_LIBIPTC_TRUE='#'
+   BUILD_WITH_LIBIPTC_FALSE=
+ fi
+ 
+ 
++# TODO: Use `libupsclient-config' here.
+ 
+ # Check whether --with-libupsclient was given.
+ if test "${with_libupsclient+set}" = set; then
+   withval=$with_libupsclient;
+ 	if test "x$withval" != "xno" && test "x$withval" != "xyes"
+ 	then
+@@ -41944,12 +42116,144 @@
+   with_libupsclient="no (upsclient.h not found)"
+ fi
+ 
+ done
+ 
+ fi
++if test "x$with_libupsclient" = "xyes"
++then
++	{ echo "$as_me:$LINENO: checking for UPSCONN_t" >&5
++echo $ECHO_N "checking for UPSCONN_t... $ECHO_C" >&6; }
++if test "${ac_cv_type_UPSCONN_t+set}" = set; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++else
++  cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++#include <stdlib.h>
++#include <stdio.h>
++#include <upsclient.h>
++
++typedef UPSCONN_t ac__type_new_;
++int
++main ()
++{
++if ((ac__type_new_ *) 0)
++  return 0;
++if (sizeof (ac__type_new_))
++  return 0;
++  ;
++  return 0;
++}
++_ACEOF
++rm -f conftest.$ac_objext
++if { (ac_try="$ac_compile"
++case "(($ac_try" in
++  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
++  *) ac_try_echo=$ac_try;;
++esac
++eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
++  (eval "$ac_compile") 2>conftest.er1
++  ac_status=$?
++  grep -v '^ *+' conftest.er1 >conftest.err
++  rm -f conftest.er1
++  cat conftest.err >&5
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } && {
++	 test -z "$ac_c_werror_flag" ||
++	 test ! -s conftest.err
++       } && test -s conftest.$ac_objext; then
++  ac_cv_type_UPSCONN_t=yes
++else
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++	ac_cv_type_UPSCONN_t=no
++fi
++
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
++fi
++{ echo "$as_me:$LINENO: result: $ac_cv_type_UPSCONN_t" >&5
++echo "${ECHO_T}$ac_cv_type_UPSCONN_t" >&6; }
++if test $ac_cv_type_UPSCONN_t = yes; then
++
++cat >>confdefs.h <<_ACEOF
++#define HAVE_UPSCONN_T 1
++_ACEOF
++
++
++fi
++{ echo "$as_me:$LINENO: checking for UPSCONN" >&5
++echo $ECHO_N "checking for UPSCONN... $ECHO_C" >&6; }
++if test "${ac_cv_type_UPSCONN+set}" = set; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++else
++  cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++#include <stdlib.h>
++#include <stdio.h>
++#include <upsclient.h>
++
++typedef UPSCONN ac__type_new_;
++int
++main ()
++{
++if ((ac__type_new_ *) 0)
++  return 0;
++if (sizeof (ac__type_new_))
++  return 0;
++  ;
++  return 0;
++}
++_ACEOF
++rm -f conftest.$ac_objext
++if { (ac_try="$ac_compile"
++case "(($ac_try" in
++  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
++  *) ac_try_echo=$ac_try;;
++esac
++eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
++  (eval "$ac_compile") 2>conftest.er1
++  ac_status=$?
++  grep -v '^ *+' conftest.er1 >conftest.err
++  rm -f conftest.er1
++  cat conftest.err >&5
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } && {
++	 test -z "$ac_c_werror_flag" ||
++	 test ! -s conftest.err
++       } && test -s conftest.$ac_objext; then
++  ac_cv_type_UPSCONN=yes
++else
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++	ac_cv_type_UPSCONN=no
++fi
++
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
++fi
++{ echo "$as_me:$LINENO: result: $ac_cv_type_UPSCONN" >&5
++echo "${ECHO_T}$ac_cv_type_UPSCONN" >&6; }
++if test $ac_cv_type_UPSCONN = yes; then
++
++cat >>confdefs.h <<_ACEOF
++#define HAVE_UPSCONN 1
++_ACEOF
++
++
++fi
++
++fi
+ 
+ 
+ if test "x$with_libupsclient" = "xyes"; then
+   BUILD_WITH_LIBUPSCLIENT_TRUE=
+   BUILD_WITH_LIBUPSCLIENT_FALSE='#'
+ else
+@@ -44395,13 +44699,13 @@
+ exec 6>&1
+ 
+ # Save the log message, to keep $[0] and so on meaningful, and to
+ # report actual input values of CONFIG_FILES etc. instead of their
+ # values after options handling.
+ ac_log="
+-This file was extended by collectd $as_me 4.0.6, which was
++This file was extended by collectd $as_me 4.0.7, which was
+ generated by GNU Autoconf 2.61.  Invocation command line was
+ 
+   CONFIG_FILES    = $CONFIG_FILES
+   CONFIG_HEADERS  = $CONFIG_HEADERS
+   CONFIG_LINKS    = $CONFIG_LINKS
+   CONFIG_COMMANDS = $CONFIG_COMMANDS
+@@ -44448,13 +44752,13 @@
+ 
+ Report bugs to <bug-autoconf@gnu.org>."
+ 
+ _ACEOF
+ cat >>$CONFIG_STATUS <<_ACEOF
+ ac_cs_version="\\
+-collectd config.status 4.0.6
++collectd config.status 4.0.7
+ configured by $0, generated by GNU Autoconf 2.61,
+   with options \\"`echo "$ac_configure_args" | sed 's/^ //; s/[\\""\`\$]/\\\\&/g'`\\"
+ 
+ Copyright (C) 2006 Free Software Foundation, Inc.
+ This config.status script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it."
+@@ -44796,12 +45100,13 @@
+ BUILD_WITH_LIBPTHREAD_TRUE!$BUILD_WITH_LIBPTHREAD_TRUE$ac_delim
+ BUILD_WITH_LIBPTHREAD_FALSE!$BUILD_WITH_LIBPTHREAD_FALSE$ac_delim
+ BUILD_WITH_LIBKSTAT_TRUE!$BUILD_WITH_LIBKSTAT_TRUE$ac_delim
+ BUILD_WITH_LIBKSTAT_FALSE!$BUILD_WITH_LIBKSTAT_FALSE$ac_delim
+ BUILD_WITH_LIBDEVINFO_TRUE!$BUILD_WITH_LIBDEVINFO_TRUE$ac_delim
+ BUILD_WITH_LIBDEVINFO_FALSE!$BUILD_WITH_LIBDEVINFO_FALSE$ac_delim
++BUILD_WITH_LIBCURL_CFLAGS!$BUILD_WITH_LIBCURL_CFLAGS$ac_delim
+ BUILD_WITH_LIBCURL_LIBS!$BUILD_WITH_LIBCURL_LIBS$ac_delim
+ BUILD_WITH_LIBCURL_TRUE!$BUILD_WITH_LIBCURL_TRUE$ac_delim
+ BUILD_WITH_LIBCURL_FALSE!$BUILD_WITH_LIBCURL_FALSE$ac_delim
+ BUILD_WITH_LIBIOKIT_TRUE!$BUILD_WITH_LIBIOKIT_TRUE$ac_delim
+ BUILD_WITH_LIBIOKIT_FALSE!$BUILD_WITH_LIBIOKIT_FALSE$ac_delim
+ BUILD_WITH_LIBSTATGRAB_TRUE!$BUILD_WITH_LIBSTATGRAB_TRUE$ac_delim
+@@ -44809,12 +45114,14 @@
+ BUILD_WITH_LIBDEVSTAT_TRUE!$BUILD_WITH_LIBDEVSTAT_TRUE$ac_delim
+ BUILD_WITH_LIBDEVSTAT_FALSE!$BUILD_WITH_LIBDEVSTAT_FALSE$ac_delim
+ BUILD_WITH_LIBKVM_TRUE!$BUILD_WITH_LIBKVM_TRUE$ac_delim
+ BUILD_WITH_LIBKVM_FALSE!$BUILD_WITH_LIBKVM_FALSE$ac_delim
+ BUILD_WITH_LM_SENSORS_TRUE!$BUILD_WITH_LM_SENSORS_TRUE$ac_delim
+ BUILD_WITH_LM_SENSORS_FALSE!$BUILD_WITH_LM_SENSORS_FALSE$ac_delim
++BUILD_WITH_LIBMYSQL_CFLAGS!$BUILD_WITH_LIBMYSQL_CFLAGS$ac_delim
++BUILD_WITH_LIBMYSQL_LIBS!$BUILD_WITH_LIBMYSQL_LIBS$ac_delim
+ BUILD_WITH_LIBMYSQL_TRUE!$BUILD_WITH_LIBMYSQL_TRUE$ac_delim
+ BUILD_WITH_LIBMYSQL_FALSE!$BUILD_WITH_LIBMYSQL_FALSE$ac_delim
+ BUILD_WITH_OWN_LIBOCONFIG_TRUE!$BUILD_WITH_OWN_LIBOCONFIG_TRUE$ac_delim
+ BUILD_WITH_OWN_LIBOCONFIG_FALSE!$BUILD_WITH_OWN_LIBOCONFIG_FALSE$ac_delim
+ BUILD_WITH_LIBOPING_TRUE!$BUILD_WITH_LIBOPING_TRUE$ac_delim
+ BUILD_WITH_LIBOPING_FALSE!$BUILD_WITH_LIBOPING_FALSE$ac_delim
+@@ -44862,15 +45169,12 @@
+ BUILD_MODULE_ENTROPY_FALSE!$BUILD_MODULE_ENTROPY_FALSE$ac_delim
+ BUILD_MODULE_EXEC_TRUE!$BUILD_MODULE_EXEC_TRUE$ac_delim
+ BUILD_MODULE_EXEC_FALSE!$BUILD_MODULE_EXEC_FALSE$ac_delim
+ BUILD_MODULE_HDDTEMP_TRUE!$BUILD_MODULE_HDDTEMP_TRUE$ac_delim
+ BUILD_MODULE_HDDTEMP_FALSE!$BUILD_MODULE_HDDTEMP_FALSE$ac_delim
+ BUILD_MODULE_INTERFACE_TRUE!$BUILD_MODULE_INTERFACE_TRUE$ac_delim
+-BUILD_MODULE_INTERFACE_FALSE!$BUILD_MODULE_INTERFACE_FALSE$ac_delim
+-BUILD_MODULE_IPTABLES_TRUE!$BUILD_MODULE_IPTABLES_TRUE$ac_delim
+-BUILD_MODULE_IPTABLES_FALSE!$BUILD_MODULE_IPTABLES_FALSE$ac_delim
+ _ACEOF
+ 
+   if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 97; then
+     break
+   elif $ac_last_try; then
+     { { echo "$as_me:$LINENO: error: could not make $CONFIG_STATUS" >&5
+@@ -44906,12 +45210,15 @@
+ _ACEOF
+ 
+ 
+ ac_delim='%!_!# '
+ for ac_last_try in false false false false false :; do
+   cat >conf$$subs.sed <<_ACEOF
++BUILD_MODULE_INTERFACE_FALSE!$BUILD_MODULE_INTERFACE_FALSE$ac_delim
++BUILD_MODULE_IPTABLES_TRUE!$BUILD_MODULE_IPTABLES_TRUE$ac_delim
++BUILD_MODULE_IPTABLES_FALSE!$BUILD_MODULE_IPTABLES_FALSE$ac_delim
+ BUILD_MODULE_IRQ_TRUE!$BUILD_MODULE_IRQ_TRUE$ac_delim
+ BUILD_MODULE_IRQ_FALSE!$BUILD_MODULE_IRQ_FALSE$ac_delim
+ BUILD_MODULE_LOAD_TRUE!$BUILD_MODULE_LOAD_TRUE$ac_delim
+ BUILD_MODULE_LOAD_FALSE!$BUILD_MODULE_LOAD_FALSE$ac_delim
+ BUILD_MODULE_MBMON_TRUE!$BUILD_MODULE_MBMON_TRUE$ac_delim
+ BUILD_MODULE_MBMON_FALSE!$BUILD_MODULE_MBMON_FALSE$ac_delim
+@@ -44956,13 +45263,13 @@
+ BUILD_MODULE_WIRELESS_TRUE!$BUILD_MODULE_WIRELESS_TRUE$ac_delim
+ BUILD_MODULE_WIRELESS_FALSE!$BUILD_MODULE_WIRELESS_FALSE$ac_delim
+ LIBOBJS!$LIBOBJS$ac_delim
+ LTLIBOBJS!$LTLIBOBJS$ac_delim
+ _ACEOF
+ 
+-  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 48; then
++  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 51; then
+     break
+   elif $ac_last_try; then
+     { { echo "$as_me:$LINENO: error: could not make $CONFIG_STATUS" >&5
+ echo "$as_me: error: could not make $CONFIG_STATUS" >&2;}
+    { (exit 1); exit 1; }; }
+   else
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/configure.in	2007-08-03 16:58:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/configure.in	2007-08-27 01:35:57.000000000 +0800
+@@ -1,8 +1,8 @@
+ dnl Process this file with autoconf to produce a configure script.
+-AC_INIT(collectd, 4.0.6)
++AC_INIT(collectd, 4.0.7)
+ AC_CONFIG_SRCDIR(src/collectd.c)
+ AC_CONFIG_HEADERS(src/config.h)
+ AM_INIT_AUTOMAKE(dist-bzip2)
+ AC_LANG(C)
+ 
+ AC_PREFIX_DEFAULT("/opt/collectd")
+@@ -833,76 +833,79 @@
+ fi
+ AM_CONDITIONAL(BUILD_WITH_LIBKSTAT, test "x$with_kstat" = "xyes")
+ AM_CONDITIONAL(BUILD_WITH_LIBDEVINFO, test "x$with_devinfo" = "xyes")
+ 
+ ### BEGIN of check for libcurl ###
+ with_curl_config="curl-config"
+-with_curl_prefix=0
++with_curl_cflags=""
+ with_curl_libs=""
+ AC_ARG_WITH(libcurl, [AS_HELP_STRING([--with-libcurl@<:@=PREFIX@:>@], [Path to libcurl.])],
+ [
+-	if test "x$withval" != "xno" -a "x$withval" != "xyes"
+-	then
+-		if test -x "$withval/bin/curl-config"
+-		then
+-			with_curl_config="$withval/bin/curl-config"
+-			with_curl_prefix=1
+-		fi
+-	fi
+ 	if test "x$withval" = "xno"
+ 	then
+ 		with_libcurl="no"
+-	else
++	else if test "x$withval" = "xyes"
++	then
+ 		with_libcurl="yes"
+-	fi
++	else
++		if test -x "$withval"
++		then
++			with_curl_config="$withval"
++		else if test -x "$withval/bin/curl-config"
++		then
++			with_curl_config="$withval/bin/curl-config"
++		fi; fi
++	fi; fi
+ ],
+ [
+ 	with_libcurl="yes"
+ ])
+ if test "x$with_libcurl" = "xyes"
+ then
+-	with_curl_libs=`$with_curl_config --libs 2>/dev/null`
++	with_curl_cflags=`$with_curl_config --cflags 2>/dev/null`
+ 	curl_config_status=$?
+ 
+ 	if test $curl_config_status -ne 0
+ 	then
+ 		with_libcurl="no"
+ 	else
+-		AC_CHECK_LIB(curl, curl_easy_init,
+-		[
+-			BUILD_WITH_LIBCURL_LIBS="$with_curl_libs"
+-			AC_SUBST(BUILD_WITH_LIBCURL_LIBS)
+-		],
+-		[
+-			with_libcurl="no"
+-		],
+-		[$with_curl_libs])
++		SAVE_CFLAGS=$CFLAGS
++		CFLAGS="$CFLAGS $with_curl_cflags"
++
++		AC_CHECK_HEADERS(curl/curl.h, [], [with_libcurl="no (curl/curl.h not found)"], [])
++
++		CFLAGS="$SAVE_CFLAGS"
+ 	fi
+ fi
+-if test "x$with_libcurl" = "xyes" -a $with_curl_prefix -ne 0
++if test "x$with_libcurl" = "xyes"
+ then
+-	with_curl_prefix=`$with_curl_config --libs 2>/dev/null`
++	with_curl_libs=`$with_curl_config --libs 2>/dev/null`
+ 	curl_config_status=$?
+ 
+ 	if test $curl_config_status -ne 0
+ 	then
+ 		with_libcurl="no"
+ 	else
+-		if test -d "$with_curl_prefix/include"
+-		then
+-			CPPFLAGS="$CPPFLAGS -I$with_curl_prefix/include"
+-		fi
++		AC_CHECK_LIB(curl, curl_easy_init,
++		 [
++		  # We need to do this to have `HAVE_LIBCURL' defined but
++		  # `-lcurl' NOT added to the default LDFLAGS.
++			AC_DEFINE(HAVE_LIBCURL, 1,
++				  [Define to 1 if you have the curl library.])
++		 ],
++		 [with_libcurl="no (symbol 'curl_easy_init' not found)"],
++		 [$with_curl_libs])
+ 	fi
+ fi
+-
+-with_libcurl_numeric=0
+ if test "x$with_libcurl" = "xyes"
+ then
+-	with_libcurl_numeric=1
++	BUILD_WITH_LIBCURL_CFLAGS="$with_curl_cflags"
++	BUILD_WITH_LIBCURL_LIBS="$with_curl_libs"
++	AC_SUBST(BUILD_WITH_LIBCURL_CFLAGS)
++	AC_SUBST(BUILD_WITH_LIBCURL_LIBS)
+ fi
+-AC_DEFINE_UNQUOTED(HAVE_LIBCURL, [$with_libcurl_numeric], [Define to 1 if you have the 'curl' library (-lcurl).])
+ AM_CONDITIONAL(BUILD_WITH_LIBCURL, test "x$with_libcurl" = "xyes")
+ ### END of check for libcurl ###
+ 
+ with_libiokit="no"
+ collectd_libiokit=0
+ AC_CHECK_LIB(IOKit, IOServiceGetMatchingServices,
+@@ -1006,46 +1009,80 @@
+ 	collect_lm_sensors=0
+ fi
+ AC_DEFINE_UNQUOTED(COLLECT_LM_SENSORS, [$collect_lm_sensors],
+ 	[Wether or not to use sensors library])
+ AM_CONDITIONAL(BUILD_WITH_LM_SENSORS, test "x$with_lm_sensors" = "xyes")
+ 
++with_mysql_config="mysql_config"
++with_mysql_cflags=""
++with_mysql_libs=""
+ AC_ARG_WITH(libmysql, [AS_HELP_STRING([--with-libmysql@<:@=PREFIX@:>@], [Path to libmysql.])],
+ [
+-	if test "x$withval" != "xno" && test "x$withval" != "xyes"
++	if test "x$withval" = "xno"
++	then
++		with_libmysql="no"
++	else if test "x$withval" = "xyes"
+ 	then
+-		LDFLAGS="$LDFLAGS -L$withval/lib"
+-		CPPFLAGS="$CPPFLAGS -I$withval/include"
+ 		with_libmysql="yes"
+-	fi
++	else
++		if test -x "$withval";
++		then
++			with_mysql_config="$withval"
++		else if test -x "$withval/bin/mysql_config"
++		then
++			with_mysql_config="$withval/bin/mysql_config"
++		fi; fi
++	fi; fi
+ ],
+ [
+ 	with_libmysql="yes"
+ ])
+ if test "x$with_libmysql" = "xyes"
+ then
+-	AC_CHECK_LIB(mysqlclient, mysql_init,
+-	[
+-		AC_DEFINE(HAVE_LIBMYSQLCLIENT, 1, [Define to 1 if you have the mysqlclient library (-lmysqlclient).])
+-	], [with_libmysql="no (libmysql not found)"])
++	with_mysql_cflags=`$with_mysql_config --cflags 2>/dev/null`
++	mysql_config_status=$?
++
++	if test $mysql_config_status -ne 0
++	then
++		with_libmysql="no"
++	else
++		SAVE_CFLAGS=$CFLAGS
++		CFLAGS="$CFLAGS $with_mysql_cflags"
++
++		AC_CHECK_HEADERS(mysql/mysql.h, [], [with_libmysql="no (mysql/mysql.h not found)"], [])
++
++		CFLAGS="$SAVE_CFLAGS"
++	fi
+ fi
+ if test "x$with_libmysql" = "xyes"
+ then
+-	AC_CHECK_HEADERS(mysql/mysql.h,
+-	[
+-		AC_DEFINE(HAVE_MYSQL_MYSQL_H, 1, [Define to 1 if you have the <mysql/mysql.h> header file.])
+-	], [with_libmysql="no (mysql/mysql.h not found)"])
++	with_mysql_libs=`$with_mysql_config --libs 2>/dev/null`
++	mysql_config_status=$?
++
++	if test $mysql_config_status -ne 0
++	then
++		with_libmysql="no"
++	else
++		AC_CHECK_LIB(mysqlclient, mysql_init,
++		 [
++		  # We need to do this to have `HAVE_LIBMYSQLCLIENT' defined
++		  # but `-lmysqlclient' NOT added to the default LDFLAGS.
++			AC_DEFINE(HAVE_LIBMYSQLCLIENT, 1,
++				  [Define to 1 if you have the mysqlclient library.])
++		 ],
++		 [with_libmysql="no (libmysql not found)"],
++		 [$with_mysql_libs])
++	fi
+ fi
+ if test "x$with_libmysql" = "xyes"
+ then
+-	collect_libmysql=1
+-else
+-	collect_libmysql=0
++	BUILD_WITH_LIBMYSQL_CFLAGS="$with_mysql_cflags"
++	BUILD_WITH_LIBMYSQL_LIBS="$with_mysql_libs"
++	AC_SUBST(BUILD_WITH_LIBMYSQL_CFLAGS)
++	AC_SUBST(BUILD_WITH_LIBMYSQL_LIBS)
+ fi
+-AC_DEFINE_UNQUOTED(COLLECT_LIBMYSQL, [$collect_libmysql],
+-	[Wether or not to use mysql library])
+ AM_CONDITIONAL(BUILD_WITH_LIBMYSQL, test "x$with_libmysql" = "xyes")
+ 
+ with_own_liboconfig="no"
+ liboconfig_LDFLAGS="$LDFLAGS"
+ liboconfig_CPPFLAGS="$CPPFLAGS"
+ AC_ARG_WITH(liboconfig, [AS_HELP_STRING([--with-liboconfig@<:@=PREFIX@:>@], [Path to liboconfig.])],
+@@ -1274,12 +1311,13 @@
+ 	collect_libiptc=1
+ else
+ 	collect_libiptc=0
+ fi
+ AM_CONDITIONAL(BUILD_WITH_LIBIPTC, test "x$with_libiptc" = "xyes")
+ 
++# TODO: Use `libupsclient-config' here.
+ AC_ARG_WITH(libupsclient, [AS_HELP_STRING([--with-libupsclient@<:@=PREFIX@:>@], [Path to libupsclient.])],
+ [
+ 	if test "x$withval" != "xno" && test "x$withval" != "xyes"
+ 	then
+ 		LDFLAGS="$LDFLAGS -L$withval/lib"
+ 		CPPFLAGS="$CPPFLAGS -I$withval/include"
+@@ -1300,12 +1338,19 @@
+ then
+ 	AC_CHECK_HEADERS(upsclient.h,
+ 	[
+ 		AC_DEFINE(HAVE_UPSCLIENT_H, 1, [Define to 1 if you have the <upsclient.h> header file.])
+ 	], [with_libupsclient="no (upsclient.h not found)"])
+ fi
++if test "x$with_libupsclient" = "xyes"
++then
++	AC_CHECK_TYPES([UPSCONN_t, UPSCONN], [], [], 
++[#include <stdlib.h>
++#include <stdio.h>
++#include <upsclient.h>])
++fi
+ AM_CONDITIONAL(BUILD_WITH_LIBUPSCLIENT, test "x$with_libupsclient" = "xyes")
+ 
+ # Check for enabled/disabled features
+ #
+ 
+ # AC_COLLECTD(name, enable/disable, info-text, feature/module)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/contrib/collectd2html.pl /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/contrib/collectd2html.pl
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/contrib/collectd2html.pl	2006-06-17 20:13:34.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/contrib/collectd2html.pl	2007-08-27 01:07:37.000000000 +0800
+@@ -33,18 +33,26 @@
+ ################################################################################
+ 
+ use warnings;
+ use strict;
+ use Fatal qw(open close);
+ use File::Basename;
++use Getopt::Long qw(:config no_ignore_case bundling pass_through);
++
++my $DIR  = "/var/lib/collectd";
++my $HOST = "_UNDEFINED_";
++
++GetOptions (
++    "host-is=s"  => \$HOST,
++    "data-dir=s" => \$DIR
++);
+ 
+-my $DIR = "/var/lib/collectd";
+ my @COLORS = (0xff7777, 0x7777ff, 0x55ff55, 0xffcc77, 0xff77ff, 0x77ffff,
+ 	0xffff77, 0x55aaff);
+ my @tmp = `/bin/hostname`; chomp(@tmp);
+-my $HOST = $tmp[0];
++$HOST = $tmp[0] if ( $HOST =~ /_UNDEFINED_/ );
+ my $IMG_DIR = "${HOST}.dir";
+ my $HTML = "${HOST}.html";
+ 
+ ################################################################################
+ #
+ # fade_component
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/contrib/fedora/collectd.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/contrib/fedora/collectd.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/contrib/fedora/collectd.spec	2007-08-03 16:54:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/contrib/fedora/collectd.spec	2007-08-27 01:07:37.000000000 +0800
+@@ -1,10 +1,10 @@
+ Summary:	Statistics collection daemon for filling RRD files.
+ Name:           collectd
+-Version:	4.0.5
+-Release:	0.fc0
++Version:	4.0.6
++Release:	0.fc7
+ Source:		http://collectd.org/files/%{name}-%{version}.tar.gz
+ License:	GPL
+ Group:		System Environment/Daemons
+ BuildRoot:	%{_tmppath}/%{name}-%{version}-root
+ BuildPrereq:	lm_sensors-devel, mysql-devel, rrdtool-devel
+ Requires:	rrdtool
+@@ -61,31 +61,38 @@
+ mkdir -p $RPM_BUILD_ROOT/etc/rc.d/init.d
+ mkdir -p $RPM_BUILD_ROOT/var/www/cgi-bin
+ cp src/collectd.conf $RPM_BUILD_ROOT/etc/collectd.conf
+ cp contrib/fedora/init.d-collectd $RPM_BUILD_ROOT/etc/rc.d/init.d/collectd
+ cp contrib/collection.cgi $RPM_BUILD_ROOT/var/www/cgi-bin
+ mkdir -p $RPM_BUILD_ROOT/var/lib/collectd
+-#rm -f $RPM_BUILD_ROOT%{_libdir}/%{name}/*.a
+-#rm -f $RPM_BUILD_ROOT%{_libdir}/%{name}/*.la
+ 
+ %clean
+ rm -rf $RPM_BUILD_ROOT
+ 
+ %post
+ /sbin/chkconfig --add collectd
+ /sbin/chkconfig collectd on
+ 
+ %preun
+-/sbin/chkconfig collectd off
+-/etc/init.d/collectd stop
+-/sbin/chkconfig --del collectd
++if [ "$1" = 0 ]; then
++   /sbin/chkconfig collectd off
++   /etc/init.d/collectd stop
++   /sbin/chkconfig --del collectd
++fi
++exit 0
++
++%postun
++if [ "$1" -ge 1 ]; then
++    /etc/init.d/collectd restart
++fi
++exit 0
+ 
+ %files
+ %defattr(-,root,root)
+ %doc AUTHORS COPYING ChangeLog INSTALL NEWS README
+-%config /etc/collectd.conf
++%attr(0644,root,root) %config(noreplace) /etc/collectd.conf
+ %attr(0755,root,root) /etc/rc.d/init.d/collectd
+ %attr(0755,root,root) /var/www/cgi-bin/collection.cgi
+ %attr(0755,root,root) %{_sbindir}/collectd
+ %attr(0755,root,root) %{_bindir}/collectd-nagios
+ %attr(0644,root,root) %{_mandir}/man1/*
+ %attr(0644,root,root) %{_mandir}/man5/*
+@@ -216,12 +223,15 @@
+ 
+ %files sensors
+ %attr(0644,root,root) %{_libdir}/%{name}/sensors.so*
+ %attr(0644,root,root) %{_libdir}/%{name}/sensors.la
+ 
+ %changelog
++* Mon Aug 06 2007 Kjell Randa <Kjell.Randa@broadpark.no> 4.0.6
++- New upstream version
++
+ * Wed Jul 25 2007 Kjell Randa <Kjell.Randa@broadpark.no> 4.0.5
+ - New major releas
+ - Changes to support 4.0.5 
+ 
+ * Wed Jan 11 2007 Iain Lea <iain@bricbrac.de> 3.11.0-0
+ - fixed spec file to build correctly on fedora core
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/contrib/PerlLib/Collectd.pm /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/contrib/PerlLib/Collectd.pm
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/contrib/PerlLib/Collectd.pm	2007-08-03 16:54:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/contrib/PerlLib/Collectd.pm	2007-08-27 01:36:09.000000000 +0800
+@@ -41,12 +41,12 @@
+ 	push @{$EXPORT_TAGS{'all'}}, grep {! $seen{$_}++ } @{$EXPORT_TAGS{$_}}
+ 		foreach keys %EXPORT_TAGS;
+ }
+ 
+ Exporter::export_ok_tags('all');
+ 
+-bootstrap Collectd "4.0.6";
++bootstrap Collectd "4.0.7";
+ 
+ 1;
+ 
+ # vim: set sw=4 ts=4 tw=78 noexpandtab :
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/contrib/README /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/contrib/README
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/contrib/README	2007-06-18 22:53:56.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/contrib/README	2007-08-27 01:07:37.000000000 +0800
+@@ -1,21 +1,21 @@
+ The files in this directory may be used to perform common tasks that aren't
+-exactly `collectd's job. They may or may not require in-depth knowlege of RRD
++exactly `collectd's job. They may or may not require in-depth knowledge of RRD
+ files and/or `collectd's inner workings. Use at your own risk.
+ 
+ PerlLib/
+ --------
+   Perl modules to be used in conjunction with collectd. See the perldoc
+ documentation of the .pm-files to find out what they're good for.
+ 
+ add_rra.sh
+ ----------
+   Before version 3.9.0 collectd used to create a different set of RRAs. The
+-most detailed of these old RRAs hat a one minute resolution. This script can
++most detailed of these old RRAs had a one minute resolution. This script can
+ be used to add three more RRAs: minimum, maximum and average with a ten second
+-resolution and 2200 rows (~6 hours). This will make houly statistics much more
++resolution and 2200 rows (~6 hours). This will make hourly statistics much more
+ interesting. Please note that no sanity- checking whatsoever is performed. You
+ can seriously fuck up your RRD files if you don't know what you're doing.
+ 
+ collectd2html.pl
+ ----------------
+   This script by Vincent Stehlé will search for RRD files in
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/Makefile.in	2007-08-03 16:59:01.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/Makefile.in	2007-08-28 21:47:02.000000000 +0800
+@@ -161,12 +161,13 @@
+ BUILD_MODULE_USERS_FALSE = @BUILD_MODULE_USERS_FALSE@
+ BUILD_MODULE_USERS_TRUE = @BUILD_MODULE_USERS_TRUE@
+ BUILD_MODULE_VSERVER_FALSE = @BUILD_MODULE_VSERVER_FALSE@
+ BUILD_MODULE_VSERVER_TRUE = @BUILD_MODULE_VSERVER_TRUE@
+ BUILD_MODULE_WIRELESS_FALSE = @BUILD_MODULE_WIRELESS_FALSE@
+ BUILD_MODULE_WIRELESS_TRUE = @BUILD_MODULE_WIRELESS_TRUE@
++BUILD_WITH_LIBCURL_CFLAGS = @BUILD_WITH_LIBCURL_CFLAGS@
+ BUILD_WITH_LIBCURL_FALSE = @BUILD_WITH_LIBCURL_FALSE@
+ BUILD_WITH_LIBCURL_LIBS = @BUILD_WITH_LIBCURL_LIBS@
+ BUILD_WITH_LIBCURL_TRUE = @BUILD_WITH_LIBCURL_TRUE@
+ BUILD_WITH_LIBDEVINFO_FALSE = @BUILD_WITH_LIBDEVINFO_FALSE@
+ BUILD_WITH_LIBDEVINFO_TRUE = @BUILD_WITH_LIBDEVINFO_TRUE@
+ BUILD_WITH_LIBDEVSTAT_FALSE = @BUILD_WITH_LIBDEVSTAT_FALSE@
+@@ -176,13 +177,15 @@
+ BUILD_WITH_LIBIPTC_FALSE = @BUILD_WITH_LIBIPTC_FALSE@
+ BUILD_WITH_LIBIPTC_TRUE = @BUILD_WITH_LIBIPTC_TRUE@
+ BUILD_WITH_LIBKSTAT_FALSE = @BUILD_WITH_LIBKSTAT_FALSE@
+ BUILD_WITH_LIBKSTAT_TRUE = @BUILD_WITH_LIBKSTAT_TRUE@
+ BUILD_WITH_LIBKVM_FALSE = @BUILD_WITH_LIBKVM_FALSE@
+ BUILD_WITH_LIBKVM_TRUE = @BUILD_WITH_LIBKVM_TRUE@
++BUILD_WITH_LIBMYSQL_CFLAGS = @BUILD_WITH_LIBMYSQL_CFLAGS@
+ BUILD_WITH_LIBMYSQL_FALSE = @BUILD_WITH_LIBMYSQL_FALSE@
++BUILD_WITH_LIBMYSQL_LIBS = @BUILD_WITH_LIBMYSQL_LIBS@
+ BUILD_WITH_LIBMYSQL_TRUE = @BUILD_WITH_LIBMYSQL_TRUE@
+ BUILD_WITH_LIBOPING_FALSE = @BUILD_WITH_LIBOPING_FALSE@
+ BUILD_WITH_LIBOPING_TRUE = @BUILD_WITH_LIBOPING_TRUE@
+ BUILD_WITH_LIBPCAP_FALSE = @BUILD_WITH_LIBPCAP_FALSE@
+ BUILD_WITH_LIBPCAP_TRUE = @BUILD_WITH_LIBPCAP_TRUE@
+ BUILD_WITH_LIBPERL_FALSE = @BUILD_WITH_LIBPERL_FALSE@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/README /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/README
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/README	2007-06-20 03:43:42.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/README	2007-08-27 01:07:37.000000000 +0800
+@@ -23,13 +23,13 @@
+ 
+     - apple_sensors
+       Sensors in Macs running Mac OS X / Darwin: Temperature, fanspeed and
+       voltage sensors.
+ 
+     - battery
+-      Batterycharge, -current and volatage of ACPI and PMU based laptop
++      Batterycharge, -current and voltage of ACPI and PMU based laptop
+       batteries.
+ 
+     - cpu
+       CPU utilization: Time spent in the system, user, nice, idle, and related
+       states.
+ 
+@@ -106,13 +106,13 @@
+     - nut
+       Network UPS tools: UPS current, voltage, power, charge, utilisation,
+       temperature, etc. See upsd(8).
+ 
+     - perl
+       The perl plugin implements a Perl-interpreter into collectd. You can
+-      write your own plugins in Perl and return arbitary values using this
++      write your own plugins in Perl and return arbitrary values using this
+       API. See collectd-perl(5).
+ 
+       This plugin is still considered to be experimental and subject to change
+       between minor releases.
+ 
+     - ping
+@@ -136,23 +136,23 @@
+       Bytes and operations read and written on tape devices. Solaris only.
+ 
+     - users
+       Users currently logged in.
+ 
+     - vserver
+-      System ressources used by Linux VServers.
++      System resources used by Linux VServers.
+       See <http://linux-vserver.org/>.
+ 
+     - wireless
+       Link quality of wireless cards. Linux only.
+ 
+   * Output can be written or send to various destinations by the following
+     plugins:
+ 
+     - csv
+-      Write to comma seperated values (CSV) files. This needs lots of
++      Write to comma separated values (CSV) files. This needs lots of
+       diskspace but is extremely portable and can be analysed with almost
+       every program that can analyse anything. Even Microsoft's Excel..
+ 
+     - network
+       Send the data to a remote host to save the data somehow. This is useful
+       for large setups where the data should be saved by a dedicated machine.
+@@ -178,23 +178,23 @@
+     plugins keep up informed about what's going on:
+ 
+     - logfile
+       Writes logmessages to a file or STDOUT/STDERR.
+ 
+     - syslog
+-      Logs to the standard UNIX logging mechanismn, syslog.
++      Logs to the standard UNIX logging mechanism, syslog.
+ 
+   * Performance: Since collectd is running as a daemon it doesn't spend much
+     time starting up again and again. With the exception of the exec plugin no
+     processes are forked. Caching in output plugins, such as the rrdtool and
+     network plugins, makes sure your resources are used efficiently. Also,
+     since collectd is programmed multithreaded it benefits from hyperthreading
+     and multicore processors and makes sure that the daemon isn't idle if only
+     one plugins waits for an IO-operation to complete.
+     
+-  * Once set up, hardly any maintenence is neccessary. Setup is kept as easy
++  * Once set up, hardly any maintenance is necessary. Setup is kept as easy
+     as possible and the default values should be okay for most users.
+ 
+ 
+ Operation
+ ---------
+ 
+@@ -229,13 +229,13 @@
+   To compile collectd from source you will need:
+ 
+   * Usual suspects: C compiler, linker, preprocessor, make, ...
+ 
+   * A POSIX-threads (pthread) implementation.
+     Since gathering some statistics is slow (network connections, slow devices,
+-    etc) the collectd is parellelized. The POSIX threads interface is being
++    etc) the collectd is parallelized. The POSIX threads interface is being
+     used and should be found in various implementations for hopefully all
+     platforms.
+ 
+   * libcurl (optional)
+     If you want to use the `apache' plugin
+ 
+@@ -251,13 +251,13 @@
+   * libpcap (optional)
+     Used to capture packets by the `dns' plugin.
+ 
+   * librrd (optional; headers and library; rrdtool 1.0 and 1.2 both work fine)
+     If built without `librrd' the resulting binary will be `client only', i.e.
+     will send its values via multicast and not create any RRD files itself.
+-    Alternatively you can chose to write CSV-files (Comma Seperated Values)
++    Alternatively you can chose to write CSV-files (Comma Separated Values)
+     instead.
+ 
+   * libsensors (optional)
+     To read from `lm_sensors'.
+ 
+   * libstatgrab may be used to collect statistics on systems other than Linux
+@@ -292,13 +292,26 @@
+     If you run into this problem, you can use the `--with-nan-emulation'
+     configure option to force the use of this implementation. We can't promise
+     that the compiled binary actually behaves as it should, but since NANs
+     are likely never passed to the libm you have a good chance to be lucky.
+ 
+ 
++Contact
++-------
++
++  For questions, bugreports, development information and basically all other
++  concerns please send an email to collectd's mailinglist at
++  <collectd at verplant.org>.
++
++  For live discussion and more personal contact visit us in IRC, we're in
++  channel #collectd on freenode.
++
++
+ Author
+ ------
+ 
+   Florian octo Forster <octo at verplant.org>,
+   Sebastian tokkee Harl <sh at tokkee.org>,
+   and many contributors (see `AUTHORS').
+ 
++  Please send bugreports and patches to the mailinglist, see `Contact' above.
++
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/collectd.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/collectd.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/collectd.1	2007-08-03 17:01:05.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/collectd.1	2007-08-27 01:39:46.000000000 +0800
+@@ -126,13 +126,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD 1"
+-.TH COLLECTD 1 "2007-06-18" "4.0.6" "collectd"
++.TH COLLECTD 1 "2007-08-26" "4.0.7" "collectd"
+ .SH "NAME"
+ collectd \- System statistics collection daemon
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ collectd \fI[options]\fR
+ .SH "DESCRIPTION"
+@@ -161,26 +161,26 @@
+ directory to work correctly. For everyday-usage use the \fBPIDFile\fR
+ config\-option.
+ .IP "\fB\-f\fR" 4
+ .IX Item "-f"
+ Don't fork to the background. \fIcollectd\fR will also \fBnot\fR close standard file
+ descriptors, detach from the session nor write a pid file. This is mainly
+-thought for 'supervisioning' init replacements such as \fIrunit\fR.
++thought for 'supervising' init replacements such as \fIrunit\fR.
+ .IP "\fB\-h\fR" 4
+ .IX Item "-h"
+ Output usage information and exit.
+ .SH "PLUGINS"
+ .IX Header "PLUGINS"
+ As noted above, the real power of collectd lies within it's plugins. A
+ (hopefully complete) list of plugins and short descriptions can be found in the
+ \&\fI\s-1README\s0\fR file that is distributed with the sourcecode. If you're using a
+ package it's a good bet to search somewhere near \fI/usr/share/doc/collectd\fR.
+ .PP
+ There are two big groups of plugins, \fBinput\fR and \fBoutput\fR plugins:
+ .IP "\(bu" 4
+-Input plugins are queried periodically. They somehow aquire the current value
++Input plugins are queried periodically. They somehow acquire the current value
+ of whatever they where designed to work with and submit these values back to
+ the daemon, i. e. they \*(L"dispatch\*(R" the values. As an example, the \f(CW\*(C`cpu plugin\*(C'\fR
+ reads the current cpu-counters of time spent in the various modes (user,
+ system, nice, ...) and dispatches these counters to the daemon.
+ .IP "\(bu" 4
+ Output plugins get the dispatched values from the daemon and does something
+@@ -188,13 +188,13 @@
+ the data over a network link to a remote box.
+ .PP
+ Of course not all plugins fit neatly into one of the two above categories. The
+ \&\f(CW\*(C`network plugin\*(C'\fR, for example, is able to send (i.\ e. \*(L"write\*(R") \fBand\fR
+ receive (i.\ e. \*(L"dispatch\*(R") values. Also, it opens a socket upon
+ initialization and dispatches the values when it receives them and isn't
+-triggered at the same time the input plugins are being read. You can think if
++triggered at the same time the input plugins are being read. You can think of
+ the network receive part as working asynchronous if it helps.
+ .PP
+ In addition to the above, there are \*(L"logging plugins\*(R". Right now those are the
+ \&\f(CW\*(C`logfile plugin\*(C'\fR and the \f(CW\*(C`syslog plugin\*(C'\fR. With these plugins collectd can
+ provide information about issues and significant situations to the user.
+ Several loglevels let you suppress uninteresting messages.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/collectd.conf.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/collectd.conf.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/collectd.conf.5	2007-08-03 17:01:06.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/collectd.conf.5	2007-08-27 01:39:46.000000000 +0800
+@@ -126,13 +126,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD.CONF 5"
+-.TH COLLECTD.CONF 5 "2007-08-03" "4.0.6" "collectd"
++.TH COLLECTD.CONF 5 "2007-08-26" "4.0.7" "collectd"
+ .SH "NAME"
+ collectd.conf \- Configuration for the system statistics collection daemon \fBcollectd\fR
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ .Vb 3
+ \&  BaseDir "/path/to/data/"
+@@ -157,16 +157,16 @@
+ This config file controls how the system statistics collection daemon
+ \&\fBcollectd\fR behaves. The most significant option is \fBLoadPlugin\fR, which
+ controls which plugins to load. These plugins ultimately define collectd's
+ behavior.
+ .PP
+ The syntax of this config file is similar to the config file of the famos
+-\&\fBApache Webserver\fR. Each line containes either a key-value-pair or a
++\&\fBApache Webserver\fR. Each line contains either a key-value-pair or a
+ section-start or \-end. Empty lines and everything after the hash-symbol `#' is
+ ignored. Values are either string, enclosed in double\-quotes,
+-(floating\-point\-)numbers or a boolean extression, i.\ e. either \fBtrue\fR or
++(floating\-point\-)numbers or a boolean expression, i.\ e. either \fBtrue\fR or
+ \&\fBfalse\fR. String containing of only alphanumeric characters and underscores do
+ not need to be quoted.
+ .SH "GLOBAL OPTIONS"
+ .IX Header "GLOBAL OPTIONS"
+ .IP "\fBBaseDir\fR \fIDirectory\fR" 4
+ .IX Item "BaseDir Directory"
+@@ -198,13 +198,13 @@
+ Number of threads to start for reading plugins. The default value if \fB5\fR, but
+ you may want to increase this if you have more than five plugins that take a
+ long time to read. Mostly those are plugin that do network\-IO. Setting this to
+ a value higher than the number of plugins you've loaded is totally useless.
+ .SH "PLUGIN OPTIONS"
+ .IX Header "PLUGIN OPTIONS"
+-Some Plugins may register own options. These options must be inclosed in a
++Some Plugins may register own options. These options must be enclosed in a
+ \&\f(CW\*(C`Plugin\*(C'\fR\-Section. Which options exist depends on the plugin used. Some plugins
+ require external configuration, too. The \f(CW\*(C`apache plugin\*(C'\fR, for example,
+ required \f(CW\*(C`mod_status\*(C'\fR to be configured in the webserver you're going to
+ collect data from. These plugins are listed below as well, even if they don't
+ require any configuration within collectd's configfile.
+ .PP
+@@ -244,13 +244,13 @@
+ .IP "\fBPassword\fR \fIPassword\fR" 4
+ .IX Item "Password Password"
+ Optional password needed for authentication.
+ .IP "\fBCACert\fR \fIFile\fR" 4
+ .IX Item "CACert File"
+ File that holds one or more \s-1SSL\s0 certificates. If you want to use \s-1HTTPS\s0 you will
+-possibly need this option. What \s-1CA\s0 certificates come bundeled with \f(CW\*(C`libcurl\*(C'\fR
++possibly need this option. What \s-1CA\s0 certificates come bundled with \f(CW\*(C`libcurl\*(C'\fR
+ and are checked by default depends on the distribution you use.
+ .ie n .Sh "Plugin ""apcups"""
+ .el .Sh "Plugin \f(CWapcups\fP"
+ .IX Subsection "Plugin apcups"
+ .IP "\fBHost\fR \fIHostname\fR" 4
+ .IX Item "Host Hostname"
+@@ -288,13 +288,13 @@
+ .IX Item "FSType FSType"
+ Select partitions based on the filesystem type.
+ .IP "\fBIgnoreSelected\fR \fItrue\fR|\fIfalse\fR" 4
+ .IX Item "IgnoreSelected true|false"
+ Invert the selection: If set to true, all partitions \fBexcept\fR the ones that
+ match any one of the criteria are collected. By default only selected
+-partitions are collected if a selection is made. If no selection is conifured
++partitions are collected if a selection is made. If no selection is configured
+ at all, \fBall\fR partitions are selected.
+ .ie n .Sh "Plugin ""dns"""
+ .el .Sh "Plugin \f(CWdns\fP"
+ .IX Subsection "Plugin dns"
+ .IP "\fBInterface\fR \fIInterface\fR" 4
+ .IX Item "Interface Interface"
+@@ -324,13 +324,13 @@
+ value will waste valuable resources. Defaults to \fB5\fR and will be forced to be
+ at most \fB16384\fR to prevent typos and dumb mistakes.
+ .ie n .Sh "Plugin ""exec"""
+ .el .Sh "Plugin \f(CWexec\fP"
+ .IX Subsection "Plugin exec"
+ Please make sure to read \fIcollectd\-exec\fR\|(5) before using this plugin. It
+-contains valueable information on when the executable is executed and the
++contains valuable information on when the executable is executed and the
+ output that is expected from it.
+ .IP "\fBExec\fR \fIUser\fR \fIExecutable\fR" 4
+ .IX Item "Exec User Executable"
+ Execute the executable \fIExecutable\fR as user \fIUser\fR.
+ .ie n .Sh "Plugin ""hddtemp"""
+ .el .Sh "Plugin \f(CWhddtemp\fP"
+@@ -358,13 +358,13 @@
+ a more detailed description see \fBIgnoreSelected\fR below.
+ .IP "\fBIgnoreSelected\fR \fItrue\fR|\fIfalse\fR" 4
+ .IX Item "IgnoreSelected true|false"
+ If no configuration if given, the \fBtraffic\fR\-plugin will collect data from
+ all interfaces. This may not be practical, especially for loopback\- and
+ similar interfaces. Thus, you can use the \fBInterface\fR\-option to pick the
+-interfaces you're interested in. Sometimes, however, it's easier/prefered
++interfaces you're interested in. Sometimes, however, it's easier/preferred
+ to collect all interfaces \fIexcept\fR a few ones. This option enables you to
+ do that: By setting \fBIgnoreSelected\fR to \fItrue\fR the effect of
+ \&\fBInterface\fR is inversed: All selected interfaces are ignored and all
+ other interfaces are collected.
+ .ie n .Sh "Plugin ""iptables"""
+ .el .Sh "Plugin \f(CWiptables\fP"
+@@ -389,17 +389,17 @@
+ Select this irq. By default these irqs will then be collected. For a more
+ detailed description see \fBIgnoreSelected\fR below.
+ .IP "\fBIgnoreSelected\fR \fItrue\fR|\fIfalse\fR" 4
+ .IX Item "IgnoreSelected true|false"
+ If no configuration if given, the \fBirq\fR\-plugin will collect data from all
+ irqs. This may not be practical, especially if no interrupts happen. Thus, you
+-can use the \fBIrq\fR\-option to pick the interupt you're interested in.
+-Sometimes, however, it's easier/prefered to collect all interupts \fIexcept\fR a
++can use the \fBIrq\fR\-option to pick the interrupt you're interested in.
++Sometimes, however, it's easier/preferred to collect all interrupts \fIexcept\fR a
+ few ones. This option enables you to do that: By setting \fBIgnoreSelected\fR to
+-\&\fItrue\fR the effect of \fBIrq\fR is inversed: All selected interupts are ignored
+-and all other interupts are collected.
++\&\fItrue\fR the effect of \fBIrq\fR is inversed: All selected interrupts are ignored
++and all other interrupts are collected.
+ .ie n .Sh "Plugin ""logfile"""
+ .el .Sh "Plugin \f(CWlogfile\fP"
+ .IX Subsection "Plugin logfile"
+ .IP "\fBLogLevel\fR \fBdebug|info|notice|warning|err\fR" 4
+ .IX Item "LogLevel debug|info|notice|warning|err"
+ Sets the log\-level. If, for example, set to \fBnotice\fR, then all events with
+@@ -453,13 +453,13 @@
+ Username to use when connecting to the database.
+ .IP "\fBPassword\fR \fIPassword\fR" 4
+ .IX Item "Password Password"
+ Password needed to log into the database.
+ .IP "\fBDatabase\fR \fIDatabase\fR" 4
+ .IX Item "Database Database"
+-Select this database. Defaults to \fIno database\fR which is a perfecly reasonable
++Select this database. Defaults to \fIno database\fR which is a perfectly reasonable
+ option for what this plugin does.
+ .ie n .Sh "Plugin ""network"""
+ .el .Sh "Plugin \f(CWnetwork\fP"
+ .IX Subsection "Plugin network"
+ .IP "\fBListen\fR \fIHost\fR [\fIPort\fR]" 4
+ .IX Item "Listen Host [Port]"
+@@ -476,19 +476,19 @@
+ The argument \fIHost\fR may be a hostname, an IPv4 address or an IPv6 address. If
+ the argument is a multicast address the daemon will join that multicast group.
+ .Sp
+ If no \fBListen\fR statement is found the server tries join both, the default IPv6
+ multicast group and the default IPv4 multicast group. If no \fBServer\fR statement
+ is found the client will try to send data to the IPv6 multicast group first. If
+-that failes the client will try the IPv4 multicast group.
++that fails the client will try the IPv4 multicast group.
+ .Sp
+ The default IPv6 multicast group is \f(CW\*(C`ff18::efc0:4a42\*(C'\fR. The default IPv4
+ multicast group is \f(CW239.192.74.66\fR.
+ .Sp
+ The optional \fIPort\fR argument sets the port to use. It can either be given
+-using a numeric port number or a service name. If the argument is omited the
++using a numeric port number or a service name. If the argument is omitted the
+ default port \fB25826\fR is assumed.
+ .IP "\fBTimeToLive\fR \fI1\-255\fR" 4
+ .IX Item "TimeToLive 1-255"
+ Set the time-to-live of sent packets. This applies to all, unicast and
+ multicast, and IPv4 and IPv6 packets. The default is to not change this value.
+ That means that multicast packets will be sent with a \s-1TTL\s0 of \f(CW1\fR (one) on most
+@@ -496,13 +496,13 @@
+ .IP "\fBForward\fR \fItrue|false\fR" 4
+ .IX Item "Forward true|false"
+ If set to \fItrue\fR, write packets that were received via the network plugin to
+ the sending sockets. This should only be activated when the \fBListen\fR\- and
+ \&\fBServer\fR\-statements differ. Otherwise packets may be send multiple times to
+ the same multicast group. While this results in more network traffic than
+-neccessary it's not a huge problem since the plugin has a duplicate detection,
++necessary it's not a huge problem since the plugin has a duplicate detection,
+ so the values will not loop.
+ .IP "\fBCacheFlush\fR \fISeconds\fR" 4
+ .IX Item "CacheFlush Seconds"
+ For each host/plugin/type combination the \f(CW\*(C`network plugin\*(C'\fR caches the time of
+ the last value being sent or received. Every \fISeconds\fR seconds the plugin
+ searches and removes all entries that are older than \fISeconds\fR seconds, thus
+@@ -563,13 +563,13 @@
+ .ie n .Sh "Plugin ""rrdtool"""
+ .el .Sh "Plugin \f(CWrrdtool\fP"
+ .IX Subsection "Plugin rrdtool"
+ You can use the settings \fBStepSize\fR, \fBHeartBeat\fR, \fBRRARows\fR, and \fB\s-1XFF\s0\fR to
+ finetune your RRD\-files. Please read \fIrrdcreate\fR\|(1) if you encounter problems
+ using these settings. If you don't want to dive into the depths of RRDTool, you
+-can savely ignore these settings.
++can safely ignore these settings.
+ .IP "\fBDataDir\fR \fIDirectory\fR" 4
+ .IX Item "DataDir Directory"
+ Set the directory to store RRD-files under. Per default RRD-files are generated
+ beneath the daemon's working directory, i.\ e. the \fBBaseDir\fR.
+ .IP "\fBStepSize\fR \fISeconds\fR" 4
+ .IX Item "StepSize Seconds"
+@@ -594,13 +594,13 @@
+   number of PDPs = timespan / (stepsize * rrarows)
+ .Sp
+ Bottom line is, set this no smaller than the width of you graphs in pixels. The
+ default is 1200.
+ .IP "\fBRRATimespan\fR \fISeconds\fR" 4
+ .IX Item "RRATimespan Seconds"
+-Adds an RRA\-timespan, given in seconds. Use this option mulitple times to have
++Adds an RRA\-timespan, given in seconds. Use this option multiple times to have
+ more then one \s-1RRA\s0. If this option is never used, the built-in default of (3600,
+ 86400, 604800, 2678400, 31622400) is used.
+ .Sp
+ For more information on how RRA-sizes are calculated see \fBRRARows\fR above.
+ .IP "\fB\s-1XFF\s0\fR \fIFactor\fR" 4
+ .IX Item "XFF Factor"
+@@ -642,13 +642,13 @@
+ voltage sensor \fIin1\fR of the \fIit8712\fR on the isa bus at the address 0290.
+ .IP "\fBIgnoreSelected\fR \fItrue\fR|\fIfalse\fR" 4
+ .IX Item "IgnoreSelected true|false"
+ If no configuration if given, the \fBsensors\fR\-plugin will collect data from all
+ sensors. This may not be practical, especially for uninteresting sensors.
+ Thus, you can use the \fBSensor\fR\-option to pick the sensors you're interested
+-in. Sometimes, however, it's easier/prefered to collect all sensors \fIexcept\fR a
++in. Sometimes, however, it's easier/preferred to collect all sensors \fIexcept\fR a
+ few ones. This option enables you to do that: By setting \fBIgnoreSelected\fR to
+ \&\fItrue\fR the effect of \fBSensor\fR is inversed: All selected sensors are ignored
+ and all other sensors are collected.
+ .ie n .Sh "Plugin ""syslog"""
+ .el .Sh "Plugin \f(CWsyslog\fP"
+ .IX Subsection "Plugin syslog"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/collectd-email.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/collectd-email.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/collectd-email.5	2007-08-03 17:01:06.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/collectd-email.5	2007-08-27 01:39:47.000000000 +0800
+@@ -126,13 +126,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-EMAIL 5"
+-.TH COLLECTD-EMAIL 5 "2007-06-18" "4.0.6" "collectd"
++.TH COLLECTD-EMAIL 5 "2007-08-26" "4.0.7" "collectd"
+ .SH "NAME"
+ collectd\-email \- Documentation of collectd's \f(CW\*(C`email plugin\*(C'\fR
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ .Vb 8
+ \&  # See collectd.conf(5)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/collectd-exec.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/collectd-exec.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/collectd-exec.5	2007-08-03 17:01:06.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/collectd-exec.5	2007-08-27 01:39:47.000000000 +0800
+@@ -126,13 +126,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-EXEC 5"
+-.TH COLLECTD-EXEC 5 "2007-06-18" "4.0.6" "collectd"
++.TH COLLECTD-EXEC 5 "2007-08-26" "4.0.7" "collectd"
+ .SH "NAME"
+ collectd\-exec \- Documentation of collectd's \f(CW\*(C`exec plugin\*(C'\fR
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ .Vb 7
+ \&  # See collectd.conf(5)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/collectd-nagios.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/collectd-nagios.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/collectd-nagios.1	2007-08-03 17:01:06.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/collectd-nagios.1	2007-08-27 01:39:46.000000000 +0800
+@@ -126,13 +126,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-NAGIOS 1"
+-.TH COLLECTD-NAGIOS 1 "2007-07-05" "4.0.6" "collectd"
++.TH COLLECTD-NAGIOS 1 "2007-08-26" "4.0.7" "collectd"
+ .SH "NAME"
+ collectd\-nagios \- Nagios plugin for querying collectd
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ collectd-nagios \fB\-s\fR \fIsocket\fR \fB\-n\fR \fIvalue_spec\fR \fB\-H\fR \fIhostname\fR \fI[options]\fR
+ .SH "DESCRIPTION"
+@@ -164,13 +164,13 @@
+ can select one or more data sources. To select multiple data sources simply
+ specify this option again. If multiple data sources are examined they are
+ handled according to the consolidation function given with the \fB\-g\fR option.
+ .IP "\fB\-g\fR \fBnone\fR\fI|\fR\fBaverage\fR\fI|\fR\fBsum\fR" 4
+ .IX Item "-g none|average|sum"
+ When multiple data sources are selected from a value spec they can be handled
+-differently dependin on this option. The values of the following meaning:
++differently depending on this option. The values of the following meaning:
+ .RS 4
+ .IP "\fBnone\fR" 4
+ .IX Item "none"
+ No consolidation if done and the warning and critical regions are applied to
+ each value independently.
+ .IP "\fBaverage\fR" 4
+@@ -199,13 +199,13 @@
+ .SH "RETURN VALUE"
+ .IX Header "RETURN VALUE"
+ As usual for Nagios plugins this program writes a short, one line status
+ message to \s-1STDOUT\s0 and signals success or failure with it's return value. It
+ exists with a return value of \fB0\fR for success or \fB1\fR or \fB2\fR for warning and
+ critical, respectively. If the values is not available or some other error
+-occured it returnes \fB3\fR for \*(L"unknown\*(R". 
++occurred it returns \fB3\fR for \*(L"unknown\*(R". 
+ .SH "SEE ALSO"
+ .IX Header "SEE ALSO"
+ \&\fIcollectd\fR\|(1),
+ \&\fIcollectd.conf\fR\|(5),
+ \&\fIcollectd\-unixsock\fR\|(5),
+ <http://nagios.org/>
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/collectd-perl.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/collectd-perl.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/collectd-perl.5	2007-08-03 17:01:07.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/collectd-perl.5	2007-08-27 01:39:47.000000000 +0800
+@@ -126,13 +126,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-PERL 5"
+-.TH COLLECTD-PERL 5 "2007-06-18" "4.0.6" "collectd"
++.TH COLLECTD-PERL 5 "2007-08-26" "4.0.7" "collectd"
+ .SH "NAME"
+ collectd\-perl \- Documentation of collectd's \f(CW\*(C`perl plugin\*(C'\fR
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ .Vb 8
+ \&  # See collectd.conf(5)
+@@ -145,13 +145,13 @@
+ \&  </Plugin>
+ .Ve
+ .SH "DESCRIPTION"
+ .IX Header "DESCRIPTION"
+ The \f(CW\*(C`perl plugin\*(C'\fR includes a Perl-interpreter in collectd and provides
+ Perl-equivalents of the plugin\-functions. This makes it possible to write
+-plugins for collectd in Perl. This is a lot more performant than executing a
++plugins for collectd in Perl. This is a lot more efficient than executing a
+ Perl-script every time you want to read a value with the \f(CW\*(C`exec plugin\*(C'\fR (see
+ \&\fIcollectd\-exec\fR\|(5)) and provides a lot more functionality, too.
+ .PP
+ Please note that this is still considered to be experimental and subject to
+ change between minor releases.
+ .SH "DATA TYPES"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/collectd-unixsock.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/collectd-unixsock.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/collectd-unixsock.5	2007-08-03 17:01:07.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/collectd-unixsock.5	2007-08-27 01:39:47.000000000 +0800
+@@ -126,13 +126,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-UNIXSOCK 5"
+-.TH COLLECTD-UNIXSOCK 5 "2007-08-03" "4.0.6" "collectd"
++.TH COLLECTD-UNIXSOCK 5 "2007-08-26" "4.0.7" "collectd"
+ .SH "NAME"
+ collectd\-unixsock \- Documentation of collectd's \f(CW\*(C`unixsock plugin\*(C'\fR
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ .Vb 8
+ \&  # See collectd.conf(5)
+@@ -160,41 +160,41 @@
+ the daemon which it will answer, if it understand them.
+ .PP
+ The following commands are implemented:
+ .IP "\fB\s-1GETVAL\s0\fR \fIIdentifier\fR" 4
+ .IX Item "GETVAL Identifier"
+ If the value identified by \fIIdentifier\fR (see below) is found the complete
+-value-list is returned. The response is a space seperated list of
++value-list is returned. The response is a space separated list of
+ name\-value\-pairs:
+ .Sp
+ \&\fInum\fR \fIname\fR\fB=\fR\fIvalue\fR[ \fIname\fR\fB=\fR\fIvalue\fR[ ...]]
+ .Sp
+-If \fInum\fR is less then zero, an error occured. Otherwise it contains the
++If \fInum\fR is less then zero, an error occurred. Otherwise it contains the
+ number of values that follow. Each value is of the form \fIname\fR\fB=\fR\fIvalue\fR.
+ Counter-values are converted to a rate, e.\ g. bytes per second.
+ Undefined values are returned as \fBNaN\fR.
+ .Sp
+ Example:
+   \-> | \s-1GETVAL\s0 myhost/cpu\-0/cpu\-user
+   <\- | 1 value=1.260000e+00
+ .IP "\fB\s-1PUTVAL\s0\fR \fIIdentifier\fR \fIValuelist\fR" 4
+ .IX Item "PUTVAL Identifier Valuelist"
+ Submits a value (identified by \fIIdentifier\fR, see below) to the daemon which
+ will dispatch it to all it's write\-plugins. The \fIValuelist\fR is a
+-colon-seperated list of the time and the values, each either an integer if the
++colon-separated list of the time and the values, each either an integer if the
+ data-source is a counter, of a double if the data-source if of type \*(L"gauge\*(R".
+ You can submit an undefined gauge-value by using \fBU\fR. When submitting \fBU\fR to
+ a counter the behavior is undefined. The time is given as epoch (i.\ e.
+ standard \s-1UNIX\s0 time).
+ .Sp
+ Example:
+   \-> | \s-1PUTVAL\s0 testhost/interface/if_octets\-test0 1179574444:123:456
+   <\- | 0 Success
+ .Sh "Identifiers"
+ .IX Subsection "Identifiers"
+-Value or value-lists are identified in a uniform fassion:
++Value or value-lists are identified in a uniform fashion:
+ .PP
+ \&\fIHostname\fR/\fIPlugin\fR/\fIType\fR
+ .PP
+ Where \fIPlugin\fR and \fIType\fR are both either of type "\fIName\fR\*(L" or
+ \&\*(R"\fIName\fR\-\fIInstance\fR". This sounds more complicated than it is, so here are
+ some examples:
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/config.h.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/config.h.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/config.h.in	2007-08-03 17:00:10.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/config.h.in	2007-08-27 01:38:36.000000000 +0800
+@@ -60,15 +60,12 @@
+ /* wether or not to enable module irq statistics */
+ #undef COLLECT_IRQ
+ 
+ /* Wether or not to use the IOKit library */
+ #undef COLLECT_LIBIOKIT
+ 
+-/* Wether or not to use mysql library */
+-#undef COLLECT_LIBMYSQL
+-
+ /* Wether or not to use the pcap library */
+ #undef COLLECT_LIBPCAP
+ 
+ /* Wether or not to use statgrab library */
+ #undef COLLECT_LIBSTATGRAB
+ 
+@@ -270,13 +267,13 @@
+ /* Define to 1 if `wtime' is member of `kstat_io_t'. */
+ #undef HAVE_KSTAT_IO_T_WTIME
+ 
+ /* Define to 1 if you have the <kvm.h> header file. */
+ #undef HAVE_KVM_H
+ 
+-/* Define to 1 if you have the 'curl' library (-lcurl). */
++/* Define to 1 if you have the curl library. */
+ #undef HAVE_LIBCURL
+ 
+ /* Define to 1 if you have the <libgen.h> header file. */
+ #undef HAVE_LIBGEN_H
+ 
+ /* Define to 1 if you have the iptc library (-liptc). */
+@@ -291,13 +288,13 @@
+ /* Define to 1 if you have the 'kvm' library (-lkvm) */
+ #undef HAVE_LIBKVM
+ 
+ /* Define to 1 if you have the `m' library (-lm). */
+ #undef HAVE_LIBM
+ 
+-/* Define to 1 if you have the mysqlclient library (-lmysqlclient). */
++/* Define to 1 if you have the mysqlclient library. */
+ #undef HAVE_LIBMYSQLCLIENT
+ 
+ /* Define to 1 if you have the pcap library (-lpcap). */
+ #undef HAVE_LIBPCAP
+ 
+ /* Define if libperl is present and usable. */
+@@ -710,12 +707,18 @@
+ /* Define to 1 if you have the <unistd.h> header file. */
+ #undef HAVE_UNISTD_H
+ 
+ /* Define to 1 if you have the <upsclient.h> header file. */
+ #undef HAVE_UPSCLIENT_H
+ 
++/* Define to 1 if the system has the type `UPSCONN'. */
++#undef HAVE_UPSCONN
++
++/* Define to 1 if the system has the type `UPSCONN_t'. */
++#undef HAVE_UPSCONN_T
++
+ /* Define to 1 if you have the <utmpx.h> header file. */
+ #undef HAVE_UTMPX_H
+ 
+ /* Define to 1 if you have the <utmp.h> header file. */
+ #undef HAVE_UTMP_H
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/liboconfig/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/liboconfig/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/liboconfig/Makefile.in	2007-08-03 16:59:00.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/liboconfig/Makefile.in	2007-08-28 21:47:01.000000000 +0800
+@@ -161,12 +161,13 @@
+ BUILD_MODULE_USERS_FALSE = @BUILD_MODULE_USERS_FALSE@
+ BUILD_MODULE_USERS_TRUE = @BUILD_MODULE_USERS_TRUE@
+ BUILD_MODULE_VSERVER_FALSE = @BUILD_MODULE_VSERVER_FALSE@
+ BUILD_MODULE_VSERVER_TRUE = @BUILD_MODULE_VSERVER_TRUE@
+ BUILD_MODULE_WIRELESS_FALSE = @BUILD_MODULE_WIRELESS_FALSE@
+ BUILD_MODULE_WIRELESS_TRUE = @BUILD_MODULE_WIRELESS_TRUE@
++BUILD_WITH_LIBCURL_CFLAGS = @BUILD_WITH_LIBCURL_CFLAGS@
+ BUILD_WITH_LIBCURL_FALSE = @BUILD_WITH_LIBCURL_FALSE@
+ BUILD_WITH_LIBCURL_LIBS = @BUILD_WITH_LIBCURL_LIBS@
+ BUILD_WITH_LIBCURL_TRUE = @BUILD_WITH_LIBCURL_TRUE@
+ BUILD_WITH_LIBDEVINFO_FALSE = @BUILD_WITH_LIBDEVINFO_FALSE@
+ BUILD_WITH_LIBDEVINFO_TRUE = @BUILD_WITH_LIBDEVINFO_TRUE@
+ BUILD_WITH_LIBDEVSTAT_FALSE = @BUILD_WITH_LIBDEVSTAT_FALSE@
+@@ -176,13 +177,15 @@
+ BUILD_WITH_LIBIPTC_FALSE = @BUILD_WITH_LIBIPTC_FALSE@
+ BUILD_WITH_LIBIPTC_TRUE = @BUILD_WITH_LIBIPTC_TRUE@
+ BUILD_WITH_LIBKSTAT_FALSE = @BUILD_WITH_LIBKSTAT_FALSE@
+ BUILD_WITH_LIBKSTAT_TRUE = @BUILD_WITH_LIBKSTAT_TRUE@
+ BUILD_WITH_LIBKVM_FALSE = @BUILD_WITH_LIBKVM_FALSE@
+ BUILD_WITH_LIBKVM_TRUE = @BUILD_WITH_LIBKVM_TRUE@
++BUILD_WITH_LIBMYSQL_CFLAGS = @BUILD_WITH_LIBMYSQL_CFLAGS@
+ BUILD_WITH_LIBMYSQL_FALSE = @BUILD_WITH_LIBMYSQL_FALSE@
++BUILD_WITH_LIBMYSQL_LIBS = @BUILD_WITH_LIBMYSQL_LIBS@
+ BUILD_WITH_LIBMYSQL_TRUE = @BUILD_WITH_LIBMYSQL_TRUE@
+ BUILD_WITH_LIBOPING_FALSE = @BUILD_WITH_LIBOPING_FALSE@
+ BUILD_WITH_LIBOPING_TRUE = @BUILD_WITH_LIBOPING_TRUE@
+ BUILD_WITH_LIBPCAP_FALSE = @BUILD_WITH_LIBPCAP_FALSE@
+ BUILD_WITH_LIBPCAP_TRUE = @BUILD_WITH_LIBPCAP_TRUE@
+ BUILD_WITH_LIBPERL_FALSE = @BUILD_WITH_LIBPERL_FALSE@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/liboping/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/liboping/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/liboping/Makefile.in	2007-08-03 16:59:00.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/liboping/Makefile.in	2007-08-28 21:47:02.000000000 +0800
+@@ -157,12 +157,13 @@
+ BUILD_MODULE_USERS_FALSE = @BUILD_MODULE_USERS_FALSE@
+ BUILD_MODULE_USERS_TRUE = @BUILD_MODULE_USERS_TRUE@
+ BUILD_MODULE_VSERVER_FALSE = @BUILD_MODULE_VSERVER_FALSE@
+ BUILD_MODULE_VSERVER_TRUE = @BUILD_MODULE_VSERVER_TRUE@
+ BUILD_MODULE_WIRELESS_FALSE = @BUILD_MODULE_WIRELESS_FALSE@
+ BUILD_MODULE_WIRELESS_TRUE = @BUILD_MODULE_WIRELESS_TRUE@
++BUILD_WITH_LIBCURL_CFLAGS = @BUILD_WITH_LIBCURL_CFLAGS@
+ BUILD_WITH_LIBCURL_FALSE = @BUILD_WITH_LIBCURL_FALSE@
+ BUILD_WITH_LIBCURL_LIBS = @BUILD_WITH_LIBCURL_LIBS@
+ BUILD_WITH_LIBCURL_TRUE = @BUILD_WITH_LIBCURL_TRUE@
+ BUILD_WITH_LIBDEVINFO_FALSE = @BUILD_WITH_LIBDEVINFO_FALSE@
+ BUILD_WITH_LIBDEVINFO_TRUE = @BUILD_WITH_LIBDEVINFO_TRUE@
+ BUILD_WITH_LIBDEVSTAT_FALSE = @BUILD_WITH_LIBDEVSTAT_FALSE@
+@@ -172,13 +173,15 @@
+ BUILD_WITH_LIBIPTC_FALSE = @BUILD_WITH_LIBIPTC_FALSE@
+ BUILD_WITH_LIBIPTC_TRUE = @BUILD_WITH_LIBIPTC_TRUE@
+ BUILD_WITH_LIBKSTAT_FALSE = @BUILD_WITH_LIBKSTAT_FALSE@
+ BUILD_WITH_LIBKSTAT_TRUE = @BUILD_WITH_LIBKSTAT_TRUE@
+ BUILD_WITH_LIBKVM_FALSE = @BUILD_WITH_LIBKVM_FALSE@
+ BUILD_WITH_LIBKVM_TRUE = @BUILD_WITH_LIBKVM_TRUE@
++BUILD_WITH_LIBMYSQL_CFLAGS = @BUILD_WITH_LIBMYSQL_CFLAGS@
+ BUILD_WITH_LIBMYSQL_FALSE = @BUILD_WITH_LIBMYSQL_FALSE@
++BUILD_WITH_LIBMYSQL_LIBS = @BUILD_WITH_LIBMYSQL_LIBS@
+ BUILD_WITH_LIBMYSQL_TRUE = @BUILD_WITH_LIBMYSQL_TRUE@
+ BUILD_WITH_LIBOPING_FALSE = @BUILD_WITH_LIBOPING_FALSE@
+ BUILD_WITH_LIBOPING_TRUE = @BUILD_WITH_LIBOPING_TRUE@
+ BUILD_WITH_LIBPCAP_FALSE = @BUILD_WITH_LIBPCAP_FALSE@
+ BUILD_WITH_LIBPCAP_TRUE = @BUILD_WITH_LIBPCAP_TRUE@
+ BUILD_WITH_LIBPERL_FALSE = @BUILD_WITH_LIBPERL_FALSE@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/Makefile.am /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/Makefile.am
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/Makefile.am	2007-08-03 16:58:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/Makefile.am	2007-08-27 01:07:37.000000000 +0800
+@@ -81,16 +81,19 @@
+ pkglib_LTLIBRARIES = 
+ 
+ if BUILD_MODULE_APACHE
+ pkglib_LTLIBRARIES += apache.la
+ apache_la_SOURCES = apache.c
+ apache_la_LDFLAGS = -module -avoid-version
++apache_la_CFLAGS =
++apache_la_LIBADD =
++collectd_LDADD += "-dlopen" apache.la
+ if BUILD_WITH_LIBCURL
+-apache_la_LDFLAGS += $(BUILD_WITH_LIBCURL_LIBS)
++apache_la_CFLAGS += $(BUILD_WITH_LIBCURL_CFLAGS)
++apache_la_LIBADD += $(BUILD_WITH_LIBCURL_LIBS)
+ endif
+-collectd_LDADD += "-dlopen" apache.la
+ collectd_DEPENDENCIES += apache.la
+ endif
+ 
+ if BUILD_MODULE_APCUPS
+ pkglib_LTLIBRARIES += apcups.la
+ apcups_la_SOURCES = apcups.c
+@@ -349,16 +352,19 @@
+ endif
+ 
+ if BUILD_MODULE_MYSQL
+ pkglib_LTLIBRARIES += mysql.la
+ mysql_la_SOURCES = mysql.c
+ mysql_la_LDFLAGS = -module -avoid-version
++mysql_la_CFLAGS =
++mysql_la_LIBADD =
++collectd_LDADD += "-dlopen" mysql.la
+ if BUILD_WITH_LIBMYSQL
+-mysql_la_LDFLAGS += -lmysqlclient
++mysql_la_CFLAGS += $(BUILD_WITH_LIBMYSQL_CFLAGS)
++mysql_la_LIBADD += $(BUILD_WITH_LIBMYSQL_LIBS)
+ endif
+-collectd_LDADD += "-dlopen" mysql.la
+ collectd_DEPENDENCIES += mysql.la
+ endif
+ 
+ if BUILD_MODULE_NETWORK
+ pkglib_LTLIBRARIES += network.la
+ network_la_SOURCES = network.c network.h
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/Makefile.in	2007-08-03 16:59:00.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/Makefile.in	2007-08-28 21:47:01.000000000 +0800
+@@ -53,176 +53,178 @@
+ @BUILD_WITH_LIBSTATGRAB_TRUE@am__append_12 = -lstatgrab
+ @BUILD_WITH_OWN_LIBOCONFIG_TRUE@am__append_13 = $(LIBLTDL) liboconfig/liboconfig.la
+ @BUILD_WITH_OWN_LIBOCONFIG_TRUE@am__append_14 = $(LIBLTDL) liboconfig/liboconfig.la
+ @BUILD_WITH_OWN_LIBOCONFIG_FALSE@am__append_15 = -loconfig
+ @BUILD_WITH_LIBSOCKET_TRUE@am__append_16 = -lsocket
+ @BUILD_MODULE_APACHE_TRUE@am__append_17 = apache.la
+-@BUILD_MODULE_APACHE_TRUE@@BUILD_WITH_LIBCURL_TRUE@am__append_18 = $(BUILD_WITH_LIBCURL_LIBS)
+-@BUILD_MODULE_APACHE_TRUE@am__append_19 = "-dlopen" apache.la
+-@BUILD_MODULE_APACHE_TRUE@am__append_20 = apache.la
+-@BUILD_MODULE_APCUPS_TRUE@am__append_21 = apcups.la
+-@BUILD_MODULE_APCUPS_TRUE@@BUILD_WITH_LIBSOCKET_TRUE@am__append_22 = -lsocket
+-@BUILD_MODULE_APCUPS_TRUE@am__append_23 = "-dlopen" apcups.la
+-@BUILD_MODULE_APCUPS_TRUE@am__append_24 = apcups.la
+-@BUILD_MODULE_APPLE_SENSORS_TRUE@am__append_25 = apple_sensors.la
+-@BUILD_MODULE_APPLE_SENSORS_TRUE@@BUILD_WITH_LIBIOKIT_TRUE@am__append_26 = -lIOKit
+-@BUILD_MODULE_APPLE_SENSORS_TRUE@am__append_27 = "-dlopen" apple_sensors.la
+-@BUILD_MODULE_APPLE_SENSORS_TRUE@am__append_28 = apple_sensors.la
+-@BUILD_MODULE_BATTERY_TRUE@am__append_29 = battery.la
+-@BUILD_MODULE_BATTERY_TRUE@@BUILD_WITH_LIBIOKIT_TRUE@am__append_30 = -lIOKit
+-@BUILD_MODULE_BATTERY_TRUE@am__append_31 = "-dlopen" battery.la
+-@BUILD_MODULE_BATTERY_TRUE@am__append_32 = battery.la
+-@BUILD_MODULE_CPU_TRUE@am__append_33 = cpu.la
+-@BUILD_MODULE_CPU_TRUE@@BUILD_WITH_LIBKSTAT_TRUE@am__append_34 = -lkstat
+-@BUILD_MODULE_CPU_TRUE@@BUILD_WITH_LIBDEVINFO_TRUE@am__append_35 = -ldevinfo
+-@BUILD_MODULE_CPU_TRUE@am__append_36 = "-dlopen" cpu.la
+-@BUILD_MODULE_CPU_TRUE@am__append_37 = cpu.la
+-@BUILD_MODULE_CPUFREQ_TRUE@am__append_38 = cpufreq.la
+-@BUILD_MODULE_CPUFREQ_TRUE@am__append_39 = "-dlopen" cpufreq.la
+-@BUILD_MODULE_CPUFREQ_TRUE@am__append_40 = cpufreq.la
+-@BUILD_MODULE_CSV_TRUE@am__append_41 = csv.la
+-@BUILD_MODULE_CSV_TRUE@am__append_42 = "-dlopen" csv.la
+-@BUILD_MODULE_CSV_TRUE@am__append_43 = csv.la
+-@BUILD_MODULE_DF_TRUE@am__append_44 = df.la
+-@BUILD_MODULE_DF_TRUE@am__append_45 = "-dlopen" df.la
+-@BUILD_MODULE_DF_TRUE@am__append_46 = df.la
+-@BUILD_MODULE_DISK_TRUE@am__append_47 = disk.la
+-@BUILD_MODULE_DISK_TRUE@@BUILD_WITH_LIBKSTAT_TRUE@am__append_48 = -lkstat
+-@BUILD_MODULE_DISK_TRUE@@BUILD_WITH_LIBDEVINFO_TRUE@am__append_49 = -ldevinfo
+-@BUILD_MODULE_DISK_TRUE@@BUILD_WITH_LIBIOKIT_TRUE@am__append_50 = -lIOKit
+-@BUILD_MODULE_DISK_TRUE@am__append_51 = "-dlopen" disk.la
+-@BUILD_MODULE_DISK_TRUE@am__append_52 = disk.la
+-@BUILD_MODULE_DNS_TRUE@am__append_53 = dns.la
+-@BUILD_MODULE_DNS_TRUE@@BUILD_WITH_LIBPCAP_TRUE@@BUILD_WITH_LIBPTHREAD_TRUE@am__append_54 = utils_dns.c utils_dns.h
+-@BUILD_MODULE_DNS_TRUE@@BUILD_WITH_LIBPCAP_TRUE@am__append_55 = -lpcap
+-@BUILD_MODULE_DNS_TRUE@@BUILD_WITH_LIBPTHREAD_TRUE@am__append_56 = -lpthread
+-@BUILD_MODULE_DNS_TRUE@am__append_57 = "-dlopen" dns.la
+-@BUILD_MODULE_DNS_TRUE@am__append_58 = dns.la
+-@BUILD_MODULE_EMAIL_TRUE@am__append_59 = email.la
+-@BUILD_MODULE_EMAIL_TRUE@@BUILD_WITH_LIBPTHREAD_TRUE@am__append_60 = -lpthread
+-@BUILD_MODULE_EMAIL_TRUE@am__append_61 = "-dlopen" email.la
+-@BUILD_MODULE_EMAIL_TRUE@am__append_62 = email.la
+-@BUILD_MODULE_ENTROPY_TRUE@am__append_63 = entropy.la
+-@BUILD_MODULE_ENTROPY_TRUE@am__append_64 = "-dlopen" entropy.la
+-@BUILD_MODULE_ENTROPY_TRUE@am__append_65 = entropy.la
+-@BUILD_MODULE_EXEC_TRUE@am__append_66 = exec.la
+-@BUILD_MODULE_EXEC_TRUE@@BUILD_WITH_LIBPTHREAD_TRUE@am__append_67 = -lpthread
+-@BUILD_MODULE_EXEC_TRUE@am__append_68 = "-dlopen" exec.la
+-@BUILD_MODULE_EXEC_TRUE@am__append_69 = exec.la
+-@BUILD_MODULE_HDDTEMP_TRUE@am__append_70 = hddtemp.la
+-@BUILD_MODULE_HDDTEMP_TRUE@@BUILD_WITH_LIBSOCKET_TRUE@am__append_71 = -lsocket
+-@BUILD_MODULE_HDDTEMP_TRUE@am__append_72 = "-dlopen" hddtemp.la
+-@BUILD_MODULE_HDDTEMP_TRUE@am__append_73 = hddtemp.la
+-@BUILD_MODULE_INTERFACE_TRUE@am__append_74 = interface.la
+-@BUILD_MODULE_INTERFACE_TRUE@am__append_75 = "-dlopen" interface.la
+-@BUILD_MODULE_INTERFACE_TRUE@am__append_76 = interface.la
+-@BUILD_MODULE_INTERFACE_TRUE@@BUILD_WITH_LIBKSTAT_TRUE@am__append_77 = -lkstat
+-@BUILD_MODULE_INTERFACE_TRUE@@BUILD_WITH_LIBDEVINFO_TRUE@am__append_78 = -ldevinfo
+-@BUILD_MODULE_INTERFACE_TRUE@@BUILD_WITH_LIBKVM_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_79 = -lkvm
+-@BUILD_MODULE_INTERFACE_TRUE@@BUILD_WITH_LIBDEVSTAT_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_80 = -ldevstat
+-@BUILD_MODULE_INTERFACE_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_81 = -lstatgrab
+-@BUILD_MODULE_IPTABLES_TRUE@am__append_82 = iptables.la
+-@BUILD_MODULE_IPTABLES_TRUE@@BUILD_WITH_LIBIPTC_TRUE@am__append_83 = -liptc
+-@BUILD_MODULE_IPTABLES_TRUE@am__append_84 = "-dlopen" iptables.la
+-@BUILD_MODULE_IPTABLES_TRUE@am__append_85 = iptables.la
+-@BUILD_MODULE_IRQ_TRUE@am__append_86 = irq.la
+-@BUILD_MODULE_IRQ_TRUE@am__append_87 = "-dlopen" irq.la
+-@BUILD_MODULE_IRQ_TRUE@am__append_88 = irq.la
+-@BUILD_MODULE_LOAD_TRUE@am__append_89 = load.la
+-@BUILD_MODULE_LOAD_TRUE@am__append_90 = "-dlopen" load.la
+-@BUILD_MODULE_LOAD_TRUE@am__append_91 = load.la
+-@BUILD_MODULE_LOAD_TRUE@@BUILD_WITH_LIBKVM_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_92 = -lkvm
+-@BUILD_MODULE_LOAD_TRUE@@BUILD_WITH_LIBDEVSTAT_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_93 = -ldevstat
+-@BUILD_MODULE_LOAD_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_94 = -lstatgrab
+-@BUILD_MODULE_LOGFILE_TRUE@am__append_95 = logfile.la
+-@BUILD_MODULE_LOGFILE_TRUE@am__append_96 = "-dlopen" logfile.la
+-@BUILD_MODULE_LOGFILE_TRUE@am__append_97 = logfile.la
+-@BUILD_MODULE_MBMON_TRUE@am__append_98 = mbmon.la
+-@BUILD_MODULE_MBMON_TRUE@@BUILD_WITH_LIBSOCKET_TRUE@am__append_99 = -lsocket
+-@BUILD_MODULE_MBMON_TRUE@am__append_100 = "-dlopen" mbmon.la
+-@BUILD_MODULE_MBMON_TRUE@am__append_101 = mbmon.la
+-@BUILD_MODULE_MEMORY_TRUE@am__append_102 = memory.la
+-@BUILD_MODULE_MEMORY_TRUE@am__append_103 = "-dlopen" memory.la
+-@BUILD_MODULE_MEMORY_TRUE@am__append_104 = memory.la
+-@BUILD_MODULE_MEMORY_TRUE@@BUILD_WITH_LIBKSTAT_TRUE@am__append_105 = -lkstat
+-@BUILD_MODULE_MEMORY_TRUE@@BUILD_WITH_LIBDEVINFO_TRUE@am__append_106 = -ldevinfo
+-@BUILD_MODULE_MEMORY_TRUE@@BUILD_WITH_LIBKVM_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_107 = -lkvm
+-@BUILD_MODULE_MEMORY_TRUE@@BUILD_WITH_LIBDEVSTAT_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_108 = -ldevstat
+-@BUILD_MODULE_MEMORY_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_109 = -lstatgrab
+-@BUILD_MODULE_MULTIMETER_TRUE@am__append_110 = multimeter.la
+-@BUILD_MODULE_MULTIMETER_TRUE@am__append_111 = "-dlopen" multimeter.la
+-@BUILD_MODULE_MULTIMETER_TRUE@am__append_112 = multimeter.la
+-@BUILD_MODULE_MYSQL_TRUE@am__append_113 = mysql.la
+-@BUILD_MODULE_MYSQL_TRUE@@BUILD_WITH_LIBMYSQL_TRUE@am__append_114 = -lmysqlclient
++@BUILD_MODULE_APACHE_TRUE@am__append_18 = "-dlopen" apache.la
++@BUILD_MODULE_APACHE_TRUE@@BUILD_WITH_LIBCURL_TRUE@am__append_19 = $(BUILD_WITH_LIBCURL_CFLAGS)
++@BUILD_MODULE_APACHE_TRUE@@BUILD_WITH_LIBCURL_TRUE@am__append_20 = $(BUILD_WITH_LIBCURL_LIBS)
++@BUILD_MODULE_APACHE_TRUE@am__append_21 = apache.la
++@BUILD_MODULE_APCUPS_TRUE@am__append_22 = apcups.la
++@BUILD_MODULE_APCUPS_TRUE@@BUILD_WITH_LIBSOCKET_TRUE@am__append_23 = -lsocket
++@BUILD_MODULE_APCUPS_TRUE@am__append_24 = "-dlopen" apcups.la
++@BUILD_MODULE_APCUPS_TRUE@am__append_25 = apcups.la
++@BUILD_MODULE_APPLE_SENSORS_TRUE@am__append_26 = apple_sensors.la
++@BUILD_MODULE_APPLE_SENSORS_TRUE@@BUILD_WITH_LIBIOKIT_TRUE@am__append_27 = -lIOKit
++@BUILD_MODULE_APPLE_SENSORS_TRUE@am__append_28 = "-dlopen" apple_sensors.la
++@BUILD_MODULE_APPLE_SENSORS_TRUE@am__append_29 = apple_sensors.la
++@BUILD_MODULE_BATTERY_TRUE@am__append_30 = battery.la
++@BUILD_MODULE_BATTERY_TRUE@@BUILD_WITH_LIBIOKIT_TRUE@am__append_31 = -lIOKit
++@BUILD_MODULE_BATTERY_TRUE@am__append_32 = "-dlopen" battery.la
++@BUILD_MODULE_BATTERY_TRUE@am__append_33 = battery.la
++@BUILD_MODULE_CPU_TRUE@am__append_34 = cpu.la
++@BUILD_MODULE_CPU_TRUE@@BUILD_WITH_LIBKSTAT_TRUE@am__append_35 = -lkstat
++@BUILD_MODULE_CPU_TRUE@@BUILD_WITH_LIBDEVINFO_TRUE@am__append_36 = -ldevinfo
++@BUILD_MODULE_CPU_TRUE@am__append_37 = "-dlopen" cpu.la
++@BUILD_MODULE_CPU_TRUE@am__append_38 = cpu.la
++@BUILD_MODULE_CPUFREQ_TRUE@am__append_39 = cpufreq.la
++@BUILD_MODULE_CPUFREQ_TRUE@am__append_40 = "-dlopen" cpufreq.la
++@BUILD_MODULE_CPUFREQ_TRUE@am__append_41 = cpufreq.la
++@BUILD_MODULE_CSV_TRUE@am__append_42 = csv.la
++@BUILD_MODULE_CSV_TRUE@am__append_43 = "-dlopen" csv.la
++@BUILD_MODULE_CSV_TRUE@am__append_44 = csv.la
++@BUILD_MODULE_DF_TRUE@am__append_45 = df.la
++@BUILD_MODULE_DF_TRUE@am__append_46 = "-dlopen" df.la
++@BUILD_MODULE_DF_TRUE@am__append_47 = df.la
++@BUILD_MODULE_DISK_TRUE@am__append_48 = disk.la
++@BUILD_MODULE_DISK_TRUE@@BUILD_WITH_LIBKSTAT_TRUE@am__append_49 = -lkstat
++@BUILD_MODULE_DISK_TRUE@@BUILD_WITH_LIBDEVINFO_TRUE@am__append_50 = -ldevinfo
++@BUILD_MODULE_DISK_TRUE@@BUILD_WITH_LIBIOKIT_TRUE@am__append_51 = -lIOKit
++@BUILD_MODULE_DISK_TRUE@am__append_52 = "-dlopen" disk.la
++@BUILD_MODULE_DISK_TRUE@am__append_53 = disk.la
++@BUILD_MODULE_DNS_TRUE@am__append_54 = dns.la
++@BUILD_MODULE_DNS_TRUE@@BUILD_WITH_LIBPCAP_TRUE@@BUILD_WITH_LIBPTHREAD_TRUE@am__append_55 = utils_dns.c utils_dns.h
++@BUILD_MODULE_DNS_TRUE@@BUILD_WITH_LIBPCAP_TRUE@am__append_56 = -lpcap
++@BUILD_MODULE_DNS_TRUE@@BUILD_WITH_LIBPTHREAD_TRUE@am__append_57 = -lpthread
++@BUILD_MODULE_DNS_TRUE@am__append_58 = "-dlopen" dns.la
++@BUILD_MODULE_DNS_TRUE@am__append_59 = dns.la
++@BUILD_MODULE_EMAIL_TRUE@am__append_60 = email.la
++@BUILD_MODULE_EMAIL_TRUE@@BUILD_WITH_LIBPTHREAD_TRUE@am__append_61 = -lpthread
++@BUILD_MODULE_EMAIL_TRUE@am__append_62 = "-dlopen" email.la
++@BUILD_MODULE_EMAIL_TRUE@am__append_63 = email.la
++@BUILD_MODULE_ENTROPY_TRUE@am__append_64 = entropy.la
++@BUILD_MODULE_ENTROPY_TRUE@am__append_65 = "-dlopen" entropy.la
++@BUILD_MODULE_ENTROPY_TRUE@am__append_66 = entropy.la
++@BUILD_MODULE_EXEC_TRUE@am__append_67 = exec.la
++@BUILD_MODULE_EXEC_TRUE@@BUILD_WITH_LIBPTHREAD_TRUE@am__append_68 = -lpthread
++@BUILD_MODULE_EXEC_TRUE@am__append_69 = "-dlopen" exec.la
++@BUILD_MODULE_EXEC_TRUE@am__append_70 = exec.la
++@BUILD_MODULE_HDDTEMP_TRUE@am__append_71 = hddtemp.la
++@BUILD_MODULE_HDDTEMP_TRUE@@BUILD_WITH_LIBSOCKET_TRUE@am__append_72 = -lsocket
++@BUILD_MODULE_HDDTEMP_TRUE@am__append_73 = "-dlopen" hddtemp.la
++@BUILD_MODULE_HDDTEMP_TRUE@am__append_74 = hddtemp.la
++@BUILD_MODULE_INTERFACE_TRUE@am__append_75 = interface.la
++@BUILD_MODULE_INTERFACE_TRUE@am__append_76 = "-dlopen" interface.la
++@BUILD_MODULE_INTERFACE_TRUE@am__append_77 = interface.la
++@BUILD_MODULE_INTERFACE_TRUE@@BUILD_WITH_LIBKSTAT_TRUE@am__append_78 = -lkstat
++@BUILD_MODULE_INTERFACE_TRUE@@BUILD_WITH_LIBDEVINFO_TRUE@am__append_79 = -ldevinfo
++@BUILD_MODULE_INTERFACE_TRUE@@BUILD_WITH_LIBKVM_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_80 = -lkvm
++@BUILD_MODULE_INTERFACE_TRUE@@BUILD_WITH_LIBDEVSTAT_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_81 = -ldevstat
++@BUILD_MODULE_INTERFACE_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_82 = -lstatgrab
++@BUILD_MODULE_IPTABLES_TRUE@am__append_83 = iptables.la
++@BUILD_MODULE_IPTABLES_TRUE@@BUILD_WITH_LIBIPTC_TRUE@am__append_84 = -liptc
++@BUILD_MODULE_IPTABLES_TRUE@am__append_85 = "-dlopen" iptables.la
++@BUILD_MODULE_IPTABLES_TRUE@am__append_86 = iptables.la
++@BUILD_MODULE_IRQ_TRUE@am__append_87 = irq.la
++@BUILD_MODULE_IRQ_TRUE@am__append_88 = "-dlopen" irq.la
++@BUILD_MODULE_IRQ_TRUE@am__append_89 = irq.la
++@BUILD_MODULE_LOAD_TRUE@am__append_90 = load.la
++@BUILD_MODULE_LOAD_TRUE@am__append_91 = "-dlopen" load.la
++@BUILD_MODULE_LOAD_TRUE@am__append_92 = load.la
++@BUILD_MODULE_LOAD_TRUE@@BUILD_WITH_LIBKVM_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_93 = -lkvm
++@BUILD_MODULE_LOAD_TRUE@@BUILD_WITH_LIBDEVSTAT_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_94 = -ldevstat
++@BUILD_MODULE_LOAD_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_95 = -lstatgrab
++@BUILD_MODULE_LOGFILE_TRUE@am__append_96 = logfile.la
++@BUILD_MODULE_LOGFILE_TRUE@am__append_97 = "-dlopen" logfile.la
++@BUILD_MODULE_LOGFILE_TRUE@am__append_98 = logfile.la
++@BUILD_MODULE_MBMON_TRUE@am__append_99 = mbmon.la
++@BUILD_MODULE_MBMON_TRUE@@BUILD_WITH_LIBSOCKET_TRUE@am__append_100 = -lsocket
++@BUILD_MODULE_MBMON_TRUE@am__append_101 = "-dlopen" mbmon.la
++@BUILD_MODULE_MBMON_TRUE@am__append_102 = mbmon.la
++@BUILD_MODULE_MEMORY_TRUE@am__append_103 = memory.la
++@BUILD_MODULE_MEMORY_TRUE@am__append_104 = "-dlopen" memory.la
++@BUILD_MODULE_MEMORY_TRUE@am__append_105 = memory.la
++@BUILD_MODULE_MEMORY_TRUE@@BUILD_WITH_LIBKSTAT_TRUE@am__append_106 = -lkstat
++@BUILD_MODULE_MEMORY_TRUE@@BUILD_WITH_LIBDEVINFO_TRUE@am__append_107 = -ldevinfo
++@BUILD_MODULE_MEMORY_TRUE@@BUILD_WITH_LIBKVM_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_108 = -lkvm
++@BUILD_MODULE_MEMORY_TRUE@@BUILD_WITH_LIBDEVSTAT_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_109 = -ldevstat
++@BUILD_MODULE_MEMORY_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_110 = -lstatgrab
++@BUILD_MODULE_MULTIMETER_TRUE@am__append_111 = multimeter.la
++@BUILD_MODULE_MULTIMETER_TRUE@am__append_112 = "-dlopen" multimeter.la
++@BUILD_MODULE_MULTIMETER_TRUE@am__append_113 = multimeter.la
++@BUILD_MODULE_MYSQL_TRUE@am__append_114 = mysql.la
+ @BUILD_MODULE_MYSQL_TRUE@am__append_115 = "-dlopen" mysql.la
+-@BUILD_MODULE_MYSQL_TRUE@am__append_116 = mysql.la
+-@BUILD_MODULE_NETWORK_TRUE@am__append_117 = network.la
+-@BUILD_MODULE_NETWORK_TRUE@@BUILD_WITH_LIBSOCKET_TRUE@am__append_118 = -lsocket
+-@BUILD_MODULE_NETWORK_TRUE@@BUILD_WITH_LIBPTHREAD_TRUE@am__append_119 = -lpthread
+-@BUILD_MODULE_NETWORK_TRUE@am__append_120 = "-dlopen" network.la
+-@BUILD_MODULE_NETWORK_TRUE@am__append_121 = network.la
+-@BUILD_MODULE_NFS_TRUE@am__append_122 = nfs.la
+-@BUILD_MODULE_NFS_TRUE@am__append_123 = "-dlopen" nfs.la
++@BUILD_MODULE_MYSQL_TRUE@@BUILD_WITH_LIBMYSQL_TRUE@am__append_116 = $(BUILD_WITH_LIBMYSQL_CFLAGS)
++@BUILD_MODULE_MYSQL_TRUE@@BUILD_WITH_LIBMYSQL_TRUE@am__append_117 = $(BUILD_WITH_LIBMYSQL_LIBS)
++@BUILD_MODULE_MYSQL_TRUE@am__append_118 = mysql.la
++@BUILD_MODULE_NETWORK_TRUE@am__append_119 = network.la
++@BUILD_MODULE_NETWORK_TRUE@@BUILD_WITH_LIBSOCKET_TRUE@am__append_120 = -lsocket
++@BUILD_MODULE_NETWORK_TRUE@@BUILD_WITH_LIBPTHREAD_TRUE@am__append_121 = -lpthread
++@BUILD_MODULE_NETWORK_TRUE@am__append_122 = "-dlopen" network.la
++@BUILD_MODULE_NETWORK_TRUE@am__append_123 = network.la
+ @BUILD_MODULE_NFS_TRUE@am__append_124 = nfs.la
+-@BUILD_MODULE_NTPD_TRUE@am__append_125 = ntpd.la
+-@BUILD_MODULE_NTPD_TRUE@@BUILD_WITH_LIBSOCKET_TRUE@am__append_126 = -lsocket
+-@BUILD_MODULE_NTPD_TRUE@am__append_127 = "-dlopen" ntpd.la
+-@BUILD_MODULE_NTPD_TRUE@am__append_128 = ntpd.la
+-@BUILD_MODULE_NUT_TRUE@am__append_129 = nut.la
+-@BUILD_MODULE_NUT_TRUE@@BUILD_WITH_LIBUPSCLIENT_TRUE@am__append_130 = -lupsclient
+-@BUILD_MODULE_NUT_TRUE@@BUILD_WITH_LIBPTHREAD_TRUE@@BUILD_WITH_LIBUPSCLIENT_TRUE@am__append_131 = -lpthread
+-@BUILD_MODULE_NUT_TRUE@am__append_132 = "-dlopen" nut.la
+-@BUILD_MODULE_NUT_TRUE@am__append_133 = nut.la
+-@BUILD_MODULE_PERL_TRUE@@BUILD_WITH_LIBPERL_TRUE@am__append_134 = perl.la
+-@BUILD_MODULE_PERL_TRUE@@BUILD_WITH_LIBPERL_TRUE@am__append_135 = "-dlopen" perl.la
++@BUILD_MODULE_NFS_TRUE@am__append_125 = "-dlopen" nfs.la
++@BUILD_MODULE_NFS_TRUE@am__append_126 = nfs.la
++@BUILD_MODULE_NTPD_TRUE@am__append_127 = ntpd.la
++@BUILD_MODULE_NTPD_TRUE@@BUILD_WITH_LIBSOCKET_TRUE@am__append_128 = -lsocket
++@BUILD_MODULE_NTPD_TRUE@am__append_129 = "-dlopen" ntpd.la
++@BUILD_MODULE_NTPD_TRUE@am__append_130 = ntpd.la
++@BUILD_MODULE_NUT_TRUE@am__append_131 = nut.la
++@BUILD_MODULE_NUT_TRUE@@BUILD_WITH_LIBUPSCLIENT_TRUE@am__append_132 = -lupsclient
++@BUILD_MODULE_NUT_TRUE@@BUILD_WITH_LIBPTHREAD_TRUE@@BUILD_WITH_LIBUPSCLIENT_TRUE@am__append_133 = -lpthread
++@BUILD_MODULE_NUT_TRUE@am__append_134 = "-dlopen" nut.la
++@BUILD_MODULE_NUT_TRUE@am__append_135 = nut.la
+ @BUILD_MODULE_PERL_TRUE@@BUILD_WITH_LIBPERL_TRUE@am__append_136 = perl.la
+-@BUILD_MODULE_PING_TRUE@am__append_137 = ping.la
+-@BUILD_MODULE_PING_TRUE@@BUILD_WITH_LIBOPING_TRUE@@BUILD_WITH_OWN_LIBOPING_FALSE@am__append_138 = -loping
+-@BUILD_MODULE_PING_TRUE@am__append_139 = "-dlopen" ping.la
+-@BUILD_MODULE_PING_TRUE@am__append_140 = ping.la
+-@BUILD_MODULE_PROCESSES_TRUE@am__append_141 = processes.la
+-@BUILD_MODULE_PROCESSES_TRUE@am__append_142 = "-dlopen" processes.la
++@BUILD_MODULE_PERL_TRUE@@BUILD_WITH_LIBPERL_TRUE@am__append_137 = "-dlopen" perl.la
++@BUILD_MODULE_PERL_TRUE@@BUILD_WITH_LIBPERL_TRUE@am__append_138 = perl.la
++@BUILD_MODULE_PING_TRUE@am__append_139 = ping.la
++@BUILD_MODULE_PING_TRUE@@BUILD_WITH_LIBOPING_TRUE@@BUILD_WITH_OWN_LIBOPING_FALSE@am__append_140 = -loping
++@BUILD_MODULE_PING_TRUE@am__append_141 = "-dlopen" ping.la
++@BUILD_MODULE_PING_TRUE@am__append_142 = ping.la
+ @BUILD_MODULE_PROCESSES_TRUE@am__append_143 = processes.la
+-@BUILD_WITH_RRDTOOL_TRUE@am__append_144 = rrdtool.la
+-@BUILD_WITH_RRDTOOL_TRUE@am__append_145 = "-dlopen" rrdtool.la
++@BUILD_MODULE_PROCESSES_TRUE@am__append_144 = "-dlopen" processes.la
++@BUILD_MODULE_PROCESSES_TRUE@am__append_145 = processes.la
+ @BUILD_WITH_RRDTOOL_TRUE@am__append_146 = rrdtool.la
+-@BUILD_MODULE_SENSORS_TRUE@am__append_147 = sensors.la
+-@BUILD_MODULE_SENSORS_TRUE@@BUILD_WITH_LM_SENSORS_TRUE@am__append_148 = -lsensors
+-@BUILD_MODULE_SENSORS_TRUE@am__append_149 = "-dlopen" sensors.la
+-@BUILD_MODULE_SENSORS_TRUE@am__append_150 = sensors.la
+-@BUILD_MODULE_SERIAL_TRUE@am__append_151 = serial.la
+-@BUILD_MODULE_SERIAL_TRUE@am__append_152 = "-dlopen" serial.la
++@BUILD_WITH_RRDTOOL_TRUE@am__append_147 = "-dlopen" rrdtool.la
++@BUILD_WITH_RRDTOOL_TRUE@am__append_148 = rrdtool.la
++@BUILD_MODULE_SENSORS_TRUE@am__append_149 = sensors.la
++@BUILD_MODULE_SENSORS_TRUE@@BUILD_WITH_LM_SENSORS_TRUE@am__append_150 = -lsensors
++@BUILD_MODULE_SENSORS_TRUE@am__append_151 = "-dlopen" sensors.la
++@BUILD_MODULE_SENSORS_TRUE@am__append_152 = sensors.la
+ @BUILD_MODULE_SERIAL_TRUE@am__append_153 = serial.la
+-@BUILD_MODULE_SWAP_TRUE@am__append_154 = swap.la
+-@BUILD_MODULE_SWAP_TRUE@am__append_155 = "-dlopen" swap.la
++@BUILD_MODULE_SERIAL_TRUE@am__append_154 = "-dlopen" serial.la
++@BUILD_MODULE_SERIAL_TRUE@am__append_155 = serial.la
+ @BUILD_MODULE_SWAP_TRUE@am__append_156 = swap.la
+-@BUILD_MODULE_SWAP_TRUE@@BUILD_WITH_LIBKSTAT_TRUE@am__append_157 = -lkstat
+-@BUILD_MODULE_SWAP_TRUE@@BUILD_WITH_LIBDEVINFO_TRUE@am__append_158 = -ldevinfo
+-@BUILD_MODULE_SWAP_TRUE@@BUILD_WITH_LIBKVM_TRUE@am__append_159 = -lkvm
+-@BUILD_MODULE_SWAP_TRUE@@BUILD_WITH_LIBDEVSTAT_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_160 = -ldevstat
+-@BUILD_MODULE_SWAP_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_161 = -lstatgrab
+-@BUILD_MODULE_SYSLOG_TRUE@am__append_162 = syslog.la
+-@BUILD_MODULE_SYSLOG_TRUE@am__append_163 = "-dlopen" syslog.la
++@BUILD_MODULE_SWAP_TRUE@am__append_157 = "-dlopen" swap.la
++@BUILD_MODULE_SWAP_TRUE@am__append_158 = swap.la
++@BUILD_MODULE_SWAP_TRUE@@BUILD_WITH_LIBKSTAT_TRUE@am__append_159 = -lkstat
++@BUILD_MODULE_SWAP_TRUE@@BUILD_WITH_LIBDEVINFO_TRUE@am__append_160 = -ldevinfo
++@BUILD_MODULE_SWAP_TRUE@@BUILD_WITH_LIBKVM_TRUE@am__append_161 = -lkvm
++@BUILD_MODULE_SWAP_TRUE@@BUILD_WITH_LIBDEVSTAT_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_162 = -ldevstat
++@BUILD_MODULE_SWAP_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_163 = -lstatgrab
+ @BUILD_MODULE_SYSLOG_TRUE@am__append_164 = syslog.la
+-@BUILD_MODULE_TAPE_TRUE@am__append_165 = tape.la
+-@BUILD_MODULE_TAPE_TRUE@@BUILD_WITH_LIBKSTAT_TRUE@am__append_166 = -lkstat
+-@BUILD_MODULE_TAPE_TRUE@@BUILD_WITH_LIBDEVINFO_TRUE@am__append_167 = -ldevinfo
+-@BUILD_MODULE_TAPE_TRUE@am__append_168 = "-dlopen" tape.la
+-@BUILD_MODULE_TAPE_TRUE@am__append_169 = tape.la
+-@BUILD_MODULE_UNIXSOCK_TRUE@am__append_170 = unixsock.la
+-@BUILD_MODULE_UNIXSOCK_TRUE@am__append_171 = "-dlopen" unixsock.la
++@BUILD_MODULE_SYSLOG_TRUE@am__append_165 = "-dlopen" syslog.la
++@BUILD_MODULE_SYSLOG_TRUE@am__append_166 = syslog.la
++@BUILD_MODULE_TAPE_TRUE@am__append_167 = tape.la
++@BUILD_MODULE_TAPE_TRUE@@BUILD_WITH_LIBKSTAT_TRUE@am__append_168 = -lkstat
++@BUILD_MODULE_TAPE_TRUE@@BUILD_WITH_LIBDEVINFO_TRUE@am__append_169 = -ldevinfo
++@BUILD_MODULE_TAPE_TRUE@am__append_170 = "-dlopen" tape.la
++@BUILD_MODULE_TAPE_TRUE@am__append_171 = tape.la
+ @BUILD_MODULE_UNIXSOCK_TRUE@am__append_172 = unixsock.la
+-@BUILD_MODULE_USERS_TRUE@am__append_173 = users.la
+-@BUILD_MODULE_USERS_TRUE@am__append_174 = "-dlopen" users.la
++@BUILD_MODULE_UNIXSOCK_TRUE@am__append_173 = "-dlopen" unixsock.la
++@BUILD_MODULE_UNIXSOCK_TRUE@am__append_174 = unixsock.la
+ @BUILD_MODULE_USERS_TRUE@am__append_175 = users.la
+-@BUILD_MODULE_VSERVER_TRUE@am__append_176 = vserver.la
+-@BUILD_MODULE_VSERVER_TRUE@am__append_177 = "-dlopen" vserver.la
++@BUILD_MODULE_USERS_TRUE@am__append_176 = "-dlopen" users.la
++@BUILD_MODULE_USERS_TRUE@am__append_177 = users.la
+ @BUILD_MODULE_VSERVER_TRUE@am__append_178 = vserver.la
+-@BUILD_MODULE_WIRELESS_TRUE@am__append_179 = wireless.la
+-@BUILD_MODULE_WIRELESS_TRUE@am__append_180 = "-dlopen" wireless.la
++@BUILD_MODULE_VSERVER_TRUE@am__append_179 = "-dlopen" vserver.la
++@BUILD_MODULE_VSERVER_TRUE@am__append_180 = vserver.la
+ @BUILD_MODULE_WIRELESS_TRUE@am__append_181 = wireless.la
++@BUILD_MODULE_WIRELESS_TRUE@am__append_182 = "-dlopen" wireless.la
++@BUILD_MODULE_WIRELESS_TRUE@am__append_183 = wireless.la
+ subdir = src
+ DIST_COMMON = $(dist_man_MANS) $(srcdir)/Makefile.am \
+ 	$(srcdir)/Makefile.in $(srcdir)/collectd.conf.in \
+ 	$(srcdir)/config.h.in
+ ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
+ am__aclocal_m4_deps = $(top_srcdir)/configure.in
+@@ -239,15 +241,18 @@
+ am__strip_dir = `echo $$p | sed -e 's|^.*/||'`;
+ am__installdirs = "$(DESTDIR)$(pkglibdir)" "$(DESTDIR)$(bindir)" \
+ 	"$(DESTDIR)$(sbindir)" "$(DESTDIR)$(man1dir)" \
+ 	"$(DESTDIR)$(man5dir)"
+ pkglibLTLIBRARIES_INSTALL = $(INSTALL)
+ LTLIBRARIES = $(pkglib_LTLIBRARIES)
+-apache_la_LIBADD =
++am__DEPENDENCIES_1 =
++@BUILD_MODULE_APACHE_TRUE@@BUILD_WITH_LIBCURL_TRUE@am__DEPENDENCIES_2 = $(am__DEPENDENCIES_1)
++@BUILD_MODULE_APACHE_TRUE@apache_la_DEPENDENCIES =  \
++@BUILD_MODULE_APACHE_TRUE@	$(am__DEPENDENCIES_2)
+ am__apache_la_SOURCES_DIST = apache.c
+-@BUILD_MODULE_APACHE_TRUE@am_apache_la_OBJECTS = apache.lo
++@BUILD_MODULE_APACHE_TRUE@am_apache_la_OBJECTS = apache_la-apache.lo
+ apache_la_OBJECTS = $(am_apache_la_OBJECTS)
+ @BUILD_MODULE_APACHE_TRUE@am_apache_la_rpath = -rpath $(pkglibdir)
+ apcups_la_LIBADD =
+ am__apcups_la_SOURCES_DIST = apcups.c
+ @BUILD_MODULE_APCUPS_TRUE@am_apcups_la_OBJECTS = apcups.lo
+ apcups_la_OBJECTS = $(am_apcups_la_OBJECTS)
+@@ -355,15 +360,17 @@
+ am__multimeter_la_SOURCES_DIST = multimeter.c
+ @BUILD_MODULE_MULTIMETER_TRUE@am_multimeter_la_OBJECTS =  \
+ @BUILD_MODULE_MULTIMETER_TRUE@	multimeter.lo
+ multimeter_la_OBJECTS = $(am_multimeter_la_OBJECTS)
+ @BUILD_MODULE_MULTIMETER_TRUE@am_multimeter_la_rpath = -rpath \
+ @BUILD_MODULE_MULTIMETER_TRUE@	$(pkglibdir)
+-mysql_la_LIBADD =
++@BUILD_MODULE_MYSQL_TRUE@@BUILD_WITH_LIBMYSQL_TRUE@am__DEPENDENCIES_3 = $(am__DEPENDENCIES_1)
++@BUILD_MODULE_MYSQL_TRUE@mysql_la_DEPENDENCIES =  \
++@BUILD_MODULE_MYSQL_TRUE@	$(am__DEPENDENCIES_3)
+ am__mysql_la_SOURCES_DIST = mysql.c
+-@BUILD_MODULE_MYSQL_TRUE@am_mysql_la_OBJECTS = mysql.lo
++@BUILD_MODULE_MYSQL_TRUE@am_mysql_la_OBJECTS = mysql_la-mysql.lo
+ mysql_la_OBJECTS = $(am_mysql_la_OBJECTS)
+ @BUILD_MODULE_MYSQL_TRUE@am_mysql_la_rpath = -rpath $(pkglibdir)
+ network_la_LIBADD =
+ am__network_la_SOURCES_DIST = network.c network.h
+ @BUILD_MODULE_NETWORK_TRUE@am_network_la_OBJECTS = network.lo
+ network_la_OBJECTS = $(am_network_la_OBJECTS)
+@@ -458,64 +465,63 @@
+ 	collectd-utils_avltree.$(OBJEXT) \
+ 	collectd-utils_mount.$(OBJEXT) collectd-utils_llist.$(OBJEXT) \
+ 	collectd-utils_ignorelist.$(OBJEXT) collectd-common.$(OBJEXT) \
+ 	collectd-plugin.$(OBJEXT) collectd-configfile.$(OBJEXT) \
+ 	collectd-types_list.$(OBJEXT)
+ collectd_OBJECTS = $(am_collectd_OBJECTS)
+-am__DEPENDENCIES_1 =
+-@BUILD_WITH_OWN_LIBOCONFIG_TRUE@am__DEPENDENCIES_2 =  \
++@BUILD_WITH_OWN_LIBOCONFIG_TRUE@am__DEPENDENCIES_4 =  \
+ @BUILD_WITH_OWN_LIBOCONFIG_TRUE@	$(am__DEPENDENCIES_1) \
+ @BUILD_WITH_OWN_LIBOCONFIG_TRUE@	liboconfig/liboconfig.la
+-@BUILD_MODULE_APACHE_TRUE@am__DEPENDENCIES_3 = "-dlopen" apache.la
+-@BUILD_MODULE_APCUPS_TRUE@am__DEPENDENCIES_4 = "-dlopen" apcups.la
+-@BUILD_MODULE_APPLE_SENSORS_TRUE@am__DEPENDENCIES_5 = "-dlopen" \
++@BUILD_MODULE_APACHE_TRUE@am__DEPENDENCIES_5 = "-dlopen" apache.la
++@BUILD_MODULE_APCUPS_TRUE@am__DEPENDENCIES_6 = "-dlopen" apcups.la
++@BUILD_MODULE_APPLE_SENSORS_TRUE@am__DEPENDENCIES_7 = "-dlopen" \
+ @BUILD_MODULE_APPLE_SENSORS_TRUE@	apple_sensors.la
+-@BUILD_MODULE_BATTERY_TRUE@am__DEPENDENCIES_6 = "-dlopen" battery.la
+-@BUILD_MODULE_CPU_TRUE@am__DEPENDENCIES_7 = "-dlopen" cpu.la
+-@BUILD_MODULE_CPUFREQ_TRUE@am__DEPENDENCIES_8 = "-dlopen" cpufreq.la
+-@BUILD_MODULE_CSV_TRUE@am__DEPENDENCIES_9 = "-dlopen" csv.la
+-@BUILD_MODULE_DF_TRUE@am__DEPENDENCIES_10 = "-dlopen" df.la
+-@BUILD_MODULE_DISK_TRUE@am__DEPENDENCIES_11 = "-dlopen" disk.la
+-@BUILD_MODULE_DNS_TRUE@am__DEPENDENCIES_12 = "-dlopen" dns.la
+-@BUILD_MODULE_EMAIL_TRUE@am__DEPENDENCIES_13 = "-dlopen" email.la
+-@BUILD_MODULE_ENTROPY_TRUE@am__DEPENDENCIES_14 = "-dlopen" entropy.la
+-@BUILD_MODULE_EXEC_TRUE@am__DEPENDENCIES_15 = "-dlopen" exec.la
+-@BUILD_MODULE_HDDTEMP_TRUE@am__DEPENDENCIES_16 = "-dlopen" hddtemp.la
+-@BUILD_MODULE_INTERFACE_TRUE@am__DEPENDENCIES_17 = "-dlopen" \
++@BUILD_MODULE_BATTERY_TRUE@am__DEPENDENCIES_8 = "-dlopen" battery.la
++@BUILD_MODULE_CPU_TRUE@am__DEPENDENCIES_9 = "-dlopen" cpu.la
++@BUILD_MODULE_CPUFREQ_TRUE@am__DEPENDENCIES_10 = "-dlopen" cpufreq.la
++@BUILD_MODULE_CSV_TRUE@am__DEPENDENCIES_11 = "-dlopen" csv.la
++@BUILD_MODULE_DF_TRUE@am__DEPENDENCIES_12 = "-dlopen" df.la
++@BUILD_MODULE_DISK_TRUE@am__DEPENDENCIES_13 = "-dlopen" disk.la
++@BUILD_MODULE_DNS_TRUE@am__DEPENDENCIES_14 = "-dlopen" dns.la
++@BUILD_MODULE_EMAIL_TRUE@am__DEPENDENCIES_15 = "-dlopen" email.la
++@BUILD_MODULE_ENTROPY_TRUE@am__DEPENDENCIES_16 = "-dlopen" entropy.la
++@BUILD_MODULE_EXEC_TRUE@am__DEPENDENCIES_17 = "-dlopen" exec.la
++@BUILD_MODULE_HDDTEMP_TRUE@am__DEPENDENCIES_18 = "-dlopen" hddtemp.la
++@BUILD_MODULE_INTERFACE_TRUE@am__DEPENDENCIES_19 = "-dlopen" \
+ @BUILD_MODULE_INTERFACE_TRUE@	interface.la
+-@BUILD_MODULE_IPTABLES_TRUE@am__DEPENDENCIES_18 = "-dlopen" \
++@BUILD_MODULE_IPTABLES_TRUE@am__DEPENDENCIES_20 = "-dlopen" \
+ @BUILD_MODULE_IPTABLES_TRUE@	iptables.la
+-@BUILD_MODULE_IRQ_TRUE@am__DEPENDENCIES_19 = "-dlopen" irq.la
+-@BUILD_MODULE_LOAD_TRUE@am__DEPENDENCIES_20 = "-dlopen" load.la
+-@BUILD_MODULE_LOGFILE_TRUE@am__DEPENDENCIES_21 = "-dlopen" logfile.la
+-@BUILD_MODULE_MBMON_TRUE@am__DEPENDENCIES_22 = "-dlopen" mbmon.la
+-@BUILD_MODULE_MEMORY_TRUE@am__DEPENDENCIES_23 = "-dlopen" memory.la
+-@BUILD_MODULE_MULTIMETER_TRUE@am__DEPENDENCIES_24 = "-dlopen" \
++@BUILD_MODULE_IRQ_TRUE@am__DEPENDENCIES_21 = "-dlopen" irq.la
++@BUILD_MODULE_LOAD_TRUE@am__DEPENDENCIES_22 = "-dlopen" load.la
++@BUILD_MODULE_LOGFILE_TRUE@am__DEPENDENCIES_23 = "-dlopen" logfile.la
++@BUILD_MODULE_MBMON_TRUE@am__DEPENDENCIES_24 = "-dlopen" mbmon.la
++@BUILD_MODULE_MEMORY_TRUE@am__DEPENDENCIES_25 = "-dlopen" memory.la
++@BUILD_MODULE_MULTIMETER_TRUE@am__DEPENDENCIES_26 = "-dlopen" \
+ @BUILD_MODULE_MULTIMETER_TRUE@	multimeter.la
+-@BUILD_MODULE_MYSQL_TRUE@am__DEPENDENCIES_25 = "-dlopen" mysql.la
+-@BUILD_MODULE_NETWORK_TRUE@am__DEPENDENCIES_26 = "-dlopen" network.la
+-@BUILD_MODULE_NFS_TRUE@am__DEPENDENCIES_27 = "-dlopen" nfs.la
+-@BUILD_MODULE_NTPD_TRUE@am__DEPENDENCIES_28 = "-dlopen" ntpd.la
+-@BUILD_MODULE_NUT_TRUE@am__DEPENDENCIES_29 = "-dlopen" nut.la
+-@BUILD_MODULE_PERL_TRUE@@BUILD_WITH_LIBPERL_TRUE@am__DEPENDENCIES_30 =  \
++@BUILD_MODULE_MYSQL_TRUE@am__DEPENDENCIES_27 = "-dlopen" mysql.la
++@BUILD_MODULE_NETWORK_TRUE@am__DEPENDENCIES_28 = "-dlopen" network.la
++@BUILD_MODULE_NFS_TRUE@am__DEPENDENCIES_29 = "-dlopen" nfs.la
++@BUILD_MODULE_NTPD_TRUE@am__DEPENDENCIES_30 = "-dlopen" ntpd.la
++@BUILD_MODULE_NUT_TRUE@am__DEPENDENCIES_31 = "-dlopen" nut.la
++@BUILD_MODULE_PERL_TRUE@@BUILD_WITH_LIBPERL_TRUE@am__DEPENDENCIES_32 =  \
+ @BUILD_MODULE_PERL_TRUE@@BUILD_WITH_LIBPERL_TRUE@	"-dlopen" \
+ @BUILD_MODULE_PERL_TRUE@@BUILD_WITH_LIBPERL_TRUE@	perl.la
+-@BUILD_MODULE_PING_TRUE@am__DEPENDENCIES_31 = "-dlopen" ping.la
+-@BUILD_MODULE_PROCESSES_TRUE@am__DEPENDENCIES_32 = "-dlopen" \
++@BUILD_MODULE_PING_TRUE@am__DEPENDENCIES_33 = "-dlopen" ping.la
++@BUILD_MODULE_PROCESSES_TRUE@am__DEPENDENCIES_34 = "-dlopen" \
+ @BUILD_MODULE_PROCESSES_TRUE@	processes.la
+-@BUILD_WITH_RRDTOOL_TRUE@am__DEPENDENCIES_33 = "-dlopen" rrdtool.la
+-@BUILD_MODULE_SENSORS_TRUE@am__DEPENDENCIES_34 = "-dlopen" sensors.la
+-@BUILD_MODULE_SERIAL_TRUE@am__DEPENDENCIES_35 = "-dlopen" serial.la
+-@BUILD_MODULE_SWAP_TRUE@am__DEPENDENCIES_36 = "-dlopen" swap.la
+-@BUILD_MODULE_SYSLOG_TRUE@am__DEPENDENCIES_37 = "-dlopen" syslog.la
+-@BUILD_MODULE_TAPE_TRUE@am__DEPENDENCIES_38 = "-dlopen" tape.la
+-@BUILD_MODULE_UNIXSOCK_TRUE@am__DEPENDENCIES_39 = "-dlopen" \
++@BUILD_WITH_RRDTOOL_TRUE@am__DEPENDENCIES_35 = "-dlopen" rrdtool.la
++@BUILD_MODULE_SENSORS_TRUE@am__DEPENDENCIES_36 = "-dlopen" sensors.la
++@BUILD_MODULE_SERIAL_TRUE@am__DEPENDENCIES_37 = "-dlopen" serial.la
++@BUILD_MODULE_SWAP_TRUE@am__DEPENDENCIES_38 = "-dlopen" swap.la
++@BUILD_MODULE_SYSLOG_TRUE@am__DEPENDENCIES_39 = "-dlopen" syslog.la
++@BUILD_MODULE_TAPE_TRUE@am__DEPENDENCIES_40 = "-dlopen" tape.la
++@BUILD_MODULE_UNIXSOCK_TRUE@am__DEPENDENCIES_41 = "-dlopen" \
+ @BUILD_MODULE_UNIXSOCK_TRUE@	unixsock.la
+-@BUILD_MODULE_USERS_TRUE@am__DEPENDENCIES_40 = "-dlopen" users.la
+-@BUILD_MODULE_VSERVER_TRUE@am__DEPENDENCIES_41 = "-dlopen" vserver.la
+-@BUILD_MODULE_WIRELESS_TRUE@am__DEPENDENCIES_42 = "-dlopen" \
++@BUILD_MODULE_USERS_TRUE@am__DEPENDENCIES_42 = "-dlopen" users.la
++@BUILD_MODULE_VSERVER_TRUE@am__DEPENDENCIES_43 = "-dlopen" vserver.la
++@BUILD_MODULE_WIRELESS_TRUE@am__DEPENDENCIES_44 = "-dlopen" \
+ @BUILD_MODULE_WIRELESS_TRUE@	wireless.la
+ am_collectd_nagios_OBJECTS = collectd-nagios.$(OBJEXT)
+ collectd_nagios_OBJECTS = $(am_collectd_nagios_OBJECTS)
+ collectd_nagios_LDADD = $(LDADD)
+ DEFAULT_INCLUDES = -I. -I$(srcdir) -I.
+ depcomp = $(SHELL) $(top_srcdir)/depcomp
+@@ -673,12 +679,13 @@
+ BUILD_MODULE_USERS_FALSE = @BUILD_MODULE_USERS_FALSE@
+ BUILD_MODULE_USERS_TRUE = @BUILD_MODULE_USERS_TRUE@
+ BUILD_MODULE_VSERVER_FALSE = @BUILD_MODULE_VSERVER_FALSE@
+ BUILD_MODULE_VSERVER_TRUE = @BUILD_MODULE_VSERVER_TRUE@
+ BUILD_MODULE_WIRELESS_FALSE = @BUILD_MODULE_WIRELESS_FALSE@
+ BUILD_MODULE_WIRELESS_TRUE = @BUILD_MODULE_WIRELESS_TRUE@
++BUILD_WITH_LIBCURL_CFLAGS = @BUILD_WITH_LIBCURL_CFLAGS@
+ BUILD_WITH_LIBCURL_FALSE = @BUILD_WITH_LIBCURL_FALSE@
+ BUILD_WITH_LIBCURL_LIBS = @BUILD_WITH_LIBCURL_LIBS@
+ BUILD_WITH_LIBCURL_TRUE = @BUILD_WITH_LIBCURL_TRUE@
+ BUILD_WITH_LIBDEVINFO_FALSE = @BUILD_WITH_LIBDEVINFO_FALSE@
+ BUILD_WITH_LIBDEVINFO_TRUE = @BUILD_WITH_LIBDEVINFO_TRUE@
+ BUILD_WITH_LIBDEVSTAT_FALSE = @BUILD_WITH_LIBDEVSTAT_FALSE@
+@@ -688,13 +695,15 @@
+ BUILD_WITH_LIBIPTC_FALSE = @BUILD_WITH_LIBIPTC_FALSE@
+ BUILD_WITH_LIBIPTC_TRUE = @BUILD_WITH_LIBIPTC_TRUE@
+ BUILD_WITH_LIBKSTAT_FALSE = @BUILD_WITH_LIBKSTAT_FALSE@
+ BUILD_WITH_LIBKSTAT_TRUE = @BUILD_WITH_LIBKSTAT_TRUE@
+ BUILD_WITH_LIBKVM_FALSE = @BUILD_WITH_LIBKVM_FALSE@
+ BUILD_WITH_LIBKVM_TRUE = @BUILD_WITH_LIBKVM_TRUE@
++BUILD_WITH_LIBMYSQL_CFLAGS = @BUILD_WITH_LIBMYSQL_CFLAGS@
+ BUILD_WITH_LIBMYSQL_FALSE = @BUILD_WITH_LIBMYSQL_FALSE@
++BUILD_WITH_LIBMYSQL_LIBS = @BUILD_WITH_LIBMYSQL_LIBS@
+ BUILD_WITH_LIBMYSQL_TRUE = @BUILD_WITH_LIBMYSQL_TRUE@
+ BUILD_WITH_LIBOPING_FALSE = @BUILD_WITH_LIBOPING_FALSE@
+ BUILD_WITH_LIBOPING_TRUE = @BUILD_WITH_LIBOPING_TRUE@
+ BUILD_WITH_LIBPCAP_FALSE = @BUILD_WITH_LIBPCAP_FALSE@
+ BUILD_WITH_LIBPCAP_TRUE = @BUILD_WITH_LIBPCAP_TRUE@
+ BUILD_WITH_LIBPERL_FALSE = @BUILD_WITH_LIBPERL_FALSE@
+@@ -843,168 +852,170 @@
+ 
+ # Link to these libraries..
+ collectd_LDFLAGS = -export-dynamic $(am__append_4) $(am__append_5) \
+ 	$(am__append_6) $(am__append_7) $(am__append_8) \
+ 	$(am__append_9) $(am__append_10) $(am__append_11) \
+ 	$(am__append_12) $(am__append_15)
+-collectd_LDADD = $(am__append_13) $(am__append_19) $(am__append_23) \
+-	$(am__append_27) $(am__append_31) $(am__append_36) \
+-	$(am__append_39) $(am__append_42) $(am__append_45) \
+-	$(am__append_51) $(am__append_57) $(am__append_61) \
+-	$(am__append_64) $(am__append_68) $(am__append_72) \
+-	$(am__append_75) $(am__append_84) $(am__append_87) \
+-	$(am__append_90) $(am__append_96) $(am__append_100) \
+-	$(am__append_103) $(am__append_111) $(am__append_115) \
+-	$(am__append_120) $(am__append_123) $(am__append_127) \
+-	$(am__append_132) $(am__append_135) $(am__append_139) \
+-	$(am__append_142) $(am__append_145) $(am__append_149) \
+-	$(am__append_152) $(am__append_155) $(am__append_163) \
+-	$(am__append_168) $(am__append_171) $(am__append_174) \
+-	$(am__append_177) $(am__append_180)
+-collectd_DEPENDENCIES = $(am__append_14) $(am__append_20) \
+-	$(am__append_24) $(am__append_28) $(am__append_32) \
+-	$(am__append_37) $(am__append_40) $(am__append_43) \
+-	$(am__append_46) $(am__append_52) $(am__append_58) \
+-	$(am__append_62) $(am__append_65) $(am__append_69) \
+-	$(am__append_73) $(am__append_76) $(am__append_85) \
+-	$(am__append_88) $(am__append_91) $(am__append_97) \
+-	$(am__append_101) $(am__append_104) $(am__append_112) \
+-	$(am__append_116) $(am__append_121) $(am__append_124) \
+-	$(am__append_128) $(am__append_133) $(am__append_136) \
+-	$(am__append_140) $(am__append_143) $(am__append_146) \
+-	$(am__append_150) $(am__append_153) $(am__append_156) \
+-	$(am__append_164) $(am__append_169) $(am__append_172) \
+-	$(am__append_175) $(am__append_178) $(am__append_181)
+-collectd_nagios_SOURCES = collectd-nagios.c
+-collectd_nagios_LDFLAGS = $(am__append_16)
+-pkglib_LTLIBRARIES = $(am__append_17) $(am__append_21) \
++collectd_LDADD = $(am__append_13) $(am__append_18) $(am__append_24) \
++	$(am__append_28) $(am__append_32) $(am__append_37) \
++	$(am__append_40) $(am__append_43) $(am__append_46) \
++	$(am__append_52) $(am__append_58) $(am__append_62) \
++	$(am__append_65) $(am__append_69) $(am__append_73) \
++	$(am__append_76) $(am__append_85) $(am__append_88) \
++	$(am__append_91) $(am__append_97) $(am__append_101) \
++	$(am__append_104) $(am__append_112) $(am__append_115) \
++	$(am__append_122) $(am__append_125) $(am__append_129) \
++	$(am__append_134) $(am__append_137) $(am__append_141) \
++	$(am__append_144) $(am__append_147) $(am__append_151) \
++	$(am__append_154) $(am__append_157) $(am__append_165) \
++	$(am__append_170) $(am__append_173) $(am__append_176) \
++	$(am__append_179) $(am__append_182)
++collectd_DEPENDENCIES = $(am__append_14) $(am__append_21) \
+ 	$(am__append_25) $(am__append_29) $(am__append_33) \
+ 	$(am__append_38) $(am__append_41) $(am__append_44) \
+ 	$(am__append_47) $(am__append_53) $(am__append_59) \
+ 	$(am__append_63) $(am__append_66) $(am__append_70) \
+-	$(am__append_74) $(am__append_82) $(am__append_86) \
+-	$(am__append_89) $(am__append_95) $(am__append_98) \
+-	$(am__append_102) $(am__append_110) $(am__append_113) \
+-	$(am__append_117) $(am__append_122) $(am__append_125) \
+-	$(am__append_129) $(am__append_134) $(am__append_137) \
+-	$(am__append_141) $(am__append_144) $(am__append_147) \
+-	$(am__append_151) $(am__append_154) $(am__append_162) \
+-	$(am__append_165) $(am__append_170) $(am__append_173) \
+-	$(am__append_176) $(am__append_179)
++	$(am__append_74) $(am__append_77) $(am__append_86) \
++	$(am__append_89) $(am__append_92) $(am__append_98) \
++	$(am__append_102) $(am__append_105) $(am__append_113) \
++	$(am__append_118) $(am__append_123) $(am__append_126) \
++	$(am__append_130) $(am__append_135) $(am__append_138) \
++	$(am__append_142) $(am__append_145) $(am__append_148) \
++	$(am__append_152) $(am__append_155) $(am__append_158) \
++	$(am__append_166) $(am__append_171) $(am__append_174) \
++	$(am__append_177) $(am__append_180) $(am__append_183)
++collectd_nagios_SOURCES = collectd-nagios.c
++collectd_nagios_LDFLAGS = $(am__append_16)
++pkglib_LTLIBRARIES = $(am__append_17) $(am__append_22) \
++	$(am__append_26) $(am__append_30) $(am__append_34) \
++	$(am__append_39) $(am__append_42) $(am__append_45) \
++	$(am__append_48) $(am__append_54) $(am__append_60) \
++	$(am__append_64) $(am__append_67) $(am__append_71) \
++	$(am__append_75) $(am__append_83) $(am__append_87) \
++	$(am__append_90) $(am__append_96) $(am__append_99) \
++	$(am__append_103) $(am__append_111) $(am__append_114) \
++	$(am__append_119) $(am__append_124) $(am__append_127) \
++	$(am__append_131) $(am__append_136) $(am__append_139) \
++	$(am__append_143) $(am__append_146) $(am__append_149) \
++	$(am__append_153) $(am__append_156) $(am__append_164) \
++	$(am__append_167) $(am__append_172) $(am__append_175) \
++	$(am__append_178) $(am__append_181)
+ @BUILD_MODULE_APACHE_TRUE@apache_la_SOURCES = apache.c
+-@BUILD_MODULE_APACHE_TRUE@apache_la_LDFLAGS = -module -avoid-version \
+-@BUILD_MODULE_APACHE_TRUE@	$(am__append_18)
++@BUILD_MODULE_APACHE_TRUE@apache_la_LDFLAGS = -module -avoid-version
++@BUILD_MODULE_APACHE_TRUE@apache_la_CFLAGS = $(am__append_19)
++@BUILD_MODULE_APACHE_TRUE@apache_la_LIBADD = $(am__append_20)
+ @BUILD_MODULE_APCUPS_TRUE@apcups_la_SOURCES = apcups.c
+ @BUILD_MODULE_APCUPS_TRUE@apcups_la_LDFLAGS = -module -avoid-version \
+-@BUILD_MODULE_APCUPS_TRUE@	$(am__append_22)
++@BUILD_MODULE_APCUPS_TRUE@	$(am__append_23)
+ @BUILD_MODULE_APPLE_SENSORS_TRUE@apple_sensors_la_SOURCES = apple_sensors.c
+ @BUILD_MODULE_APPLE_SENSORS_TRUE@apple_sensors_la_LDFLAGS = -module \
+ @BUILD_MODULE_APPLE_SENSORS_TRUE@	-avoid-version \
+-@BUILD_MODULE_APPLE_SENSORS_TRUE@	$(am__append_26)
++@BUILD_MODULE_APPLE_SENSORS_TRUE@	$(am__append_27)
+ @BUILD_MODULE_BATTERY_TRUE@battery_la_SOURCES = battery.c
+ @BUILD_MODULE_BATTERY_TRUE@battery_la_LDFLAGS = -module -avoid-version \
+-@BUILD_MODULE_BATTERY_TRUE@	$(am__append_30)
++@BUILD_MODULE_BATTERY_TRUE@	$(am__append_31)
+ @BUILD_MODULE_CPU_TRUE@cpu_la_SOURCES = cpu.c
+ @BUILD_MODULE_CPU_TRUE@cpu_la_LDFLAGS = -module -avoid-version \
+-@BUILD_MODULE_CPU_TRUE@	$(am__append_34) $(am__append_35)
++@BUILD_MODULE_CPU_TRUE@	$(am__append_35) $(am__append_36)
+ @BUILD_MODULE_CPUFREQ_TRUE@cpufreq_la_SOURCES = cpufreq.c
+ @BUILD_MODULE_CPUFREQ_TRUE@cpufreq_la_LDFLAGS = -module -avoid-version
+ @BUILD_MODULE_CSV_TRUE@csv_la_SOURCES = csv.c
+ @BUILD_MODULE_CSV_TRUE@csv_la_LDFLAGS = -module -avoid-version
+ @BUILD_MODULE_DF_TRUE@df_la_SOURCES = df.c
+ @BUILD_MODULE_DF_TRUE@df_la_LDFLAGS = -module -avoid-version
+ @BUILD_MODULE_DISK_TRUE@disk_la_SOURCES = disk.c
+ @BUILD_MODULE_DISK_TRUE@disk_la_LDFLAGS = -module -avoid-version \
+-@BUILD_MODULE_DISK_TRUE@	$(am__append_48) $(am__append_49) \
+-@BUILD_MODULE_DISK_TRUE@	$(am__append_50)
+-@BUILD_MODULE_DNS_TRUE@dns_la_SOURCES = dns.c $(am__append_54)
++@BUILD_MODULE_DISK_TRUE@	$(am__append_49) $(am__append_50) \
++@BUILD_MODULE_DISK_TRUE@	$(am__append_51)
++@BUILD_MODULE_DNS_TRUE@dns_la_SOURCES = dns.c $(am__append_55)
+ @BUILD_MODULE_DNS_TRUE@dns_la_LDFLAGS = -module -avoid-version \
+-@BUILD_MODULE_DNS_TRUE@	$(am__append_55) $(am__append_56)
++@BUILD_MODULE_DNS_TRUE@	$(am__append_56) $(am__append_57)
+ @BUILD_MODULE_EMAIL_TRUE@email_la_SOURCES = email.c
+ @BUILD_MODULE_EMAIL_TRUE@email_la_LDFLAGS = -module -avoid-version \
+-@BUILD_MODULE_EMAIL_TRUE@	$(am__append_60)
++@BUILD_MODULE_EMAIL_TRUE@	$(am__append_61)
+ @BUILD_MODULE_ENTROPY_TRUE@entropy_la_SOURCES = entropy.c
+ @BUILD_MODULE_ENTROPY_TRUE@entropy_la_LDFLAGS = -module -avoid-version
+ @BUILD_MODULE_EXEC_TRUE@exec_la_SOURCES = exec.c
+ @BUILD_MODULE_EXEC_TRUE@exec_la_LDFLAGS = -module -avoid-version \
+-@BUILD_MODULE_EXEC_TRUE@	$(am__append_67)
++@BUILD_MODULE_EXEC_TRUE@	$(am__append_68)
+ @BUILD_MODULE_HDDTEMP_TRUE@hddtemp_la_SOURCES = hddtemp.c
+ @BUILD_MODULE_HDDTEMP_TRUE@hddtemp_la_LDFLAGS = -module -avoid-version \
+-@BUILD_MODULE_HDDTEMP_TRUE@	$(am__append_71)
++@BUILD_MODULE_HDDTEMP_TRUE@	$(am__append_72)
+ @BUILD_MODULE_INTERFACE_TRUE@interface_la_SOURCES = interface.c
+ @BUILD_MODULE_INTERFACE_TRUE@interface_la_LDFLAGS = -module \
+-@BUILD_MODULE_INTERFACE_TRUE@	-avoid-version $(am__append_77) \
+-@BUILD_MODULE_INTERFACE_TRUE@	$(am__append_78) $(am__append_79) \
+-@BUILD_MODULE_INTERFACE_TRUE@	$(am__append_80) $(am__append_81)
++@BUILD_MODULE_INTERFACE_TRUE@	-avoid-version $(am__append_78) \
++@BUILD_MODULE_INTERFACE_TRUE@	$(am__append_79) $(am__append_80) \
++@BUILD_MODULE_INTERFACE_TRUE@	$(am__append_81) $(am__append_82)
+ @BUILD_MODULE_IPTABLES_TRUE@iptables_la_SOURCES = iptables.c
+ @BUILD_MODULE_IPTABLES_TRUE@iptables_la_LDFLAGS = -module \
+-@BUILD_MODULE_IPTABLES_TRUE@	-avoid-version $(am__append_83)
++@BUILD_MODULE_IPTABLES_TRUE@	-avoid-version $(am__append_84)
+ @BUILD_MODULE_IRQ_TRUE@irq_la_SOURCES = irq.c
+ @BUILD_MODULE_IRQ_TRUE@irq_la_LDFLAGS = -module -avoid-version
+ @BUILD_MODULE_LOAD_TRUE@load_la_SOURCES = load.c
+ @BUILD_MODULE_LOAD_TRUE@load_la_LDFLAGS = -module -avoid-version \
+-@BUILD_MODULE_LOAD_TRUE@	$(am__append_92) $(am__append_93) \
+-@BUILD_MODULE_LOAD_TRUE@	$(am__append_94)
++@BUILD_MODULE_LOAD_TRUE@	$(am__append_93) $(am__append_94) \
++@BUILD_MODULE_LOAD_TRUE@	$(am__append_95)
+ @BUILD_MODULE_LOGFILE_TRUE@logfile_la_SOURCES = logfile.c
+ @BUILD_MODULE_LOGFILE_TRUE@logfile_la_LDFLAGS = -module -avoid-version
+ @BUILD_MODULE_MBMON_TRUE@mbmon_la_SOURCES = mbmon.c
+ @BUILD_MODULE_MBMON_TRUE@mbmon_la_LDFLAGS = -module -avoid-version \
+-@BUILD_MODULE_MBMON_TRUE@	$(am__append_99)
++@BUILD_MODULE_MBMON_TRUE@	$(am__append_100)
+ @BUILD_MODULE_MEMORY_TRUE@memory_la_SOURCES = memory.c
+ @BUILD_MODULE_MEMORY_TRUE@memory_la_LDFLAGS = -module -avoid-version \
+-@BUILD_MODULE_MEMORY_TRUE@	$(am__append_105) $(am__append_106) \
+-@BUILD_MODULE_MEMORY_TRUE@	$(am__append_107) $(am__append_108) \
+-@BUILD_MODULE_MEMORY_TRUE@	$(am__append_109)
++@BUILD_MODULE_MEMORY_TRUE@	$(am__append_106) $(am__append_107) \
++@BUILD_MODULE_MEMORY_TRUE@	$(am__append_108) $(am__append_109) \
++@BUILD_MODULE_MEMORY_TRUE@	$(am__append_110)
+ @BUILD_MODULE_MULTIMETER_TRUE@multimeter_la_SOURCES = multimeter.c
+ @BUILD_MODULE_MULTIMETER_TRUE@multimeter_la_LDFLAGS = -module -avoid-version
+ @BUILD_MODULE_MYSQL_TRUE@mysql_la_SOURCES = mysql.c
+-@BUILD_MODULE_MYSQL_TRUE@mysql_la_LDFLAGS = -module -avoid-version \
+-@BUILD_MODULE_MYSQL_TRUE@	$(am__append_114)
++@BUILD_MODULE_MYSQL_TRUE@mysql_la_LDFLAGS = -module -avoid-version
++@BUILD_MODULE_MYSQL_TRUE@mysql_la_CFLAGS = $(am__append_116)
++@BUILD_MODULE_MYSQL_TRUE@mysql_la_LIBADD = $(am__append_117)
+ @BUILD_MODULE_NETWORK_TRUE@network_la_SOURCES = network.c network.h
+ @BUILD_MODULE_NETWORK_TRUE@network_la_LDFLAGS = -module -avoid-version \
+-@BUILD_MODULE_NETWORK_TRUE@	$(am__append_118) $(am__append_119)
++@BUILD_MODULE_NETWORK_TRUE@	$(am__append_120) $(am__append_121)
+ @BUILD_MODULE_NFS_TRUE@nfs_la_SOURCES = nfs.c
+ @BUILD_MODULE_NFS_TRUE@nfs_la_LDFLAGS = -module -avoid-version
+ @BUILD_MODULE_NTPD_TRUE@ntpd_la_SOURCES = ntpd.c
+ @BUILD_MODULE_NTPD_TRUE@ntpd_la_LDFLAGS = -module -avoid-version \
+-@BUILD_MODULE_NTPD_TRUE@	$(am__append_126)
++@BUILD_MODULE_NTPD_TRUE@	$(am__append_128)
+ @BUILD_MODULE_NUT_TRUE@nut_la_SOURCES = nut.c
+ @BUILD_MODULE_NUT_TRUE@nut_la_LDFLAGS = -module -avoid-version \
+-@BUILD_MODULE_NUT_TRUE@	$(am__append_130) $(am__append_131)
++@BUILD_MODULE_NUT_TRUE@	$(am__append_132) $(am__append_133)
+ @BUILD_MODULE_PERL_TRUE@@BUILD_WITH_LIBPERL_TRUE@perl_la_SOURCES = perl.c
+ @BUILD_MODULE_PERL_TRUE@@BUILD_WITH_LIBPERL_TRUE@perl_la_CFLAGS = $(AM_CFLAGS) \
+ @BUILD_MODULE_PERL_TRUE@@BUILD_WITH_LIBPERL_TRUE@		  $(PERL_CFLAGS) \
+ @BUILD_MODULE_PERL_TRUE@@BUILD_WITH_LIBPERL_TRUE@		  -DXS_VERSION=\"$(VERSION)\" -DVERSION=\"$(VERSION)\"
+ 
+ @BUILD_MODULE_PERL_TRUE@@BUILD_WITH_LIBPERL_TRUE@perl_la_LDFLAGS = -module -avoid-version \
+ @BUILD_MODULE_PERL_TRUE@@BUILD_WITH_LIBPERL_TRUE@		  $(PERL_LDFLAGS)
+ 
+ @BUILD_MODULE_PING_TRUE@ping_la_SOURCES = ping.c
+ @BUILD_MODULE_PING_TRUE@ping_la_LDFLAGS = -module -avoid-version \
+-@BUILD_MODULE_PING_TRUE@	$(am__append_138)
++@BUILD_MODULE_PING_TRUE@	$(am__append_140)
+ @BUILD_MODULE_PING_TRUE@@BUILD_WITH_LIBOPING_TRUE@@BUILD_WITH_OWN_LIBOPING_TRUE@ping_la_LIBADD = liboping/liboping.la
+ @BUILD_MODULE_PING_TRUE@@BUILD_WITH_LIBOPING_TRUE@@BUILD_WITH_OWN_LIBOPING_TRUE@ping_la_DEPENDENCIES = liboping/liboping.la
+ @BUILD_MODULE_PROCESSES_TRUE@processes_la_SOURCES = processes.c
+ @BUILD_MODULE_PROCESSES_TRUE@processes_la_LDFLAGS = -module -avoid-version
+ @BUILD_WITH_RRDTOOL_TRUE@rrdtool_la_SOURCES = rrdtool.c
+ @BUILD_WITH_RRDTOOL_TRUE@rrdtool_la_LDFLAGS = -module -avoid-version -lrrd
+ @BUILD_MODULE_SENSORS_TRUE@sensors_la_SOURCES = sensors.c
+ @BUILD_MODULE_SENSORS_TRUE@sensors_la_LDFLAGS = -module -avoid-version \
+-@BUILD_MODULE_SENSORS_TRUE@	$(am__append_148)
++@BUILD_MODULE_SENSORS_TRUE@	$(am__append_150)
+ @BUILD_MODULE_SERIAL_TRUE@serial_la_SOURCES = serial.c
+ @BUILD_MODULE_SERIAL_TRUE@serial_la_LDFLAGS = -module -avoid-version
+ @BUILD_MODULE_SWAP_TRUE@swap_la_SOURCES = swap.c
+ @BUILD_MODULE_SWAP_TRUE@swap_la_LDFLAGS = -module -avoid-version \
+-@BUILD_MODULE_SWAP_TRUE@	$(am__append_157) $(am__append_158) \
+ @BUILD_MODULE_SWAP_TRUE@	$(am__append_159) $(am__append_160) \
+-@BUILD_MODULE_SWAP_TRUE@	$(am__append_161)
++@BUILD_MODULE_SWAP_TRUE@	$(am__append_161) $(am__append_162) \
++@BUILD_MODULE_SWAP_TRUE@	$(am__append_163)
+ @BUILD_MODULE_SYSLOG_TRUE@syslog_la_SOURCES = syslog.c
+ @BUILD_MODULE_SYSLOG_TRUE@syslog_la_LDFLAGS = -module -avoid-version
+ @BUILD_MODULE_TAPE_TRUE@tape_la_SOURCES = tape.c
+ @BUILD_MODULE_TAPE_TRUE@tape_la_LDFLAGS = -module -avoid-version \
+-@BUILD_MODULE_TAPE_TRUE@	$(am__append_166) $(am__append_167)
++@BUILD_MODULE_TAPE_TRUE@	$(am__append_168) $(am__append_169)
+ @BUILD_MODULE_UNIXSOCK_TRUE@unixsock_la_SOURCES = unixsock.c
+ @BUILD_MODULE_UNIXSOCK_TRUE@unixsock_la_CPPFLAGS = -DPREFIX='"${prefix}"'
+ @BUILD_MODULE_UNIXSOCK_TRUE@unixsock_la_LDFLAGS = -module -avoid-version -lpthread
+ @BUILD_MODULE_USERS_TRUE@users_la_SOURCES = users.c
+ @BUILD_MODULE_USERS_TRUE@users_la_LDFLAGS = -module -avoid-version
+ @BUILD_MODULE_VSERVER_TRUE@vserver_la_SOURCES = vserver.c
+@@ -1244,13 +1255,13 @@
+ mostlyclean-compile:
+ 	-rm -f *.$(OBJEXT)
+ 
+ distclean-compile:
+ 	-rm -f *.tab.c
+ 
+-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/apache.Plo@am__quote@
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/apache_la-apache.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/apcups.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/apple_sensors.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/battery.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/collectd-collectd.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/collectd-common.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/collectd-configfile.Po@am__quote@
+@@ -1276,13 +1287,13 @@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/irq.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/load.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/logfile.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mbmon.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/memory.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/multimeter.Plo@am__quote@
+-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mysql.Plo@am__quote@
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mysql_la-mysql.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/network.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nfs.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ntpd.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nut.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/perl_la-perl.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ping.Plo@am__quote@
+@@ -1317,12 +1328,26 @@
+ @am__fastdepCC_TRUE@	if $(LTCOMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
+ @am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/$*.Tpo" "$(DEPDIR)/$*.Plo"; else rm -f "$(DEPDIR)/$*.Tpo"; exit 1; fi
+ @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
+ @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+ @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
+ 
++apache_la-apache.lo: apache.c
++@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(apache_la_CFLAGS) $(CFLAGS) -MT apache_la-apache.lo -MD -MP -MF "$(DEPDIR)/apache_la-apache.Tpo" -c -o apache_la-apache.lo `test -f 'apache.c' || echo '$(srcdir)/'`apache.c; \
++@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/apache_la-apache.Tpo" "$(DEPDIR)/apache_la-apache.Plo"; else rm -f "$(DEPDIR)/apache_la-apache.Tpo"; exit 1; fi
++@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='apache.c' object='apache_la-apache.lo' libtool=yes @AMDEPBACKSLASH@
++@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
++@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(apache_la_CFLAGS) $(CFLAGS) -c -o apache_la-apache.lo `test -f 'apache.c' || echo '$(srcdir)/'`apache.c
++
++mysql_la-mysql.lo: mysql.c
++@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(mysql_la_CFLAGS) $(CFLAGS) -MT mysql_la-mysql.lo -MD -MP -MF "$(DEPDIR)/mysql_la-mysql.Tpo" -c -o mysql_la-mysql.lo `test -f 'mysql.c' || echo '$(srcdir)/'`mysql.c; \
++@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/mysql_la-mysql.Tpo" "$(DEPDIR)/mysql_la-mysql.Plo"; else rm -f "$(DEPDIR)/mysql_la-mysql.Tpo"; exit 1; fi
++@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='mysql.c' object='mysql_la-mysql.lo' libtool=yes @AMDEPBACKSLASH@
++@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
++@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(mysql_la_CFLAGS) $(CFLAGS) -c -o mysql_la-mysql.lo `test -f 'mysql.c' || echo '$(srcdir)/'`mysql.c
++
+ perl_la-perl.lo: perl.c
+ @am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(perl_la_CFLAGS) $(CFLAGS) -MT perl_la-perl.lo -MD -MP -MF "$(DEPDIR)/perl_la-perl.Tpo" -c -o perl_la-perl.lo `test -f 'perl.c' || echo '$(srcdir)/'`perl.c; \
+ @am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/perl_la-perl.Tpo" "$(DEPDIR)/perl_la-perl.Plo"; else rm -f "$(DEPDIR)/perl_la-perl.Tpo"; exit 1; fi
+ @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='perl.c' object='perl_la-perl.lo' libtool=yes @AMDEPBACKSLASH@
+ @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+ @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(perl_la_CFLAGS) $(CFLAGS) -c -o perl_la-perl.lo `test -f 'perl.c' || echo '$(srcdir)/'`perl.c
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/mysql.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/mysql.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/mysql.c	2007-08-03 16:58:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/mysql.c	2007-08-28 21:18:04.000000000 +0800
+@@ -25,13 +25,13 @@
+ #include "configfile.h"
+ 
+ #ifdef HAVE_MYSQL_MYSQL_H
+ #include <mysql/mysql.h>
+ #endif
+ 
+-#if COLLECT_LIBMYSQL
++#if HAVE_LIBMYSQLCLIENT
+ # define MYSQL_HAVE_READ 1
+ #else
+ # define MYSQL_HAVE_READ 0
+ #endif
+ 
+ /* TODO: Understand `Select_*' and possibly do that stuff as well.. */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/network.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/network.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/network.c	2007-08-03 16:58:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/network.c	2007-08-27 01:07:38.000000000 +0800
+@@ -1229,13 +1229,17 @@
+ 		service = NET_DEFAULT_PORT;
+ 		fields_num = strsplit (val_cpy, fields, 3);
+ 		if ((fields_num != 1)
+ 				&& (fields_num != 2))
+ 			return (1);
+ 		else if (fields_num == 2)
++		{
++			if ((service = strchr (fields[1], '.')) != NULL)
++				*service = '\0';
+ 			service = fields[1];
++		}
+ 		node = fields[0];
+ 
+ 		if (strcasecmp ("Listen", key) == 0)
+ 			network_add_listen_socket (node, service);
+ 		else
+ 			network_add_sending_socket (node, service);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/nut.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/nut.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/nut.c	2007-08-03 16:58:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/nut.c	2007-08-27 01:07:38.000000000 +0800
+@@ -31,18 +31,27 @@
+ # include <upsclient.h>
+ # define NUT_HAVE_READ 1
+ #else
+ # define NUT_HAVE_READ 0
+ #endif
+ 
++#if HAVE_UPSCONN_T
++typedef UPSCONN_t collectd_upsconn_t;
++#elif HAVE_UPSCONN
++typedef UPSCONN collectd_upsconn_t;
++#else
++# error "Unable to determine the UPS connection type."
++#endif
++
++
+ #if NUT_HAVE_READ
+ struct nut_ups_s;
+ typedef struct nut_ups_s nut_ups_t;
+ struct nut_ups_s
+ {
+-  UPSCONN   *conn;
++  collectd_upsconn_t *conn;
+   char      *upsname;
+   char      *hostname;
+   int        port;
+   nut_ups_t *next;
+ };
+ 
+@@ -149,13 +158,13 @@
+   unsigned int answer_num;
+   int status;
+ 
+   /* (Re-)Connect if we have no connection */
+   if (ups->conn == NULL)
+   {
+-    ups->conn = (UPSCONN *) malloc (sizeof (UPSCONN));
++    ups->conn = (collectd_upsconn_t *) malloc (sizeof (collectd_upsconn_t));
+     if (ups->conn == NULL)
+     {
+       ERROR ("nut plugin: malloc failed.");
+       return (-1);
+     }
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/processes.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/processes.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.6/src/processes.c	2007-08-03 16:58:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.0.7/src/processes.c	2007-08-27 01:07:46.000000000 +0800
+@@ -518,17 +518,20 @@
+ 		if (list[list_len] != 0)
+ 			list_len++;
+ 	}
+ 
+ 	closedir (dh);
+ 
++	if (list_len == 0)
++		return (NULL);
++
+ 	assert (list_len < list_size);
+ 	assert (list[list_len] == 0);
+ 
+ 	return (list);
+-}
++} /* int *ps_read_tasks */
+ 
+ int ps_read_process (int pid, procstat_t *ps, char *state)
+ {
+ 	char  filename[64];
+ 	char  buffer[1024];
+ 	FILE *fh;

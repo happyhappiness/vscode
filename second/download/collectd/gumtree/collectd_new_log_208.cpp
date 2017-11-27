@@ -1,0 +1,1 @@
+ERROR ("ERROR: %s:%i: ksp == NULL\n", __FILE__, __LINE__);

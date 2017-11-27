@@ -1,1 +1,0 @@
-sqlite3MPrintf(db,"column%d",i+1);

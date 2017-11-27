@@ -1,0 +1,1 @@
+cmd_error(CMD_PARSE_ERROR, err, "1 Type `%s' isn't defined.", type);

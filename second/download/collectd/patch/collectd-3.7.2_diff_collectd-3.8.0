@@ -1,0 +1,1772 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/ChangeLog /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/ChangeLog
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/ChangeLog	2006-02-23 00:24:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/ChangeLog	2006-03-10 05:43:30.000000000 +0800
+@@ -1,6 +1,11 @@
++2006-03-09, Version 3.8.0
++	* The `ping' plugin no longer uses `libping' but a self written
++	  library named `liboping'. With this library it's possible to ping
++	  multiple IPv4 and IPv6 addresses and hostnames - in parallel.
++
+ 2006-02-18, Version 3.7.2
+ 	* A simple bug in the `battery' plugin has been fixed. It should now
+ 	  work with ACPI based batteries as well. Thankt to Sebastian for
+ 	  fixing this.
+ 	* Fixing a bug that prevented collectd to be built without librrd.
+ 	  Thanks to Werner Heuser for reporting it.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/collectd.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/collectd.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/collectd.spec	2006-02-23 00:24:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/collectd.spec	2006-03-10 05:43:30.000000000 +0800
+@@ -85,12 +85,15 @@
+ %attr(0444,root,root) %{_libdir}/%{name}/mysql.so*
+ 
+ %files sensors
+ %attr(0444,root,root) %{_libdir}/%{name}/sensors.so*
+ 
+ %changelog
++* Thu Mar 09 2006 Florian octo Forster <octo@verplant.org> 3.8.0-1
++- New upstream version
++
+ * Sat Feb 18 2006 Florian octo Forster <octo@verplant.org> 3.7.2-1
+ - Include `tape.so' so the build doesn't terminate because of missing files..
+ - New upstream version
+ 
+ * Sat Feb 04 2006 Florian octo Forster <octo@verplant.org> 3.7.1-1
+ - New upstream version
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/config.guess /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/config.guess
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/config.guess	2006-02-23 00:24:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/config.guess	2006-03-10 05:43:30.000000000 +0800
+@@ -1,12 +1,12 @@
+ #! /bin/sh
+ # Attempt to guess a canonical system name.
+ #   Copyright (C) 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
+ #   2000, 2001, 2002, 2003, 2004, 2005 Free Software Foundation, Inc.
+ 
+-timestamp='2005-08-03'
++timestamp='2006-02-23'
+ 
+ # This file is free software; you can redistribute it and/or modify it
+ # under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 2 of the License, or
+ # (at your option) any later version.
+ #
+@@ -103,13 +103,13 @@
+ # Portable tmp directory creation inspired by the Autoconf team.
+ 
+ set_cc_for_build='
+ trap "exitcode=\$?; (rm -f \$tmpfiles 2>/dev/null; rmdir \$tmp 2>/dev/null) && exit \$exitcode" 0 ;
+ trap "rm -f \$tmpfiles 2>/dev/null; rmdir \$tmp 2>/dev/null; exit 1" 1 2 13 15 ;
+ : ${TMPDIR=/tmp} ;
+- { tmp=`(umask 077 && mktemp -d -q "$TMPDIR/cgXXXXXX") 2>/dev/null` && test -n "$tmp" && test -d "$tmp" ; } ||
++ { tmp=`(umask 077 && mktemp -d "$TMPDIR/cgXXXXXX") 2>/dev/null` && test -n "$tmp" && test -d "$tmp" ; } ||
+  { test -n "$RANDOM" && tmp=$TMPDIR/cg$$-$RANDOM && (umask 077 && mkdir $tmp) ; } ||
+  { tmp=$TMPDIR/cg-$$ && (umask 077 && mkdir $tmp) && echo "Warning: creating insecure temp directory" >&2 ; } ||
+  { echo "$me: cannot create a temporary directory in $TMPDIR" >&2 ; exit 1 ; } ;
+ dummy=$tmp/dummy ;
+ tmpfiles="$dummy.c $dummy.o $dummy.rel $dummy" ;
+ case $CC_FOR_BUILD,$HOST_CC,$CC in
+@@ -203,12 +203,15 @@
+ 	UNAME_MACHINE_ARCH=`arch | sed 's/OpenBSD.//'`
+ 	echo ${UNAME_MACHINE_ARCH}-unknown-openbsd${UNAME_RELEASE}
+ 	exit ;;
+     *:ekkoBSD:*:*)
+ 	echo ${UNAME_MACHINE}-unknown-ekkobsd${UNAME_RELEASE}
+ 	exit ;;
++    *:SolidBSD:*:*)
++	echo ${UNAME_MACHINE}-unknown-solidbsd${UNAME_RELEASE}
++	exit ;;
+     macppc:MirBSD:*:*)
+ 	echo powerppc-unknown-mirbsd${UNAME_RELEASE}
+ 	exit ;;
+     *:MirBSD:*:*)
+ 	echo ${UNAME_MACHINE}-unknown-mirbsd${UNAME_RELEASE}
+ 	exit ;;
+@@ -761,29 +764,40 @@
+ 	echo sparc-unknown-bsdi${UNAME_RELEASE}
+ 	exit ;;
+     *:BSD/OS:*:*)
+ 	echo ${UNAME_MACHINE}-unknown-bsdi${UNAME_RELEASE}
+ 	exit ;;
+     *:FreeBSD:*:*)
+-	echo ${UNAME_MACHINE}-unknown-freebsd`echo ${UNAME_RELEASE}|sed -e 's/[-(].*//'`
++	case ${UNAME_MACHINE} in
++	    pc98)
++		echo i386-unknown-freebsd`echo ${UNAME_RELEASE}|sed -e 's/[-(].*//'` ;;
++	    *)
++		echo ${UNAME_MACHINE}-unknown-freebsd`echo ${UNAME_RELEASE}|sed -e 's/[-(].*//'` ;;
++	esac
+ 	exit ;;
+     i*:CYGWIN*:*)
+ 	echo ${UNAME_MACHINE}-pc-cygwin
+ 	exit ;;
+     i*:MINGW*:*)
+ 	echo ${UNAME_MACHINE}-pc-mingw32
+ 	exit ;;
++    i*:MSYS_NT-*:*:*)
++	echo ${UNAME_MACHINE}-pc-mingw32
++	exit ;;
+     i*:windows32*:*)
+     	# uname -m includes "-pc" on this system.
+     	echo ${UNAME_MACHINE}-mingw32
+ 	exit ;;
+     i*:PW*:*)
+ 	echo ${UNAME_MACHINE}-pc-pw32
+ 	exit ;;
+-    x86:Interix*:[34]*)
+-	echo i586-pc-interix${UNAME_RELEASE}|sed -e 's/\..*//'
++    x86:Interix*:[345]*)
++	echo i586-pc-interix${UNAME_RELEASE}
++	exit ;;
++    EM64T:Interix*:[345]*)
++	echo x86_64-unknown-interix${UNAME_RELEASE}
+ 	exit ;;
+     [345]86:Windows_95:* | [345]86:Windows_98:* | [345]86:Windows_NT:*)
+ 	echo i${UNAME_MACHINE}-pc-mks
+ 	exit ;;
+     i*:Windows_NT*:* | Pentium*:Windows_NT*:*)
+ 	# How do we know it's Interix rather than the generic POSIX subsystem?
+@@ -848,13 +862,17 @@
+ 	CPU=mips
+ 	#else
+ 	CPU=
+ 	#endif
+ 	#endif
+ EOF
+-	eval `$CC_FOR_BUILD -E $dummy.c 2>/dev/null | grep ^CPU=`
++	eval "`$CC_FOR_BUILD -E $dummy.c 2>/dev/null | sed -n '
++	    /^CPU/{
++		s: ::g
++		p
++	    }'`"
+ 	test x"${CPU}" != x && { echo "${CPU}-unknown-linux-gnu"; exit; }
+ 	;;
+     mips64:Linux:*:*)
+ 	eval $set_cc_for_build
+ 	sed 's/^	//' << EOF >$dummy.c
+ 	#undef CPU
+@@ -867,13 +885,17 @@
+ 	CPU=mips64
+ 	#else
+ 	CPU=
+ 	#endif
+ 	#endif
+ EOF
+-	eval `$CC_FOR_BUILD -E $dummy.c 2>/dev/null | grep ^CPU=`
++	eval "`$CC_FOR_BUILD -E $dummy.c 2>/dev/null | sed -n '
++	    /^CPU/{
++		s: ::g
++		p
++	    }'`"
+ 	test x"${CPU}" != x && { echo "${CPU}-unknown-linux-gnu"; exit; }
+ 	;;
+     or32:Linux:*:*)
+ 	echo or32-unknown-linux-gnu
+ 	exit ;;
+     ppc:Linux:*:*)
+@@ -916,12 +938,15 @@
+     sh*:Linux:*:*)
+ 	echo ${UNAME_MACHINE}-unknown-linux-gnu
+ 	exit ;;
+     sparc:Linux:*:* | sparc64:Linux:*:*)
+ 	echo ${UNAME_MACHINE}-unknown-linux-gnu
+ 	exit ;;
++    vax:Linux:*:*)
++	echo ${UNAME_MACHINE}-dec-linux-gnu
++	exit ;;
+     x86_64:Linux:*:*)
+ 	echo x86_64-unknown-linux-gnu
+ 	exit ;;
+     i*86:Linux:*:*)
+ 	# The BFD linker knows what the default object file format is, so
+ 	# first see if it will tell us. cd to the root directory to prevent
+@@ -961,23 +986,27 @@
+ 	LIBC=gnulibc1
+ 	#  endif
+ 	# else
+ 	LIBC=gnulibc1
+ 	# endif
+ 	#else
+-	#ifdef __INTEL_COMPILER
++	#if defined(__INTEL_COMPILER) || defined(__PGI) || defined(__sun)
+ 	LIBC=gnu
+ 	#else
+ 	LIBC=gnuaout
+ 	#endif
+ 	#endif
+ 	#ifdef __dietlibc__
+ 	LIBC=dietlibc
+ 	#endif
+ EOF
+-	eval `$CC_FOR_BUILD -E $dummy.c 2>/dev/null | grep ^LIBC=`
++	eval "`$CC_FOR_BUILD -E $dummy.c 2>/dev/null | sed -n '
++	    /^LIBC/{
++		s: ::g
++		p
++	    }'`"
+ 	test x"${LIBC}" != x && {
+ 		echo "${UNAME_MACHINE}-pc-linux-${LIBC}"
+ 		exit
+ 	}
+ 	test x"${TENTATIVE}" != x && { echo "${TENTATIVE}"; exit; }
+ 	;;
+@@ -1182,13 +1211,12 @@
+     *:Rhapsody:*:*)
+ 	echo ${UNAME_MACHINE}-apple-rhapsody${UNAME_RELEASE}
+ 	exit ;;
+     *:Darwin:*:*)
+ 	UNAME_PROCESSOR=`uname -p` || UNAME_PROCESSOR=unknown
+ 	case $UNAME_PROCESSOR in
+-	    *86) UNAME_PROCESSOR=i686 ;;
+ 	    unknown) UNAME_PROCESSOR=powerpc ;;
+ 	esac
+ 	echo ${UNAME_PROCESSOR}-apple-darwin${UNAME_RELEASE}
+ 	exit ;;
+     *:procnto*:*:* | *:QNX:[0123456789]*:*)
+ 	UNAME_PROCESSOR=`uname -p`
+@@ -1261,12 +1289,15 @@
+     *:XENIX:*:SysV)
+ 	echo i386-pc-xenix
+ 	exit ;;
+     i*86:skyos:*:*)
+ 	echo ${UNAME_MACHINE}-pc-skyos`echo ${UNAME_RELEASE}` | sed -e 's/ .*$//'
+ 	exit ;;
++    i*86:rdos:*:*)
++	echo ${UNAME_MACHINE}-pc-rdos
++	exit ;;
+ esac
+ 
+ #echo '(No uname command or uname output not recognized.)' 1>&2
+ #echo "${UNAME_MACHINE}:${UNAME_SYSTEM}:${UNAME_RELEASE}:${UNAME_VERSION}" 1>&2
+ 
+ eval $set_cc_for_build
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/config.sub /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/config.sub
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/config.sub	2006-02-23 00:24:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/config.sub	2006-03-10 05:43:30.000000000 +0800
+@@ -1,12 +1,12 @@
+ #! /bin/sh
+ # Configuration validation subroutine script.
+ #   Copyright (C) 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
+ #   2000, 2001, 2002, 2003, 2004, 2005 Free Software Foundation, Inc.
+ 
+-timestamp='2005-07-08'
++timestamp='2006-02-23'
+ 
+ # This file is (in principle) common to ALL GNU software.
+ # The presence of a machine in this file suggests that SOME GNU software
+ # can handle that machine.  It does not imply ALL GNU software can.
+ #
+ # This file is free software; you can redistribute it and/or modify
+@@ -116,14 +116,15 @@
+ esac
+ 
+ # Separate what the user gave into CPU-COMPANY and OS or KERNEL-OS (if any).
+ # Here we must recognize all the valid KERNEL-OS combinations.
+ maybe_os=`echo $1 | sed 's/^\(.*\)-\([^-]*-[^-]*\)$/\2/'`
+ case $maybe_os in
+-  nto-qnx* | linux-gnu* | linux-dietlibc | linux-uclibc* | uclinux-uclibc* | uclinux-gnu* | \
+-  kfreebsd*-gnu* | knetbsd*-gnu* | netbsd*-gnu* | storm-chaos* | os2-emx* | rtmk-nova*)
++  nto-qnx* | linux-gnu* | linux-dietlibc | linux-newlib* | linux-uclibc* | \
++  uclinux-uclibc* | uclinux-gnu* | kfreebsd*-gnu* | knetbsd*-gnu* | netbsd*-gnu* | \
++  storm-chaos* | os2-emx* | rtmk-nova*)
+     os=-$maybe_os
+     basic_machine=`echo $1 | sed 's/^\(.*\)-\([^-]*-[^-]*\)$/\1/'`
+     ;;
+   *)
+     basic_machine=`echo $1 | sed 's/-[^-]*$//'`
+     if [ $basic_machine != $1 ]
+@@ -168,12 +169,16 @@
+  		os=-chorusrdb
+ 		basic_machine=$1
+  		;;
+ 	-hiux*)
+ 		os=-hiuxwe2
+ 		;;
++	-sco6)
++		os=-sco5v6
++		basic_machine=`echo $1 | sed -e 's/86-.*/86-pc/'`
++		;;
+ 	-sco5)
+ 		os=-sco3.2v5
+ 		basic_machine=`echo $1 | sed -e 's/86-.*/86-pc/'`
+ 		;;
+ 	-sco4)
+ 		os=-sco3.2v4
+@@ -184,12 +189,16 @@
+ 		basic_machine=`echo $1 | sed -e 's/86-.*/86-pc/'`
+ 		;;
+ 	-sco3.2v[4-9]*)
+ 		# Don't forget version if it is 3.2v4 or newer.
+ 		basic_machine=`echo $1 | sed -e 's/86-.*/86-pc/'`
+ 		;;
++	-sco5v6*)
++		# Don't forget version if it is 3.2v4 or newer.
++		basic_machine=`echo $1 | sed -e 's/86-.*/86-pc/'`
++		;;
+ 	-sco*)
+ 		os=-sco3.2v2
+ 		basic_machine=`echo $1 | sed -e 's/86-.*/86-pc/'`
+ 		;;
+ 	-udk*)
+ 		basic_machine=`echo $1 | sed -e 's/86-.*/86-pc/'`
+@@ -236,13 +245,13 @@
+ 	| c4x | clipper \
+ 	| d10v | d30v | dlx | dsp16xx \
+ 	| fr30 | frv \
+ 	| h8300 | h8500 | hppa | hppa1.[01] | hppa2.0 | hppa2.0[nw] | hppa64 \
+ 	| i370 | i860 | i960 | ia64 \
+ 	| ip2k | iq2000 \
+-	| m32r | m32rle | m68000 | m68k | m88k | maxq | mcore \
++	| m32r | m32rle | m68000 | m68k | m88k | maxq | mb | microblaze | mcore \
+ 	| mips | mipsbe | mipseb | mipsel | mipsle \
+ 	| mips16 \
+ 	| mips64 | mips64el \
+ 	| mips64vr | mips64vrel \
+ 	| mips64orion | mips64orionel \
+ 	| mips64vr4100 | mips64vr4100el \
+@@ -254,14 +263,15 @@
+ 	| mipsisa64 | mipsisa64el \
+ 	| mipsisa64r2 | mipsisa64r2el \
+ 	| mipsisa64sb1 | mipsisa64sb1el \
+ 	| mipsisa64sr71k | mipsisa64sr71kel \
+ 	| mipstx39 | mipstx39el \
+ 	| mn10200 | mn10300 \
+-	| ms1 \
++	| mt \
+ 	| msp430 \
++	| nios | nios2 \
+ 	| ns16k | ns32k \
+ 	| or32 \
+ 	| pdp10 | pdp11 | pj | pjl \
+ 	| powerpc | powerpc64 | powerpc64le | powerpcle | ppcbe \
+ 	| pyramid \
+ 	| sh | sh[1234] | sh[24]a | sh[23]e | sh[34]eb | shbe | shle | sh[1234]le | sh3ele \
+@@ -283,12 +293,15 @@
+ 		# Motorola 68HC11/12.
+ 		basic_machine=$basic_machine-unknown
+ 		os=-none
+ 		;;
+ 	m88110 | m680[12346]0 | m683?2 | m68360 | m5200 | v70 | w65 | z8k)
+ 		;;
++	ms1)
++		basic_machine=mt-unknown
++		;;
+ 
+ 	# We use `pc' rather than `unknown'
+ 	# because (1) that's what they normally are, and
+ 	# (2) the word "unknown" tends to confuse beginning users.
+ 	i*86 | x86_64)
+ 	  basic_machine=$basic_machine-pc
+@@ -333,14 +346,15 @@
+ 	| mipsisa64-* | mipsisa64el-* \
+ 	| mipsisa64r2-* | mipsisa64r2el-* \
+ 	| mipsisa64sb1-* | mipsisa64sb1el-* \
+ 	| mipsisa64sr71k-* | mipsisa64sr71kel-* \
+ 	| mipstx39-* | mipstx39el-* \
+ 	| mmix-* \
+-	| ms1-* \
++	| mt-* \
+ 	| msp430-* \
++	| nios-* | nios2-* \
+ 	| none-* | np1-* | ns16k-* | ns32k-* \
+ 	| orion-* \
+ 	| pdp10-* | pdp11-* | pj-* | pjl-* | pn-* | power-* \
+ 	| powerpc-* | powerpc64-* | powerpc64le-* | powerpcle-* | ppcbe-* \
+ 	| pyramid-* \
+ 	| romp-* | rs6000-* \
+@@ -693,12 +707,15 @@
+ 		os=-morphos
+ 		;;
+ 	msdos)
+ 		basic_machine=i386-pc
+ 		os=-msdos
+ 		;;
++	ms1-*)
++		basic_machine=`echo $basic_machine | sed -e 's/ms1-/mt-/'`
++		;;
+ 	mvs)
+ 		basic_machine=i370-ibm
+ 		os=-mvs
+ 		;;
+ 	ncr3000)
+ 		basic_machine=i486-ncr
+@@ -800,12 +817,18 @@
+ 	pbb)
+ 		basic_machine=m68k-tti
+ 		;;
+ 	pc532 | pc532-*)
+ 		basic_machine=ns32k-pc532
+ 		;;
++	pc98)
++		basic_machine=i386-pc
++		;;
++	pc98-*)
++		basic_machine=i386-`echo $basic_machine | sed 's/^[^-]*-//'`
++		;;
+ 	pentium | p5 | k5 | k6 | nexgen | viac3)
+ 		basic_machine=i586-pc
+ 		;;
+ 	pentiumpro | p6 | 6x86 | athlon | athlon_*)
+ 		basic_machine=i686-pc
+ 		;;
+@@ -856,12 +879,16 @@
+ 		basic_machine=i386-ibm
+ 		;;
+ 	pw32)
+ 		basic_machine=i586-unknown
+ 		os=-pw32
+ 		;;
++	rdos)
++		basic_machine=i386-pc
++		os=-rdos
++		;;
+ 	rom68k)
+ 		basic_machine=m68k-rom68k
+ 		os=-coff
+ 		;;
+ 	rm[46]00)
+ 		basic_machine=mips-siemens
+@@ -1171,27 +1198,29 @@
+ 	      | -*vms* | -sco* | -esix* | -isc* | -aix* | -sunos | -sunos[34]*\
+ 	      | -hpux* | -unos* | -osf* | -luna* | -dgux* | -solaris* | -sym* \
+ 	      | -amigaos* | -amigados* | -msdos* | -newsos* | -unicos* | -aof* \
+ 	      | -aos* \
+ 	      | -nindy* | -vxsim* | -vxworks* | -ebmon* | -hms* | -mvs* \
+ 	      | -clix* | -riscos* | -uniplus* | -iris* | -rtu* | -xenix* \
+-	      | -hiux* | -386bsd* | -knetbsd* | -mirbsd* | -netbsd* | -openbsd* \
++	      | -hiux* | -386bsd* | -knetbsd* | -mirbsd* | -netbsd* \
++	      | -openbsd* | -solidbsd* \
+ 	      | -ekkobsd* | -kfreebsd* | -freebsd* | -riscix* | -lynxos* \
+ 	      | -bosx* | -nextstep* | -cxux* | -aout* | -elf* | -oabi* \
+ 	      | -ptx* | -coff* | -ecoff* | -winnt* | -domain* | -vsta* \
+ 	      | -udi* | -eabi* | -lites* | -ieee* | -go32* | -aux* \
+ 	      | -chorusos* | -chorusrdb* \
+ 	      | -cygwin* | -pe* | -psos* | -moss* | -proelf* | -rtems* \
+-	      | -mingw32* | -linux-gnu* | -linux-uclibc* | -uxpv* | -beos* | -mpeix* | -udk* \
++	      | -mingw32* | -linux-gnu* | -linux-newlib* | -linux-uclibc* \
++	      | -uxpv* | -beos* | -mpeix* | -udk* \
+ 	      | -interix* | -uwin* | -mks* | -rhapsody* | -darwin* | -opened* \
+ 	      | -openstep* | -oskit* | -conix* | -pw32* | -nonstopux* \
+ 	      | -storm-chaos* | -tops10* | -tenex* | -tops20* | -its* \
+ 	      | -os2* | -vos* | -palmos* | -uclinux* | -nucleus* \
+ 	      | -morphos* | -superux* | -rtmk* | -rtmk-nova* | -windiss* \
+ 	      | -powermax* | -dnix* | -nx6 | -nx7 | -sei* | -dragonfly* \
+-	      | -skyos* | -haiku*)
++	      | -skyos* | -haiku* | -rdos*)
+ 	# Remember, each alternative MUST END IN *, to match a version number.
+ 		;;
+ 	-qnx*)
+ 		case $basic_machine in
+ 		    x86-* | i*86-*)
+ 			;;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/configure	2006-02-23 00:24:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/configure	2006-03-10 05:43:30.000000000 +0800
+@@ -1,9 +1,9 @@
+ #! /bin/sh
+ # Guess values for system-dependent variables and create Makefiles.
+-# Generated by GNU Autoconf 2.59 for collectd 3.7.2.
++# Generated by GNU Autoconf 2.59 for collectd 3.8.0.
+ #
+ # Copyright (C) 2003 Free Software Foundation, Inc.
+ # This configure script is free software; the Free Software Foundation
+ # gives unlimited permission to copy, distribute and modify it.
+ ## --------------------- ##
+ ## M4sh Initialization.  ##
+@@ -418,14 +418,14 @@
+ # only ac_max_sed_lines should be used.
+ : ${ac_max_here_lines=38}
+ 
+ # Identity of this package.
+ PACKAGE_NAME='collectd'
+ PACKAGE_TARNAME='collectd'
+-PACKAGE_VERSION='3.7.2'
+-PACKAGE_STRING='collectd 3.7.2'
++PACKAGE_VERSION='3.8.0'
++PACKAGE_STRING='collectd 3.8.0'
+ PACKAGE_BUGREPORT=''
+ 
+ ac_unique_file="src/collectd.c"
+ ac_default_prefix="/opt/collectd"
+ # Factoring default headers for most tests.
+ ac_includes_default="\
+@@ -462,13 +462,13 @@
+ #endif
+ #if HAVE_UNISTD_H
+ # include <unistd.h>
+ #endif"
+ 
+ ac_subdirs_all="$ac_subdirs_all libltdl src/libconfig"
+-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE CPP LN_S COMPILER_IS_GCC_TRUE COMPILER_IS_GCC_FALSE LTDLINCL LIBLTDL build build_cpu build_vendor build_os host host_cpu host_vendor host_os EGREP ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL subdirs BUILD_WITH_LIBSOCKET_TRUE BUILD_WITH_LIBSOCKET_FALSE BUILD_WITH_LIBRESOLV_TRUE BUILD_WITH_LIBRESOLV_FALSE BUILD_WITH_RRDTOOL_TRUE BUILD_WITH_RRDTOOL_FALSE BUILD_WITH_KSTAT_TRUE BUILD_WITH_KSTAT_FALSE BUILD_WITH_LIBSTATGRAB_TRUE BUILD_WITH_LIBSTATGRAB_FALSE BUILD_WITH_LM_SENSORS_TRUE BUILD_WITH_LM_SENSORS_FALSE BUILD_WITH_LIBMYSQL_TRUE BUILD_WITH_LIBMYSQL_FALSE BUILD_FEATURE_DEBUG_TRUE BUILD_FEATURE_DEBUG_FALSE BUILD_FEATURE_DAEMON_TRUE BUILD_FEATURE_DAEMON_FALSE BUILD_MODULE_BATTERY_TRUE BUILD_MODULE_BATTERY_FALSE BUILD_MODULE_CPU_TRUE BUILD_MODULE_CPU_FALSE BUILD_MODULE_CPUFREQ_TRUE BUILD_MODULE_CPUFREQ_FALSE BUILD_MODULE_DISK_TRUE BUILD_MODULE_DISK_FALSE BUILD_MODULE_DF_TRUE BUILD_MODULE_DF_FALSE BUILD_MODULE_QUOTA_TRUE BUILD_MODULE_QUOTA_FALSE BUILD_MODULE_HDDTEMP_TRUE BUILD_MODULE_HDDTEMP_FALSE BUILD_MODULE_LOAD_TRUE BUILD_MODULE_LOAD_FALSE BUILD_MODULE_MEMORY_TRUE BUILD_MODULE_MEMORY_FALSE BUILD_MODULE_MYSQL_TRUE BUILD_MODULE_MYSQL_FALSE BUILD_MODULE_NFS_TRUE BUILD_MODULE_NFS_FALSE BUILD_MODULE_PING_TRUE BUILD_MODULE_PING_FALSE BUILD_MODULE_PROCESSES_TRUE BUILD_MODULE_PROCESSES_FALSE BUILD_MODULE_SENSORS_TRUE BUILD_MODULE_SENSORS_FALSE BUILD_MODULE_SERIAL_TRUE BUILD_MODULE_SERIAL_FALSE BUILD_MODULE_SWAP_TRUE BUILD_MODULE_SWAP_FALSE BUILD_MODULE_TAPE_TRUE BUILD_MODULE_TAPE_FALSE BUILD_MODULE_TRAFFIC_TRUE BUILD_MODULE_TRAFFIC_FALSE BUILD_MODULE_USERS_TRUE BUILD_MODULE_USERS_FALSE LIBOBJS LTLIBOBJS'
++ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS INSTALL_PROGRAM INSTALL_SCRIPT INSTALL_DATA CYGPATH_W PACKAGE VERSION ACLOCAL AUTOCONF AUTOMAKE AUTOHEADER MAKEINFO install_sh STRIP ac_ct_STRIP INSTALL_STRIP_PROGRAM mkdir_p AWK SET_MAKE am__leading_dot AMTAR am__tar am__untar CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT DEPDIR am__include am__quote AMDEP_TRUE AMDEP_FALSE AMDEPBACKSLASH CCDEPMODE am__fastdepCC_TRUE am__fastdepCC_FALSE CPP LN_S COMPILER_IS_GCC_TRUE COMPILER_IS_GCC_FALSE LTDLINCL LIBLTDL build build_cpu build_vendor build_os host host_cpu host_vendor host_os EGREP ECHO AR ac_ct_AR RANLIB ac_ct_RANLIB CXX CXXFLAGS ac_ct_CXX CXXDEPMODE am__fastdepCXX_TRUE am__fastdepCXX_FALSE CXXCPP F77 FFLAGS ac_ct_F77 LIBTOOL subdirs BUILD_WITH_LIBSOCKET_TRUE BUILD_WITH_LIBSOCKET_FALSE BUILD_WITH_LIBRESOLV_TRUE BUILD_WITH_LIBRESOLV_FALSE BUILD_WITH_RRDTOOL_TRUE BUILD_WITH_RRDTOOL_FALSE BUILD_WITH_KSTAT_TRUE BUILD_WITH_KSTAT_FALSE BUILD_WITH_LIBSTATGRAB_TRUE BUILD_WITH_LIBSTATGRAB_FALSE BUILD_WITH_LM_SENSORS_TRUE BUILD_WITH_LM_SENSORS_FALSE BUILD_WITH_LIBMYSQL_TRUE BUILD_WITH_LIBMYSQL_FALSE BUILD_FEATURE_DEBUG_TRUE BUILD_FEATURE_DEBUG_FALSE BUILD_FEATURE_DAEMON_TRUE BUILD_FEATURE_DAEMON_FALSE BUILD_MODULE_BATTERY_TRUE BUILD_MODULE_BATTERY_FALSE BUILD_MODULE_CPU_TRUE BUILD_MODULE_CPU_FALSE BUILD_MODULE_CPUFREQ_TRUE BUILD_MODULE_CPUFREQ_FALSE BUILD_MODULE_DISK_TRUE BUILD_MODULE_DISK_FALSE BUILD_MODULE_DF_TRUE BUILD_MODULE_DF_FALSE BUILD_MODULE_QUOTA_TRUE BUILD_MODULE_QUOTA_FALSE BUILD_MODULE_HDDTEMP_TRUE BUILD_MODULE_HDDTEMP_FALSE BUILD_MODULE_LOAD_TRUE BUILD_MODULE_LOAD_FALSE BUILD_MODULE_MEMORY_TRUE BUILD_MODULE_MEMORY_FALSE BUILD_MODULE_MYSQL_TRUE BUILD_MODULE_MYSQL_FALSE BUILD_MODULE_NFS_TRUE BUILD_MODULE_NFS_FALSE BUILD_MODULE_PING_TRUE BUILD_MODULE_PING_FALSE BUILD_MODULE_PROCESSES_TRUE BUILD_MODULE_PROCESSES_FALSE BUILD_MODULE_SENSORS_TRUE BUILD_MODULE_SENSORS_FALSE BUILD_MODULE_SERIAL_TRUE BUILD_MODULE_SERIAL_FALSE BUILD_MODULE_SWAP_TRUE BUILD_MODULE_SWAP_FALSE BUILD_MODULE_TAPE_TRUE BUILD_MODULE_TAPE_FALSE BUILD_MODULE_TRAFFIC_TRUE BUILD_MODULE_TRAFFIC_FALSE BUILD_MODULE_USERS_TRUE BUILD_MODULE_USERS_FALSE BUILD_MODULE_WIRELESS_TRUE BUILD_MODULE_WIRELESS_FALSE LIBOBJS LTLIBOBJS'
+ ac_subst_files=''
+ 
+ # Initialize some variables set by options.
+ ac_init_help=
+ ac_init_version=false
+ # The variables have the same names as the options, with
+@@ -951,13 +951,13 @@
+ # Report the --help message.
+ #
+ if test "$ac_init_help" = "long"; then
+   # Omit some internal or obsolete options to make the list less imposing.
+   # This message is too long to be a string in the A/UX 3.1 sh.
+   cat <<_ACEOF
+-\`configure' configures collectd 3.7.2 to adapt to many kinds of systems.
++\`configure' configures collectd 3.8.0 to adapt to many kinds of systems.
+ 
+ Usage: $0 [OPTION]... [VAR=VALUE]...
+ 
+ To assign environment variables (e.g., CC, CFLAGS...), specify them as
+ VAR=VALUE.  See below for descriptions of some of the useful variables.
+ 
+@@ -1017,13 +1017,13 @@
+   --host=HOST       cross-compile to build programs to run on HOST [BUILD]
+ _ACEOF
+ fi
+ 
+ if test -n "$ac_init_help"; then
+   case $ac_init_help in
+-     short | recursive ) echo "Configuration of collectd 3.7.2:";;
++     short | recursive ) echo "Configuration of collectd 3.8.0:";;
+    esac
+   cat <<\_ACEOF
+ 
+ Optional Features:
+   --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
+   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
+@@ -1060,12 +1060,13 @@
+   --disable-sensors       disable lm_sensors statistics (enabled by def)
+   --disable-serial        disable serial statistics (enabled by def)
+   --disable-swap          disable swap statistics (enabled by def)
+   --disable-tape          disable tape statistics (enabled by def)
+   --disable-traffic       disable system traffic statistics (enabled by def)
+   --disable-users         disable user count statistics (enabled by def)
++  --disable-wireless      disable wireless link statistics (enabled by def)
+ 
+ Optional Packages:
+   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
+   --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
+   --with-gnu-ld           assume the C compiler uses GNU ld [default=no]
+   --with-pic              try to use only PIC/non-PIC objects [default=use
+@@ -1192,13 +1193,13 @@
+   done
+ fi
+ 
+ test -n "$ac_init_help" && exit 0
+ if $ac_init_version; then
+   cat <<\_ACEOF
+-collectd configure 3.7.2
++collectd configure 3.8.0
+ generated by GNU Autoconf 2.59
+ 
+ Copyright (C) 2003 Free Software Foundation, Inc.
+ This configure script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it.
+ _ACEOF
+@@ -1206,13 +1207,13 @@
+ fi
+ exec 5>config.log
+ cat >&5 <<_ACEOF
+ This file contains any messages produced by compilers while
+ running configure, to aid debugging if configure makes a mistake.
+ 
+-It was created by collectd $as_me 3.7.2, which was
++It was created by collectd $as_me 3.8.0, which was
+ generated by GNU Autoconf 2.59.  Invocation command line was
+ 
+   $ $0 $@
+ 
+ _ACEOF
+ {
+@@ -1852,13 +1853,13 @@
+   fi
+ fi
+ 
+ 
+ # Define the identity of the package.
+  PACKAGE='collectd'
+- VERSION='3.7.2'
++ VERSION='3.8.0'
+ 
+ 
+ cat >>confdefs.h <<_ACEOF
+ #define PACKAGE "$PACKAGE"
+ _ACEOF
+ 
+@@ -4082,13 +4083,13 @@
+     esac
+   fi
+   rm -rf conftest*
+   ;;
+ *-*-irix6*)
+   # Find out which ABI we are using.
+-  echo '#line 4088 "configure"' > conftest.$ac_ext
++  echo '#line 4089 "configure"' > conftest.$ac_ext
+   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+   (eval $ac_compile) 2>&5
+   ac_status=$?
+   echo "$as_me:$LINENO: \$? = $ac_status" >&5
+   (exit $ac_status); }; then
+    if test "$lt_cv_prog_gnu_ld" = yes; then
+@@ -5439,13 +5440,13 @@
+ 
+   F77=$ac_ct_F77
+ fi
+ 
+ 
+ # Provide some information about the compiler.
+-echo "$as_me:5445:" \
++echo "$as_me:5446:" \
+      "checking for Fortran 77 compiler version" >&5
+ ac_compiler=`set X $ac_compile; echo $2`
+ { (eval echo "$as_me:$LINENO: \"$ac_compiler --version </dev/null >&5\"") >&5
+   (eval $ac_compiler --version </dev/null >&5) 2>&5
+   ac_status=$?
+   echo "$as_me:$LINENO: \$? = $ac_status" >&5
+@@ -6500,17 +6501,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:6506: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:6507: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:6510: \$? = $ac_status" >&5
++   echo "$as_me:6511: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -6768,17 +6769,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:6774: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:6775: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:6778: \$? = $ac_status" >&5
++   echo "$as_me:6779: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -6872,17 +6873,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:6878: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:6879: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:6882: \$? = $ac_status" >&5
++   echo "$as_me:6883: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -9230,13 +9231,13 @@
+   	  if test "$cross_compiling" = yes; then :
+   lt_cv_dlopen_self=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 9236 "configure"
++#line 9237 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -9330,13 +9331,13 @@
+   	  if test "$cross_compiling" = yes; then :
+   lt_cv_dlopen_self_static=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 9336 "configure"
++#line 9337 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -11668,17 +11669,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:11674: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:11675: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:11678: \$? = $ac_status" >&5
++   echo "$as_me:11679: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -11772,17 +11773,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:11778: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:11779: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:11782: \$? = $ac_status" >&5
++   echo "$as_me:11783: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -13360,17 +13361,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:13366: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:13367: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:13370: \$? = $ac_status" >&5
++   echo "$as_me:13371: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -13464,17 +13465,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:13470: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:13471: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:13474: \$? = $ac_status" >&5
++   echo "$as_me:13475: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -15687,17 +15688,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:15693: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:15694: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:15697: \$? = $ac_status" >&5
++   echo "$as_me:15698: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -15955,17 +15956,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:15961: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:15962: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:15965: \$? = $ac_status" >&5
++   echo "$as_me:15966: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -16059,17 +16060,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:16065: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:16066: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:16069: \$? = $ac_status" >&5
++   echo "$as_me:16070: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -29610,12 +29611,49 @@
+ else
+   BUILD_MODULE_USERS_TRUE='#'
+   BUILD_MODULE_USERS_FALSE=
+ fi
+ 
+ 
++																	# Check whether --enable-wireless or --disable-wireless was given.
++if test "${enable_wireless+set}" = set; then
++  enableval="$enable_wireless"
++
++else
++  enable_wireless='yes'
++fi; # AC_ARG_ENABLE
++if test "x$enable_wireless" = "xno"
++then
++	collectd_wireless=0
++else
++	if test "x$enable_wireless" = "xyes"
++	then
++		collectd_wireless=1
++	else
++		{ echo "$as_me:$LINENO: please specify either --enable-wireless or --disable-wireless; enabling wireless." >&5
++echo "$as_me: please specify either --enable-wireless or --disable-wireless; enabling wireless." >&6;}
++		collectd_wireless=1
++		enable_wireless='yes'
++	fi
++fi
++
++cat >>confdefs.h <<_ACEOF
++#define COLLECT_WIRELESS $collectd_wireless
++_ACEOF
++
++
++
++if test "x$enable_wireless" = "xyes"; then
++  BUILD_MODULE_WIRELESS_TRUE=
++  BUILD_MODULE_WIRELESS_FALSE='#'
++else
++  BUILD_MODULE_WIRELESS_TRUE='#'
++  BUILD_MODULE_WIRELESS_FALSE=
++fi
++
++
+ #m4_divert_once([HELP_ENABLE], [
+ #collectd modules:])
+ #AC_ARG_ENABLE(cpu, AC_HELP_STRING([--disable-cpu], [Disable CPU usage statistics]),, [enable_cpu="yes"])
+ #if test "x$enable_cpu" != "xno"
+ #then
+ #	if test "x$ac_system" = "xLinux" -o "x$with_kstat" = "xyes" -o "x$have_sysctlbyname" = "xyes"
+@@ -29826,13 +29864,13 @@
+ #	AC_DEFINE(COLLECT_TRAFFIC, 0, [Wether or not to collect network traffic statistics])
+ #fi
+ #AM_CONDITIONAL(BUILD_MODULE_TRAFFIC, test "x$enable_traffic" = "xyes")
+ 
+ #AC_COLLECTD([users],     [disable], [module], [user count statistics])
+ 
+-                                        ac_config_files="$ac_config_files Makefile src/libconfig/Makefile src/libping/Makefile src/Makefile"
++                                        ac_config_files="$ac_config_files Makefile src/libconfig/Makefile src/liboping/Makefile src/Makefile"
+ cat >confcache <<\_ACEOF
+ # This file is a shell script that caches the results of configure
+ # tests run on this system so they can be shared between configure
+ # scripts and configure runs, see configure's option --config-cache.
+ # It is not useful on other systems.  If it contains results you don't
+ # want to keep, you may remove or edit it.
+@@ -30142,12 +30180,19 @@
+   { { echo "$as_me:$LINENO: error: conditional \"BUILD_MODULE_USERS\" was never defined.
+ Usually this means the macro was only invoked conditionally." >&5
+ echo "$as_me: error: conditional \"BUILD_MODULE_USERS\" was never defined.
+ Usually this means the macro was only invoked conditionally." >&2;}
+    { (exit 1); exit 1; }; }
+ fi
++if test -z "${BUILD_MODULE_WIRELESS_TRUE}" && test -z "${BUILD_MODULE_WIRELESS_FALSE}"; then
++  { { echo "$as_me:$LINENO: error: conditional \"BUILD_MODULE_WIRELESS\" was never defined.
++Usually this means the macro was only invoked conditionally." >&5
++echo "$as_me: error: conditional \"BUILD_MODULE_WIRELESS\" was never defined.
++Usually this means the macro was only invoked conditionally." >&2;}
++   { (exit 1); exit 1; }; }
++fi
+ 
+ : ${CONFIG_STATUS=./config.status}
+ ac_clean_files_save=$ac_clean_files
+ ac_clean_files="$ac_clean_files $CONFIG_STATUS"
+ { echo "$as_me:$LINENO: creating $CONFIG_STATUS" >&5
+ echo "$as_me: creating $CONFIG_STATUS" >&6;}
+@@ -30413,13 +30458,13 @@
+   sed 'h;s/./-/g;s/^.../## /;s/...$/ ##/;p;x;p;x' <<_ASBOX
+ ## Running $as_me. ##
+ _ASBOX
+ } >&5
+ cat >&5 <<_CSEOF
+ 
+-This file was extended by collectd $as_me 3.7.2, which was
++This file was extended by collectd $as_me 3.8.0, which was
+ generated by GNU Autoconf 2.59.  Invocation command line was
+ 
+   CONFIG_FILES    = $CONFIG_FILES
+   CONFIG_HEADERS  = $CONFIG_HEADERS
+   CONFIG_LINKS    = $CONFIG_LINKS
+   CONFIG_COMMANDS = $CONFIG_COMMANDS
+@@ -30476,13 +30521,13 @@
+ 
+ Report bugs to <bug-autoconf@gnu.org>."
+ _ACEOF
+ 
+ cat >>$CONFIG_STATUS <<_ACEOF
+ ac_cs_version="\\
+-collectd config.status 3.7.2
++collectd config.status 3.8.0
+ configured by $0, generated by GNU Autoconf 2.59,
+   with options \\"`echo "$ac_configure_args" | sed 's/[\\""\`\$]/\\\\&/g'`\\"
+ 
+ Copyright (C) 2003 Free Software Foundation, Inc.
+ This config.status script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it."
+@@ -30588,13 +30633,13 @@
+ for ac_config_target in $ac_config_targets
+ do
+   case "$ac_config_target" in
+   # Handling of arguments.
+   "Makefile" ) CONFIG_FILES="$CONFIG_FILES Makefile" ;;
+   "src/libconfig/Makefile" ) CONFIG_FILES="$CONFIG_FILES src/libconfig/Makefile" ;;
+-  "src/libping/Makefile" ) CONFIG_FILES="$CONFIG_FILES src/libping/Makefile" ;;
++  "src/liboping/Makefile" ) CONFIG_FILES="$CONFIG_FILES src/liboping/Makefile" ;;
+   "src/Makefile" ) CONFIG_FILES="$CONFIG_FILES src/Makefile" ;;
+   "depfiles" ) CONFIG_COMMANDS="$CONFIG_COMMANDS depfiles" ;;
+   "src/config.h" ) CONFIG_HEADERS="$CONFIG_HEADERS src/config.h" ;;
+   *) { { echo "$as_me:$LINENO: error: invalid argument: $ac_config_target" >&5
+ echo "$as_me: error: invalid argument: $ac_config_target" >&2;}
+    { (exit 1); exit 1; }; };;
+@@ -30803,12 +30848,14 @@
+ s,@BUILD_MODULE_TAPE_TRUE@,$BUILD_MODULE_TAPE_TRUE,;t t
+ s,@BUILD_MODULE_TAPE_FALSE@,$BUILD_MODULE_TAPE_FALSE,;t t
+ s,@BUILD_MODULE_TRAFFIC_TRUE@,$BUILD_MODULE_TRAFFIC_TRUE,;t t
+ s,@BUILD_MODULE_TRAFFIC_FALSE@,$BUILD_MODULE_TRAFFIC_FALSE,;t t
+ s,@BUILD_MODULE_USERS_TRUE@,$BUILD_MODULE_USERS_TRUE,;t t
+ s,@BUILD_MODULE_USERS_FALSE@,$BUILD_MODULE_USERS_FALSE,;t t
++s,@BUILD_MODULE_WIRELESS_TRUE@,$BUILD_MODULE_WIRELESS_TRUE,;t t
++s,@BUILD_MODULE_WIRELESS_FALSE@,$BUILD_MODULE_WIRELESS_FALSE,;t t
+ s,@LIBOBJS@,$LIBOBJS,;t t
+ s,@LTLIBOBJS@,$LTLIBOBJS,;t t
+ CEOF
+ 
+ _ACEOF
+ 
+@@ -31732,8 +31779,9 @@
+     sensors . . . . . . $enable_sensors
+     serial  . . . . . . $enable_serial
+     swap  . . . . . . . $enable_swap
+     tape  . . . . . . . $enable_tape
+     traffic . . . . . . $enable_traffic
+     users . . . . . . . $enable_users
++    wireless  . . . . . $enable_wireless
+ 
+ EOF
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/configure.in	2006-02-23 00:24:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/configure.in	2006-03-10 05:43:30.000000000 +0800
+@@ -1,8 +1,8 @@
+ dnl Process this file with autoconf to produce a configure script.
+-AC_INIT(collectd, 3.7.2)
++AC_INIT(collectd, 3.8.0)
+ AC_CONFIG_SRCDIR(src/collectd.c)
+ AC_CONFIG_HEADERS(src/config.h)
+ AM_INIT_AUTOMAKE(dist-bzip2)
+ AC_LANG(C)
+ 
+ AC_PREFIX_DEFAULT("/opt/collectd")
+@@ -491,12 +491,13 @@
+ AC_COLLECTD([sensors],   [disable], [module], [lm_sensors statistics])
+ AC_COLLECTD([serial],    [disable], [module], [serial statistics])
+ AC_COLLECTD([swap],      [disable], [module], [swap statistics])
+ AC_COLLECTD([tape],      [disable], [module], [tape statistics])
+ AC_COLLECTD([traffic],   [disable], [module], [system traffic statistics])
+ AC_COLLECTD([users],     [disable], [module], [user count statistics])
++AC_COLLECTD([wireless],  [disable], [module], [wireless link statistics])
+ 
+ #m4_divert_once([HELP_ENABLE], [
+ #collectd modules:])
+ #AC_ARG_ENABLE(cpu, AC_HELP_STRING([--disable-cpu], [Disable CPU usage statistics]),, [enable_cpu="yes"])
+ #if test "x$enable_cpu" != "xno"
+ #then
+@@ -708,13 +709,13 @@
+ #	AC_DEFINE(COLLECT_TRAFFIC, 0, [Wether or not to collect network traffic statistics])
+ #fi
+ #AM_CONDITIONAL(BUILD_MODULE_TRAFFIC, test "x$enable_traffic" = "xyes")
+ 
+ #AC_COLLECTD([users],     [disable], [module], [user count statistics])
+ 
+-AC_OUTPUT(Makefile src/libconfig/Makefile src/libping/Makefile src/Makefile)
++AC_OUTPUT(Makefile src/libconfig/Makefile src/liboping/Makefile src/Makefile)
+ 
+ cat <<EOF;
+ 
+ Configuration:
+   Libraries:
+     librrd  . . . . . . $with_rrdtool
+@@ -743,8 +744,9 @@
+     sensors . . . . . . $enable_sensors
+     serial  . . . . . . $enable_serial
+     swap  . . . . . . . $enable_swap
+     tape  . . . . . . . $enable_tape
+     traffic . . . . . . $enable_traffic
+     users . . . . . . . $enable_users
++    wireless  . . . . . $enable_wireless
+ 
+ EOF
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/contrib: collectd2html.pl
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/contrib: collection.cgi
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/contrib: cpu
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/contrib: graph
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/contrib: hddtemp
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/contrib: iobytes
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/contrib: iowait
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/contrib: load
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/contrib: memory
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/contrib: museum
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/contrib: ping
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/contrib: processes
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/contrib: swap
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/contrib: temperature
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/contrib: traffic
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/contrib: users
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/debian/changelog /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/debian/changelog
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/debian/changelog	2006-02-23 00:24:44.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/debian/changelog	2006-03-10 05:43:31.000000000 +0800
+@@ -1,6 +1,12 @@
++collectd (3.8.0-1) unstable; urgency=low
++
++  * New upstream version
++
++ -- Florian Forster <octo@verplant.org>  Thu, 09 Mar 2006 18:18:10 +0200
++
+ collectd (3.7.2-1) unstable; urgency=low
+ 
+   * New upstream version
+ 
+  -- Florian Forster <octo@verplant.org>  Sat, 18 Feb 2006 12:36:09 +0200
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/debian/collectd.examples /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/debian/collectd.examples
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/debian/collectd.examples	2006-02-23 00:24:44.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/debian/collectd.examples	2006-03-10 05:43:31.000000000 +0800
+@@ -1,12 +1,2 @@
+-contrib/cpu
+-contrib/load
+-contrib/iobytes
+-contrib/iowait
+-contrib/load
+-contrib/memory
+-contrib/ping
+-contrib/swap
+-contrib/temperature
+-contrib/traffic
+-contrib/users
+-contrib/museum
++contrib/collectd2html.pl
++contrib/collection.cgi
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/debian/collectd.init.d /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/debian/collectd.init.d
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/debian/collectd.init.d	2006-02-23 00:24:44.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/debian/collectd.init.d	2006-03-10 05:43:31.000000000 +0800
+@@ -1,22 +1,27 @@
+ #!/bin/sh
+ #
+ # collectd	Initscript for collectd
+ #		http://verplant.org/collectd/
+ # Author:	Florian Forster <octo@verplant.org>
++# Extended to support multiple running instances of collectd:
++#		Sebastian Harl <sh@tokkee.org>
+ #
+ 
+ set -e
+ 
+ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+ DESC="Statistics collection daemon"
+ NAME=collectd
+ DAEMON=/usr/sbin/$NAME
+ SCRIPTNAME=/etc/init.d/$NAME
+ ARGS=""
+-CONFIG=/etc/collectd.conf
++
++CONFIGDIR=/etc/collectd
++# for backward compatibility
++FALLBACKCONF=/etc/collectd.conf
+ 
+ # Gracefully exit if the package has been removed.
+ test -x $DAEMON || exit 0
+ 
+ if [ -r /etc/default/$NAME ]
+ then
+@@ -24,15 +29,37 @@
+ fi
+ 
+ #
+ #	Function that starts the daemon/service.
+ #
+ d_start() {
+-	if [ -e "$CONFIG" ]
++	i=1
++	
++	if [[ ! -d "$CONFIGDIR" && -e "$FALLBACKCONF" ]]
+ 	then
+-		start-stop-daemon --start --quiet --exec $DAEMON -- -C "$CONFIG"
++		start-stop-daemon --start --quiet --exec $DAEMON \
++			-- -C "$FALLBACKCONF"
++	else
++		echo -n " ("
++		for CONFIG in `cd $CONFIGDIR; ls *.conf 2> /dev/null`; do
++			CONF="$CONFIGDIR/$CONFIG"
++			NAME=${CONFIG%%.conf}
++			PIDFILE=$( grep PIDFile $CONF | awk '{print $2}' )
++
++			if [ 1 != $i ]; then
++				echo -n " "
++			fi
++
++			start-stop-daemon --start --quiet \
++				--pidfile $PIDFILE --startas $DAEMON \
++				-- -C "$CONFIGDIR/$CONFIG"
++			echo -n "$NAME"
++
++			let i++
++		done
++		echo -n ")"
+ 	fi
+ }
+ 
+ #
+ #	Function that stops the daemon/service.
+ #
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/debian: collectd.postinst
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/debian/collectd.postrm /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/debian/collectd.postrm
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/debian/collectd.postrm	2006-02-23 00:24:44.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/debian/collectd.postrm	2006-03-10 05:43:31.000000000 +0800
+@@ -17,13 +17,15 @@
+ # for details, see http://www.debian.org/doc/debian-policy/ or
+ # the debian-policy package
+ 
+ 
+ case "$1" in
+ 	purge)
+-	rm -rf /var/lib/collectd
++		rm -rf /var/lib/collectd
++		rm -rf /etc/collectd
++		rm -f /etc/collectd.conf
+ 	;;
+ 
+ 	remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+ 	;;
+ 
+ 	*)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/Makefile.in	2006-02-23 00:24:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/Makefile.in	2006-03-10 05:43:30.000000000 +0800
+@@ -119,12 +119,14 @@
+ BUILD_MODULE_TAPE_FALSE = @BUILD_MODULE_TAPE_FALSE@
+ BUILD_MODULE_TAPE_TRUE = @BUILD_MODULE_TAPE_TRUE@
+ BUILD_MODULE_TRAFFIC_FALSE = @BUILD_MODULE_TRAFFIC_FALSE@
+ BUILD_MODULE_TRAFFIC_TRUE = @BUILD_MODULE_TRAFFIC_TRUE@
+ BUILD_MODULE_USERS_FALSE = @BUILD_MODULE_USERS_FALSE@
+ BUILD_MODULE_USERS_TRUE = @BUILD_MODULE_USERS_TRUE@
++BUILD_MODULE_WIRELESS_FALSE = @BUILD_MODULE_WIRELESS_FALSE@
++BUILD_MODULE_WIRELESS_TRUE = @BUILD_MODULE_WIRELESS_TRUE@
+ BUILD_WITH_KSTAT_FALSE = @BUILD_WITH_KSTAT_FALSE@
+ BUILD_WITH_KSTAT_TRUE = @BUILD_WITH_KSTAT_TRUE@
+ BUILD_WITH_LIBMYSQL_FALSE = @BUILD_WITH_LIBMYSQL_FALSE@
+ BUILD_WITH_LIBMYSQL_TRUE = @BUILD_WITH_LIBMYSQL_TRUE@
+ BUILD_WITH_LIBRESOLV_FALSE = @BUILD_WITH_LIBRESOLV_FALSE@
+ BUILD_WITH_LIBRESOLV_TRUE = @BUILD_WITH_LIBRESOLV_TRUE@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/src/battery.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/src/battery.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/src/battery.c	2006-02-23 00:24:44.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/src/battery.c	2006-03-10 05:43:31.000000000 +0800
+@@ -57,14 +57,16 @@
+ {
+ 	"DS:charge:GAUGE:25:0:U",
+ 	NULL
+ };
+ static int ds_num_charge = 1;
+ 
++#if BATTERY_HAVE_READ
+ static int   battery_pmu_num = 0;
+ static char *battery_pmu_file = "/proc/pmu/battery_%i";
++#endif
+ 
+ static void battery_init (void)
+ {
+ #if BATTERY_HAVE_READ
+ 	int len;
+ 	char filename[BUFSIZE];
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/src/collectd.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/src/collectd.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/src/collectd.1	2006-02-23 00:24:45.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/src/collectd.1	2006-03-10 05:43:32.000000000 +0800
+@@ -126,13 +126,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD 1"
+-.TH COLLECTD 1 "2006-02-18" "3.7.2" "collectd"
++.TH COLLECTD 1 "2006-01-29" "3.7.2" "collectd"
+ .SH "NAME"
+ collectd \- System statistics collection daemon
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ collectd \fI[options]\fR
+ .SH "DESCRIPTION"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/src/config.h.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/src/config.h.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/src/config.h.in	2006-02-23 00:24:44.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/src/config.h.in	2006-03-10 05:43:31.000000000 +0800
+@@ -75,12 +75,15 @@
+ /* wether or not to enable module system traffic statistics */
+ #undef COLLECT_TRAFFIC
+ 
+ /* wether or not to enable module user count statistics */
+ #undef COLLECT_USERS
+ 
++/* wether or not to enable module wireless link statistics */
++#undef COLLECT_WIRELESS
++
+ /* Define to 1 if you have the <arpa/inet.h> header file. */
+ #undef HAVE_ARPA_INET_H
+ 
+ /* Define to 1 if you have the <assert.h> header file. */
+ #undef HAVE_ASSERT_H
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/src/libconfig/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/src/libconfig/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/src/libconfig/Makefile.in	2006-02-23 00:24:45.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/src/libconfig/Makefile.in	2006-03-10 05:43:32.000000000 +0800
+@@ -117,12 +117,14 @@
+ BUILD_MODULE_TAPE_FALSE = @BUILD_MODULE_TAPE_FALSE@
+ BUILD_MODULE_TAPE_TRUE = @BUILD_MODULE_TAPE_TRUE@
+ BUILD_MODULE_TRAFFIC_FALSE = @BUILD_MODULE_TRAFFIC_FALSE@
+ BUILD_MODULE_TRAFFIC_TRUE = @BUILD_MODULE_TRAFFIC_TRUE@
+ BUILD_MODULE_USERS_FALSE = @BUILD_MODULE_USERS_FALSE@
+ BUILD_MODULE_USERS_TRUE = @BUILD_MODULE_USERS_TRUE@
++BUILD_MODULE_WIRELESS_FALSE = @BUILD_MODULE_WIRELESS_FALSE@
++BUILD_MODULE_WIRELESS_TRUE = @BUILD_MODULE_WIRELESS_TRUE@
+ BUILD_WITH_KSTAT_FALSE = @BUILD_WITH_KSTAT_FALSE@
+ BUILD_WITH_KSTAT_TRUE = @BUILD_WITH_KSTAT_TRUE@
+ BUILD_WITH_LIBMYSQL_FALSE = @BUILD_WITH_LIBMYSQL_FALSE@
+ BUILD_WITH_LIBMYSQL_TRUE = @BUILD_WITH_LIBMYSQL_TRUE@
+ BUILD_WITH_LIBRESOLV_FALSE = @BUILD_WITH_LIBRESOLV_FALSE@
+ BUILD_WITH_LIBRESOLV_TRUE = @BUILD_WITH_LIBRESOLV_TRUE@
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/src: liboping
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/src: libping
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/src/Makefile.am /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/src/Makefile.am
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/src/Makefile.am	2006-02-23 00:24:44.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/src/Makefile.am	2006-03-10 05:43:31.000000000 +0800
+@@ -1,9 +1,9 @@
+ SUBDIRS = libconfig
+ if BUILD_MODULE_PING
+-SUBDIRS += libping
++SUBDIRS += liboping
+ endif
+ 
+ if COMPILER_IS_GCC
+ AM_CFLAGS = -Wall -Werror
+ endif
+ 
+@@ -139,14 +139,14 @@
+ endif
+ 
+ if BUILD_MODULE_PING
+ pkglib_LTLIBRARIES += ping.la
+ ping_la_SOURCES = ping.c ping.h
+ ping_la_LDFLAGS = -module -avoid-version
+-ping_la_LIBADD  = libping/libping.la
+-ping_la_DEPENDENCIES = libping/libping.la
++ping_la_LIBADD  = liboping/liboping.la
++ping_la_DEPENDENCIES = liboping/liboping.la
+ collectd_LDADD += "-dlopen" ping.la
+ collectd_DEPENDENCIES += ping.la
+ endif
+ 
+ if BUILD_MODULE_PROCESSES
+ pkglib_LTLIBRARIES += processes.la
+@@ -204,12 +204,22 @@
+ users_la_SOURCES = users.c users.h
+ users_la_LDFLAGS = -module -avoid-version
+ collectd_LDADD += "-dlopen" users.la
+ collectd_DEPENDENCIES += users.la
+ endif
+ 
++if BUILD_MODULE_WIRELESS
++pkglib_LTLIBRARIES += wireless.la
++wireless_la_SOURCES = wireless.c
++wireless_la_LDFLAGS = -module -avoid-version
++# FIXME Make `-lm' conditional
++wireless_la_LDFLAGS += -lm
++collectd_LDADD += "-dlopen" wireless.la
++collectd_DEPENDENCIES += wireless.la
++endif
++
+ man_MANS = collectd.1 collectd.conf.5
+ #collectd_1_SOURCES = collectd.pod
+ 
+ EXTRA_DIST = $(man_MANS)
+ 
+ .pod.1:
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/src/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/src/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/src/Makefile.in	2006-02-23 00:24:44.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/src/Makefile.in	2006-03-10 05:43:31.000000000 +0800
+@@ -34,13 +34,13 @@
+ POST_INSTALL = :
+ NORMAL_UNINSTALL = :
+ PRE_UNINSTALL = :
+ POST_UNINSTALL = :
+ build_triplet = @build@
+ host_triplet = @host@
+-@BUILD_MODULE_PING_TRUE@am__append_1 = libping
++@BUILD_MODULE_PING_TRUE@am__append_1 = liboping
+ sbin_PROGRAMS = collectd$(EXEEXT)
+ @BUILD_FEATURE_DAEMON_TRUE@am__append_2 = -DPIDFILE='"${localstatedir}/run/${PACKAGE_NAME}.pid"'
+ @BUILD_FEATURE_DEBUG_TRUE@am__append_3 = -DLOGFILE='"${localstatedir}/log/${PACKAGE_NAME}/collectd.log"'
+ @BUILD_WITH_RRDTOOL_TRUE@am__append_4 = -lm -lrrd
+ @BUILD_WITH_LIBSOCKET_TRUE@am__append_5 = -lsocket
+ @BUILD_WITH_LIBRESOLV_TRUE@am__append_6 = -lresolv
+@@ -108,12 +108,15 @@
+ @BUILD_MODULE_TRAFFIC_TRUE@am__append_57 = traffic.la
+ @BUILD_MODULE_TRAFFIC_TRUE@am__append_58 = "-dlopen" traffic.la
+ @BUILD_MODULE_TRAFFIC_TRUE@am__append_59 = traffic.la
+ @BUILD_MODULE_USERS_TRUE@am__append_60 = users.la
+ @BUILD_MODULE_USERS_TRUE@am__append_61 = "-dlopen" users.la
+ @BUILD_MODULE_USERS_TRUE@am__append_62 = users.la
++@BUILD_MODULE_WIRELESS_TRUE@am__append_63 = wireless.la
++@BUILD_MODULE_WIRELESS_TRUE@am__append_64 = "-dlopen" wireless.la
++@BUILD_MODULE_WIRELESS_TRUE@am__append_65 = wireless.la
+ subdir = src
+ DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in \
+ 	$(srcdir)/config.h.in
+ ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
+ am__aclocal_m4_deps = $(top_srcdir)/configure.in
+ am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
+@@ -218,12 +221,17 @@
+ @BUILD_MODULE_TRAFFIC_TRUE@am_traffic_la_rpath = -rpath $(pkglibdir)
+ users_la_LIBADD =
+ am__users_la_SOURCES_DIST = users.c users.h
+ @BUILD_MODULE_USERS_TRUE@am_users_la_OBJECTS = users.lo
+ users_la_OBJECTS = $(am_users_la_OBJECTS)
+ @BUILD_MODULE_USERS_TRUE@am_users_la_rpath = -rpath $(pkglibdir)
++wireless_la_LIBADD =
++am__wireless_la_SOURCES_DIST = wireless.c
++@BUILD_MODULE_WIRELESS_TRUE@am_wireless_la_OBJECTS = wireless.lo
++wireless_la_OBJECTS = $(am_wireless_la_OBJECTS)
++@BUILD_MODULE_WIRELESS_TRUE@am_wireless_la_rpath = -rpath $(pkglibdir)
+ sbinPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
+ PROGRAMS = $(sbin_PROGRAMS)
+ am_collectd_OBJECTS = collectd-collectd.$(OBJEXT) \
+ 	collectd-utils_debug.$(OBJEXT) collectd-utils_mount.$(OBJEXT) \
+ 	collectd-common.$(OBJEXT) collectd-network.$(OBJEXT) \
+ 	collectd-plugin.$(OBJEXT) collectd-configfile.$(OBJEXT)
+@@ -245,12 +253,14 @@
+ @BUILD_MODULE_SENSORS_TRUE@am__DEPENDENCIES_14 = "-dlopen" sensors.la
+ @BUILD_MODULE_SERIAL_TRUE@am__DEPENDENCIES_15 = "-dlopen" serial.la
+ @BUILD_MODULE_SWAP_TRUE@am__DEPENDENCIES_16 = "-dlopen" swap.la
+ @BUILD_MODULE_TAPE_TRUE@am__DEPENDENCIES_17 = "-dlopen" tape.la
+ @BUILD_MODULE_TRAFFIC_TRUE@am__DEPENDENCIES_18 = "-dlopen" traffic.la
+ @BUILD_MODULE_USERS_TRUE@am__DEPENDENCIES_19 = "-dlopen" users.la
++@BUILD_MODULE_WIRELESS_TRUE@am__DEPENDENCIES_20 = "-dlopen" \
++@BUILD_MODULE_WIRELESS_TRUE@	wireless.la
+ DEFAULT_INCLUDES = -I. -I$(srcdir) -I.
+ depcomp = $(SHELL) $(top_srcdir)/depcomp
+ am__depfiles_maybe = depfiles
+ COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
+ 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
+ LTCOMPILE = $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) \
+@@ -262,37 +272,38 @@
+ SOURCES = $(battery_la_SOURCES) $(cpu_la_SOURCES) \
+ 	$(cpufreq_la_SOURCES) $(df_la_SOURCES) $(disk_la_SOURCES) \
+ 	$(hddtemp_la_SOURCES) $(load_la_SOURCES) $(memory_la_SOURCES) \
+ 	$(mysql_la_SOURCES) $(nfs_la_SOURCES) $(ping_la_SOURCES) \
+ 	$(processes_la_SOURCES) $(sensors_la_SOURCES) \
+ 	$(serial_la_SOURCES) $(swap_la_SOURCES) $(tape_la_SOURCES) \
+-	$(traffic_la_SOURCES) $(users_la_SOURCES) $(collectd_SOURCES)
++	$(traffic_la_SOURCES) $(users_la_SOURCES) \
++	$(wireless_la_SOURCES) $(collectd_SOURCES)
+ DIST_SOURCES = $(am__battery_la_SOURCES_DIST) \
+ 	$(am__cpu_la_SOURCES_DIST) $(am__cpufreq_la_SOURCES_DIST) \
+ 	$(am__df_la_SOURCES_DIST) $(am__disk_la_SOURCES_DIST) \
+ 	$(am__hddtemp_la_SOURCES_DIST) $(am__load_la_SOURCES_DIST) \
+ 	$(am__memory_la_SOURCES_DIST) $(am__mysql_la_SOURCES_DIST) \
+ 	$(am__nfs_la_SOURCES_DIST) $(am__ping_la_SOURCES_DIST) \
+ 	$(am__processes_la_SOURCES_DIST) \
+ 	$(am__sensors_la_SOURCES_DIST) $(am__serial_la_SOURCES_DIST) \
+ 	$(am__swap_la_SOURCES_DIST) $(am__tape_la_SOURCES_DIST) \
+ 	$(am__traffic_la_SOURCES_DIST) $(am__users_la_SOURCES_DIST) \
+-	$(collectd_SOURCES)
++	$(am__wireless_la_SOURCES_DIST) $(collectd_SOURCES)
+ RECURSIVE_TARGETS = all-recursive check-recursive dvi-recursive \
+ 	html-recursive info-recursive install-data-recursive \
+ 	install-exec-recursive install-info-recursive \
+ 	install-recursive installcheck-recursive installdirs-recursive \
+ 	pdf-recursive ps-recursive uninstall-info-recursive \
+ 	uninstall-recursive
+ man1dir = $(mandir)/man1
+ man5dir = $(mandir)/man5
+ NROFF = nroff
+ MANS = $(man_MANS)
+ ETAGS = etags
+ CTAGS = ctags
+-DIST_SUBDIRS = libconfig libping
++DIST_SUBDIRS = libconfig liboping
+ DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
+ ACLOCAL = @ACLOCAL@
+ AMDEP_FALSE = @AMDEP_FALSE@
+ AMDEP_TRUE = @AMDEP_TRUE@
+ AMTAR = @AMTAR@
+ AR = @AR@
+@@ -339,12 +350,14 @@
+ BUILD_MODULE_TAPE_FALSE = @BUILD_MODULE_TAPE_FALSE@
+ BUILD_MODULE_TAPE_TRUE = @BUILD_MODULE_TAPE_TRUE@
+ BUILD_MODULE_TRAFFIC_FALSE = @BUILD_MODULE_TRAFFIC_FALSE@
+ BUILD_MODULE_TRAFFIC_TRUE = @BUILD_MODULE_TRAFFIC_TRUE@
+ BUILD_MODULE_USERS_FALSE = @BUILD_MODULE_USERS_FALSE@
+ BUILD_MODULE_USERS_TRUE = @BUILD_MODULE_USERS_TRUE@
++BUILD_MODULE_WIRELESS_FALSE = @BUILD_MODULE_WIRELESS_FALSE@
++BUILD_MODULE_WIRELESS_TRUE = @BUILD_MODULE_WIRELESS_TRUE@
+ BUILD_WITH_KSTAT_FALSE = @BUILD_WITH_KSTAT_FALSE@
+ BUILD_WITH_KSTAT_TRUE = @BUILD_WITH_KSTAT_TRUE@
+ BUILD_WITH_LIBMYSQL_FALSE = @BUILD_WITH_LIBMYSQL_FALSE@
+ BUILD_WITH_LIBMYSQL_TRUE = @BUILD_WITH_LIBMYSQL_TRUE@
+ BUILD_WITH_LIBRESOLV_FALSE = @BUILD_WITH_LIBRESOLV_FALSE@
+ BUILD_WITH_LIBRESOLV_TRUE = @BUILD_WITH_LIBRESOLV_TRUE@
+@@ -469,26 +482,29 @@
+ collectd_LDADD = $(LIBLTDL) libconfig/libconfig.la "-dlopen" self \
+ 	$(am__append_8) $(am__append_11) $(am__append_14) \
+ 	$(am__append_17) $(am__append_20) $(am__append_23) \
+ 	$(am__append_26) $(am__append_29) $(am__append_33) \
+ 	$(am__append_36) $(am__append_39) $(am__append_42) \
+ 	$(am__append_46) $(am__append_49) $(am__append_52) \
+-	$(am__append_55) $(am__append_58) $(am__append_61)
++	$(am__append_55) $(am__append_58) $(am__append_61) \
++	$(am__append_64)
+ collectd_DEPENDENCIES = $(LIBLTDL) libconfig/libconfig.la \
+ 	$(am__append_9) $(am__append_12) $(am__append_15) \
+ 	$(am__append_18) $(am__append_21) $(am__append_24) \
+ 	$(am__append_27) $(am__append_30) $(am__append_34) \
+ 	$(am__append_37) $(am__append_40) $(am__append_43) \
+ 	$(am__append_47) $(am__append_50) $(am__append_53) \
+-	$(am__append_56) $(am__append_59) $(am__append_62)
++	$(am__append_56) $(am__append_59) $(am__append_62) \
++	$(am__append_65)
+ pkglib_LTLIBRARIES = $(am__append_7) $(am__append_10) $(am__append_13) \
+ 	$(am__append_16) $(am__append_19) $(am__append_22) \
+ 	$(am__append_25) $(am__append_28) $(am__append_31) \
+ 	$(am__append_35) $(am__append_38) $(am__append_41) \
+ 	$(am__append_44) $(am__append_48) $(am__append_51) \
+-	$(am__append_54) $(am__append_57) $(am__append_60)
++	$(am__append_54) $(am__append_57) $(am__append_60) \
++	$(am__append_63)
+ @BUILD_MODULE_BATTERY_TRUE@battery_la_SOURCES = battery.c
+ @BUILD_MODULE_BATTERY_TRUE@battery_la_LDFLAGS = -module -avoid-version
+ @BUILD_MODULE_CPU_TRUE@cpu_la_SOURCES = cpu.c cpu.h
+ @BUILD_MODULE_CPU_TRUE@cpu_la_LDFLAGS = -module -avoid-version
+ @BUILD_MODULE_CPUFREQ_TRUE@cpufreq_la_SOURCES = cpufreq.c cpufreq.h
+ @BUILD_MODULE_CPUFREQ_TRUE@cpufreq_la_LDFLAGS = -module -avoid-version
+@@ -506,14 +522,14 @@
+ @BUILD_MODULE_MYSQL_TRUE@mysql_la_LDFLAGS = -module -avoid-version \
+ @BUILD_MODULE_MYSQL_TRUE@	$(am__append_32)
+ @BUILD_MODULE_NFS_TRUE@nfs_la_SOURCES = nfs.c nfs.h
+ @BUILD_MODULE_NFS_TRUE@nfs_la_LDFLAGS = -module -avoid-version
+ @BUILD_MODULE_PING_TRUE@ping_la_SOURCES = ping.c ping.h
+ @BUILD_MODULE_PING_TRUE@ping_la_LDFLAGS = -module -avoid-version
+-@BUILD_MODULE_PING_TRUE@ping_la_LIBADD = libping/libping.la
+-@BUILD_MODULE_PING_TRUE@ping_la_DEPENDENCIES = libping/libping.la
++@BUILD_MODULE_PING_TRUE@ping_la_LIBADD = liboping/liboping.la
++@BUILD_MODULE_PING_TRUE@ping_la_DEPENDENCIES = liboping/liboping.la
+ @BUILD_MODULE_PROCESSES_TRUE@processes_la_SOURCES = processes.c processes.h
+ @BUILD_MODULE_PROCESSES_TRUE@processes_la_LDFLAGS = -module -avoid-version
+ @BUILD_MODULE_SENSORS_TRUE@sensors_la_SOURCES = sensors.c sensors.h
+ @BUILD_MODULE_SENSORS_TRUE@sensors_la_LDFLAGS = -module -avoid-version \
+ @BUILD_MODULE_SENSORS_TRUE@	$(am__append_45)
+ @BUILD_MODULE_SERIAL_TRUE@serial_la_SOURCES = serial.c serial.h
+@@ -523,12 +539,16 @@
+ @BUILD_MODULE_TAPE_TRUE@tape_la_SOURCES = tape.c tape.h
+ @BUILD_MODULE_TAPE_TRUE@tape_la_LDFLAGS = -module -avoid-version
+ @BUILD_MODULE_TRAFFIC_TRUE@traffic_la_SOURCES = traffic.c traffic.h
+ @BUILD_MODULE_TRAFFIC_TRUE@traffic_la_LDFLAGS = -module -avoid-version
+ @BUILD_MODULE_USERS_TRUE@users_la_SOURCES = users.c users.h
+ @BUILD_MODULE_USERS_TRUE@users_la_LDFLAGS = -module -avoid-version
++@BUILD_MODULE_WIRELESS_TRUE@wireless_la_SOURCES = wireless.c
++# FIXME Make `-lm' conditional
++@BUILD_MODULE_WIRELESS_TRUE@wireless_la_LDFLAGS = -module \
++@BUILD_MODULE_WIRELESS_TRUE@	-avoid-version -lm
+ man_MANS = collectd.1 collectd.conf.5
+ #collectd_1_SOURCES = collectd.pod
+ EXTRA_DIST = $(man_MANS)
+ all: config.h
+ 	$(MAKE) $(AM_MAKEFLAGS) all-recursive
+ 
+@@ -640,12 +660,14 @@
+ tape.la: $(tape_la_OBJECTS) $(tape_la_DEPENDENCIES) 
+ 	$(LINK) $(am_tape_la_rpath) $(tape_la_LDFLAGS) $(tape_la_OBJECTS) $(tape_la_LIBADD) $(LIBS)
+ traffic.la: $(traffic_la_OBJECTS) $(traffic_la_DEPENDENCIES) 
+ 	$(LINK) $(am_traffic_la_rpath) $(traffic_la_LDFLAGS) $(traffic_la_OBJECTS) $(traffic_la_LIBADD) $(LIBS)
+ users.la: $(users_la_OBJECTS) $(users_la_DEPENDENCIES) 
+ 	$(LINK) $(am_users_la_rpath) $(users_la_LDFLAGS) $(users_la_OBJECTS) $(users_la_LIBADD) $(LIBS)
++wireless.la: $(wireless_la_OBJECTS) $(wireless_la_DEPENDENCIES) 
++	$(LINK) $(am_wireless_la_rpath) $(wireless_la_LDFLAGS) $(wireless_la_OBJECTS) $(wireless_la_LIBADD) $(LIBS)
+ install-sbinPROGRAMS: $(sbin_PROGRAMS)
+ 	@$(NORMAL_INSTALL)
+ 	test -z "$(sbindir)" || $(mkdir_p) "$(DESTDIR)$(sbindir)"
+ 	@list='$(sbin_PROGRAMS)'; for p in $$list; do \
+ 	  p1=`echo $$p|sed 's/$(EXEEXT)$$//'`; \
+ 	  if test -f $$p \
+@@ -703,12 +725,13 @@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sensors.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/serial.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/swap.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tape.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/traffic.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/users.Plo@am__quote@
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/wireless.Plo@am__quote@
+ 
+ .c.o:
+ @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
+ @am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/$*.Tpo" "$(DEPDIR)/$*.Po"; else rm -f "$(DEPDIR)/$*.Tpo"; exit 1; fi
+ @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
+ @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/src/ping.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/src/ping.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.7.2/src/ping.c	2006-02-23 00:24:44.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/src/ping.c	2006-03-10 05:43:32.000000000 +0800
+@@ -21,30 +21,20 @@
+  **/
+ 
+ #include "collectd.h"
+ #include "common.h"
+ #include "plugin.h"
+ #include "configfile.h"
++#include "utils_debug.h"
+ 
+ #define MODULE_NAME "ping"
+ 
+ #include <netinet/in.h>
+-#include "libping/ping.h"
++#include "liboping/liboping.h"
+ 
+-#define MAX_PINGHOSTS 32
+-
+-typedef struct
+-{
+-	char *name;
+-	int   flags;
+-	int   disable; /* How long (how many iterations) this host is still disabled */
+-	int   backoff; /* How long the host will be disabled, if it failes again */
+-} pinghost_t;
+-
+-static pinghost_t hosts[MAX_PINGHOSTS];
+-static int        num_pinghosts;
++static pingobj_t *pingobj = NULL;
+ 
+ static char *file_template = "ping-%s.rrd";
+ 
+ static char *ds_def[] = 
+ {
+ 	"DS:ping:GAUGE:25:0:65535",
+@@ -58,43 +48,38 @@
+ 	NULL
+ };
+ static int config_keys_num = 1;
+ 
+ static void ping_init (void)
+ {
+-	int i;
+-
+-	for (i = 0; i < MAX_PINGHOSTS; i++)
+-	{
+-		hosts[i].flags = 0;
+-		hosts[i].disable = 0;
+-		hosts[i].backoff = 1;
+-	}
+-
+ 	return;
+ }
+ 
+ static int ping_config (char *key, char *value)
+ {
+ 	if (strcasecmp (key, "host"))
+ 	{
+ 		return (-1);
+ 	}
+-	else if (num_pinghosts >= MAX_PINGHOSTS)
+-	{
+-		return (1);
+-	}
+-	else if ((hosts[num_pinghosts].name = strdup (value)) == NULL)
++
++	if (pingobj == NULL)
+ 	{
+-		return (2);
++		if ((pingobj = ping_construct ()) == NULL)
++		{
++			syslog (LOG_ERR, "ping: `ping_construct' failed.\n");
++			return (-1);
++		}
+ 	}
+-	else
++
++	if (ping_host_add (pingobj, value) < 0)
+ 	{
+-		num_pinghosts++;
+-		return (0);
++		syslog (LOG_ERR, "ping: `ping_host_add' failed.\n");
++		return (-1);
+ 	}
++
++	return (0);
+ }
+ 
+ static void ping_write (char *host, char *inst, char *val)
+ {
+ 	char file[512];
+ 	int status;
+@@ -106,75 +91,55 @@
+ 		return;
+ 
+ 	rrd_update_file (host, file, val, ds_def, ds_num);
+ }
+ 
+ #define BUFSIZE 256
+-static void ping_submit (int ping_time, char *host)
++static void ping_submit (char *host, double latency)
+ {
+ 	char buf[BUFSIZE];
+ 
+-	if (snprintf (buf, BUFSIZE, "%u:%i", (unsigned int) curtime, ping_time) >= BUFSIZE)
++	if (snprintf (buf, BUFSIZE, "%u:%f", (unsigned int) curtime, latency) >= BUFSIZE)
+ 		return;
+ 
+ 	plugin_submit (MODULE_NAME, host, buf);
+ }
+ #undef BUFSIZE
+ 
+ static void ping_read (void)
+ {
+-	int ping;
+-	int i;
++	pingobj_iter_t *iter;
+ 
+-	for (i = 0; i < num_pinghosts; i++)
++	char   *host;
++	double  latency;
++
++	if (pingobj == NULL)
++		return;
++
++	if (ping_send (pingobj) < 0)
+ 	{
+-		if (hosts[i].disable > 0)
+-		{
+-			hosts[i].disable--;
++		syslog (LOG_ERR, "ping: `ping_send' failed.");
++		return;
++	}
++
++	for (iter = ping_iterator_get (pingobj); iter != NULL; iter = ping_iterator_next (iter))
++	{
++		const char *tmp;
++
++		if ((tmp = ping_iterator_get_host (iter)) == NULL)
++			continue;
++		if ((host = strdup (tmp)) == NULL)
+ 			continue;
+-		}
+-		
+-		ping = tpinghost (hosts[i].name);
+ 
+-		switch (ping)
+-		{
+-			case 0:
+-				if (!(hosts[i].flags & 0x01))
+-					syslog (LOG_WARNING, "ping %s: Connection timed out.", hosts[i].name);
+-				hosts[i].flags |= 0x01;
+-				break;
+-
+-			case -1:
+-				if (!(hosts[i].flags & 0x02))
+-					syslog (LOG_WARNING, "ping %s: Host or service is not reachable.", hosts[i].name);
+-				hosts[i].flags |= 0x02;
+-				break;
+-
+-			case -2:
+-				syslog (LOG_ERR, "ping %s: Socket error. Ping will be disabled for %i iteration(s).",
+-						hosts[i].name, hosts[i].backoff);
+-				hosts[i].disable = hosts[i].backoff;
+-				if (hosts[i].backoff < 8192) /* 22 3/4 hours */
+-					hosts[i].backoff *= 2;
+-				hosts[i].flags |= 0x10;
+-				break;
+-
+-			case -3:
+-				if (!(hosts[i].flags & 0x04))
+-					syslog (LOG_WARNING, "ping %s: Connection refused.", hosts[i].name);
+-				hosts[i].flags |= 0x04;
+-				break;
+-
+-			default:
+-				if (hosts[i].flags != 0x00)
+-					syslog (LOG_NOTICE, "ping %s: Back to normal: %ims.", hosts[i].name, ping);
+-				hosts[i].flags = 0x00;
+-				hosts[i].backoff = 1;
+-				ping_submit (ping, hosts[i].name);
+-		} /* switch (ping) */
+-	} /* for (i = 0; i < num_pinghosts; i++) */
++		latency = ping_iterator_get_latency (iter);
++
++		DBG ("host = %s, latency = %f", host, latency);
++		ping_submit (host, latency);
++
++		free (host); host = NULL;
++	}
+ }
+ 
+ void module_register (void)
+ {
+ 	plugin_register (MODULE_NAME, ping_init, ping_read, ping_write);
+ 	cf_register (MODULE_NAME, ping_config, config_keys, config_keys_num);
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.0/src: wireless.c

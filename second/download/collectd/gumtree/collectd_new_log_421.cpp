@@ -1,0 +1,1 @@
+printf("close collectd and avoid this problem in the future.\n");

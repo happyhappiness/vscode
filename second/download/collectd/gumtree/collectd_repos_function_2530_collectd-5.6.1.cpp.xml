@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/gumtree/collectd_repos_function_2530_collectd-5.6.1.cpp" pos:tabs="8"><function><type><name pos:line="1" pos:column="1">cdtime_t<pos:position pos:line="1" pos:column="9"/></name></type> <name pos:line="1" pos:column="10">cdtime<pos:position pos:line="1" pos:column="16"/></name> <parameter_list pos:line="1" pos:column="17">(<parameter><decl><type><name pos:line="1" pos:column="18">void<pos:position pos:line="1" pos:column="22"/></name></type></decl></parameter>)<pos:position pos:line="1" pos:column="23"/></parameter_list>
+<block pos:line="2" pos:column="1">{
+  <return pos:line="3" pos:column="3">return <expr><name pos:line="3" pos:column="10">cdtime_mock<pos:position pos:line="3" pos:column="21"/></name></expr>;<pos:position pos:line="3" pos:column="22"/></return>
+}<pos:position pos:line="4" pos:column="2"/></block></function></unit>

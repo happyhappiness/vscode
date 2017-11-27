@@ -1,0 +1,1 @@
+fprintf (stderr, "cf_callback_mode_switch: Wrong mode!\n");

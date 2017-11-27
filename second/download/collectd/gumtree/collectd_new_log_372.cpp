@@ -1,0 +1,1 @@
+printf ("Host: %s\n", hostname);

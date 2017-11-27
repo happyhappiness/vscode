@@ -1,0 +1,1 @@
+fprintf (stderr, "Error: No plugins found.\n");

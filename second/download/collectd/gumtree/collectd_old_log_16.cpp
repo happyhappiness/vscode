@@ -1,0 +1,1 @@
+fprintf (stderr, "Don't have a datadir to use. This should not happen. Ever.");

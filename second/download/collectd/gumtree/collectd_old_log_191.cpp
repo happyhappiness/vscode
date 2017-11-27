@@ -1,0 +1,1 @@
+fprintf (fh, "-1 No message or message of length 0 given.\n");

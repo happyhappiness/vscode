@@ -1,1 +1,0 @@
-sqlite3_result_error(context, "not authorized", -1);

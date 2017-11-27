@@ -1,1 +1,0 @@
-anetSetError(err, "setsockopt: %s", strerror(errno));

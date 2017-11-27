@@ -1,1 +1,0 @@
-sqlite3_mprintf("no such %s mode: %s", zModeType, zVal);

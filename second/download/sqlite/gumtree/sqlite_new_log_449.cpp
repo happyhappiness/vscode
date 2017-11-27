@@ -1,1 +1,0 @@
-sqlite3MPrintf(db, "%s", sqlite3ErrStr(pParse->rc));

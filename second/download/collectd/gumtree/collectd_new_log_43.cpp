@@ -1,0 +1,1 @@
+fprintf (log, "epoch");

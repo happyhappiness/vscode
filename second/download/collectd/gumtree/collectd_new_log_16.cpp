@@ -1,0 +1,1 @@
+fprintf (stderr, "Don't have a basedir to use. This should not happen. Ever.");

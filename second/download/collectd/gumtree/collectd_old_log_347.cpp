@@ -1,0 +1,1 @@
+fprintf (fh, "%s\n", msg);

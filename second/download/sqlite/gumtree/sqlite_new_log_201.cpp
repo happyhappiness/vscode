@@ -1,1 +1,0 @@
-assert( sqlite3_mutex_held(db->mutex) );

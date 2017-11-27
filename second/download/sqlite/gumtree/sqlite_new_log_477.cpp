@@ -1,1 +1,0 @@
-sqlite3VdbeError(p, "%s constraint failed", azType[pOp->p5-1]);

@@ -1,0 +1,1 @@
+print_to_socket (fh, "-1 No message or message of length 0 given.\n");

@@ -1,1 +1,0 @@
-rdbCheckError(rdbstate.error);

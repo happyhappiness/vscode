@@ -1,0 +1,1 @@
+static inline double bytes_to_kb(const double bytes) { return bytes / 1024.0; }

@@ -1,1 +1,0 @@
-sqlite3MPrintf(db, "name='%q'", pIndex->zName);

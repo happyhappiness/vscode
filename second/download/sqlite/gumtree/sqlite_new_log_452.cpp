@@ -1,1 +1,0 @@
-sqlite3MPrintf(db, "type='trigger' AND name='%q'", zName);

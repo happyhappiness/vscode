@@ -1,1 +1,0 @@
-sqlite3_mprintf("PRAGMA %Q.page_size", p->zDb);

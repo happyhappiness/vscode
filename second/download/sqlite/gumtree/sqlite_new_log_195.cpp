@@ -1,1 +1,0 @@
-Tcl_SetResult(interp, "malloc failed", TCL_STATIC);

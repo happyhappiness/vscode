@@ -1,0 +1,1 @@
+printf ("%s: ", notif->host);

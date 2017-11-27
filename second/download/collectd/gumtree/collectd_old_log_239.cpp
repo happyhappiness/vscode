@@ -1,0 +1,1 @@
+fprintf (fh, "%s: %"PRIi64"\n", meta->name, meta->value_signed_int);

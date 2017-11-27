@@ -1,1 +1,0 @@
-sqlite3MPrintf(pParse->db, "%s.rowid", pTab->zName);

@@ -1,0 +1,1 @@
+cmd_error(CMD_ERROR, &err, "Error reading value from cache.");

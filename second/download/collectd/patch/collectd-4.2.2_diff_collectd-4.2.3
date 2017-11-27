@@ -1,0 +1,1623 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/aclocal.m4 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/aclocal.m4
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/aclocal.m4	2007-12-15 20:09:18.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/aclocal.m4	2007-12-29 01:34:30.000000000 +0800
+@@ -10,13 +10,13 @@
+ # but WITHOUT ANY WARRANTY, to the extent permitted by law; without
+ # even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+ # PARTICULAR PURPOSE.
+ 
+ # libtool.m4 - Configure libtool for the host system. -*-Autoconf-*-
+ 
+-# serial 51 Debian 1.5.24-1 AC_PROG_LIBTOOL
++# serial 51 Debian 1.5.24-2 AC_PROG_LIBTOOL
+ 
+ 
+ # AC_PROVIDE_IFELSE(MACRO-NAME, IF-PROVIDED, IF-NOT-PROVIDED)
+ # -----------------------------------------------------------
+ # If this macro is not defined by Autoconf, define it here.
+ m4_ifdef([AC_PROVIDE_IFELSE],
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/bindings/Makefile.am /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/bindings/Makefile.am
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/bindings/Makefile.am	2007-12-15 20:08:58.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/bindings/Makefile.am	2007-12-29 01:26:59.000000000 +0800
+@@ -8,11 +8,19 @@
+ clean-local:
+ 	[ ! -f perl/Makefile ] || $(MAKE) -C perl realclean
+ 
+ perl: perl/Makefile
+ 	$(MAKE) -C perl
+ 
+-perl/Makefile: perl/Makefile.PL perl/Collectd/Makefile.PL
++perl/Makefile: .perl-directory-stamp perl/Makefile.PL perl/Collectd/Makefile.PL
+ 	cd perl && @PERL@ Makefile.PL PREFIX=$(prefix) @PERL_BINDINGS_OPTIONS@
+ 
++.perl-directory-stamp:
++	if test ! -d perl; then \
++	  mkdir -p perl/Collectd; \
++	  cp $(srcdir)/perl/{Collectd.pm,Makefile.PL} perl/; \
++	  cp $(srcdir)/perl/Collectd/{Unixsock.pm,Makefile.PL} perl/Collectd/; \
++	fi
++	touch $@
++
+ .PHONY: perl
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/bindings/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/bindings/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/bindings/Makefile.in	2007-12-15 20:09:27.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/bindings/Makefile.in	2007-12-29 01:34:39.000000000 +0800
+@@ -498,13 +498,21 @@
+ clean-local:
+ 	[ ! -f perl/Makefile ] || $(MAKE) -C perl realclean
+ 
+ perl: perl/Makefile
+ 	$(MAKE) -C perl
+ 
+-perl/Makefile: perl/Makefile.PL perl/Collectd/Makefile.PL
++perl/Makefile: .perl-directory-stamp perl/Makefile.PL perl/Collectd/Makefile.PL
+ 	cd perl && @PERL@ Makefile.PL PREFIX=$(prefix) @PERL_BINDINGS_OPTIONS@
+ 
++.perl-directory-stamp:
++	if test ! -d perl; then \
++	  mkdir -p perl/Collectd; \
++	  cp $(srcdir)/perl/{Collectd.pm,Makefile.PL} perl/; \
++	  cp $(srcdir)/perl/Collectd/{Unixsock.pm,Makefile.PL} perl/Collectd/; \
++	fi
++	touch $@
++
+ .PHONY: perl
+ # Tell versions [3.59,3.63) of GNU make to not export all variables.
+ # Otherwise a system limit (for SysV at least) may be exceeded.
+ .NOEXPORT:
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/ChangeLog /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/ChangeLog
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/ChangeLog	2007-12-15 20:08:58.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/ChangeLog	2007-12-29 01:33:19.000000000 +0800
+@@ -1,6 +1,10 @@
++2007-12-28, Version 4.2.3
++	* sensors plugin: Updated the plugin to build and work with version 3
++	  of the libsensors library.
++
+ 2007-12-15, Version 4.2.2
+ 	* nginx plugin: Incorrect comparison of strings lead to a segfault
+ 	  when using the plugin. Thanks to Saulius Grigaliunas for fixing
+ 	  this.
+ 	* logfile plugin: The config option `Timestamp' was handled
+ 	  incorrectly and basically always active. Thanks to Luke Heberling
+@@ -35,12 +39,18 @@
+ 	  option allows to add arbitrary prefixes to the type-instance.
+ 	* tcpconns plugin: The new `tcpconns' plugin collects the number of
+ 	  certain TCP connections and what state they're in. This can be used
+ 	  to see how many connections your FTP server has to handle or how
+ 	  many outgoing connections your mailserver has open.
+ 
++2007-12-27, Version 4.1.5
++	* rrdtool plugin: Fix a memory leak that only occured in very-low-
++	  memory situations.
++	* sensors plugin: Updated the plugin to build and work with version 3
++	  of the libsensors library.
++
+ 2007-11-08, Version 4.1.4
+ 	* Build system: Improve detection of the rrd library, especially if
+ 	  it's in a non-standard location.
+ 	* Build system: A bug when parsing the argument for
+ 	  `--with-libnetsnmp' has been fixed.
+ 	* collectd: Implement `strerror_r' if the libc doesn't provide it.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/configure	2007-12-15 20:09:32.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/configure	2007-12-29 01:34:47.000000000 +0800
+@@ -1,9 +1,9 @@
+ #! /bin/sh
+ # Guess values for system-dependent variables and create Makefiles.
+-# Generated by GNU Autoconf 2.61 for collectd 4.2.2.
++# Generated by GNU Autoconf 2.61 for collectd 4.2.3.
+ #
+ # Copyright (C) 1992, 1993, 1994, 1995, 1996, 1998, 1999, 2000, 2001,
+ # 2002, 2003, 2004, 2005, 2006 Free Software Foundation, Inc.
+ # This configure script is free software; the Free Software Foundation
+ # gives unlimited permission to copy, distribute and modify it.
+ ## --------------------- ##
+@@ -723,14 +723,14 @@
+ MAKEFLAGS=
+ SHELL=${CONFIG_SHELL-/bin/sh}
+ 
+ # Identity of this package.
+ PACKAGE_NAME='collectd'
+ PACKAGE_TARNAME='collectd'
+-PACKAGE_VERSION='4.2.2'
+-PACKAGE_STRING='collectd 4.2.2'
++PACKAGE_VERSION='4.2.3'
++PACKAGE_STRING='collectd 4.2.3'
+ PACKAGE_BUGREPORT=''
+ 
+ ac_unique_file="src/collectd.c"
+ ac_default_prefix="/opt/collectd"
+ # Factoring default headers for most tests.
+ ac_includes_default="\
+@@ -1565,13 +1565,13 @@
+ # Report the --help message.
+ #
+ if test "$ac_init_help" = "long"; then
+   # Omit some internal or obsolete options to make the list less imposing.
+   # This message is too long to be a string in the A/UX 3.1 sh.
+   cat <<_ACEOF
+-\`configure' configures collectd 4.2.2 to adapt to many kinds of systems.
++\`configure' configures collectd 4.2.3 to adapt to many kinds of systems.
+ 
+ Usage: $0 [OPTION]... [VAR=VALUE]...
+ 
+ To assign environment variables (e.g., CC, CFLAGS...), specify them as
+ VAR=VALUE.  See below for descriptions of some of the useful variables.
+ 
+@@ -1635,13 +1635,13 @@
+   --host=HOST       cross-compile to build programs to run on HOST [BUILD]
+ _ACEOF
+ fi
+ 
+ if test -n "$ac_init_help"; then
+   case $ac_init_help in
+-     short | recursive ) echo "Configuration of collectd 4.2.2:";;
++     short | recursive ) echo "Configuration of collectd 4.2.3:";;
+    esac
+   cat <<\_ACEOF
+ 
+ Optional Features:
+   --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
+   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
+@@ -1825,13 +1825,13 @@
+   done
+ fi
+ 
+ test -n "$ac_init_help" && exit $ac_status
+ if $ac_init_version; then
+   cat <<\_ACEOF
+-collectd configure 4.2.2
++collectd configure 4.2.3
+ generated by GNU Autoconf 2.61
+ 
+ Copyright (C) 1992, 1993, 1994, 1995, 1996, 1998, 1999, 2000, 2001,
+ 2002, 2003, 2004, 2005, 2006 Free Software Foundation, Inc.
+ This configure script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it.
+@@ -1839,13 +1839,13 @@
+   exit
+ fi
+ cat >config.log <<_ACEOF
+ This file contains any messages produced by compilers while
+ running configure, to aid debugging if configure makes a mistake.
+ 
+-It was created by collectd $as_me 4.2.2, which was
++It was created by collectd $as_me 4.2.3, which was
+ generated by GNU Autoconf 2.61.  Invocation command line was
+ 
+   $ $0 $@
+ 
+ _ACEOF
+ exec 5>>config.log
+@@ -2512,13 +2512,13 @@
+   fi
+ fi
+ 
+ 
+ # Define the identity of the package.
+  PACKAGE='collectd'
+- VERSION='4.2.2'
++ VERSION='4.2.3'
+ 
+ 
+ cat >>confdefs.h <<_ACEOF
+ #define PACKAGE "$PACKAGE"
+ _ACEOF
+ 
+@@ -38085,13 +38085,13 @@
+ exec 6>&1
+ 
+ # Save the log message, to keep $[0] and so on meaningful, and to
+ # report actual input values of CONFIG_FILES etc. instead of their
+ # values after options handling.
+ ac_log="
+-This file was extended by collectd $as_me 4.2.2, which was
++This file was extended by collectd $as_me 4.2.3, which was
+ generated by GNU Autoconf 2.61.  Invocation command line was
+ 
+   CONFIG_FILES    = $CONFIG_FILES
+   CONFIG_HEADERS  = $CONFIG_HEADERS
+   CONFIG_LINKS    = $CONFIG_LINKS
+   CONFIG_COMMANDS = $CONFIG_COMMANDS
+@@ -38138,13 +38138,13 @@
+ 
+ Report bugs to <bug-autoconf@gnu.org>."
+ 
+ _ACEOF
+ cat >>$CONFIG_STATUS <<_ACEOF
+ ac_cs_version="\\
+-collectd config.status 4.2.2
++collectd config.status 4.2.3
+ configured by $0, generated by GNU Autoconf 2.61,
+   with options \\"`echo "$ac_configure_args" | sed 's/^ //; s/[\\""\`\$]/\\\\&/g'`\\"
+ 
+ Copyright (C) 2006 Free Software Foundation, Inc.
+ This config.status script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it."
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/libltdl/acinclude.m4 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/libltdl/acinclude.m4
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/libltdl/acinclude.m4	2007-07-12 05:11:42.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/libltdl/acinclude.m4	2007-11-28 05:23:09.000000000 +0800
+@@ -4,13 +4,13 @@
+ ## Originally by Gordon Matzigkeit <gord@gnu.ai.mit.edu>, 1996
+ ##
+ ## This file is free software; the Free Software Foundation gives
+ ## unlimited permission to copy and/or distribute it, with or without
+ ## modifications, as long as this notice is preserved.
+ 
+-# serial 51 Debian 1.5.24-1 AC_PROG_LIBTOOL
++# serial 51 Debian 1.5.24-2 AC_PROG_LIBTOOL
+ 
+ 
+ # AC_PROVIDE_IFELSE(MACRO-NAME, IF-PROVIDED, IF-NOT-PROVIDED)
+ # -----------------------------------------------------------
+ # If this macro is not defined by Autoconf, define it here.
+ m4_ifdef([AC_PROVIDE_IFELSE],
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/libltdl/config.guess /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/libltdl/config.guess
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/libltdl/config.guess	2007-07-12 05:11:42.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/libltdl/config.guess	2007-11-28 05:23:09.000000000 +0800
+@@ -1,13 +1,13 @@
+ #! /bin/sh
+ # Attempt to guess a canonical system name.
+ #   Copyright (C) 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
+ #   2000, 2001, 2002, 2003, 2004, 2005, 2006 Free Software Foundation,
+ #   Inc.
+ 
+-timestamp='2007-03-06'
++timestamp='2007-07-22'
+ 
+ # This file is free software; you can redistribute it and/or modify it
+ # under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 2 of the License, or
+ # (at your option) any later version.
+ #
+@@ -327,13 +327,13 @@
+     sun4H:SunOS:5.*:*)
+ 	echo sparc-hal-solaris2`echo ${UNAME_RELEASE}|sed -e 's/[^.]*//'`
+ 	exit ;;
+     sun4*:SunOS:5.*:* | tadpole*:SunOS:5.*:*)
+ 	echo sparc-sun-solaris2`echo ${UNAME_RELEASE}|sed -e 's/[^.]*//'`
+ 	exit ;;
+-    i86pc:SunOS:5.*:*)
++    i86pc:SunOS:5.*:* | i86xen:SunOS:5.*:*)
+ 	echo i386-pc-solaris2`echo ${UNAME_RELEASE}|sed -e 's/[^.]*//'`
+ 	exit ;;
+     sun4*:SunOS:6*:*)
+ 	# According to config.sub, this is the proper way to canonicalize
+ 	# SunOS6.  Hard to guess exactly what SunOS6 will be like, but
+ 	# it's likely to be more like Solaris than SunOS4.
+@@ -790,13 +790,13 @@
+ 	exit ;;
+     i*:PW*:*)
+ 	echo ${UNAME_MACHINE}-pc-pw32
+ 	exit ;;
+     *:Interix*:[3456]*)
+     	case ${UNAME_MACHINE} in
+-	    x86) 
++	    x86)
+ 		echo i586-pc-interix${UNAME_RELEASE}
+ 		exit ;;
+ 	    EM64T | authenticamd)
+ 		echo x86_64-unknown-interix${UNAME_RELEASE}
+ 		exit ;;
+ 	esac ;;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/libltdl/config.sub /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/libltdl/config.sub
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/libltdl/config.sub	2007-07-12 05:11:42.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/libltdl/config.sub	2007-11-28 05:23:09.000000000 +0800
+@@ -1,13 +1,13 @@
+ #! /bin/sh
+ # Configuration validation subroutine script.
+ #   Copyright (C) 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
+ #   2000, 2001, 2002, 2003, 2004, 2005, 2006 Free Software Foundation,
+ #   Inc.
+ 
+-timestamp='2007-01-18'
++timestamp='2007-06-28'
+ 
+ # This file is (in principle) common to ALL GNU software.
+ # The presence of a machine in this file suggests that SOME GNU software
+ # can handle that machine.  It does not imply ALL GNU software can.
+ #
+ # This file is free software; you can redistribute it and/or modify
+@@ -472,14 +472,14 @@
+ 		os=-unicos
+ 		;;
+ 	craynv)
+ 		basic_machine=craynv-cray
+ 		os=-unicosmp
+ 		;;
+-	cr16c)
+-		basic_machine=cr16c-unknown
++	cr16)
++		basic_machine=cr16-unknown
+ 		os=-elf
+ 		;;
+ 	crds | unos)
+ 		basic_machine=m68k-crds
+ 		;;
+ 	crisv32 | crisv32-* | etraxfs*)
+@@ -680,12 +680,16 @@
+ 		os=-sysv
+ 		;;
+ 	mingw32)
+ 		basic_machine=i386-pc
+ 		os=-mingw32
+ 		;;
++	mingw32ce)
++		basic_machine=arm-unknown
++		os=-mingw32ce
++		;;
+ 	miniframe)
+ 		basic_machine=m68000-convergent
+ 		;;
+ 	*mint | -mint[0-9]* | *MiNT | *MiNT[0-9]*)
+ 		basic_machine=m68k-atari
+ 		os=-mint
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/libltdl/ltmain.sh /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/libltdl/ltmain.sh
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/libltdl/ltmain.sh	2007-07-12 05:11:42.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/libltdl/ltmain.sh	2007-11-28 05:23:09.000000000 +0800
+@@ -40,13 +40,13 @@
+ # Global variables:
+ EXIT_SUCCESS=0
+ EXIT_FAILURE=1
+ 
+ PROGRAM=ltmain.sh
+ PACKAGE=libtool
+-VERSION="1.5.24 Debian 1.5.24-1"
++VERSION="1.5.24 Debian 1.5.24-2"
+ TIMESTAMP=" (1.1220.2.456 2007/06/24 02:25:32)"
+ 
+ # Be Bourne compatible (taken from Autoconf:_AS_BOURNE_COMPATIBLE).
+ if test -n "${ZSH_VERSION+set}" && (emulate sh) >/dev/null 2>&1; then
+   emulate sh
+   NULLCMD=:
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/ltmain.sh /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/ltmain.sh
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/ltmain.sh	2007-07-12 05:11:42.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/ltmain.sh	2007-11-28 05:23:09.000000000 +0800
+@@ -40,13 +40,13 @@
+ # Global variables:
+ EXIT_SUCCESS=0
+ EXIT_FAILURE=1
+ 
+ PROGRAM=ltmain.sh
+ PACKAGE=libtool
+-VERSION="1.5.24 Debian 1.5.24-1"
++VERSION="1.5.24 Debian 1.5.24-2"
+ TIMESTAMP=" (1.1220.2.456 2007/06/24 02:25:32)"
+ 
+ # Be Bourne compatible (taken from Autoconf:_AS_BOURNE_COMPATIBLE).
+ if test -n "${ZSH_VERSION+set}" && (emulate sh) >/dev/null 2>&1; then
+   emulate sh
+   NULLCMD=:
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/src/collectd.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/src/collectd.1	2007-12-15 20:53:06.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd.1	2007-12-29 01:38:58.000000000 +0800
+@@ -126,13 +126,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD 1"
+-.TH COLLECTD 1 "2007-10-24" "4.2.2" "collectd"
++.TH COLLECTD 1 "2007-10-24" "4.2.3" "collectd"
+ .SH "NAME"
+ collectd \- System statistics collection daemon
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ collectd \fI[options]\fR
+ .SH "DESCRIPTION"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/src/collectd.conf.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd.conf.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/src/collectd.conf.5	2007-12-15 20:53:07.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd.conf.5	2007-12-29 01:38:59.000000000 +0800
+@@ -126,13 +126,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD.CONF 5"
+-.TH COLLECTD.CONF 5 "2007-12-15" "4.2.2" "collectd"
++.TH COLLECTD.CONF 5 "2007-12-28" "4.2.3" "collectd"
+ .SH "NAME"
+ collectd.conf \- Configuration for the system statistics collection daemon \fBcollectd\fR
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ .Vb 3
+ \&  BaseDir "/path/to/data/"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/src/collectd-email.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd-email.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/src/collectd-email.5	2007-12-15 20:53:07.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd-email.5	2007-12-29 01:38:59.000000000 +0800
+@@ -126,13 +126,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-EMAIL 5"
+-.TH COLLECTD-EMAIL 5 "2007-10-24" "4.2.2" "collectd"
++.TH COLLECTD-EMAIL 5 "2007-10-24" "4.2.3" "collectd"
+ .SH "NAME"
+ collectd\-email \- Documentation of collectd's \f(CW\*(C`email plugin\*(C'\fR
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ .Vb 8
+ \&  # See collectd.conf(5)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/src/collectd-exec.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd-exec.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/src/collectd-exec.5	2007-12-15 20:53:07.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd-exec.5	2007-12-29 01:38:59.000000000 +0800
+@@ -126,13 +126,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-EXEC 5"
+-.TH COLLECTD-EXEC 5 "2007-12-15" "4.2.2" "collectd"
++.TH COLLECTD-EXEC 5 "2007-12-27" "4.2.3" "collectd"
+ .SH "NAME"
+ collectd\-exec \- Documentation of collectd's \f(CW\*(C`exec plugin\*(C'\fR
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ .Vb 7
+ \&  # See collectd.conf(5)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/src/collectd-nagios.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd-nagios.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/src/collectd-nagios.1	2007-12-15 20:53:07.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd-nagios.1	2007-12-29 01:38:58.000000000 +0800
+@@ -126,13 +126,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-NAGIOS 1"
+-.TH COLLECTD-NAGIOS 1 "2007-10-27" "4.2.2" "collectd"
++.TH COLLECTD-NAGIOS 1 "2007-10-27" "4.2.3" "collectd"
+ .SH "NAME"
+ collectd\-nagios \- Nagios plugin for querying collectd
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ collectd-nagios \fB\-s\fR \fIsocket\fR \fB\-n\fR \fIvalue_spec\fR \fB\-H\fR \fIhostname\fR \fI[options]\fR
+ .SH "DESCRIPTION"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/src/collectd-perl.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd-perl.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/src/collectd-perl.5	2007-12-15 20:53:08.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd-perl.5	2007-12-29 01:38:59.000000000 +0800
+@@ -126,13 +126,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-PERL 5"
+-.TH COLLECTD-PERL 5 "2007-12-15" "4.2.2" "collectd"
++.TH COLLECTD-PERL 5 "2007-12-28" "4.2.3" "collectd"
+ .SH "NAME"
+ collectd\-perl \- Documentation of collectd's \f(CW\*(C`perl plugin\*(C'\fR
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ .Vb 8
+ \&  LoadPlugin perl
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/src/collectd-snmp.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd-snmp.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/src/collectd-snmp.5	2007-12-15 20:53:08.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd-snmp.5	2007-12-29 01:38:59.000000000 +0800
+@@ -126,13 +126,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-SNMP 5"
+-.TH COLLECTD-SNMP 5 "2007-12-15" "4.2.2" "collectd"
++.TH COLLECTD-SNMP 5 "2007-12-27" "4.2.3" "collectd"
+ .SH "NAME"
+ collectd\-snmp \- Documentation of collectd's \f(CW\*(C`snmp plugin\*(C'\fR
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ .Vb 23
+ \&  LoadPlugin snmp
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/src/collectd-unixsock.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd-unixsock.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/src/collectd-unixsock.5	2007-12-15 20:53:08.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/collectd-unixsock.5	2007-12-29 01:39:00.000000000 +0800
+@@ -126,13 +126,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-UNIXSOCK 5"
+-.TH COLLECTD-UNIXSOCK 5 "2007-12-15" "4.2.2" "collectd"
++.TH COLLECTD-UNIXSOCK 5 "2007-12-27" "4.2.3" "collectd"
+ .SH "NAME"
+ collectd\-unixsock \- Documentation of collectd's \f(CW\*(C`unixsock plugin\*(C'\fR
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ .Vb 8
+ \&  # See collectd.conf(5)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/src/Makefile.am /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/Makefile.am
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/src/Makefile.am	2007-12-15 20:08:58.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/Makefile.am	2007-12-29 01:26:59.000000000 +0800
+@@ -402,15 +402,18 @@
+ collectd_DEPENDENCIES += nfs.la
+ endif
+ 
+ if BUILD_PLUGIN_NGINX
+ pkglib_LTLIBRARIES += nginx.la
+ nginx_la_SOURCES = nginx.c
++nginx_la_CFLAGS = $(AM_CFLAGS)
++nginx_la_LIBADD =
+ nginx_la_LDFLAGS = -module -avoid-version
+ if BUILD_WITH_LIBCURL
+-nginx_la_LDFLAGS += $(BUILD_WITH_LIBCURL_LIBS)
++nginx_la_CFLAGS += $(BUILD_WITH_LIBCURL_CFLAGS)
++nginx_la_LIBADD += $(BUILD_WITH_LIBCURL_LIBS)
+ endif
+ collectd_LDADD += "-dlopen" nginx.la
+ collectd_DEPENDENCIES += nginx.la
+ endif
+ 
+ if BUILD_PLUGIN_NTPD
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/src/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/src/Makefile.in	2007-12-15 20:09:28.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/Makefile.in	2007-12-29 01:34:42.000000000 +0800
+@@ -168,79 +168,80 @@
+ @BUILD_PLUGIN_NETWORK_TRUE@am__append_127 = "-dlopen" network.la
+ @BUILD_PLUGIN_NETWORK_TRUE@am__append_128 = network.la
+ @BUILD_PLUGIN_NFS_TRUE@am__append_129 = nfs.la
+ @BUILD_PLUGIN_NFS_TRUE@am__append_130 = "-dlopen" nfs.la
+ @BUILD_PLUGIN_NFS_TRUE@am__append_131 = nfs.la
+ @BUILD_PLUGIN_NGINX_TRUE@am__append_132 = nginx.la
+-@BUILD_PLUGIN_NGINX_TRUE@@BUILD_WITH_LIBCURL_TRUE@am__append_133 = $(BUILD_WITH_LIBCURL_LIBS)
+-@BUILD_PLUGIN_NGINX_TRUE@am__append_134 = "-dlopen" nginx.la
+-@BUILD_PLUGIN_NGINX_TRUE@am__append_135 = nginx.la
+-@BUILD_PLUGIN_NTPD_TRUE@am__append_136 = ntpd.la
+-@BUILD_PLUGIN_NTPD_TRUE@@BUILD_WITH_LIBSOCKET_TRUE@am__append_137 = -lsocket
+-@BUILD_PLUGIN_NTPD_TRUE@am__append_138 = "-dlopen" ntpd.la
+-@BUILD_PLUGIN_NTPD_TRUE@am__append_139 = ntpd.la
+-@BUILD_PLUGIN_NUT_TRUE@am__append_140 = nut.la
+-@BUILD_PLUGIN_NUT_TRUE@am__append_141 = "-dlopen" nut.la
+-@BUILD_PLUGIN_NUT_TRUE@am__append_142 = nut.la
+-@BUILD_PLUGIN_PERL_TRUE@am__append_143 = perl.la
+-@BUILD_PLUGIN_PERL_TRUE@am__append_144 = "-dlopen" perl.la
+-@BUILD_PLUGIN_PERL_TRUE@am__append_145 = perl.la
+-@BUILD_PLUGIN_PING_TRUE@am__append_146 = ping.la
+-@BUILD_PLUGIN_PING_TRUE@@BUILD_WITH_OWN_LIBOPING_FALSE@am__append_147 = -loping
+-@BUILD_PLUGIN_PING_TRUE@am__append_148 = "-dlopen" ping.la
+-@BUILD_PLUGIN_PING_TRUE@am__append_149 = ping.la
+-@BUILD_PLUGIN_PROCESSES_TRUE@am__append_150 = processes.la
+-@BUILD_PLUGIN_PROCESSES_TRUE@am__append_151 = "-dlopen" processes.la
+-@BUILD_PLUGIN_PROCESSES_TRUE@am__append_152 = processes.la
+-@BUILD_PLUGIN_RRDTOOL_TRUE@am__append_153 = rrdtool.la
+-@BUILD_PLUGIN_RRDTOOL_TRUE@am__append_154 = "-dlopen" rrdtool.la
+-@BUILD_PLUGIN_RRDTOOL_TRUE@am__append_155 = rrdtool.la
+-@BUILD_PLUGIN_SENSORS_TRUE@am__append_156 = sensors.la
+-@BUILD_PLUGIN_SENSORS_TRUE@am__append_157 = "-dlopen" sensors.la
+-@BUILD_PLUGIN_SENSORS_TRUE@am__append_158 = sensors.la
+-@BUILD_PLUGIN_SERIAL_TRUE@am__append_159 = serial.la
+-@BUILD_PLUGIN_SERIAL_TRUE@am__append_160 = "-dlopen" serial.la
+-@BUILD_PLUGIN_SERIAL_TRUE@am__append_161 = serial.la
+-@BUILD_PLUGIN_SNMP_TRUE@am__append_162 = snmp.la
+-@BUILD_PLUGIN_SNMP_TRUE@@BUILD_WITH_LIBNETSNMP_TRUE@am__append_163 = $(BUILD_WITH_LIBSNMP_CFLAGS)
+-@BUILD_PLUGIN_SNMP_TRUE@@BUILD_WITH_LIBNETSNMP_TRUE@am__append_164 = $(BUILD_WITH_LIBSNMP_LIBS)
+-@BUILD_PLUGIN_SNMP_TRUE@@BUILD_WITH_LIBPTHREAD_TRUE@am__append_165 = -lpthread
+-@BUILD_PLUGIN_SNMP_TRUE@am__append_166 = "-dlopen" snmp.la
+-@BUILD_PLUGIN_SNMP_TRUE@am__append_167 = snmp.la
+-@BUILD_PLUGIN_SWAP_TRUE@am__append_168 = swap.la
+-@BUILD_PLUGIN_SWAP_TRUE@am__append_169 = "-dlopen" swap.la
+-@BUILD_PLUGIN_SWAP_TRUE@am__append_170 = swap.la
+-@BUILD_PLUGIN_SWAP_TRUE@@BUILD_WITH_LIBKSTAT_TRUE@am__append_171 = -lkstat
+-@BUILD_PLUGIN_SWAP_TRUE@@BUILD_WITH_LIBDEVINFO_TRUE@am__append_172 = -ldevinfo
+-@BUILD_PLUGIN_SWAP_TRUE@@BUILD_WITH_LIBKVM_TRUE@am__append_173 = -lkvm
+-@BUILD_PLUGIN_SWAP_TRUE@@BUILD_WITH_LIBDEVSTAT_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_174 = -ldevstat
+-@BUILD_PLUGIN_SWAP_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_175 = -lstatgrab
+-@BUILD_PLUGIN_SYSLOG_TRUE@am__append_176 = syslog.la
+-@BUILD_PLUGIN_SYSLOG_TRUE@am__append_177 = "-dlopen" syslog.la
+-@BUILD_PLUGIN_SYSLOG_TRUE@am__append_178 = syslog.la
+-@BUILD_PLUGIN_TAPE_TRUE@am__append_179 = tape.la
+-@BUILD_PLUGIN_TAPE_TRUE@am__append_180 = "-dlopen" tape.la
+-@BUILD_PLUGIN_TAPE_TRUE@am__append_181 = tape.la
+-@BUILD_PLUGIN_TCPCONNS_TRUE@am__append_182 = tcpconns.la
+-@BUILD_PLUGIN_TCPCONNS_TRUE@am__append_183 = "-dlopen" tcpconns.la
+-@BUILD_PLUGIN_TCPCONNS_TRUE@am__append_184 = tcpconns.la
+-@BUILD_PLUGIN_UNIXSOCK_TRUE@am__append_185 = unixsock.la
+-@BUILD_PLUGIN_UNIXSOCK_TRUE@am__append_186 = "-dlopen" unixsock.la
+-@BUILD_PLUGIN_UNIXSOCK_TRUE@am__append_187 = unixsock.la
+-@BUILD_PLUGIN_USERS_TRUE@am__append_188 = users.la
+-@BUILD_PLUGIN_USERS_TRUE@am__append_189 = "-dlopen" users.la
+-@BUILD_PLUGIN_USERS_TRUE@am__append_190 = users.la
+-@BUILD_PLUGIN_VSERVER_TRUE@am__append_191 = vserver.la
+-@BUILD_PLUGIN_VSERVER_TRUE@am__append_192 = "-dlopen" vserver.la
+-@BUILD_PLUGIN_VSERVER_TRUE@am__append_193 = vserver.la
+-@BUILD_PLUGIN_WIRELESS_TRUE@am__append_194 = wireless.la
+-@BUILD_PLUGIN_WIRELESS_TRUE@am__append_195 = "-dlopen" wireless.la
+-@BUILD_PLUGIN_WIRELESS_TRUE@am__append_196 = wireless.la
+-@BUILD_PLUGIN_XMMS_TRUE@am__append_197 = xmms.la
+-@BUILD_PLUGIN_XMMS_TRUE@am__append_198 = "-dlopen" xmms.la
+-@BUILD_PLUGIN_XMMS_TRUE@am__append_199 = xmms.la
++@BUILD_PLUGIN_NGINX_TRUE@@BUILD_WITH_LIBCURL_TRUE@am__append_133 = $(BUILD_WITH_LIBCURL_CFLAGS)
++@BUILD_PLUGIN_NGINX_TRUE@@BUILD_WITH_LIBCURL_TRUE@am__append_134 = $(BUILD_WITH_LIBCURL_LIBS)
++@BUILD_PLUGIN_NGINX_TRUE@am__append_135 = "-dlopen" nginx.la
++@BUILD_PLUGIN_NGINX_TRUE@am__append_136 = nginx.la
++@BUILD_PLUGIN_NTPD_TRUE@am__append_137 = ntpd.la
++@BUILD_PLUGIN_NTPD_TRUE@@BUILD_WITH_LIBSOCKET_TRUE@am__append_138 = -lsocket
++@BUILD_PLUGIN_NTPD_TRUE@am__append_139 = "-dlopen" ntpd.la
++@BUILD_PLUGIN_NTPD_TRUE@am__append_140 = ntpd.la
++@BUILD_PLUGIN_NUT_TRUE@am__append_141 = nut.la
++@BUILD_PLUGIN_NUT_TRUE@am__append_142 = "-dlopen" nut.la
++@BUILD_PLUGIN_NUT_TRUE@am__append_143 = nut.la
++@BUILD_PLUGIN_PERL_TRUE@am__append_144 = perl.la
++@BUILD_PLUGIN_PERL_TRUE@am__append_145 = "-dlopen" perl.la
++@BUILD_PLUGIN_PERL_TRUE@am__append_146 = perl.la
++@BUILD_PLUGIN_PING_TRUE@am__append_147 = ping.la
++@BUILD_PLUGIN_PING_TRUE@@BUILD_WITH_OWN_LIBOPING_FALSE@am__append_148 = -loping
++@BUILD_PLUGIN_PING_TRUE@am__append_149 = "-dlopen" ping.la
++@BUILD_PLUGIN_PING_TRUE@am__append_150 = ping.la
++@BUILD_PLUGIN_PROCESSES_TRUE@am__append_151 = processes.la
++@BUILD_PLUGIN_PROCESSES_TRUE@am__append_152 = "-dlopen" processes.la
++@BUILD_PLUGIN_PROCESSES_TRUE@am__append_153 = processes.la
++@BUILD_PLUGIN_RRDTOOL_TRUE@am__append_154 = rrdtool.la
++@BUILD_PLUGIN_RRDTOOL_TRUE@am__append_155 = "-dlopen" rrdtool.la
++@BUILD_PLUGIN_RRDTOOL_TRUE@am__append_156 = rrdtool.la
++@BUILD_PLUGIN_SENSORS_TRUE@am__append_157 = sensors.la
++@BUILD_PLUGIN_SENSORS_TRUE@am__append_158 = "-dlopen" sensors.la
++@BUILD_PLUGIN_SENSORS_TRUE@am__append_159 = sensors.la
++@BUILD_PLUGIN_SERIAL_TRUE@am__append_160 = serial.la
++@BUILD_PLUGIN_SERIAL_TRUE@am__append_161 = "-dlopen" serial.la
++@BUILD_PLUGIN_SERIAL_TRUE@am__append_162 = serial.la
++@BUILD_PLUGIN_SNMP_TRUE@am__append_163 = snmp.la
++@BUILD_PLUGIN_SNMP_TRUE@@BUILD_WITH_LIBNETSNMP_TRUE@am__append_164 = $(BUILD_WITH_LIBSNMP_CFLAGS)
++@BUILD_PLUGIN_SNMP_TRUE@@BUILD_WITH_LIBNETSNMP_TRUE@am__append_165 = $(BUILD_WITH_LIBSNMP_LIBS)
++@BUILD_PLUGIN_SNMP_TRUE@@BUILD_WITH_LIBPTHREAD_TRUE@am__append_166 = -lpthread
++@BUILD_PLUGIN_SNMP_TRUE@am__append_167 = "-dlopen" snmp.la
++@BUILD_PLUGIN_SNMP_TRUE@am__append_168 = snmp.la
++@BUILD_PLUGIN_SWAP_TRUE@am__append_169 = swap.la
++@BUILD_PLUGIN_SWAP_TRUE@am__append_170 = "-dlopen" swap.la
++@BUILD_PLUGIN_SWAP_TRUE@am__append_171 = swap.la
++@BUILD_PLUGIN_SWAP_TRUE@@BUILD_WITH_LIBKSTAT_TRUE@am__append_172 = -lkstat
++@BUILD_PLUGIN_SWAP_TRUE@@BUILD_WITH_LIBDEVINFO_TRUE@am__append_173 = -ldevinfo
++@BUILD_PLUGIN_SWAP_TRUE@@BUILD_WITH_LIBKVM_TRUE@am__append_174 = -lkvm
++@BUILD_PLUGIN_SWAP_TRUE@@BUILD_WITH_LIBDEVSTAT_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_175 = -ldevstat
++@BUILD_PLUGIN_SWAP_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_176 = -lstatgrab
++@BUILD_PLUGIN_SYSLOG_TRUE@am__append_177 = syslog.la
++@BUILD_PLUGIN_SYSLOG_TRUE@am__append_178 = "-dlopen" syslog.la
++@BUILD_PLUGIN_SYSLOG_TRUE@am__append_179 = syslog.la
++@BUILD_PLUGIN_TAPE_TRUE@am__append_180 = tape.la
++@BUILD_PLUGIN_TAPE_TRUE@am__append_181 = "-dlopen" tape.la
++@BUILD_PLUGIN_TAPE_TRUE@am__append_182 = tape.la
++@BUILD_PLUGIN_TCPCONNS_TRUE@am__append_183 = tcpconns.la
++@BUILD_PLUGIN_TCPCONNS_TRUE@am__append_184 = "-dlopen" tcpconns.la
++@BUILD_PLUGIN_TCPCONNS_TRUE@am__append_185 = tcpconns.la
++@BUILD_PLUGIN_UNIXSOCK_TRUE@am__append_186 = unixsock.la
++@BUILD_PLUGIN_UNIXSOCK_TRUE@am__append_187 = "-dlopen" unixsock.la
++@BUILD_PLUGIN_UNIXSOCK_TRUE@am__append_188 = unixsock.la
++@BUILD_PLUGIN_USERS_TRUE@am__append_189 = users.la
++@BUILD_PLUGIN_USERS_TRUE@am__append_190 = "-dlopen" users.la
++@BUILD_PLUGIN_USERS_TRUE@am__append_191 = users.la
++@BUILD_PLUGIN_VSERVER_TRUE@am__append_192 = vserver.la
++@BUILD_PLUGIN_VSERVER_TRUE@am__append_193 = "-dlopen" vserver.la
++@BUILD_PLUGIN_VSERVER_TRUE@am__append_194 = vserver.la
++@BUILD_PLUGIN_WIRELESS_TRUE@am__append_195 = wireless.la
++@BUILD_PLUGIN_WIRELESS_TRUE@am__append_196 = "-dlopen" wireless.la
++@BUILD_PLUGIN_WIRELESS_TRUE@am__append_197 = wireless.la
++@BUILD_PLUGIN_XMMS_TRUE@am__append_198 = xmms.la
++@BUILD_PLUGIN_XMMS_TRUE@am__append_199 = "-dlopen" xmms.la
++@BUILD_PLUGIN_XMMS_TRUE@am__append_200 = xmms.la
+ subdir = src
+ DIST_COMMON = $(dist_man_MANS) $(srcdir)/Makefile.am \
+ 	$(srcdir)/Makefile.in $(srcdir)/collectd.conf.in \
+ 	$(srcdir)/config.h.in
+ ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
+ am__aclocal_m4_deps = $(top_srcdir)/configure.in
+@@ -413,15 +414,17 @@
+ @BUILD_PLUGIN_NETWORK_TRUE@am_network_la_rpath = -rpath $(pkglibdir)
+ nfs_la_LIBADD =
+ am__nfs_la_SOURCES_DIST = nfs.c
+ @BUILD_PLUGIN_NFS_TRUE@am_nfs_la_OBJECTS = nfs.lo
+ nfs_la_OBJECTS = $(am_nfs_la_OBJECTS)
+ @BUILD_PLUGIN_NFS_TRUE@am_nfs_la_rpath = -rpath $(pkglibdir)
+-nginx_la_LIBADD =
++@BUILD_PLUGIN_NGINX_TRUE@@BUILD_WITH_LIBCURL_TRUE@am__DEPENDENCIES_4 = $(am__DEPENDENCIES_1)
++@BUILD_PLUGIN_NGINX_TRUE@nginx_la_DEPENDENCIES =  \
++@BUILD_PLUGIN_NGINX_TRUE@	$(am__DEPENDENCIES_4)
+ am__nginx_la_SOURCES_DIST = nginx.c
+-@BUILD_PLUGIN_NGINX_TRUE@am_nginx_la_OBJECTS = nginx.lo
++@BUILD_PLUGIN_NGINX_TRUE@am_nginx_la_OBJECTS = nginx_la-nginx.lo
+ nginx_la_OBJECTS = $(am_nginx_la_OBJECTS)
+ @BUILD_PLUGIN_NGINX_TRUE@am_nginx_la_rpath = -rpath $(pkglibdir)
+ ntpd_la_LIBADD =
+ am__ntpd_la_SOURCES_DIST = ntpd.c
+ @BUILD_PLUGIN_NTPD_TRUE@am_ntpd_la_OBJECTS = ntpd.lo
+ ntpd_la_OBJECTS = $(am_ntpd_la_OBJECTS)
+@@ -461,14 +464,14 @@
+ @BUILD_PLUGIN_SENSORS_TRUE@am_sensors_la_rpath = -rpath $(pkglibdir)
+ serial_la_LIBADD =
+ am__serial_la_SOURCES_DIST = serial.c
+ @BUILD_PLUGIN_SERIAL_TRUE@am_serial_la_OBJECTS = serial.lo
+ serial_la_OBJECTS = $(am_serial_la_OBJECTS)
+ @BUILD_PLUGIN_SERIAL_TRUE@am_serial_la_rpath = -rpath $(pkglibdir)
+-@BUILD_PLUGIN_SNMP_TRUE@@BUILD_WITH_LIBNETSNMP_TRUE@am__DEPENDENCIES_4 = $(am__DEPENDENCIES_1)
+-@BUILD_PLUGIN_SNMP_TRUE@snmp_la_DEPENDENCIES = $(am__DEPENDENCIES_4) \
++@BUILD_PLUGIN_SNMP_TRUE@@BUILD_WITH_LIBNETSNMP_TRUE@am__DEPENDENCIES_5 = $(am__DEPENDENCIES_1)
++@BUILD_PLUGIN_SNMP_TRUE@snmp_la_DEPENDENCIES = $(am__DEPENDENCIES_5) \
+ @BUILD_PLUGIN_SNMP_TRUE@	$(am__DEPENDENCIES_1)
+ am__snmp_la_SOURCES_DIST = snmp.c
+ @BUILD_PLUGIN_SNMP_TRUE@am_snmp_la_OBJECTS = snmp_la-snmp.lo
+ snmp_la_OBJECTS = $(am_snmp_la_OBJECTS)
+ @BUILD_PLUGIN_SNMP_TRUE@am_snmp_la_rpath = -rpath $(pkglibdir)
+ swap_la_LIBADD =
+@@ -526,71 +529,71 @@
+ 	collectd-utils_avltree.$(OBJEXT) \
+ 	collectd-utils_mount.$(OBJEXT) collectd-utils_llist.$(OBJEXT) \
+ 	collectd-utils_ignorelist.$(OBJEXT) collectd-common.$(OBJEXT) \
+ 	collectd-plugin.$(OBJEXT) collectd-configfile.$(OBJEXT) \
+ 	collectd-types_list.$(OBJEXT)
+ collectd_OBJECTS = $(am_collectd_OBJECTS)
+-@BUILD_WITH_OWN_LIBOCONFIG_TRUE@am__DEPENDENCIES_5 =  \
++@BUILD_WITH_OWN_LIBOCONFIG_TRUE@am__DEPENDENCIES_6 =  \
+ @BUILD_WITH_OWN_LIBOCONFIG_TRUE@	$(am__DEPENDENCIES_1) \
+ @BUILD_WITH_OWN_LIBOCONFIG_TRUE@	liboconfig/liboconfig.la
+-@BUILD_PLUGIN_APACHE_TRUE@am__DEPENDENCIES_6 = "-dlopen" apache.la
+-@BUILD_PLUGIN_APCUPS_TRUE@am__DEPENDENCIES_7 = "-dlopen" apcups.la
+-@BUILD_PLUGIN_APPLE_SENSORS_TRUE@am__DEPENDENCIES_8 = "-dlopen" \
++@BUILD_PLUGIN_APACHE_TRUE@am__DEPENDENCIES_7 = "-dlopen" apache.la
++@BUILD_PLUGIN_APCUPS_TRUE@am__DEPENDENCIES_8 = "-dlopen" apcups.la
++@BUILD_PLUGIN_APPLE_SENSORS_TRUE@am__DEPENDENCIES_9 = "-dlopen" \
+ @BUILD_PLUGIN_APPLE_SENSORS_TRUE@	apple_sensors.la
+-@BUILD_PLUGIN_BATTERY_TRUE@am__DEPENDENCIES_9 = "-dlopen" battery.la
+-@BUILD_PLUGIN_CPU_TRUE@am__DEPENDENCIES_10 = "-dlopen" cpu.la
+-@BUILD_PLUGIN_CPUFREQ_TRUE@am__DEPENDENCIES_11 = "-dlopen" cpufreq.la
+-@BUILD_PLUGIN_CSV_TRUE@am__DEPENDENCIES_12 = "-dlopen" csv.la
+-@BUILD_PLUGIN_DF_TRUE@am__DEPENDENCIES_13 = "-dlopen" df.la
+-@BUILD_PLUGIN_DISK_TRUE@am__DEPENDENCIES_14 = "-dlopen" disk.la
+-@BUILD_PLUGIN_DNS_TRUE@am__DEPENDENCIES_15 = "-dlopen" dns.la
+-@BUILD_PLUGIN_EMAIL_TRUE@am__DEPENDENCIES_16 = "-dlopen" email.la
+-@BUILD_PLUGIN_ENTROPY_TRUE@am__DEPENDENCIES_17 = "-dlopen" entropy.la
+-@BUILD_PLUGIN_EXEC_TRUE@am__DEPENDENCIES_18 = "-dlopen" exec.la
+-@BUILD_PLUGIN_HDDTEMP_TRUE@am__DEPENDENCIES_19 = "-dlopen" hddtemp.la
+-@BUILD_PLUGIN_INTERFACE_TRUE@am__DEPENDENCIES_20 = "-dlopen" \
++@BUILD_PLUGIN_BATTERY_TRUE@am__DEPENDENCIES_10 = "-dlopen" battery.la
++@BUILD_PLUGIN_CPU_TRUE@am__DEPENDENCIES_11 = "-dlopen" cpu.la
++@BUILD_PLUGIN_CPUFREQ_TRUE@am__DEPENDENCIES_12 = "-dlopen" cpufreq.la
++@BUILD_PLUGIN_CSV_TRUE@am__DEPENDENCIES_13 = "-dlopen" csv.la
++@BUILD_PLUGIN_DF_TRUE@am__DEPENDENCIES_14 = "-dlopen" df.la
++@BUILD_PLUGIN_DISK_TRUE@am__DEPENDENCIES_15 = "-dlopen" disk.la
++@BUILD_PLUGIN_DNS_TRUE@am__DEPENDENCIES_16 = "-dlopen" dns.la
++@BUILD_PLUGIN_EMAIL_TRUE@am__DEPENDENCIES_17 = "-dlopen" email.la
++@BUILD_PLUGIN_ENTROPY_TRUE@am__DEPENDENCIES_18 = "-dlopen" entropy.la
++@BUILD_PLUGIN_EXEC_TRUE@am__DEPENDENCIES_19 = "-dlopen" exec.la
++@BUILD_PLUGIN_HDDTEMP_TRUE@am__DEPENDENCIES_20 = "-dlopen" hddtemp.la
++@BUILD_PLUGIN_INTERFACE_TRUE@am__DEPENDENCIES_21 = "-dlopen" \
+ @BUILD_PLUGIN_INTERFACE_TRUE@	interface.la
+-@BUILD_PLUGIN_IPTABLES_TRUE@am__DEPENDENCIES_21 = "-dlopen" \
++@BUILD_PLUGIN_IPTABLES_TRUE@am__DEPENDENCIES_22 = "-dlopen" \
+ @BUILD_PLUGIN_IPTABLES_TRUE@	iptables.la
+-@BUILD_PLUGIN_IPVS_TRUE@am__DEPENDENCIES_22 = "-dlopen" ipvs.la
+-@BUILD_PLUGIN_IRQ_TRUE@am__DEPENDENCIES_23 = "-dlopen" irq.la
+-@BUILD_PLUGIN_LOAD_TRUE@am__DEPENDENCIES_24 = "-dlopen" load.la
+-@BUILD_PLUGIN_LOGFILE_TRUE@am__DEPENDENCIES_25 = "-dlopen" logfile.la
+-@BUILD_PLUGIN_MBMON_TRUE@am__DEPENDENCIES_26 = "-dlopen" mbmon.la
+-@BUILD_PLUGIN_MEMCACHED_TRUE@am__DEPENDENCIES_27 = "-dlopen" \
++@BUILD_PLUGIN_IPVS_TRUE@am__DEPENDENCIES_23 = "-dlopen" ipvs.la
++@BUILD_PLUGIN_IRQ_TRUE@am__DEPENDENCIES_24 = "-dlopen" irq.la
++@BUILD_PLUGIN_LOAD_TRUE@am__DEPENDENCIES_25 = "-dlopen" load.la
++@BUILD_PLUGIN_LOGFILE_TRUE@am__DEPENDENCIES_26 = "-dlopen" logfile.la
++@BUILD_PLUGIN_MBMON_TRUE@am__DEPENDENCIES_27 = "-dlopen" mbmon.la
++@BUILD_PLUGIN_MEMCACHED_TRUE@am__DEPENDENCIES_28 = "-dlopen" \
+ @BUILD_PLUGIN_MEMCACHED_TRUE@	memcached.la
+-@BUILD_PLUGIN_MEMORY_TRUE@am__DEPENDENCIES_28 = "-dlopen" memory.la
+-@BUILD_PLUGIN_MULTIMETER_TRUE@am__DEPENDENCIES_29 = "-dlopen" \
++@BUILD_PLUGIN_MEMORY_TRUE@am__DEPENDENCIES_29 = "-dlopen" memory.la
++@BUILD_PLUGIN_MULTIMETER_TRUE@am__DEPENDENCIES_30 = "-dlopen" \
+ @BUILD_PLUGIN_MULTIMETER_TRUE@	multimeter.la
+-@BUILD_PLUGIN_MYSQL_TRUE@am__DEPENDENCIES_30 = "-dlopen" mysql.la
+-@BUILD_PLUGIN_NETLINK_TRUE@am__DEPENDENCIES_31 = "-dlopen" netlink.la
+-@BUILD_PLUGIN_NETWORK_TRUE@am__DEPENDENCIES_32 = "-dlopen" network.la
+-@BUILD_PLUGIN_NFS_TRUE@am__DEPENDENCIES_33 = "-dlopen" nfs.la
+-@BUILD_PLUGIN_NGINX_TRUE@am__DEPENDENCIES_34 = "-dlopen" nginx.la
+-@BUILD_PLUGIN_NTPD_TRUE@am__DEPENDENCIES_35 = "-dlopen" ntpd.la
+-@BUILD_PLUGIN_NUT_TRUE@am__DEPENDENCIES_36 = "-dlopen" nut.la
+-@BUILD_PLUGIN_PERL_TRUE@am__DEPENDENCIES_37 = "-dlopen" perl.la
+-@BUILD_PLUGIN_PING_TRUE@am__DEPENDENCIES_38 = "-dlopen" ping.la
+-@BUILD_PLUGIN_PROCESSES_TRUE@am__DEPENDENCIES_39 = "-dlopen" \
++@BUILD_PLUGIN_MYSQL_TRUE@am__DEPENDENCIES_31 = "-dlopen" mysql.la
++@BUILD_PLUGIN_NETLINK_TRUE@am__DEPENDENCIES_32 = "-dlopen" netlink.la
++@BUILD_PLUGIN_NETWORK_TRUE@am__DEPENDENCIES_33 = "-dlopen" network.la
++@BUILD_PLUGIN_NFS_TRUE@am__DEPENDENCIES_34 = "-dlopen" nfs.la
++@BUILD_PLUGIN_NGINX_TRUE@am__DEPENDENCIES_35 = "-dlopen" nginx.la
++@BUILD_PLUGIN_NTPD_TRUE@am__DEPENDENCIES_36 = "-dlopen" ntpd.la
++@BUILD_PLUGIN_NUT_TRUE@am__DEPENDENCIES_37 = "-dlopen" nut.la
++@BUILD_PLUGIN_PERL_TRUE@am__DEPENDENCIES_38 = "-dlopen" perl.la
++@BUILD_PLUGIN_PING_TRUE@am__DEPENDENCIES_39 = "-dlopen" ping.la
++@BUILD_PLUGIN_PROCESSES_TRUE@am__DEPENDENCIES_40 = "-dlopen" \
+ @BUILD_PLUGIN_PROCESSES_TRUE@	processes.la
+-@BUILD_PLUGIN_RRDTOOL_TRUE@am__DEPENDENCIES_40 = "-dlopen" rrdtool.la
+-@BUILD_PLUGIN_SENSORS_TRUE@am__DEPENDENCIES_41 = "-dlopen" sensors.la
+-@BUILD_PLUGIN_SERIAL_TRUE@am__DEPENDENCIES_42 = "-dlopen" serial.la
+-@BUILD_PLUGIN_SNMP_TRUE@am__DEPENDENCIES_43 = "-dlopen" snmp.la
+-@BUILD_PLUGIN_SWAP_TRUE@am__DEPENDENCIES_44 = "-dlopen" swap.la
+-@BUILD_PLUGIN_SYSLOG_TRUE@am__DEPENDENCIES_45 = "-dlopen" syslog.la
+-@BUILD_PLUGIN_TAPE_TRUE@am__DEPENDENCIES_46 = "-dlopen" tape.la
+-@BUILD_PLUGIN_TCPCONNS_TRUE@am__DEPENDENCIES_47 = "-dlopen" \
++@BUILD_PLUGIN_RRDTOOL_TRUE@am__DEPENDENCIES_41 = "-dlopen" rrdtool.la
++@BUILD_PLUGIN_SENSORS_TRUE@am__DEPENDENCIES_42 = "-dlopen" sensors.la
++@BUILD_PLUGIN_SERIAL_TRUE@am__DEPENDENCIES_43 = "-dlopen" serial.la
++@BUILD_PLUGIN_SNMP_TRUE@am__DEPENDENCIES_44 = "-dlopen" snmp.la
++@BUILD_PLUGIN_SWAP_TRUE@am__DEPENDENCIES_45 = "-dlopen" swap.la
++@BUILD_PLUGIN_SYSLOG_TRUE@am__DEPENDENCIES_46 = "-dlopen" syslog.la
++@BUILD_PLUGIN_TAPE_TRUE@am__DEPENDENCIES_47 = "-dlopen" tape.la
++@BUILD_PLUGIN_TCPCONNS_TRUE@am__DEPENDENCIES_48 = "-dlopen" \
+ @BUILD_PLUGIN_TCPCONNS_TRUE@	tcpconns.la
+-@BUILD_PLUGIN_UNIXSOCK_TRUE@am__DEPENDENCIES_48 = "-dlopen" \
++@BUILD_PLUGIN_UNIXSOCK_TRUE@am__DEPENDENCIES_49 = "-dlopen" \
+ @BUILD_PLUGIN_UNIXSOCK_TRUE@	unixsock.la
+-@BUILD_PLUGIN_USERS_TRUE@am__DEPENDENCIES_49 = "-dlopen" users.la
+-@BUILD_PLUGIN_VSERVER_TRUE@am__DEPENDENCIES_50 = "-dlopen" vserver.la
+-@BUILD_PLUGIN_WIRELESS_TRUE@am__DEPENDENCIES_51 = "-dlopen" \
++@BUILD_PLUGIN_USERS_TRUE@am__DEPENDENCIES_50 = "-dlopen" users.la
++@BUILD_PLUGIN_VSERVER_TRUE@am__DEPENDENCIES_51 = "-dlopen" vserver.la
++@BUILD_PLUGIN_WIRELESS_TRUE@am__DEPENDENCIES_52 = "-dlopen" \
+ @BUILD_PLUGIN_WIRELESS_TRUE@	wireless.la
+-@BUILD_PLUGIN_XMMS_TRUE@am__DEPENDENCIES_52 = "-dlopen" xmms.la
++@BUILD_PLUGIN_XMMS_TRUE@am__DEPENDENCIES_53 = "-dlopen" xmms.la
+ am_collectd_nagios_OBJECTS = collectd-nagios.$(OBJEXT)
+ collectd_nagios_OBJECTS = $(am_collectd_nagios_OBJECTS)
+ collectd_nagios_LDADD = $(LDADD)
+ DEFAULT_INCLUDES = -I. -I$(srcdir) -I.
+ depcomp = $(SHELL) $(top_srcdir)/depcomp
+ am__depfiles_maybe = depfiles
+@@ -972,54 +975,54 @@
+ 	$(am__append_51) $(am__append_54) $(am__append_58) \
+ 	$(am__append_61) $(am__append_65) $(am__append_69) \
+ 	$(am__append_72) $(am__append_80) $(am__append_83) \
+ 	$(am__append_86) $(am__append_89) $(am__append_95) \
+ 	$(am__append_99) $(am__append_103) $(am__append_106) \
+ 	$(am__append_114) $(am__append_117) $(am__append_122) \
+-	$(am__append_127) $(am__append_130) $(am__append_134) \
+-	$(am__append_138) $(am__append_141) $(am__append_144) \
+-	$(am__append_148) $(am__append_151) $(am__append_154) \
+-	$(am__append_157) $(am__append_160) $(am__append_166) \
+-	$(am__append_169) $(am__append_177) $(am__append_180) \
+-	$(am__append_183) $(am__append_186) $(am__append_189) \
+-	$(am__append_192) $(am__append_195) $(am__append_198)
++	$(am__append_127) $(am__append_130) $(am__append_135) \
++	$(am__append_139) $(am__append_142) $(am__append_145) \
++	$(am__append_149) $(am__append_152) $(am__append_155) \
++	$(am__append_158) $(am__append_161) $(am__append_167) \
++	$(am__append_170) $(am__append_178) $(am__append_181) \
++	$(am__append_184) $(am__append_187) $(am__append_190) \
++	$(am__append_193) $(am__append_196) $(am__append_199)
+ collectd_DEPENDENCIES = $(am__append_14) $(am__append_21) \
+ 	$(am__append_25) $(am__append_28) $(am__append_32) \
+ 	$(am__append_37) $(am__append_40) $(am__append_43) \
+ 	$(am__append_46) $(am__append_52) $(am__append_55) \
+ 	$(am__append_59) $(am__append_62) $(am__append_66) \
+ 	$(am__append_70) $(am__append_73) $(am__append_81) \
+ 	$(am__append_84) $(am__append_87) $(am__append_90) \
+ 	$(am__append_96) $(am__append_100) $(am__append_104) \
+ 	$(am__append_107) $(am__append_115) $(am__append_120) \
+ 	$(am__append_123) $(am__append_128) $(am__append_131) \
+-	$(am__append_135) $(am__append_139) $(am__append_142) \
+-	$(am__append_145) $(am__append_149) $(am__append_152) \
+-	$(am__append_155) $(am__append_158) $(am__append_161) \
+-	$(am__append_167) $(am__append_170) $(am__append_178) \
+-	$(am__append_181) $(am__append_184) $(am__append_187) \
+-	$(am__append_190) $(am__append_193) $(am__append_196) \
+-	$(am__append_199)
++	$(am__append_136) $(am__append_140) $(am__append_143) \
++	$(am__append_146) $(am__append_150) $(am__append_153) \
++	$(am__append_156) $(am__append_159) $(am__append_162) \
++	$(am__append_168) $(am__append_171) $(am__append_179) \
++	$(am__append_182) $(am__append_185) $(am__append_188) \
++	$(am__append_191) $(am__append_194) $(am__append_197) \
++	$(am__append_200)
+ collectd_nagios_SOURCES = collectd-nagios.c
+ collectd_nagios_LDFLAGS = $(am__append_16)
+ pkglib_LTLIBRARIES = $(am__append_17) $(am__append_22) \
+ 	$(am__append_26) $(am__append_29) $(am__append_33) \
+ 	$(am__append_38) $(am__append_41) $(am__append_44) \
+ 	$(am__append_47) $(am__append_53) $(am__append_56) \
+ 	$(am__append_60) $(am__append_63) $(am__append_67) \
+ 	$(am__append_71) $(am__append_79) $(am__append_82) \
+ 	$(am__append_85) $(am__append_88) $(am__append_94) \
+ 	$(am__append_97) $(am__append_101) $(am__append_105) \
+ 	$(am__append_113) $(am__append_116) $(am__append_121) \
+ 	$(am__append_124) $(am__append_129) $(am__append_132) \
+-	$(am__append_136) $(am__append_140) $(am__append_143) \
+-	$(am__append_146) $(am__append_150) $(am__append_153) \
+-	$(am__append_156) $(am__append_159) $(am__append_162) \
+-	$(am__append_168) $(am__append_176) $(am__append_179) \
+-	$(am__append_182) $(am__append_185) $(am__append_188) \
+-	$(am__append_191) $(am__append_194) $(am__append_197)
++	$(am__append_137) $(am__append_141) $(am__append_144) \
++	$(am__append_147) $(am__append_151) $(am__append_154) \
++	$(am__append_157) $(am__append_160) $(am__append_163) \
++	$(am__append_169) $(am__append_177) $(am__append_180) \
++	$(am__append_183) $(am__append_186) $(am__append_189) \
++	$(am__append_192) $(am__append_195) $(am__append_198)
+ @BUILD_PLUGIN_APACHE_TRUE@apache_la_SOURCES = apache.c
+ @BUILD_PLUGIN_APACHE_TRUE@apache_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_APACHE_TRUE@apache_la_CFLAGS = $(am__append_19)
+ @BUILD_PLUGIN_APACHE_TRUE@apache_la_LIBADD = $(am__append_20)
+ @BUILD_PLUGIN_APCUPS_TRUE@apcups_la_SOURCES = apcups.c
+ @BUILD_PLUGIN_APCUPS_TRUE@apcups_la_LDFLAGS = -module -avoid-version \
+@@ -1098,17 +1101,19 @@
+ @BUILD_PLUGIN_NETWORK_TRUE@network_la_SOURCES = network.c network.h
+ @BUILD_PLUGIN_NETWORK_TRUE@network_la_LDFLAGS = -module -avoid-version \
+ @BUILD_PLUGIN_NETWORK_TRUE@	$(am__append_125) $(am__append_126)
+ @BUILD_PLUGIN_NFS_TRUE@nfs_la_SOURCES = nfs.c
+ @BUILD_PLUGIN_NFS_TRUE@nfs_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_NGINX_TRUE@nginx_la_SOURCES = nginx.c
+-@BUILD_PLUGIN_NGINX_TRUE@nginx_la_LDFLAGS = -module -avoid-version \
++@BUILD_PLUGIN_NGINX_TRUE@nginx_la_CFLAGS = $(AM_CFLAGS) \
+ @BUILD_PLUGIN_NGINX_TRUE@	$(am__append_133)
++@BUILD_PLUGIN_NGINX_TRUE@nginx_la_LIBADD = $(am__append_134)
++@BUILD_PLUGIN_NGINX_TRUE@nginx_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_NTPD_TRUE@ntpd_la_SOURCES = ntpd.c
+ @BUILD_PLUGIN_NTPD_TRUE@ntpd_la_LDFLAGS = -module -avoid-version \
+-@BUILD_PLUGIN_NTPD_TRUE@	$(am__append_137)
++@BUILD_PLUGIN_NTPD_TRUE@	$(am__append_138)
+ @BUILD_PLUGIN_NUT_TRUE@nut_la_SOURCES = nut.c
+ @BUILD_PLUGIN_NUT_TRUE@nut_la_CFLAGS = $(AM_CFLAGS) $(BUILD_WITH_LIBUPSCLIENT_CFLAGS)
+ @BUILD_PLUGIN_NUT_TRUE@nut_la_LDFLAGS = -module -avoid-version -lpthread $(BUILD_WITH_LIBUPSCLIENT_LIBS)
+ @BUILD_PLUGIN_PERL_TRUE@perl_la_SOURCES = perl.c
+ @BUILD_PLUGIN_PERL_TRUE@perl_la_CFLAGS = $(AM_CFLAGS) \
+ @BUILD_PLUGIN_PERL_TRUE@		  $(PERL_CFLAGS) \
+@@ -1116,13 +1121,13 @@
+ 
+ @BUILD_PLUGIN_PERL_TRUE@perl_la_LDFLAGS = -module -avoid-version \
+ @BUILD_PLUGIN_PERL_TRUE@		  $(PERL_LDFLAGS)
+ 
+ @BUILD_PLUGIN_PING_TRUE@ping_la_SOURCES = ping.c
+ @BUILD_PLUGIN_PING_TRUE@ping_la_LDFLAGS = -module -avoid-version \
+-@BUILD_PLUGIN_PING_TRUE@	$(am__append_147)
++@BUILD_PLUGIN_PING_TRUE@	$(am__append_148)
+ @BUILD_PLUGIN_PING_TRUE@@BUILD_WITH_OWN_LIBOPING_TRUE@ping_la_LIBADD = liboping/liboping.la
+ @BUILD_PLUGIN_PING_TRUE@@BUILD_WITH_OWN_LIBOPING_TRUE@ping_la_DEPENDENCIES = liboping/liboping.la
+ @BUILD_PLUGIN_PROCESSES_TRUE@processes_la_SOURCES = processes.c
+ @BUILD_PLUGIN_PROCESSES_TRUE@processes_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_RRDTOOL_TRUE@rrdtool_la_SOURCES = rrdtool.c
+ @BUILD_PLUGIN_RRDTOOL_TRUE@rrdtool_la_LDFLAGS = -module -avoid-version
+@@ -1133,20 +1138,20 @@
+ @BUILD_PLUGIN_SENSORS_TRUE@sensors_la_LDFLAGS = -module -avoid-version $(BUILD_WITH_LIBSENSORS_LDFLAGS)
+ @BUILD_PLUGIN_SENSORS_TRUE@sensors_la_LIBADD = -lsensors
+ @BUILD_PLUGIN_SERIAL_TRUE@serial_la_SOURCES = serial.c
+ @BUILD_PLUGIN_SERIAL_TRUE@serial_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_SNMP_TRUE@snmp_la_SOURCES = snmp.c
+ @BUILD_PLUGIN_SNMP_TRUE@snmp_la_LDFLAGS = -module -avoid-version
+-@BUILD_PLUGIN_SNMP_TRUE@snmp_la_CFLAGS = $(am__append_163)
+-@BUILD_PLUGIN_SNMP_TRUE@snmp_la_LIBADD = $(am__append_164) \
+-@BUILD_PLUGIN_SNMP_TRUE@	$(am__append_165)
++@BUILD_PLUGIN_SNMP_TRUE@snmp_la_CFLAGS = $(am__append_164)
++@BUILD_PLUGIN_SNMP_TRUE@snmp_la_LIBADD = $(am__append_165) \
++@BUILD_PLUGIN_SNMP_TRUE@	$(am__append_166)
+ @BUILD_PLUGIN_SWAP_TRUE@swap_la_SOURCES = swap.c
+ @BUILD_PLUGIN_SWAP_TRUE@swap_la_LDFLAGS = -module -avoid-version \
+-@BUILD_PLUGIN_SWAP_TRUE@	$(am__append_171) $(am__append_172) \
+-@BUILD_PLUGIN_SWAP_TRUE@	$(am__append_173) $(am__append_174) \
+-@BUILD_PLUGIN_SWAP_TRUE@	$(am__append_175)
++@BUILD_PLUGIN_SWAP_TRUE@	$(am__append_172) $(am__append_173) \
++@BUILD_PLUGIN_SWAP_TRUE@	$(am__append_174) $(am__append_175) \
++@BUILD_PLUGIN_SWAP_TRUE@	$(am__append_176)
+ @BUILD_PLUGIN_SYSLOG_TRUE@syslog_la_SOURCES = syslog.c
+ @BUILD_PLUGIN_SYSLOG_TRUE@syslog_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_TAPE_TRUE@tape_la_SOURCES = tape.c
+ @BUILD_PLUGIN_TAPE_TRUE@tape_la_LDFLAGS = -module -avoid-version -lkstat -ldevinfo
+ @BUILD_PLUGIN_TCPCONNS_TRUE@tcpconns_la_SOURCES = tcpconns.c
+ @BUILD_PLUGIN_TCPCONNS_TRUE@tcpconns_la_LDFLAGS = -module -avoid-version
+@@ -1449,13 +1454,13 @@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/memory.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/multimeter.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mysql_la-mysql.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/netlink_la-netlink.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/network.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nfs.Plo@am__quote@
+-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nginx.Plo@am__quote@
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nginx_la-nginx.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ntpd.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nut_la-nut.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/perl_la-perl.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ping.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/processes.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rrdtool_la-rrdtool.Plo@am__quote@
+@@ -1521,12 +1526,19 @@
+ @am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(netlink_la_CFLAGS) $(CFLAGS) -MT netlink_la-netlink.lo -MD -MP -MF "$(DEPDIR)/netlink_la-netlink.Tpo" -c -o netlink_la-netlink.lo `test -f 'netlink.c' || echo '$(srcdir)/'`netlink.c; \
+ @am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/netlink_la-netlink.Tpo" "$(DEPDIR)/netlink_la-netlink.Plo"; else rm -f "$(DEPDIR)/netlink_la-netlink.Tpo"; exit 1; fi
+ @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='netlink.c' object='netlink_la-netlink.lo' libtool=yes @AMDEPBACKSLASH@
+ @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+ @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(netlink_la_CFLAGS) $(CFLAGS) -c -o netlink_la-netlink.lo `test -f 'netlink.c' || echo '$(srcdir)/'`netlink.c
+ 
++nginx_la-nginx.lo: nginx.c
++@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(nginx_la_CFLAGS) $(CFLAGS) -MT nginx_la-nginx.lo -MD -MP -MF "$(DEPDIR)/nginx_la-nginx.Tpo" -c -o nginx_la-nginx.lo `test -f 'nginx.c' || echo '$(srcdir)/'`nginx.c; \
++@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/nginx_la-nginx.Tpo" "$(DEPDIR)/nginx_la-nginx.Plo"; else rm -f "$(DEPDIR)/nginx_la-nginx.Tpo"; exit 1; fi
++@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='nginx.c' object='nginx_la-nginx.lo' libtool=yes @AMDEPBACKSLASH@
++@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
++@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(nginx_la_CFLAGS) $(CFLAGS) -c -o nginx_la-nginx.lo `test -f 'nginx.c' || echo '$(srcdir)/'`nginx.c
++
+ nut_la-nut.lo: nut.c
+ @am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(nut_la_CFLAGS) $(CFLAGS) -MT nut_la-nut.lo -MD -MP -MF "$(DEPDIR)/nut_la-nut.Tpo" -c -o nut_la-nut.lo `test -f 'nut.c' || echo '$(srcdir)/'`nut.c; \
+ @am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/nut_la-nut.Tpo" "$(DEPDIR)/nut_la-nut.Plo"; else rm -f "$(DEPDIR)/nut_la-nut.Tpo"; exit 1; fi
+ @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='nut.c' object='nut_la-nut.lo' libtool=yes @AMDEPBACKSLASH@
+ @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+ @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(nut_la_CFLAGS) $(CFLAGS) -c -o nut_la-nut.lo `test -f 'nut.c' || echo '$(srcdir)/'`nut.c
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/src/sensors.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/sensors.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/src/sensors.c	2007-10-25 01:21:24.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/sensors.c	2007-12-29 01:26:59.000000000 +0800
+@@ -35,35 +35,43 @@
+ #include "utils_ignorelist.h"
+ 
+ #if defined(HAVE_SENSORS_SENSORS_H)
+ # include <sensors/sensors.h>
+ #endif
+ 
+-#define SENSOR_TYPE_VOLTAGE     0
+-#define SENSOR_TYPE_FANSPEED    1
+-#define SENSOR_TYPE_TEMPERATURE 2
+-#define SENSOR_TYPE_UNKNOWN     3
++#if !defined(SENSORS_API_VERSION)
++# define SENSORS_API_VERSION 0x000
++#endif
+ 
+-static char *sensor_to_type[] =
++/*
++ * The sensors library prior to version 3.0 (internal version 0x400) didn't
++ * report the type of values, only a name. The following lists are there to
++ * convert from the names to the type. They are not used with the new
++ * interface.
++ */
++#if SENSORS_API_VERSION < 0x400
++static char *sensor_type_name_map[] =
+ {
++# define SENSOR_TYPE_VOLTAGE     0
+ 	"voltage",
++# define SENSOR_TYPE_FANSPEED    1
+ 	"fanspeed",
++# define SENSOR_TYPE_TEMPERATURE 2
+ 	"temperature",
++# define SENSOR_TYPE_UNKNOWN     3
+ 	NULL
+ };
+ 
+ struct sensors_labeltypes_s
+ {
+ 	char *label;
+ 	int type;
+ };
+ typedef struct sensors_labeltypes_s sensors_labeltypes_t;
+ 
+-/*
+- * finite list of known labels extracted from lm_sensors
+- */
++/* finite list of known labels extracted from lm_sensors */
+ static sensors_labeltypes_t known_features[] = 
+ {
+ 	{ "fan1", SENSOR_TYPE_FANSPEED },
+ 	{ "fan2", SENSOR_TYPE_FANSPEED },
+ 	{ "fan3", SENSOR_TYPE_FANSPEED },
+ 	{ "fan4", SENSOR_TYPE_FANSPEED },
+@@ -115,44 +123,104 @@
+ 	{ "2.5V", SENSOR_TYPE_VOLTAGE },
+ 	{ "2.0V", SENSOR_TYPE_VOLTAGE },
+ 	{ "12V", SENSOR_TYPE_VOLTAGE }
+ };
+ static int known_features_num = STATIC_ARRAY_SIZE (known_features);
+ /* end new naming */
++#endif /* SENSORS_API_VERSION < 0x400 */
+ 
+ static const char *config_keys[] =
+ {
+ 	"Sensor",
+-	"IgnoreSelected",
+-	NULL
++	"IgnoreSelected"
+ };
+-static int config_keys_num = 2;
+-
+-static ignorelist_t *sensor_list;
+-
+-#ifndef SENSORS_CONF_PATH
+-# define SENSORS_CONF_PATH "/etc/sensors.conf"
+-#endif
+-
+-static const char *conffile = SENSORS_CONF_PATH;
+-/* SENSORS_CONF_PATH */
+-
+-/*
+- * remember stat of the loaded config
+- */
+-static time_t sensors_config_mtime = 0;
++static int config_keys_num = STATIC_ARRAY_SIZE (config_keys);
+ 
++#if SENSORS_API_VERSION < 0x400
+ typedef struct featurelist
+ {
+ 	const sensors_chip_name    *chip;
+ 	const sensors_feature_data *data;
+ 	int                         type;
+ 	struct featurelist         *next;
+ } featurelist_t;
+ 
++# ifndef SENSORS_CONF_PATH
++#  define SENSORS_CONF_PATH "/etc/sensors.conf"
++# endif
++/* #endif SENSORS_API_VERSION < 0x400 */
++
++#elif (SENSORS_API_VERSION >= 0x400) && (SENSORS_API_VERSION < 0x500)
++typedef struct featurelist
++{
++	const sensors_chip_name    *chip;
++	const sensors_feature      *feature;
++	const sensors_subfeature   *subfeature;
++	struct featurelist         *next;
++} featurelist_t;
++
++# ifndef SENSORS_CONF_PATH
++#  define SENSORS_CONF_PATH "/etc/sensors3.conf"
++# endif
++/* #endif (SENSORS_API_VERSION >= 0x400) && (SENSORS_API_VERSION < 0x500) */
++
++#else /* if SENSORS_API_VERSION >= 0x500 */
++# error "This version of libsensors is not supported yet. Please report this " \
++	"as bug."
++#endif
++
++static const char *conffile = SENSORS_CONF_PATH;
+ featurelist_t *first_feature = NULL;
++static ignorelist_t *sensor_list;
++static time_t sensors_config_mtime = 0;
++
++#if SENSORS_API_VERSION < 0x400
++/* full chip name logic borrowed from lm_sensors */
++static int sensors_snprintf_chip_name (char *buf, size_t buf_size,
++		const sensors_chip_name *chip)
++{
++	int status = -1;
++
++	if (chip->bus == SENSORS_CHIP_NAME_BUS_ISA)
++	{
++		status = snprintf (buf, buf_size,
++				"%s-isa-%04x",
++				chip->prefix,
++				chip->addr);
++	}
++	else if (chip->bus == SENSORS_CHIP_NAME_BUS_DUMMY)
++	{
++		snprintf (buf, buf_size, "%s-%s-%04x",
++				chip->prefix,
++				chip->busname,
++				chip->addr);
++	}
++	else
++	{
++		snprintf (buf, buf_size, "%s-i2c-%d-%02x",
++				chip->prefix,
++				chip->bus,
++				chip->addr);
++	}
++
++	return (status);
++} /* int sensors_snprintf_chip_name */
++
++static int sensors_feature_name_to_type (const char *name)
++{
++	int i;
++
++	/* Yes, this is slow, but it's only ever done during initialization, so
++	 * it's a one time cost.. */
++	for (i = 0; i < known_features_num; i++)
++		if (strcasecmp (known_features[i].label, name) == 0)
++			return (known_features[i].type);
++
++	return (SENSOR_TYPE_UNKNOWN);
++} /* int sensors_feature_name_to_type */
++#endif
+ 
+ static int sensors_config (const char *key, const char *value)
+ {
+ 	if (sensor_list == NULL)
+ 		sensor_list = ignorelist_create (1);
+ 
+@@ -200,20 +268,16 @@
+ }
+ 
+ static int sensors_load_conf (void)
+ {
+ 	FILE *fh;
+ 	featurelist_t *last_feature = NULL;
+-	featurelist_t *new_feature = NULL;
+ 	
+ 	const sensors_chip_name *chip;
+ 	int chip_num;
+ 
+-	const sensors_feature_data *data;
+-	int data_num0, data_num1;
+-
+ 	struct stat statbuf;
+ 	int status;
+ 	
+ 	status = stat (conffile, &statbuf);
+ 	if (status != 0)
+ 	{
+@@ -252,71 +316,115 @@
+ 				"Data will not be collected.");
+ 		return (-1);
+ 	}
+ 
+ 	sensors_config_mtime = statbuf.st_mtime;
+ 
++#if SENSORS_API_VERSION < 0x400
+ 	chip_num = 0;
+ 	while ((chip = sensors_get_detected_chips (&chip_num)) != NULL)
+ 	{
+-		data = NULL;
+-		data_num0 = data_num1 = 0;
++		int feature_num0 = 0;
++		int feature_num1 = 0;
+ 
+-		while ((data = sensors_get_all_features (*chip, &data_num0, &data_num1))
+-				!= NULL)
++		while (42)
+ 		{
+-			int i;
++			const sensors_feature_data *feature;
++			int feature_type;
++			featurelist_t *fl;
++
++			feature = sensors_get_all_features (*chip,
++					&feature_num0, &feature_num1);
++
++			/* Check if all features have been read. */
++			if (feature == NULL)
++				break;
+ 
+ 			/* "master features" only */
+-			if (data->mapping != SENSORS_NO_MAPPING)
++			if (feature->mapping != SENSORS_NO_MAPPING)
++				continue;
++
++			/* skip ignored in sensors.conf */
++			if (sensors_get_ignored (*chip, feature->number) == 0)
++				break;
++
++			feature_type = sensors_feature_name_to_type (
++					feature->name);
++			if (feature_type == SENSOR_TYPE_UNKNOWN)
+ 				continue;
+ 
+-			/* Only known features */
+-			for (i = 0; i < known_features_num; i++)
++			fl = (featurelist_t *) malloc (sizeof (featurelist_t));
++			if (fl == NULL)
+ 			{
+-				if (strcmp (data->name, known_features[i].label) != 0)
+-					continue;
++				ERROR ("sensors plugin: malloc failed.");
++				continue;
++			}
++			memset (fl, '\0', sizeof (featurelist_t));
++
++			fl->chip = chip;
++			fl->data = feature;
++			fl->type = feature_type;
++
++			if (first_feature == NULL)
++				first_feature = fl;
++			else
++				last_feature->next = fl;
++			last_feature = fl;
++		} /* while sensors_get_all_features */
++	} /* while sensors_get_detected_chips */
++/* #endif SENSORS_API_VERSION < 0x400 */
++
++#elif (SENSORS_API_VERSION >= 0x400) && (SENSORS_API_VERSION < 0x500)
++	chip_num = 0;
++	while ((chip = sensors_get_detected_chips (NULL, &chip_num)) != NULL)
++	{
++		const sensors_feature *feature;
++		int feature_num = 0;
++
++		while ((feature = sensors_get_features (chip, &feature_num)) != NULL)
++		{
++			const sensors_subfeature *subfeature;
++			int subfeature_num = 0;
+ 
+-				/* skip ignored in sensors.conf */
+-				if (sensors_get_ignored (*chip, data->number) == 0)
+-					break;
+-
+-				DEBUG ("Adding feature: %s-%s-%s",
+-						chip->prefix,
+-						sensor_to_type[known_features[i].type],
+-						data->name);
++			/* Only handle voltage, fanspeeds and temperatures */
++			if ((feature->type != SENSORS_FEATURE_IN)
++					&& (feature->type != SENSORS_FEATURE_FAN)
++					&& (feature->type != SENSORS_FEATURE_TEMP))
++				continue;
++
++			while ((subfeature = sensors_get_all_subfeatures (chip,
++							feature, &subfeature_num)) != NULL)
++			{
++				featurelist_t *fl;
+ 
+-				if ((new_feature = (featurelist_t *) malloc (sizeof (featurelist_t))) == NULL)
++				if ((subfeature->type != SENSORS_SUBFEATURE_IN_INPUT)
++						&& (subfeature->type != SENSORS_SUBFEATURE_FAN_INPUT)
++						&& (subfeature->type != SENSORS_SUBFEATURE_TEMP_INPUT))
++					continue;
++
++				fl = (featurelist_t *) malloc (sizeof (featurelist_t));
++				if (fl == NULL)
+ 				{
+-					char errbuf[1024];
+-					ERROR ("sensors plugin: malloc: %s",
+-							sstrerror (errno, errbuf, sizeof (errbuf)));
+-					break;
++					ERROR ("sensors plugin: malloc failed.");
++					continue;
+ 				}
++				memset (fl, '\0', sizeof (featurelist_t));
+ 
+-				new_feature->chip = chip;
+-				new_feature->data = data;
+-				new_feature->type = known_features[i].type;
+-				new_feature->next = NULL;
++				fl->chip = chip;
++				fl->feature = feature;
++				fl->subfeature = subfeature;
+ 
+ 				if (first_feature == NULL)
+-				{
+-					first_feature = new_feature;
+-					last_feature  = new_feature;
+-				}
++					first_feature = fl;
+ 				else
+-				{
+-					last_feature->next = new_feature;
+-					last_feature = new_feature;
+-				}
+-
+-				/* stop searching known features at first found */
+-				break;
+-			} /* for i */
+-		} /* while sensors_get_all_features */
+-	} /* while sensors_get_detected_chips */
++					last_feature->next = fl;
++				last_feature  = fl;
++			} /* while (subfeature) */
++		} /* while (feature) */
++	} /* while (chip) */
++#endif /* (SENSORS_API_VERSION >= 0x400) && (SENSORS_API_VERSION < 0x500) */
+ 
+ 	if (first_feature == NULL)
+ 	{
+ 		sensors_cleanup ();
+ 		INFO ("sensors plugin: lm_sensors reports no "
+ 				"features. Data will not be collected.");
+@@ -343,13 +451,13 @@
+ 
+ 	value_t values[1];
+ 	value_list_t vl = VALUE_LIST_INIT;
+ 
+ 	status = snprintf (match_key, sizeof (match_key), "%s/%s-%s",
+ 			plugin_instance, type, type_instance);
+-	if ((status < 1) || (status >= sizeof (match_key)))
++	if (status < 1)
+ 		return;
+ 	match_key[sizeof (match_key) - 1] = '\0';
+ 
+ 	if (sensor_list != NULL)
+ 	{
+ 		DEBUG ("sensors plugin: Checking ignorelist for `%s'", match_key);
+@@ -359,71 +467,101 @@
+ 
+ 	values[0].gauge = val;
+ 
+ 	vl.values = values;
+ 	vl.values_len = 1;
+ 	vl.time = time (NULL);
+-	strcpy (vl.host, hostname_g);
+-	strcpy (vl.plugin, "sensors");
+-	strcpy (vl.plugin_instance, plugin_instance);
+-	strcpy (vl.type_instance, type_instance);
++
++	strncpy (vl.host, hostname_g, sizeof (vl.host));
++	vl.host[sizeof (vl.host) - 1] = '\0';
++	strncpy (vl.plugin, "sensors", sizeof (vl.plugin));
++	vl.plugin[sizeof (vl.plugin) - 1] = '\0';
++	strncpy (vl.plugin_instance, plugin_instance,
++			sizeof (vl.plugin_instance));
++	vl.plugin_instance[sizeof (vl.plugin_instance) - 1] = '\0';
++	strncpy (vl.type_instance, type_instance, sizeof (vl.type_instance));
++	vl.type_instance[sizeof (vl.type_instance) - 1] = '\0';
+ 
+ 	plugin_dispatch_values (type, &vl);
+ } /* void sensors_submit */
+ 
+ static int sensors_read (void)
+ {
+-	featurelist_t *feature;
+-	double value;
+-
+-	char plugin_instance[DATA_MAX_NAME_LEN];
+-	char type_instance[DATA_MAX_NAME_LEN];
++	featurelist_t *fl;
+ 
+ 	if (sensors_load_conf () != 0)
+ 		return (-1);
+ 
+-	for (feature = first_feature; feature != NULL; feature = feature->next)
++#if SENSORS_API_VERSION < 0x400
++	for (fl = first_feature; fl != NULL; fl = fl->next)
+ 	{
+-		if (sensors_get_feature (*feature->chip, feature->data->number, &value) < 0)
++		double value;
++		int status;
++		char plugin_instance[DATA_MAX_NAME_LEN];
++		char type_instance[DATA_MAX_NAME_LEN];
++
++		status = sensors_get_feature (*fl->chip,
++				fl->data->number, &value);
++		if (status < 0)
+ 			continue;
+ 
+-		/* full chip name logic borrowed from lm_sensors */
+-		if (feature->chip->bus == SENSORS_CHIP_NAME_BUS_ISA)
+-		{
+-			if (snprintf (plugin_instance, DATA_MAX_NAME_LEN, "%s-isa-%04x",
+-						feature->chip->prefix,
+-						feature->chip->addr)
+-					>= 512)
+-				continue;
+-		}
+-		else if (feature->chip->bus == SENSORS_CHIP_NAME_BUS_DUMMY)
+-		{
+-			if (snprintf (plugin_instance, 512, "%s-%s-%04x",
+-						feature->chip->prefix,
+-						feature->chip->busname,
+-						feature->chip->addr)
+-					>= 512)
+-				continue;
+-		}
+-		else
+-		{
+-			if (snprintf (plugin_instance, 512, "%s-i2c-%d-%02x",
+-						feature->chip->prefix,
+-						feature->chip->bus,
+-						feature->chip->addr)
+-					>= 512)
+-				continue;
+-		}
++		status = sensors_snprintf_chip_name (plugin_instance,
++				sizeof (plugin_instance), fl->chip);
++		if (status < 0)
++			continue;
++		plugin_instance[sizeof (plugin_instance) - 1] = '\0';
+ 
+-		strncpy (type_instance, feature->data->name, DATA_MAX_NAME_LEN);
++		strncpy (type_instance, fl->data->name,
++				sizeof (type_instance));
++		type_instance[sizeof (type_instance) - 1] = '\0';
+ 
+ 		sensors_submit (plugin_instance,
+-				sensor_to_type[feature->type],
++				sensor_type_name_map[fl->type],
+ 				type_instance,
+ 				value);
+-	} /* for feature = first_feature .. NULL */
++	} /* for fl = first_feature .. NULL */
++/* #endif SENSORS_API_VERSION < 0x400 */
++
++#elif (SENSORS_API_VERSION >= 0x400) && (SENSORS_API_VERSION < 0x500)
++	for (fl = first_feature; fl != NULL; fl = fl->next)
++	{
++		double value;
++		int status;
++		char plugin_instance[DATA_MAX_NAME_LEN];
++		char type_instance[DATA_MAX_NAME_LEN];
++		const char *type;
++
++		status = sensors_get_value (fl->chip,
++				fl->subfeature->number, &value);
++		if (status < 0)
++			continue;
++
++		status = sensors_snprintf_chip_name (plugin_instance,
++				sizeof (plugin_instance), fl->chip);
++		if (status < 0)
++			continue;
++		plugin_instance[sizeof (plugin_instance) - 1] = '\0';
++
++		strncpy (type_instance, fl->feature->name,
++				sizeof (type_instance));
++		type_instance[sizeof (type_instance) - 1] = '\0';
++
++		if (fl->feature->type == SENSORS_FEATURE_IN)
++			type = "voltage";
++		else if (fl->feature->type
++				== SENSORS_FEATURE_FAN)
++			type = "fanspeed";
++		else if (fl->feature->type
++				== SENSORS_FEATURE_TEMP)
++			type = "input";
++		else
++			continue;
++
++		sensors_submit (plugin_instance, type, type_instance, value);
++	} /* for fl = first_feature .. NULL */
++#endif /* (SENSORS_API_VERSION >= 0x400) && (SENSORS_API_VERSION < 0x500) */
+ 
+ 	return (0);
+ } /* int sensors_read */
+ 
+ void module_register (void)
+ {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/src/utils_mount.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/utils_mount.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/src/utils_mount.c	2007-11-10 23:15:39.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/src/utils_mount.c	2007-12-29 01:26:59.000000000 +0800
+@@ -380,15 +380,17 @@
+ 	cu_mount_t *last = *list;
+ 	struct tabmntent *p;
+ 	struct mntent *mnt;
+ 
+ 	struct tabmntent *mntlist;
+ 	if(listmntent(&mntlist, COLLECTD_MNTTAB, NULL, NULL) < 0) {
++#if COLLECT_DEBUG
+ 		char errbuf[1024];
+ 		DEBUG("utils_mount: calling listmntent() failed: %s",
+ 				sstrerror (errno, errbuf, sizeof (errbuf)));
++#endif /* COLLECT_DEBUG */
+ 	}
+ 
+ 	for(p = mntlist; p; p = p->next) {
+ 		char *loop = NULL, *device = NULL;
+ 
+ 		mnt = p->ment;
+@@ -451,30 +453,34 @@
+ 	cu_mount_t *last  = NULL;
+ 	cu_mount_t *new   = NULL;
+ 
+ 	/* Get the number of mounted file systems */
+ 	if ((bufsize = CMD_STATFS (NULL, 0, FLAGS_STATFS)) < 1)
+ 	{
++#if COLLECT_DEBUG
+ 		char errbuf[1024];
+ 		DEBUG ("utils_mount: getv?fsstat failed: %s",
+ 				sstrerror (errno, errbuf, sizeof (errbuf)));
++#endif /* COLLECT_DEBUG */
+ 		return (NULL);
+ 	}
+ 
+ 	if ((buf = (STRUCT_STATFS *) malloc (bufsize * sizeof (STRUCT_STATFS)))
+ 			== NULL)
+ 		return (NULL);
+ 	memset (buf, '\0', bufsize * sizeof (STRUCT_STATFS));
+ 
+ 	/* The bufsize needs to be passed in bytes. Really. This is not in the
+ 	 * manpage.. -octo */
+ 	if ((num = CMD_STATFS (buf, bufsize * sizeof (STRUCT_STATFS), FLAGS_STATFS)) < 1)
+ 	{
++#if COLLECT_DEBUG
+ 		char errbuf[1024];
+ 		DEBUG ("utils_mount: getv?fsstat failed: %s",
+ 				sstrerror (errno, errbuf, sizeof (errbuf)));
++#endif /* COLLECT_DEBUG */
+ 		free (buf);
+ 		return (NULL);
+ 	}
+ 
+ 	for (i = 0; i < num; i++)
+ 	{
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/version-gen.sh /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/version-gen.sh
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.2/version-gen.sh	2007-12-15 20:08:58.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.2.3/version-gen.sh	2007-12-29 01:27:31.000000000 +0800
+@@ -1,9 +1,9 @@
+ #!/bin/sh
+ 
+-DEFAULT_VERSION="4.2.2.git"
++DEFAULT_VERSION="4.2.3.git"
+ 
+ VERSION="$( git describe 2> /dev/null | sed -e 's/^collectd-//' )"
+ 
+ if test -z "$VERSION"; then
+ 	VERSION="$DEFAULT_VERSION"
+ fi

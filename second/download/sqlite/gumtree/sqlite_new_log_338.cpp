@@ -1,1 +1,0 @@
-checkAppendMsg(pCheck, "Child page depth differs");

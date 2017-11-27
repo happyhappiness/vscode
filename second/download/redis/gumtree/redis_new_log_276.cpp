@@ -1,1 +1,0 @@
-fprintf(stderr, "Failed to allocate memory for largest key names!");
