@@ -1,0 +1,26 @@
+int meta_data_get_unsigned_int(meta_data_t *md, /* {{{ */
+                               const char *key, uint64_t *value) {
+  meta_entry_t *e;
+
+  if ((md == NULL) || (key == NULL) || (value == NULL))
+    return (-EINVAL);
+
+  pthread_mutex_lock(&md->lock);
+
+  e = md_entry_lookup(md, key);
+  if (e == NULL) {
+    pthread_mutex_unlock(&md->lock);
+    return (-ENOENT);
+  }
+
+  if (e->type != MD_TYPE_UNSIGNED_INT) {
+    ERROR("meta_data_get_unsigned_int: Type mismatch for key `%s'", e->key);
+    pthread_mutex_unlock(&md->lock);
+    return (-ENOENT);
+  }
+
+  *value = e->value.mv_unsigned_int;
+
+  pthread_mutex_unlock(&md->lock);
+  return (0);
+}

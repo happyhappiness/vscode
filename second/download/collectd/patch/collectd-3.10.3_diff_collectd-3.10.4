@@ -1,0 +1,3591 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.3/ChangeLog /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.4/ChangeLog
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.3/ChangeLog	2006-11-04 20:52:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.4/ChangeLog	2006-12-22 03:56:53.000000000 +0800
+@@ -1,6 +1,11 @@
++2006-12-21, Version 3.10.4
++	* Max Kellermann has identified a bug in the server routine: When
++	  opening a socket fails the daemon will (re)try opening the socket in
++	  an endless loop, ultimately leading to a `EMFILE' error.
++
+ 2006-11-04, Version 3.10.3
+ 	* Lubos Stanek has identified a bug in the ntpd-plugin: When the
+ 	  ntpd's reply was sent in more than one packet, the buffer size was
+ 	  calculated incorrectly, resulting in the reading of uninitialized or
+ 	  freed memory.
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.3/config.guess /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.4/config.guess
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.3/config.guess	2006-11-04 20:52:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.4/config.guess	2006-12-22 03:56:53.000000000 +0800
+@@ -1,12 +1,13 @@
+ #! /bin/sh
+ # Attempt to guess a canonical system name.
+ #   Copyright (C) 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
+-#   2000, 2001, 2002, 2003, 2004, 2005 Free Software Foundation, Inc.
++#   2000, 2001, 2002, 2003, 2004, 2005, 2006 Free Software Foundation,
++#   Inc.
+ 
+-timestamp='2006-02-23'
++timestamp='2006-07-02'
+ 
+ # This file is free software; you can redistribute it and/or modify it
+ # under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 2 of the License, or
+ # (at your option) any later version.
+ #
+@@ -207,13 +208,13 @@
+ 	echo ${UNAME_MACHINE}-unknown-ekkobsd${UNAME_RELEASE}
+ 	exit ;;
+     *:SolidBSD:*:*)
+ 	echo ${UNAME_MACHINE}-unknown-solidbsd${UNAME_RELEASE}
+ 	exit ;;
+     macppc:MirBSD:*:*)
+-	echo powerppc-unknown-mirbsd${UNAME_RELEASE}
++	echo powerpc-unknown-mirbsd${UNAME_RELEASE}
+ 	exit ;;
+     *:MirBSD:*:*)
+ 	echo ${UNAME_MACHINE}-unknown-mirbsd${UNAME_RELEASE}
+ 	exit ;;
+     alpha:OSF1:*:*)
+ 	case $UNAME_RELEASE in
+@@ -767,36 +768,35 @@
+ 	echo ${UNAME_MACHINE}-unknown-bsdi${UNAME_RELEASE}
+ 	exit ;;
+     *:FreeBSD:*:*)
+ 	case ${UNAME_MACHINE} in
+ 	    pc98)
+ 		echo i386-unknown-freebsd`echo ${UNAME_RELEASE}|sed -e 's/[-(].*//'` ;;
++	    amd64)
++		echo x86_64-unknown-freebsd`echo ${UNAME_RELEASE}|sed -e 's/[-(].*//'` ;;
+ 	    *)
+ 		echo ${UNAME_MACHINE}-unknown-freebsd`echo ${UNAME_RELEASE}|sed -e 's/[-(].*//'` ;;
+ 	esac
+ 	exit ;;
+     i*:CYGWIN*:*)
+ 	echo ${UNAME_MACHINE}-pc-cygwin
+ 	exit ;;
+     i*:MINGW*:*)
+ 	echo ${UNAME_MACHINE}-pc-mingw32
+ 	exit ;;
+-    i*:MSYS_NT-*:*:*)
+-	echo ${UNAME_MACHINE}-pc-mingw32
+-	exit ;;
+     i*:windows32*:*)
+     	# uname -m includes "-pc" on this system.
+     	echo ${UNAME_MACHINE}-mingw32
+ 	exit ;;
+     i*:PW*:*)
+ 	echo ${UNAME_MACHINE}-pc-pw32
+ 	exit ;;
+-    x86:Interix*:[345]*)
++    x86:Interix*:[3456]*)
+ 	echo i586-pc-interix${UNAME_RELEASE}
+ 	exit ;;
+-    EM64T:Interix*:[345]*)
++    EM64T:Interix*:[3456]*)
+ 	echo x86_64-unknown-interix${UNAME_RELEASE}
+ 	exit ;;
+     [345]86:Windows_95:* | [345]86:Windows_98:* | [345]86:Windows_NT:*)
+ 	echo i${UNAME_MACHINE}-pc-mks
+ 	exit ;;
+     i*:Windows_NT*:* | Pentium*:Windows_NT*:*)
+@@ -828,12 +828,15 @@
+     i*86:Minix:*:*)
+ 	echo ${UNAME_MACHINE}-pc-minix
+ 	exit ;;
+     arm*:Linux:*:*)
+ 	echo ${UNAME_MACHINE}-unknown-linux-gnu
+ 	exit ;;
++    avr32*:Linux:*:*)
++	echo ${UNAME_MACHINE}-unknown-linux-gnu
++	exit ;;
+     cris:Linux:*:*)
+ 	echo cris-axis-linux-gnu
+ 	exit ;;
+     crisv32:Linux:*:*)
+ 	echo crisv32-axis-linux-gnu
+ 	exit ;;
+@@ -986,13 +989,13 @@
+ 	LIBC=gnulibc1
+ 	#  endif
+ 	# else
+ 	LIBC=gnulibc1
+ 	# endif
+ 	#else
+-	#if defined(__INTEL_COMPILER) || defined(__PGI) || defined(__sun)
++	#if defined(__INTEL_COMPILER) || defined(__PGI) || defined(__SUNPRO_C) || defined(__SUNPRO_CC)
+ 	LIBC=gnu
+ 	#else
+ 	LIBC=gnuaout
+ 	#endif
+ 	#endif
+ 	#ifdef __dietlibc__
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.3/config.sub /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.4/config.sub
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.3/config.sub	2006-11-04 20:52:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.4/config.sub	2006-12-22 03:56:54.000000000 +0800
+@@ -1,12 +1,13 @@
+ #! /bin/sh
+ # Configuration validation subroutine script.
+ #   Copyright (C) 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
+-#   2000, 2001, 2002, 2003, 2004, 2005 Free Software Foundation, Inc.
++#   2000, 2001, 2002, 2003, 2004, 2005, 2006 Free Software Foundation,
++#   Inc.
+ 
+-timestamp='2006-02-23'
++timestamp='2006-09-20'
+ 
+ # This file is (in principle) common to ALL GNU software.
+ # The presence of a machine in this file suggests that SOME GNU software
+ # can handle that machine.  It does not imply ALL GNU software can.
+ #
+ # This file is free software; you can redistribute it and/or modify
+@@ -237,21 +238,22 @@
+ 	# Some are omitted here because they have special meanings below.
+ 	1750a | 580 \
+ 	| a29k \
+ 	| alpha | alphaev[4-8] | alphaev56 | alphaev6[78] | alphapca5[67] \
+ 	| alpha64 | alpha64ev[4-8] | alpha64ev56 | alpha64ev6[78] | alpha64pca5[67] \
+ 	| am33_2.0 \
+-	| arc | arm | arm[bl]e | arme[lb] | armv[2345] | armv[345][lb] | avr \
++	| arc | arm | arm[bl]e | arme[lb] | armv[2345] | armv[345][lb] | avr | avr32 \
+ 	| bfin \
+ 	| c4x | clipper \
+ 	| d10v | d30v | dlx | dsp16xx \
+ 	| fr30 | frv \
+ 	| h8300 | h8500 | hppa | hppa1.[01] | hppa2.0 | hppa2.0[nw] | hppa64 \
+ 	| i370 | i860 | i960 | ia64 \
+ 	| ip2k | iq2000 \
+-	| m32r | m32rle | m68000 | m68k | m88k | maxq | mb | microblaze | mcore \
++	| m32c | m32r | m32rle | m68000 | m68k | m88k \
++	| maxq | mb | microblaze | mcore \
+ 	| mips | mipsbe | mipseb | mipsel | mipsle \
+ 	| mips16 \
+ 	| mips64 | mips64el \
+ 	| mips64vr | mips64vrel \
+ 	| mips64orion | mips64orionel \
+ 	| mips64vr4100 | mips64vr4100el \
+@@ -271,27 +273,25 @@
+ 	| nios | nios2 \
+ 	| ns16k | ns32k \
+ 	| or32 \
+ 	| pdp10 | pdp11 | pj | pjl \
+ 	| powerpc | powerpc64 | powerpc64le | powerpcle | ppcbe \
+ 	| pyramid \
+-	| sh | sh[1234] | sh[24]a | sh[23]e | sh[34]eb | shbe | shle | sh[1234]le | sh3ele \
++	| score \
++	| sh | sh[1234] | sh[24]a | sh[23]e | sh[34]eb | sheb | shbe | shle | sh[1234]le | sh3ele \
+ 	| sh64 | sh64le \
+-	| sparc | sparc64 | sparc64b | sparc86x | sparclet | sparclite \
+-	| sparcv8 | sparcv9 | sparcv9b \
+-	| strongarm \
++	| sparc | sparc64 | sparc64b | sparc64v | sparc86x | sparclet | sparclite \
++	| sparcv8 | sparcv9 | sparcv9b | sparcv9v \
++	| spu | strongarm \
+ 	| tahoe | thumb | tic4x | tic80 | tron \
+ 	| v850 | v850e \
+ 	| we32k \
+-	| x86 | xscale | xscalee[bl] | xstormy16 | xtensa \
++	| x86 | xc16x | xscale | xscalee[bl] | xstormy16 | xtensa \
+ 	| z8k)
+ 		basic_machine=$basic_machine-unknown
+ 		;;
+-	m32c)
+-		basic_machine=$basic_machine-unknown
+-		;;
+ 	m6811 | m68hc11 | m6812 | m68hc12)
+ 		# Motorola 68HC11/12.
+ 		basic_machine=$basic_machine-unknown
+ 		os=-none
+ 		;;
+ 	m88110 | m680[12346]0 | m683?2 | m68360 | m5200 | v70 | w65 | z8k)
+@@ -315,24 +315,24 @@
+ 	580-* \
+ 	| a29k-* \
+ 	| alpha-* | alphaev[4-8]-* | alphaev56-* | alphaev6[78]-* \
+ 	| alpha64-* | alpha64ev[4-8]-* | alpha64ev56-* | alpha64ev6[78]-* \
+ 	| alphapca5[67]-* | alpha64pca5[67]-* | arc-* \
+ 	| arm-*  | armbe-* | armle-* | armeb-* | armv*-* \
+-	| avr-* \
++	| avr-* | avr32-* \
+ 	| bfin-* | bs2000-* \
+ 	| c[123]* | c30-* | [cjt]90-* | c4x-* | c54x-* | c55x-* | c6x-* \
+ 	| clipper-* | craynv-* | cydra-* \
+ 	| d10v-* | d30v-* | dlx-* \
+ 	| elxsi-* \
+ 	| f30[01]-* | f700-* | fr30-* | frv-* | fx80-* \
+ 	| h8300-* | h8500-* \
+ 	| hppa-* | hppa1.[01]-* | hppa2.0-* | hppa2.0[nw]-* | hppa64-* \
+ 	| i*86-* | i860-* | i960-* | ia64-* \
+ 	| ip2k-* | iq2000-* \
+-	| m32r-* | m32rle-* \
++	| m32c-* | m32r-* | m32rle-* \
+ 	| m68000-* | m680[012346]0-* | m68360-* | m683?2-* | m68k-* \
+ 	| m88110-* | m88k-* | maxq-* | mcore-* \
+ 	| mips-* | mipsbe-* | mipseb-* | mipsel-* | mipsle-* \
+ 	| mips16-* \
+ 	| mips64-* | mips64el-* \
+ 	| mips64vr-* | mips64vrel-* \
+@@ -355,29 +355,27 @@
+ 	| none-* | np1-* | ns16k-* | ns32k-* \
+ 	| orion-* \
+ 	| pdp10-* | pdp11-* | pj-* | pjl-* | pn-* | power-* \
+ 	| powerpc-* | powerpc64-* | powerpc64le-* | powerpcle-* | ppcbe-* \
+ 	| pyramid-* \
+ 	| romp-* | rs6000-* \
+-	| sh-* | sh[1234]-* | sh[24]a-* | sh[23]e-* | sh[34]eb-* | shbe-* \
++	| sh-* | sh[1234]-* | sh[24]a-* | sh[23]e-* | sh[34]eb-* | sheb-* | shbe-* \
+ 	| shle-* | sh[1234]le-* | sh3ele-* | sh64-* | sh64le-* \
+-	| sparc-* | sparc64-* | sparc64b-* | sparc86x-* | sparclet-* \
++	| sparc-* | sparc64-* | sparc64b-* | sparc64v-* | sparc86x-* | sparclet-* \
+ 	| sparclite-* \
+-	| sparcv8-* | sparcv9-* | sparcv9b-* | strongarm-* | sv1-* | sx?-* \
++	| sparcv8-* | sparcv9-* | sparcv9b-* | sparcv9v-* | strongarm-* | sv1-* | sx?-* \
+ 	| tahoe-* | thumb-* \
+ 	| tic30-* | tic4x-* | tic54x-* | tic55x-* | tic6x-* | tic80-* \
+ 	| tron-* \
+ 	| v850-* | v850e-* | vax-* \
+ 	| we32k-* \
+-	| x86-* | x86_64-* | xps100-* | xscale-* | xscalee[bl]-* \
++	| x86-* | x86_64-* | xc16x-* | xps100-* | xscale-* | xscalee[bl]-* \
+ 	| xstormy16-* | xtensa-* \
+ 	| ymp-* \
+ 	| z8k-*)
+ 		;;
+-	m32c-*)
+-		;;
+ 	# Recognize the various machine names and aliases which stand
+ 	# for a CPU type and a company and sometimes even an OS.
+ 	386bsd)
+ 		basic_machine=i386-unknown
+ 		os=-bsd
+ 		;;
+@@ -909,12 +907,16 @@
+ 	sb1)
+ 		basic_machine=mipsisa64sb1-unknown
+ 		;;
+ 	sb1el)
+ 		basic_machine=mipsisa64sb1el-unknown
+ 		;;
++	sde)
++		basic_machine=mipsisa32-sde
++		os=-elf
++		;;
+ 	sei)
+ 		basic_machine=mips-sei
+ 		os=-seiux
+ 		;;
+ 	sequent)
+ 		basic_machine=i386-sequent
+@@ -1125,13 +1127,13 @@
+ 	we32k)
+ 		basic_machine=we32k-att
+ 		;;
+ 	sh[1234] | sh[24]a | sh[34]eb | sh[1234]le | sh[23]ele)
+ 		basic_machine=sh-unknown
+ 		;;
+-	sparc | sparcv8 | sparcv9 | sparcv9b)
++	sparc | sparcv8 | sparcv9 | sparcv9b | sparcv9v)
+ 		basic_machine=sparc-sun
+ 		;;
+ 	cydra)
+ 		basic_machine=cydra-cydrome
+ 		;;
+ 	orion)
+@@ -1214,13 +1216,13 @@
+ 	      | -interix* | -uwin* | -mks* | -rhapsody* | -darwin* | -opened* \
+ 	      | -openstep* | -oskit* | -conix* | -pw32* | -nonstopux* \
+ 	      | -storm-chaos* | -tops10* | -tenex* | -tops20* | -its* \
+ 	      | -os2* | -vos* | -palmos* | -uclinux* | -nucleus* \
+ 	      | -morphos* | -superux* | -rtmk* | -rtmk-nova* | -windiss* \
+ 	      | -powermax* | -dnix* | -nx6 | -nx7 | -sei* | -dragonfly* \
+-	      | -skyos* | -haiku* | -rdos*)
++	      | -skyos* | -haiku* | -rdos* | -toppers*)
+ 	# Remember, each alternative MUST END IN *, to match a version number.
+ 		;;
+ 	-qnx*)
+ 		case $basic_machine in
+ 		    x86-* | i*86-*)
+ 			;;
+@@ -1366,24 +1368,30 @@
+ # "-sun"), then you have to tell the case statement up towards the top
+ # that MANUFACTURER isn't an operating system.  Otherwise, code above
+ # will signal an error saying that MANUFACTURER isn't an operating
+ # system, and we'll never get to this point.
+ 
+ case $basic_machine in
++        score-*)
++		os=-elf
++		;;
++        spu-*)
++		os=-elf
++		;;
+ 	*-acorn)
+ 		os=-riscix1.2
+ 		;;
+ 	arm*-rebel)
+ 		os=-linux
+ 		;;
+ 	arm*-semi)
+ 		os=-aout
+ 		;;
+-    c4x-* | tic4x-*)
+-        os=-coff
+-        ;;
++        c4x-* | tic4x-*)
++        	os=-coff
++		;;
+ 	# This must come before the *-dec entry.
+ 	pdp10-*)
+ 		os=-tops20
+ 		;;
+ 	pdp11-*)
+ 		os=-none
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.3/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.4/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.3/configure	2006-11-04 20:52:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.4/configure	2006-12-22 03:56:53.000000000 +0800
+@@ -1,9 +1,9 @@
+ #! /bin/sh
+ # Guess values for system-dependent variables and create Makefiles.
+-# Generated by GNU Autoconf 2.59d for collectd 3.10.3.
++# Generated by GNU Autoconf 2.60a for collectd 3.10.4.
+ #
+ # Copyright (C) 1992, 1993, 1994, 1995, 1996, 1998, 1999, 2000, 2001,
+ # 2002, 2003, 2004, 2005, 2006 Free Software Foundation, Inc.
+ # This configure script is free software; the Free Software Foundation
+ # gives unlimited permission to copy, distribute and modify it.
+ ## --------------------- ##
+@@ -227,14 +227,14 @@
+        esac
+ done
+ IFS=$as_save_IFS
+ 
+ 
+       for as_shell in $as_candidate_shells $SHELL; do
+-	 # Try only shells which exist, to save several forks.
+-	 if test -f "$as_shell" &&
++	 # Try only shells that exist, to save several forks.
++	 if { test -f "$as_shell" || test -f "$as_shell.exe"; } &&
+ 		{ ("$as_shell") 2> /dev/null <<\_ASEOF
+ # Be Bourne compatible
+ if test -n "${ZSH_VERSION+set}" && (emulate sh) >/dev/null 2>&1; then
+   emulate sh
+   NULLCMD=:
+   # Zsh 3.x and 4.x performs word splitting on ${1+"$@"}, which
+@@ -708,51 +708,51 @@
+ MAKEFLAGS=
+ SHELL=${CONFIG_SHELL-/bin/sh}
+ 
+ # Identity of this package.
+ PACKAGE_NAME='collectd'
+ PACKAGE_TARNAME='collectd'
+-PACKAGE_VERSION='3.10.3'
+-PACKAGE_STRING='collectd 3.10.3'
++PACKAGE_VERSION='3.10.4'
++PACKAGE_STRING='collectd 3.10.4'
+ PACKAGE_BUGREPORT=''
+ 
+ ac_unique_file="src/collectd.c"
+ ac_default_prefix="/opt/collectd"
+ # Factoring default headers for most tests.
+ ac_includes_default="\
+ #include <stdio.h>
+-#if HAVE_SYS_TYPES_H
++#ifdef HAVE_SYS_TYPES_H
+ # include <sys/types.h>
+ #endif
+-#if HAVE_SYS_STAT_H
++#ifdef HAVE_SYS_STAT_H
+ # include <sys/stat.h>
+ #endif
+-#if STDC_HEADERS
++#ifdef STDC_HEADERS
+ # include <stdlib.h>
+ # include <stddef.h>
+ #else
+-# if HAVE_STDLIB_H
++# ifdef HAVE_STDLIB_H
+ #  include <stdlib.h>
+ # endif
+ #endif
+-#if HAVE_STRING_H
+-# if !STDC_HEADERS && HAVE_MEMORY_H
++#ifdef HAVE_STRING_H
++# if !defined STDC_HEADERS && defined HAVE_MEMORY_H
+ #  include <memory.h>
+ # endif
+ # include <string.h>
+ #endif
+-#if HAVE_STRINGS_H
++#ifdef HAVE_STRINGS_H
+ # include <strings.h>
+ #endif
+-#if HAVE_INTTYPES_H
++#ifdef HAVE_INTTYPES_H
+ # include <inttypes.h>
+ #endif
+-#if HAVE_STDINT_H
++#ifdef HAVE_STDINT_H
+ # include <stdint.h>
+ #endif
+-#if HAVE_UNISTD_H
++#ifdef HAVE_UNISTD_H
+ # include <unistd.h>
+ #endif"
+ 
+ ac_subst_vars='SHELL
+ PATH_SEPARATOR
+ PACKAGE_NAME
+@@ -1461,13 +1461,13 @@
+ # Report the --help message.
+ #
+ if test "$ac_init_help" = "long"; then
+   # Omit some internal or obsolete options to make the list less imposing.
+   # This message is too long to be a string in the A/UX 3.1 sh.
+   cat <<_ACEOF
+-\`configure' configures collectd 3.10.3 to adapt to many kinds of systems.
++\`configure' configures collectd 3.10.4 to adapt to many kinds of systems.
+ 
+ Usage: $0 [OPTION]... [VAR=VALUE]...
+ 
+ To assign environment variables (e.g., CC, CFLAGS...), specify them as
+ VAR=VALUE.  See below for descriptions of some of the useful variables.
+ 
+@@ -1531,13 +1531,13 @@
+   --host=HOST       cross-compile to build programs to run on HOST [BUILD]
+ _ACEOF
+ fi
+ 
+ if test -n "$ac_init_help"; then
+   case $ac_init_help in
+-     short | recursive ) echo "Configuration of collectd 3.10.3:";;
++     short | recursive ) echo "Configuration of collectd 3.10.4:";;
+    esac
+   cat <<\_ACEOF
+ 
+ Optional Features:
+   --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
+   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
+@@ -1680,28 +1680,28 @@
+   done
+ fi
+ 
+ test -n "$ac_init_help" && exit $ac_status
+ if $ac_init_version; then
+   cat <<\_ACEOF
+-collectd configure 3.10.3
+-generated by GNU Autoconf 2.59d
++collectd configure 3.10.4
++generated by GNU Autoconf 2.60a
+ 
+ Copyright (C) 1992, 1993, 1994, 1995, 1996, 1998, 1999, 2000, 2001,
+ 2002, 2003, 2004, 2005, 2006 Free Software Foundation, Inc.
+ This configure script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it.
+ _ACEOF
+   exit
+ fi
+ cat >config.log <<_ACEOF
+ This file contains any messages produced by compilers while
+ running configure, to aid debugging if configure makes a mistake.
+ 
+-It was created by collectd $as_me 3.10.3, which was
+-generated by GNU Autoconf 2.59d.  Invocation command line was
++It was created by collectd $as_me 3.10.4, which was
++generated by GNU Autoconf 2.60a.  Invocation command line was
+ 
+   $ $0 $@
+ 
+ _ACEOF
+ exec 5>>config.log
+ {
+@@ -2310,13 +2310,13 @@
+ 
+   test -n "$AWK" && break
+ done
+ 
+ { echo "$as_me:$LINENO: checking whether ${MAKE-make} sets \$(MAKE)" >&5
+ echo $ECHO_N "checking whether ${MAKE-make} sets \$(MAKE)... $ECHO_C" >&6; }
+-set x ${MAKE-make}; ac_make=`echo "$2" | sed 's/+/p/g; s/^a-zA-Z0-9_/_/g'`
++set x ${MAKE-make}; ac_make=`echo "$2" | sed 's/+/p/g; s/[^a-zA-Z0-9_]/_/g'`
+ if { as_var=ac_cv_prog_make_${ac_make}_set; eval "test \"\${$as_var+set}\" = set"; }; then
+   echo $ECHO_N "(cached) $ECHO_C" >&6
+ else
+   cat >conftest.make <<\_ACEOF
+ SHELL = /bin/sh
+ all:
+@@ -2367,13 +2367,13 @@
+   fi
+ fi
+ 
+ 
+ # Define the identity of the package.
+  PACKAGE='collectd'
+- VERSION='3.10.3'
++ VERSION='3.10.4'
+ 
+ 
+ cat >>confdefs.h <<_ACEOF
+ #define PACKAGE "$PACKAGE"
+ _ACEOF
+ 
+@@ -2928,13 +2928,13 @@
+   (exit $ac_status); }; then
+   # Autoconf-2.13 could set the ac_cv_exeext variable to `no'.
+ # So ignore a value of `no', otherwise this would lead to `EXEEXT = no'
+ # in a Makefile.  We should not override ac_cv_exeext if it was cached,
+ # so that the user can short-circuit this test for compilers unknown to
+ # Autoconf.
+-for ac_file in $ac_files
++for ac_file in $ac_files ''
+ do
+   test -f "$ac_file" || continue
+   case $ac_file in
+     *.$ac_ext | *.xcoff | *.tds | *.d | *.pdb | *.xSYM | *.bb | *.bbg | *.map | *.inf | *.o | *.obj )
+ 	;;
+     [ab].out )
+@@ -2956,25 +2956,29 @@
+ 	break;;
+   esac
+ done
+ test "$ac_cv_exeext" = no && ac_cv_exeext=
+ 
+ else
++  ac_file=''
++fi
++
++{ echo "$as_me:$LINENO: result: $ac_file" >&5
++echo "${ECHO_T}$ac_file" >&6; }
++if test -z "$ac_file"; then
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ { { echo "$as_me:$LINENO: error: C compiler cannot create executables
+ See \`config.log' for more details." >&5
+ echo "$as_me: error: C compiler cannot create executables
+ See \`config.log' for more details." >&2;}
+    { (exit 77); exit 77; }; }
+ fi
+ 
+ ac_exeext=$ac_cv_exeext
+-{ echo "$as_me:$LINENO: result: $ac_file" >&5
+-echo "${ECHO_T}$ac_file" >&6; }
+ 
+ # Check that the compiler produces executables we can run.  If not, either
+ # the compiler is broken, or we cross compile.
+ { echo "$as_me:$LINENO: checking whether the C compiler works" >&5
+ echo $ECHO_N "checking whether the C compiler works... $ECHO_C" >&6; }
+ # FIXME: These cross compiler hacks should be removed for Autoconf 3.0
+@@ -3175,13 +3179,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_compiler_gnu=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ ac_cv_c_compiler_gnu=$ac_compiler_gnu
+ 
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_c_compiler_gnu" >&5
+ echo "${ECHO_T}$ac_cv_c_compiler_gnu" >&6; }
+ GCC=`test $ac_compiler_gnu = yes && echo yes`
+@@ -3361,19 +3365,19 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+    ac_c_werror_flag=$ac_save_c_werror_flag
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_prog_cc_g" >&5
+ echo "${ECHO_T}$ac_cv_prog_cc_g" >&6; }
+ if test "$ac_test_CFLAGS" = set; then
+   CFLAGS=$ac_save_CFLAGS
+@@ -3432,12 +3436,17 @@
+    as 'x'.  The following induces an error, until -std is added to get
+    proper ANSI mode.  Curiously '\x00'!='x' always comes out true, for an
+    array size at least.  It's necessary to write '\x00'==0 to get something
+    that's true only with -std.  */
+ int osf4_cc_array ['\x00' == 0 ? 1 : -1];
+ 
++/* IBM C 6 for AIX is almost-ANSI by default, but it replaces macro parameters
++   inside strings and character constants.  */
++#define FOO(x) 'x'
++int xlc6_cc_array[FOO(a) == 'x' ? 1 : -1];
++
+ int test (int i, double x);
+ struct s1 {int (*f) (int a);};
+ struct s2 {int (*f) (double a);};
+ int pairnames (int, char **, FILE *(*)(struct buf *, struct stat *, int), int, int);
+ int argc;
+ char **argv;
+@@ -3492,13 +3501,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext
++rm -f core conftest.err conftest.$ac_objext
+   test "x$ac_cv_prog_cc_c89" != "xno" && break
+ done
+ rm -f conftest.$ac_ext
+ CC=$ac_save_CC
+ 
+ fi
+@@ -4045,13 +4054,13 @@
+   { echo "$as_me:$LINENO: result: no, using $LN_S" >&5
+ echo "${ECHO_T}no, using $LN_S" >&6; }
+ fi
+ 
+ { echo "$as_me:$LINENO: checking whether ${MAKE-make} sets \$(MAKE)" >&5
+ echo $ECHO_N "checking whether ${MAKE-make} sets \$(MAKE)... $ECHO_C" >&6; }
+-set x ${MAKE-make}; ac_make=`echo "$2" | sed 's/+/p/g; s/^a-zA-Z0-9_/_/g'`
++set x ${MAKE-make}; ac_make=`echo "$2" | sed 's/+/p/g; s/[^a-zA-Z0-9_]/_/g'`
+ if { as_var=ac_cv_prog_make_${ac_make}_set; eval "test \"\${$as_var+set}\" = set"; }; then
+   echo $ECHO_N "(cached) $ECHO_C" >&6
+ else
+   cat >conftest.make <<\_ACEOF
+ SHELL = /bin/sh
+ all:
+@@ -4886,13 +4895,13 @@
+     esac
+   fi
+   rm -rf conftest*
+   ;;
+ *-*-irix6*)
+   # Find out which ABI we are using.
+-  echo '#line 4892 "configure"' > conftest.$ac_ext
++  echo '#line 4901 "configure"' > conftest.$ac_ext
+   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+   (eval $ac_compile) 2>&5
+   ac_status=$?
+   echo "$as_me:$LINENO: \$? = $ac_status" >&5
+   (exit $ac_status); }; then
+    if test "$lt_cv_prog_gnu_ld" = yes; then
+@@ -5039,13 +5048,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	lt_cv_cc_needs_belf=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+      ac_ext=c
+ ac_cpp='$CPP $CPPFLAGS'
+ ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
+ ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
+ ac_compiler_gnu=$ac_cv_c_compiler_gnu
+@@ -5148,13 +5157,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_header_stdc=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ 
+ if test $ac_cv_header_stdc = yes; then
+   # SunOS 4.x string.h does not declare mem*, contrary to ANSI.
+   cat >conftest.$ac_ext <<_ACEOF
+ /* confdefs.h.  */
+ _ACEOF
+@@ -5344,13 +5353,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_Header=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_Header'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_Header'}'` = yes; then
+   cat >>confdefs.h <<_ACEOF
+@@ -5427,13 +5436,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -5737,13 +5746,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_compiler_gnu=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ ac_cv_cxx_compiler_gnu=$ac_compiler_gnu
+ 
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_cxx_compiler_gnu" >&5
+ echo "${ECHO_T}$ac_cv_cxx_compiler_gnu" >&6; }
+ GXX=`test $ac_compiler_gnu = yes && echo yes`
+@@ -5923,19 +5932,19 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+    ac_cxx_werror_flag=$ac_save_cxx_werror_flag
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_prog_cxx_g" >&5
+ echo "${ECHO_T}$ac_cv_prog_cxx_g" >&6; }
+ if test "$ac_test_CXXFLAGS" = set; then
+   CXXFLAGS=$ac_save_CXXFLAGS
+@@ -6529,13 +6538,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_compiler_gnu=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ ac_cv_f77_compiler_gnu=$ac_compiler_gnu
+ 
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_f77_compiler_gnu" >&5
+ echo "${ECHO_T}$ac_cv_f77_compiler_gnu" >&6; }
+ ac_ext=$ac_save_ext
+@@ -6592,13 +6601,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_prog_f77_g=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ 
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_prog_f77_g" >&5
+ echo "${ECHO_T}$ac_cv_prog_f77_g" >&6; }
+ if test "$ac_test_FFLAGS" = set; then
+   FFLAGS=$ac_save_FFLAGS
+@@ -7587,17 +7596,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:7593: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:7602: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:7597: \$? = $ac_status" >&5
++   echo "$as_me:7606: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -7855,17 +7864,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:7861: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:7870: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:7865: \$? = $ac_status" >&5
++   echo "$as_me:7874: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -7959,17 +7968,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:7965: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:7974: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:7969: \$? = $ac_status" >&5
++   echo "$as_me:7978: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -8474,13 +8483,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ if test -z "$aix_libpath"; then aix_libpath="/usr/lib:/lib"; fi
+ 
+        hardcode_libdir_flag_spec='${wl}-blibpath:$libdir:'"$aix_libpath"
+ 	archive_expsym_cmds="\$CC"' -o $output_objdir/$soname $libobjs $deplibs '"\${wl}$no_entry_flag"' $compiler_flags `if test "x${allow_undefined_flag}" != "x"; then echo "${wl}${allow_undefined_flag}"; else :; fi` '"\${wl}$exp_sym_flag:\$export_symbols $shared_flag"
+        else
+@@ -8549,13 +8558,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ if test -z "$aix_libpath"; then aix_libpath="/usr/lib:/lib"; fi
+ 
+ 	 hardcode_libdir_flag_spec='${wl}-blibpath:$libdir:'"$aix_libpath"
+ 	  # Warning - without using the other run time loading flags,
+ 	  # -berok will link without error, but may produce a broken library.
+@@ -9814,13 +9823,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_lib_dl_dlopen=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_lib_dl_dlopen" >&5
+ echo "${ECHO_T}$ac_cv_lib_dl_dlopen" >&6; }
+ if test $ac_cv_lib_dl_dlopen = yes; then
+@@ -9925,13 +9934,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_func_shl_load=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_func_shl_load" >&5
+ echo "${ECHO_T}$ac_cv_func_shl_load" >&6; }
+ if test $ac_cv_func_shl_load = yes; then
+   lt_cv_dlopen="shl_load"
+@@ -10004,13 +10013,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_lib_dld_shl_load=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_lib_dld_shl_load" >&5
+ echo "${ECHO_T}$ac_cv_lib_dld_shl_load" >&6; }
+ if test $ac_cv_lib_dld_shl_load = yes; then
+@@ -10105,13 +10114,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_func_dlopen=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_func_dlopen" >&5
+ echo "${ECHO_T}$ac_cv_func_dlopen" >&6; }
+ if test $ac_cv_func_dlopen = yes; then
+   lt_cv_dlopen="dlopen"
+@@ -10184,13 +10193,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_lib_dl_dlopen=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_lib_dl_dlopen" >&5
+ echo "${ECHO_T}$ac_cv_lib_dl_dlopen" >&6; }
+ if test $ac_cv_lib_dl_dlopen = yes; then
+@@ -10264,13 +10273,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_lib_svld_dlopen=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_lib_svld_dlopen" >&5
+ echo "${ECHO_T}$ac_cv_lib_svld_dlopen" >&6; }
+ if test $ac_cv_lib_svld_dlopen = yes; then
+@@ -10344,13 +10353,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_lib_dld_dld_link=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_lib_dld_dld_link" >&5
+ echo "${ECHO_T}$ac_cv_lib_dld_dld_link" >&6; }
+ if test $ac_cv_lib_dld_dld_link = yes; then
+@@ -10400,13 +10409,13 @@
+   	  if test "$cross_compiling" = yes; then :
+   lt_cv_dlopen_self=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 10406 "configure"
++#line 10415 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -10500,13 +10509,13 @@
+   	  if test "$cross_compiling" = yes; then :
+   lt_cv_dlopen_self_static=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 10506 "configure"
++#line 10515 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -11621,13 +11630,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ if test -z "$aix_libpath"; then aix_libpath="/usr/lib:/lib"; fi
+ 
+       hardcode_libdir_flag_spec_CXX='${wl}-blibpath:$libdir:'"$aix_libpath"
+ 
+       archive_expsym_cmds_CXX="\$CC"' -o $output_objdir/$soname $libobjs $deplibs '"\${wl}$no_entry_flag"' $compiler_flags `if test "x${allow_undefined_flag}" != "x"; then echo "${wl}${allow_undefined_flag}"; else :; fi` '"\${wl}$exp_sym_flag:\$export_symbols $shared_flag"
+@@ -11697,13 +11706,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ if test -z "$aix_libpath"; then aix_libpath="/usr/lib:/lib"; fi
+ 
+ 	hardcode_libdir_flag_spec_CXX='${wl}-blibpath:$libdir:'"$aix_libpath"
+ 	# Warning - without using the other run time loading flags,
+ 	# -berok will link without error, but may produce a broken library.
+@@ -12868,17 +12877,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:12874: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:12883: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:12878: \$? = $ac_status" >&5
++   echo "$as_me:12887: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -12972,17 +12981,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:12978: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:12987: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:12982: \$? = $ac_status" >&5
++   echo "$as_me:12991: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -14533,17 +14542,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:14539: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:14548: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:14543: \$? = $ac_status" >&5
++   echo "$as_me:14552: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -14637,17 +14646,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:14643: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:14652: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:14647: \$? = $ac_status" >&5
++   echo "$as_me:14656: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -15142,13 +15151,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ if test -z "$aix_libpath"; then aix_libpath="/usr/lib:/lib"; fi
+ 
+        hardcode_libdir_flag_spec_F77='${wl}-blibpath:$libdir:'"$aix_libpath"
+ 	archive_expsym_cmds_F77="\$CC"' -o $output_objdir/$soname $libobjs $deplibs '"\${wl}$no_entry_flag"' $compiler_flags `if test "x${allow_undefined_flag}" != "x"; then echo "${wl}${allow_undefined_flag}"; else :; fi` '"\${wl}$exp_sym_flag:\$export_symbols $shared_flag"
+        else
+@@ -15207,13 +15216,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ if test -z "$aix_libpath"; then aix_libpath="/usr/lib:/lib"; fi
+ 
+ 	 hardcode_libdir_flag_spec_F77='${wl}-blibpath:$libdir:'"$aix_libpath"
+ 	  # Warning - without using the other run time loading flags,
+ 	  # -berok will link without error, but may produce a broken library.
+@@ -16856,17 +16865,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:16862: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:16871: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:16866: \$? = $ac_status" >&5
++   echo "$as_me:16875: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -17124,17 +17133,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:17130: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:17139: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:17134: \$? = $ac_status" >&5
++   echo "$as_me:17143: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -17228,17 +17237,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:17234: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:17243: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:17238: \$? = $ac_status" >&5
++   echo "$as_me:17247: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -17743,13 +17752,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ if test -z "$aix_libpath"; then aix_libpath="/usr/lib:/lib"; fi
+ 
+        hardcode_libdir_flag_spec_GCJ='${wl}-blibpath:$libdir:'"$aix_libpath"
+ 	archive_expsym_cmds_GCJ="\$CC"' -o $output_objdir/$soname $libobjs $deplibs '"\${wl}$no_entry_flag"' $compiler_flags `if test "x${allow_undefined_flag}" != "x"; then echo "${wl}${allow_undefined_flag}"; else :; fi` '"\${wl}$exp_sym_flag:\$export_symbols $shared_flag"
+        else
+@@ -17818,13 +17827,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ if test -z "$aix_libpath"; then aix_libpath="/usr/lib:/lib"; fi
+ 
+ 	 hardcode_libdir_flag_spec_GCJ='${wl}-blibpath:$libdir:'"$aix_libpath"
+ 	  # Warning - without using the other run time loading flags,
+ 	  # -berok will link without error, but may produce a broken library.
+@@ -19984,13 +19993,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_header_stdc=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ 
+ if test $ac_cv_header_stdc = yes; then
+   # SunOS 4.x string.h does not declare mem*, contrary to ANSI.
+   cat >conftest.$ac_ext <<_ACEOF
+ /* confdefs.h.  */
+ _ACEOF
+@@ -20181,13 +20190,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_header_sys_wait_h=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_header_sys_wait_h" >&5
+ echo "${ECHO_T}$ac_cv_header_sys_wait_h" >&6; }
+ if test $ac_cv_header_sys_wait_h = yes; then
+ 
+ cat >>confdefs.h <<\_ACEOF
+@@ -20266,13 +20275,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_Header=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_Header'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_Header'}'` = yes; then
+   cat >>confdefs.h <<_ACEOF
+@@ -20359,13 +20368,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext
+   if test "${ac_cv_search_opendir+set}" = set; then
+   break
+ fi
+ done
+ if test "${ac_cv_search_opendir+set}" = set; then
+@@ -20459,13 +20468,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext
+   if test "${ac_cv_search_opendir+set}" = set; then
+   break
+ fi
+ done
+ if test "${ac_cv_search_opendir+set}" = set; then
+@@ -20551,13 +20560,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -20715,13 +20724,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -20879,13 +20888,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -21043,13 +21052,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -21207,13 +21216,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -21371,13 +21380,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -21535,13 +21544,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -21699,13 +21708,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -21863,13 +21872,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -22027,13 +22036,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -22191,13 +22200,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -22355,13 +22364,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -22519,13 +22528,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -22683,13 +22692,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -22847,13 +22856,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -23011,13 +23020,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -23176,13 +23185,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_Header=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_Header'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_Header'}'` = yes; then
+   cat >>confdefs.h <<_ACEOF
+@@ -23260,13 +23269,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_Header=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_Header'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_Header'}'` = yes; then
+   cat >>confdefs.h <<_ACEOF
+@@ -23347,13 +23356,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_Header=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_Header'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_Header'}'` = yes; then
+   cat >>confdefs.h <<_ACEOF
+@@ -23437,13 +23446,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_Header=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_Header'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_Header'}'` = yes; then
+   cat >>confdefs.h <<_ACEOF
+@@ -23527,13 +23536,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_Header=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_Header'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_Header'}'` = yes; then
+   cat >>confdefs.h <<_ACEOF
+@@ -23614,13 +23623,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_Header=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_Header'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_Header'}'` = yes; then
+   cat >>confdefs.h <<_ACEOF
+@@ -23704,13 +23713,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_Header=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_Header'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_Header'}'` = yes; then
+   cat >>confdefs.h <<_ACEOF
+@@ -23789,13 +23798,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -23953,13 +23962,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -24117,13 +24126,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -24281,13 +24290,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -24445,13 +24454,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -24609,13 +24618,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -24773,13 +24782,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -24937,13 +24946,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -25101,13 +25110,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -25265,13 +25274,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -25429,13 +25438,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -25593,13 +25602,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -25757,13 +25766,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -25921,13 +25930,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -26085,13 +26094,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -26249,13 +26258,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -26413,13 +26422,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -26577,13 +26586,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -26743,13 +26752,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -26909,13 +26918,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -27073,13 +27082,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -27237,13 +27246,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -27403,13 +27412,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_Header=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_Header'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_Header'}'` = yes; then
+   cat >>confdefs.h <<_ACEOF
+@@ -27485,13 +27494,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -27651,13 +27660,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -27815,13 +27824,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -27981,13 +27990,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -28147,13 +28156,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -28313,13 +28322,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -28477,13 +28486,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -28643,13 +28652,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -28807,13 +28816,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_Header=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_Header'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_Header'}'` = yes; then
+   cat >>confdefs.h <<_ACEOF
+@@ -28889,13 +28898,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_Header=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_Header'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_Header'}'` = yes; then
+   cat >>confdefs.h <<_ACEOF
+@@ -28974,13 +28983,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_Header=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_Header'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_Header'}'` = yes; then
+   cat >>confdefs.h <<_ACEOF
+@@ -29058,13 +29067,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -29226,13 +29235,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -29390,13 +29399,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -29554,13 +29563,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -29718,13 +29727,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -29882,13 +29891,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -30048,13 +30057,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -30212,13 +30221,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -30376,13 +30385,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -30540,13 +30549,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -30704,13 +30713,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -30868,13 +30877,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -31032,13 +31041,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -31196,13 +31205,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -31360,13 +31369,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -31524,13 +31533,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -31688,13 +31697,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -31852,13 +31861,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -32016,13 +32025,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -32180,13 +32189,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -32346,13 +32355,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -32512,13 +32521,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -32681,13 +32690,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_lib_m_ext=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_lib_m_ext" >&5
+ echo "${ECHO_T}$ac_cv_lib_m_ext" >&6; }
+ if test $ac_cv_lib_m_ext = yes; then
+@@ -32719,29 +32728,29 @@
+ main ()
+ {
+ /* FIXME: Include the comments suggested by Paul. */
+ #ifndef __cplusplus
+   /* Ultrix mips cc rejects this.  */
+   typedef int charset[2];
+-  const charset x;
++  const charset cs;
+   /* SunOS 4.1.1 cc rejects this.  */
+-  char const *const *ccp;
+-  char **p;
++  char const *const *pcpcc;
++  char **ppc;
+   /* NEC SVR4.0.2 mips cc rejects this.  */
+   struct point {int x, y;};
+   static struct point const zero = {0,0};
+   /* AIX XL C 1.02.0.0 rejects this.
+      It does not let you subtract one const X* pointer from another in
+      an arm of an if-expression whose if-part is not a constant
+      expression */
+   const char *g = "string";
+-  ccp = &g + (g ? g-g : 0);
++  pcpcc = &g + (g ? g-g : 0);
+   /* HPUX 7.0 cc rejects these. */
+-  ++ccp;
+-  p = (char**) ccp;
+-  ccp = (char const *const *) p;
++  ++pcpcc;
++  ppc = (char**) pcpcc;
++  pcpcc = (char const *const *) ppc;
+   { /* SCO 3.2v4 cc rejects this.  */
+     char *t;
+     char const *s = 0 ? (char *) 0 : (char const *) 0;
+ 
+     *t++ = 0;
+     if (s) return 0;
+@@ -32762,13 +32771,13 @@
+     struct s *b; b->j = 5;
+   }
+   { /* ULTRIX-32 V3.1 (Rev 9) vcc rejects this */
+     const int foo = 10;
+     if (!foo) return 0;
+   }
+-  return !x[0] && !zero.x;
++  return !cs[0] && !zero.x;
+ #endif
+ 
+   ;
+   return 0;
+ }
+ _ACEOF
+@@ -32811,13 +32820,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_c_const=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_c_const" >&5
+ echo "${ECHO_T}$ac_cv_c_const" >&6; }
+ if test $ac_cv_c_const = no; then
+ 
+ cat >>confdefs.h <<\_ACEOF
+@@ -32889,13 +32898,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_type_pid_t=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_type_pid_t" >&5
+ echo "${ECHO_T}$ac_cv_type_pid_t" >&6; }
+ if test $ac_cv_type_pid_t = yes; then
+   :
+ else
+@@ -32969,13 +32978,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_type_size_t=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_type_size_t" >&5
+ echo "${ECHO_T}$ac_cv_type_size_t" >&6; }
+ if test $ac_cv_type_size_t = yes; then
+   :
+ else
+@@ -33087,13 +33096,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_header_time=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_header_time" >&5
+ echo "${ECHO_T}$ac_cv_header_time" >&6; }
+ if test $ac_cv_header_time = yes; then
+ 
+ cat >>confdefs.h <<\_ACEOF
+@@ -33252,13 +33261,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_var=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_var'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_var'}'` = yes; then
+@@ -33363,13 +33372,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_var=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_var'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_var'}'` = yes; then
+@@ -33479,13 +33488,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_var=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_var'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_var'}'` = yes; then
+@@ -33590,13 +33599,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_var=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_var'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_var'}'` = yes; then
+@@ -33702,13 +33711,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_var=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_var'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_var'}'` = yes; then
+@@ -33814,13 +33823,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_var=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_var'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_var'}'` = yes; then
+@@ -33897,13 +33906,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_lib_socket_socket=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_lib_socket_socket" >&5
+ echo "${ECHO_T}$ac_cv_lib_socket_socket" >&6; }
+ if test $ac_cv_lib_socket_socket = yes; then
+@@ -34022,13 +34031,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_var=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_var'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_var'}'` = yes; then
+@@ -34105,13 +34114,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_lib_rt_nanosleep=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_lib_rt_nanosleep" >&5
+ echo "${ECHO_T}$ac_cv_lib_rt_nanosleep" >&6; }
+ if test $ac_cv_lib_rt_nanosleep = yes; then
+@@ -34230,13 +34239,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_var=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_var'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_var'}'` = yes; then
+@@ -34345,13 +34354,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_var=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_var'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_var'}'` = yes; then
+@@ -34457,13 +34466,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_var=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_var'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_var'}'` = yes; then
+@@ -34571,13 +34580,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_var=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_var'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_var'}'` = yes; then
+@@ -34684,13 +34693,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_var=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_var'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_var'}'` = yes; then
+@@ -34796,13 +34805,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_var=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_var'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_var'}'` = yes; then
+@@ -34907,13 +34916,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_var=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_var'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_var'}'` = yes; then
+@@ -35019,13 +35028,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_var=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_var'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_var'}'` = yes; then
+@@ -35134,13 +35143,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_var=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_var'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_var'}'` = yes; then
+@@ -35245,13 +35254,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_var=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_var'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_var'}'` = yes; then
+@@ -35356,13 +35365,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_var=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_var'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_var'}'` = yes; then
+@@ -35468,13 +35477,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	eval "$as_ac_var=no"
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ fi
+ ac_res=`eval echo '${'$as_ac_var'}'`
+ 	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_var'}'` = yes; then
+@@ -35554,13 +35563,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_lib_sun_getmntent=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_lib_sun_getmntent" >&5
+ echo "${ECHO_T}$ac_cv_lib_sun_getmntent" >&6; }
+ if test $ac_cv_lib_sun_getmntent = yes; then
+@@ -35637,13 +35646,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_lib_seq_getmntent=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_lib_seq_getmntent" >&5
+ echo "${ECHO_T}$ac_cv_lib_seq_getmntent" >&6; }
+ if test $ac_cv_lib_seq_getmntent = yes; then
+@@ -35720,13 +35729,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_lib_gen_getmntent=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_lib_gen_getmntent" >&5
+ echo "${ECHO_T}$ac_cv_lib_gen_getmntent" >&6; }
+ if test $ac_cv_lib_gen_getmntent = yes; then
+@@ -35804,13 +35813,13 @@
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	have_one_getmntent="no"
+ 
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ 
+ fi
+ { echo "$as_me:$LINENO: result: $have_one_getmntent" >&5
+ echo "${ECHO_T}$have_one_getmntent" >&6; }
+ 	{ echo "$as_me:$LINENO: checking whether getmntent takes two arguments" >&5
+ echo $ECHO_N "checking whether getmntent takes two arguments... $ECHO_C" >&6; }
+@@ -35881,13 +35890,13 @@
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	have_two_getmntent="no"
+ 
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ 
+ fi
+ { echo "$as_me:$LINENO: result: $have_two_getmntent" >&5
+ echo "${ECHO_T}$have_two_getmntent" >&6; }
+ fi
+ 
+@@ -36059,16 +36068,16 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_member_struct_if_data_ifi_ibytes=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_member_struct_if_data_ifi_ibytes" >&5
+ echo "${ECHO_T}$ac_cv_member_struct_if_data_ifi_ibytes" >&6; }
+ if test $ac_cv_member_struct_if_data_ifi_ibytes = yes; then
+ 
+ cat >>confdefs.h <<_ACEOF
+@@ -36208,16 +36217,16 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_member_struct_if_data_ifi_opackets=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_member_struct_if_data_ifi_opackets" >&5
+ echo "${ECHO_T}$ac_cv_member_struct_if_data_ifi_opackets" >&6; }
+ if test $ac_cv_member_struct_if_data_ifi_opackets = yes; then
+ 
+ cat >>confdefs.h <<_ACEOF
+@@ -36357,16 +36366,16 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_member_struct_if_data_ifi_ierrors=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_member_struct_if_data_ifi_ierrors" >&5
+ echo "${ECHO_T}$ac_cv_member_struct_if_data_ifi_ierrors" >&6; }
+ if test $ac_cv_member_struct_if_data_ifi_ierrors = yes; then
+ 
+ cat >>confdefs.h <<_ACEOF
+@@ -36509,16 +36518,16 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_member_struct_net_device_stats_rx_bytes=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_member_struct_net_device_stats_rx_bytes" >&5
+ echo "${ECHO_T}$ac_cv_member_struct_net_device_stats_rx_bytes" >&6; }
+ if test $ac_cv_member_struct_net_device_stats_rx_bytes = yes; then
+ 
+ cat >>confdefs.h <<_ACEOF
+@@ -36660,16 +36669,16 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_member_struct_net_device_stats_tx_packets=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_member_struct_net_device_stats_tx_packets" >&5
+ echo "${ECHO_T}$ac_cv_member_struct_net_device_stats_tx_packets" >&6; }
+ if test $ac_cv_member_struct_net_device_stats_tx_packets = yes; then
+ 
+ cat >>confdefs.h <<_ACEOF
+@@ -36811,16 +36820,16 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_member_struct_net_device_stats_rx_errors=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_member_struct_net_device_stats_rx_errors" >&5
+ echo "${ECHO_T}$ac_cv_member_struct_net_device_stats_rx_errors" >&6; }
+ if test $ac_cv_member_struct_net_device_stats_rx_errors = yes; then
+ 
+ cat >>confdefs.h <<_ACEOF
+@@ -36929,13 +36938,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_lib_resolv_res_search=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_lib_resolv_res_search" >&5
+ echo "${ECHO_T}$ac_cv_lib_resolv_res_search" >&6; }
+ if test $ac_cv_lib_resolv_res_search = yes; then
+@@ -37049,13 +37058,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_lib_rrd_rrd_update=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_lib_rrd_rrd_update" >&5
+ echo "${ECHO_T}$ac_cv_lib_rrd_rrd_update" >&6; }
+ if test $ac_cv_lib_rrd_rrd_update = yes; then
+@@ -37138,13 +37147,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -37368,13 +37377,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_lib_kstat_kstat_open=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_lib_kstat_kstat_open" >&5
+ echo "${ECHO_T}$ac_cv_lib_kstat_kstat_open" >&6; }
+ if test $ac_cv_lib_kstat_kstat_open = yes; then
+@@ -37460,13 +37469,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_lib_devinfo_di_init=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_lib_devinfo_di_init" >&5
+ echo "${ECHO_T}$ac_cv_lib_devinfo_di_init" >&6; }
+ if test $ac_cv_lib_devinfo_di_init = yes; then
+@@ -37545,13 +37554,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -37785,13 +37794,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_lib_curl_curl_easy_init=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_lib_curl_curl_easy_init" >&5
+ echo "${ECHO_T}$ac_cv_lib_curl_curl_easy_init" >&6; }
+ if test $ac_cv_lib_curl_curl_easy_init = yes; then
+@@ -37915,13 +37924,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_lib_IOKit_IOServiceGetMatchingServices=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_lib_IOKit_IOServiceGetMatchingServices" >&5
+ echo "${ECHO_T}$ac_cv_lib_IOKit_IOServiceGetMatchingServices" >&6; }
+ if test $ac_cv_lib_IOKit_IOServiceGetMatchingServices = yes; then
+@@ -38046,13 +38055,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_lib_statgrab_sg_init=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_lib_statgrab_sg_init" >&5
+ echo "${ECHO_T}$ac_cv_lib_statgrab_sg_init" >&6; }
+ if test $ac_cv_lib_statgrab_sg_init = yes; then
+@@ -38129,13 +38138,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -38301,13 +38310,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_lib_devstat_getdevs=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_lib_devstat_getdevs" >&5
+ echo "${ECHO_T}$ac_cv_lib_devstat_getdevs" >&6; }
+ if test $ac_cv_lib_devstat_getdevs = yes; then
+@@ -38417,13 +38426,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_lib_kvm_kvm_getswapinfo=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_lib_kvm_kvm_getswapinfo" >&5
+ echo "${ECHO_T}$ac_cv_lib_kvm_kvm_getswapinfo" >&6; }
+ if test $ac_cv_lib_kvm_kvm_getswapinfo = yes; then
+@@ -38543,13 +38552,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_lib_sensors_sensors_init=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_lib_sensors_sensors_init" >&5
+ echo "${ECHO_T}$ac_cv_lib_sensors_sensors_init" >&6; }
+ if test $ac_cv_lib_sensors_sensors_init = yes; then
+@@ -38632,13 +38641,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -38849,13 +38858,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_lib_mysqlclient_mysql_init=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_lib_mysqlclient_mysql_init" >&5
+ echo "${ECHO_T}$ac_cv_lib_mysqlclient_mysql_init" >&6; }
+ if test $ac_cv_lib_mysqlclient_mysql_init = yes; then
+@@ -38938,13 +38947,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_header_compiler=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ { echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+ echo "${ECHO_T}$ac_header_compiler" >&6; }
+ 
+ # Is the header present?
+ { echo "$as_me:$LINENO: checking $ac_header presence" >&5
+ echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+@@ -39175,13 +39184,13 @@
+   echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_cv_lib_oping_ping_construct=no
+ fi
+ 
+-rm -f conftest.err conftest.$ac_objext \
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+       conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { echo "$as_me:$LINENO: result: $ac_cv_lib_oping_ping_construct" >&5
+ echo "${ECHO_T}$ac_cv_lib_oping_ping_construct" >&6; }
+ if test $ac_cv_lib_oping_ping_construct = yes; then
+@@ -41036,14 +41045,14 @@
+ exec 6>&1
+ 
+ # Save the log message, to keep $[0] and so on meaningful, and to
+ # report actual input values of CONFIG_FILES etc. instead of their
+ # values after options handling.
+ ac_log="
+-This file was extended by collectd $as_me 3.10.3, which was
+-generated by GNU Autoconf 2.59d.  Invocation command line was
++This file was extended by collectd $as_me 3.10.4, which was
++generated by GNU Autoconf 2.60a.  Invocation command line was
+ 
+   CONFIG_FILES    = $CONFIG_FILES
+   CONFIG_HEADERS  = $CONFIG_HEADERS
+   CONFIG_LINKS    = $CONFIG_LINKS
+   CONFIG_COMMANDS = $CONFIG_COMMANDS
+   $ $0 $@
+@@ -41066,13 +41075,13 @@
+ \`$as_me' instantiates files from templates according to the
+ current configuration.
+ 
+ Usage: $0 [OPTIONS] [FILE]...
+ 
+   -h, --help       print this help, then exit
+-  -V, --version    print version number, then exit
++  -V, --version    print version number and configuration settings, then exit
+   -q, --quiet      do not print progress messages
+   -d, --debug      don't remove temporary files
+       --recheck    update $as_me by reconfiguring in the same conditions
+   --file=FILE[:TEMPLATE]
+ 		   instantiate the configuration file FILE
+   --header=FILE[:TEMPLATE]
+@@ -41089,14 +41098,14 @@
+ 
+ Report bugs to <bug-autoconf@gnu.org>."
+ 
+ _ACEOF
+ cat >>$CONFIG_STATUS <<_ACEOF
+ ac_cs_version="\\
+-collectd config.status 3.10.3
+-configured by $0, generated by GNU Autoconf 2.59d,
++collectd config.status 3.10.4
++configured by $0, generated by GNU Autoconf 2.60a,
+   with options \\"`echo "$ac_configure_args" | sed 's/^ //; s/[\\""\`\$]/\\\\&/g'`\\"
+ 
+ Copyright (C) 2006 Free Software Foundation, Inc.
+ This config.status script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it."
+ 
+@@ -41791,12 +41800,13 @@
+ s&@INSTALL@&$ac_INSTALL&;t t
+ $ac_datarootdir_hack
+ " $ac_file_inputs | sed -f "$tmp/subs-1.sed" | sed -f "$tmp/subs-2.sed" | sed 's/|#_!!_#|//g' >$tmp/out
+ 
+ test -z "$ac_datarootdir_hack$ac_datarootdir_seen" &&
+   { ac_out=`sed -n '/\${datarootdir}/p' "$tmp/out"`; test -n "$ac_out"; } &&
++  { ac_out=`sed -n '/^[	 ]*datarootdir[	 ]*:*=/p' "$tmp/out"`; test -z "$ac_out"; } &&
+   { echo "$as_me:$LINENO: WARNING: $ac_file contains a reference to the variable \`datarootdir'
+ which seems to be undefined.  Please make sure it is defined." >&5
+ echo "$as_me: WARNING: $ac_file contains a reference to the variable \`datarootdir'
+ which seems to be undefined.  Please make sure it is defined." >&2;}
+ 
+   rm -f "$tmp/stdin"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.3/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.4/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.3/configure.in	2006-11-04 20:52:30.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.4/configure.in	2006-12-22 03:56:53.000000000 +0800
+@@ -1,8 +1,8 @@
+ dnl Process this file with autoconf to produce a configure script.
+-AC_INIT(collectd, 3.10.3)
++AC_INIT(collectd, 3.10.4)
+ AC_CONFIG_SRCDIR(src/collectd.c)
+ AC_CONFIG_HEADERS(src/config.h)
+ AM_INIT_AUTOMAKE(dist-bzip2)
+ AC_LANG(C)
+ 
+ AC_PREFIX_DEFAULT("/opt/collectd")
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.3/src/collectd.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.4/src/collectd.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.3/src/collectd.1	2006-11-04 20:52:34.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.4/src/collectd.1	2006-12-22 03:56:55.000000000 +0800
+@@ -126,13 +126,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD 1"
+-.TH COLLECTD 1 "2006-11-04" "3.10.3" "collectd"
++.TH COLLECTD 1 "2006-12-21" "3.10.4" "collectd"
+ .SH "NAME"
+ collectd \- System statistics collection daemon
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ collectd \fI[options]\fR
+ .SH "DESCRIPTION"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.3/src/collectd.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.4/src/collectd.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.3/src/collectd.c	2006-11-04 20:52:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.4/src/collectd.c	2006-12-22 03:56:55.000000000 +0800
+@@ -218,22 +218,33 @@
+ 	return (0);
+ } /* static int start_client (void) */
+ 
+ #if HAVE_LIBRRD
+ static int start_server (void)
+ {
+-	/* FIXME use stack here! */
+ 	char *host;
+ 	char *type;
+ 	char *instance;
+ 	char *values;
+ 
+-	while (loop == 0)
++	int  error_counter = 0;
++	int  status;
++
++	while ((loop == 0) && (error_counter < 3))
+ 	{
+-		if (network_receive (&host, &type, &instance, &values) == 0)
+-			plugin_write (host, type, instance, values);
++		status = network_receive (&host, &type, &instance, &values);
++
++		if (status != 0)
++		{
++			if (status < 0)
++				error_counter++;
++			continue;
++		}
++		error_counter = 0;
++
++		plugin_write (host, type, instance, values);
+ 
+ 		if (host     != NULL) free (host);     host     = NULL;
+ 		if (type     != NULL) free (type);     type     = NULL;
+ 		if (instance != NULL) free (instance); instance = NULL;
+ 		if (values   != NULL) free (values);   values   = NULL;
+ 	}
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.3/src/collectd.conf.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.4/src/collectd.conf.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.3/src/collectd.conf.5	2006-11-04 20:52:34.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.4/src/collectd.conf.5	2006-12-22 03:56:55.000000000 +0800
+@@ -126,13 +126,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD.CONF 5"
+-.TH COLLECTD.CONF 5 "2006-11-04" "3.10.3" "collectd"
++.TH COLLECTD.CONF 5 "2006-12-21" "3.10.4" "collectd"
+ .SH "NAME"
+ collectd.conf \- Configuration for the system statistics collection daemon \fBcollectd\fR
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ .Vb 5
+ \&  Mode    Client
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.3/src/network.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.4/src/network.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.3/src/network.c	2006-11-04 20:52:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.10.4/src/network.c	2006-12-22 03:56:55.000000000 +0800
+@@ -281,12 +281,13 @@
+ 		}
+ 
+ 		if (operating_mode == MODE_SERVER)
+ 		{
+ 			if (network_bind_socket (se, ai_ptr) != 0)
+ 			{
++				close (se->fd);
+ 				free (se->addr);
+ 				free (se);
+ 				continue;
+ 			}
+ 		}
+ 		else if (operating_mode == MODE_CLIENT)
+@@ -448,13 +449,13 @@
+ 	}
+ 
+ 	if (strsplit (buffer, fields, 4) != 3)
+ 	{
+ 		syslog (LOG_WARNING, "Invalid message from `%s'", *host);
+ 		free (*host); *host = NULL;
+-		return (-1);
++		return (1);
+ 	}
+ 
+ 	if ((*type = strdup (fields[0])) == NULL)
+ 	{
+ 		syslog (LOG_EMERG, "strdup: %s", strerror (errno));
+ 		free (*host); *host = NULL;

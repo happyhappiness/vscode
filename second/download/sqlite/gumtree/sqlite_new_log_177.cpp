@@ -1,1 +1,0 @@
-sqlite3Error(db, rc, "database schema is locked: %s", zDb);

@@ -1,1 +1,0 @@
-printf("\033[48;5;%dm ", spectrum_palette[j]);

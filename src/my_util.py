@@ -5,7 +5,7 @@ import re
 from itertools import islice
 import numpy as np
 from scipy.spatial.distance import pdist
-import similarity_func
+# import similarity_func
 import my_constant
 
 def remove_name_space_and_caller(name):

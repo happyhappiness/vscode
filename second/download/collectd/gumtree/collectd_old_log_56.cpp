@@ -1,0 +1,1 @@
+printf ("OKAY: %i okay\n", num_okay);

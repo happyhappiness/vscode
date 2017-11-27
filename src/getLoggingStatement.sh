@@ -6,8 +6,9 @@ MYCODE_DIR="/usr/info/code/cpp/LogMonitor/LogMonitor"
 # REPOS="xgboost"
 # REPOS="httpd"
 # CODE_DIR="${MYCODE_DIR}/second/download/${REPOS}/repos/httpd-2.0.65"
-REPOS="redis"
-CODE_DIR="${MYCODE_DIR}/second/download/${REPOS}/repos/redis-3.2.4/src"
+REPOS="collectd"
+# CODE_DIR="${MYCODE_DIR}/second/download/${REPOS}/repos/redis-3.2.4/src"
+CODE_DIR="."
 # parameter
 # echo $CODE_DIR
 

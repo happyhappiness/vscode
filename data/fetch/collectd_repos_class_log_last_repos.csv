@@ -1,0 +1,183 @@
+class,class_size,check,variable
+149,2,"[""realloc_ret"", null]",[null]
+0,1,"[""gethostname_ret""]","[""strerror_ret"", null]"
+1,1,"[""lcc_string_to_identifier_ret""]","[""lcc_strerror_ret"", null, null]"
+152,3,"[""int""]",[null]
+2,1,"[""lcc_getval_ret""]","[""lcc_strerror_ret"", null]"
+3,1,"[""lcc_getval_ret""]","[""lcc_getval_arg_ret"", ""size_t"", ""lcc_getval_arg_ret"", ""size_t""]"
+4,1,"[""strchr_ret""]","[null, ""char"", ""int""]"
+168,3,"[""strtol_arg_ret"", ""strtol_arg_ret""]","[null, ""strtol_arg_ret""]"
+5,1,"[""strtol_arg_ret"", ""lcc_flush_arg"", ""strtol_arg_ret""]","[null, ""strtol_arg_ret""]"
+150,2,"[""strcasecmp_ret""]","[null, ""strcasecmp_arg_ret""]"
+6,1,"[""lcc_flush_ret""]","[""lcc_strerror_ret"", null, ""sizeof_arg_ret"", ""size_t"", null, ""sizeof_arg_ret"", ""size_t""]"
+7,1,"[""lcc_flush_ret""]","[""lcc_strerror_ret"", null, ""sizeof_arg_ret"", ""size_t"", null, ""sizeof_arg_ret"", ""size_t"", null]"
+8,1,"[""lcc_listval_ret""]","[""lcc_strerror_ret"", null]"
+9,1,"[""lcc_identifier_to_string_ret""]","[""lcc_strerror_ret"", null]"
+151,2,"[""lcc_identifier_to_string_ret""]",[null]
+153,2,"[""strtol_arg_ret"", null, ""strtol_arg_ret""]","[null, ""strtol_arg_ret""]"
+10,1,"[""strchr_ret"", null]","[null, ""char"", ""int""]"
+11,1,"[""strtol_arg_ret"", ""char"", ""int""]","[null, ""char"", ""int""]"
+12,1,"[""strtoull_arg_ret"", ""strtoull_arg_ret""]","[null, ""char"", ""int""]"
+13,1,"[""strtoull_arg_ret"", null, ""strtoull_arg_ret""]","[null, ""strtoull_arg_ret""]"
+14,1,"[""lcc_putval_ret""]","[""lcc_strerror_ret"", null]"
+15,1,"[""size_t""]",[null]
+16,1,"[""getval_arg"", ""getval_arg""]","[null, ""getopt_arg_ret""]"
+17,1,"[""lcc_connect_ret""]","[""strerror_ret"", null, null]"
+18,1,"[""strcasecmp_ret""]","[null, ""putval_arg_ret"", ""putval_arg_ret"", null]"
+175,5,"[""strlen_ret""]","[""fdopen_ret"", ""notification_t"", null]"
+155,3,"[""notification_meta_t"", null, null]","[""fdopen_ret"", ""notification_meta_t"", null, ""notification_meta_t"", null, null]"
+154,2,"[""notification_meta_t"", null, null]","[""fdopen_ret"", null, ""notification_meta_t"", null, ""notification_meta_t"", null, null]"
+19,1,"[""notification_meta_t"", null, null]","[""fdopen_ret"", ""notification_t"", null]"
+20,1,"[""strsplit_ret""]","[""fclose_arg_ret""]"
+21,1,"[""strcasecmp_ret""]","[""cmd_handle_flush_arg_ret"", null]"
+22,1,"[""fopen_ret"", null]",[]
+23,1,"[""malloc_ret"", null]","[null, ""cmd_error_handler_t""]"
+24,1,"[""isspace_arg_ret""]","[null, ""cmd_error_handler_t""]"
+25,1,"[""bool""]","[null, ""cmd_error_handler_t""]"
+26,1,"[""cmd_parse_flush_arg"", ""cmd_parse_flush_arg"", null, ""sizeof_arg"", null]","[null, ""cmd_parse_flush_arg""]"
+27,1,"[""strcasecmp_ret""]","[null, ""cmd_parse_putval_arg_ret"", ""strcasecmp_arg_ret""]"
+28,1,"[""char"", null]","[null, ""cmd_error_handler_t""]"
+29,1,"[""strtol_ret""]","[null, ""strtol_ret"", ""ERROR_arg""]"
+30,1,"[""strtol_ret"", ""ERROR_arg""]","[null, ""strtol_ret"", ""ERROR_arg""]"
+156,2,"[""fopen_ret"", null]","[""sstrerror_ret"", null, null]"
+31,1,"[""fopen_ret"", null]","[""fopen_ret"", ""yajl_gen_get_buf_arg_ret""]"
+32,1,"[""fopen_ret"", null]",[null]
+158,3,"[""plugin_get_ds_ret"", ""plugin_get_ds_arg_ret"", null]","[null, ""plugin_get_ds_arg_ret""]"
+159,3,"[""Py_INCREF_arg"", null]",[null]
+33,1,"[""plugin_get_ds_ret"", null]",[null]
+34,1,"[""PyDict_Items_ret""]",[]
+35,1,"[""PyErr_Occurred_ret""]",[]
+36,1,"[""plugin_dispatch_values_arg"", ""PyArg_ParseTupleAndKeywords_arg_ret""]",[null]
+37,1,"[""plugin_get_ds_ret"", null]","[null, ""plugin_dispatch_values_arg"", ""PyArg_ParseTupleAndKeywords_arg_ret""]"
+38,1,"[""PyTuple_Check_ret"", ""PyList_Check_ret"", ""PyArg_ParseTupleAndKeywords_arg_ret"", null]",[null]
+157,2,"[""PyDict_Check_ret"", ""PyDict_Check_arg_ret"", null, ""PyDict_Check_arg_ret"", null]",[null]
+39,1,"[""PySequence_Length_ret"", ""plugin_get_ds_ret"", null]","[null, ""plugin_dispatch_values_arg"", ""PyArg_ParseTupleAndKeywords_arg_ret"", ""plugin_get_ds_ret"", null, ""PySequence_Length_ret""]"
+40,1,"[""plugin_get_ds_ret"", ""plugin_get_ds_ret"", ""size_t"", ""PyArg_ParseTupleAndKeywords_arg_ret""]","[null, ""plugin_get_ds_ret"", ""plugin_get_ds_ret"", ""size_t"", ""PyArg_ParseTupleAndKeywords_arg_ret"", ""plugin_dispatch_values_arg"", ""PyArg_ParseTupleAndKeywords_arg_ret""]"
+41,1,"[""plugin_dispatch_values_ret""]",[null]
+42,1,"[""plugin_write_arg"", ""PyArg_ParseTupleAndKeywords_arg_ret""]",[null]
+43,1,"[""plugin_get_ds_ret"", ""plugin_write_arg""]","[null, ""plugin_write_arg"", ""PyArg_ParseTupleAndKeywords_arg_ret""]"
+44,1,"[""PyTuple_Check_ret"", ""PyList_Check_ret"", ""PyArg_ParseTupleAndKeywords_arg_ret"", ""plugin_write_arg""]",[null]
+45,1,"[""PySequence_Length_ret"", ""plugin_get_ds_ret"", null]","[null, ""plugin_write_arg"", ""PyArg_ParseTupleAndKeywords_arg_ret"", ""plugin_get_ds_ret"", null, ""PySequence_Length_ret""]"
+46,1,"[""plugin_get_ds_ret"", ""plugin_get_ds_ret"", ""size_t"", ""PyArg_ParseTupleAndKeywords_arg_ret""]","[null, ""plugin_get_ds_ret"", ""plugin_get_ds_ret"", ""size_t"", ""PyArg_ParseTupleAndKeywords_arg_ret"", ""plugin_write_arg"", ""PyArg_ParseTupleAndKeywords_arg_ret""]"
+47,1,"[""plugin_write_ret""]",[null]
+48,1,"[""cpy_build_notification_meta_arg"", ""PyArg_ParseTupleAndKeywords_arg_ret""]",[null]
+49,1,"[""plugin_get_ds_ret"", null]","[null, ""cpy_build_notification_meta_arg"", ""PyArg_ParseTupleAndKeywords_arg_ret""]"
+50,1,"[""plugin_dispatch_notification_ret""]",[null]
+160,2,"[""calloc_ret"", null]","[""strerror_ret"", null]"
+51,1,"[""calloc_ret"", ""size_t"", null]","[""strerror_ret"", null]"
+52,1,"[""size_t"", ""size_t""]","[""free_arg_ret"", ""size_t""]"
+53,1,"[""lcc_listval_ret""]","[""lcc_strerror_ret""]"
+54,1,"[""lcc_sort_identifiers_ret""]","[""lcc_strerror_ret""]"
+55,1,"[""strcasecmp_ret"", ""strcasecmp_arg_ret"", null]","[""strdup_ret""]"
+56,1,"[""lcc_identifier_to_string_ret""]","[""lcc_strerror_ret""]"
+57,1,"[""int"", ""int"", ""int""]",[]
+58,1,"[""int"", ""int"", ""int""]","[""char"", ""int"", ""int"", ""int""]"
+161,2,"[""size_t""]",[]
+59,1,"[""size_t""]","[""char"", ""size_t"", ""double"", ""size_t""]"
+164,3,"[""isnan_ret""]","[""char"", ""size_t""]"
+176,4,"[""int""]",[]
+162,2,"[""int""]","[""char"", ""double""]"
+163,2,"[""int""]","[""char"", ""size_t"", ""double"", ""size_t""]"
+60,1,"[""isnan_ret"", ""size_t""]",[]
+61,1,"[""double""]",[]
+62,1,"[""double""]","[""char"", ""double""]"
+63,1,"[""double""]","[""char"", ""size_t"", ""double"", ""size_t""]"
+64,1,"[""lcc_string_to_identifier_ret""]","[""lcc_strerror_ret""]"
+65,1,"[""lcc_getval_ret""]","[""lcc_strerror_ret""]"
+66,1,"[""strcasecmp_ret""]","[null, ""cn_strdup_arg""]"
+67,1,"[""realloc_ret"", null]","[""strerror_ret"", null]"
+68,1,"[null, null, null]","[""strerror_ret"", null]"
+69,1,"[""strcasecmp_ret"", ""snprintf_arg"", null, ""strcasecmp_arg"", null, null, null]",[null]
+70,1,"[""lcc_connect_ret""]",[null]
+71,1,[null],"[""fopen_ret"", null, null, ""char""]"
+72,1,[null],"[""fopen_ret"", null, ""char""]"
+73,1,"[""fclose_arg"", null]","[""fclose_arg""]"
+74,1,"[""IS_BYTES_OR_UNICODE_ret""]",[null]
+75,1,"[""cmd_getval_t"", null, ""cmd_options_t"", null]","[null, ""cmd_error_handler_t""]"
+76,1,"[""size_t""]","[null, ""cmd_error_handler_t""]"
+77,1,"[""size_t""]","[null, ""cmd_error_handler_t"", ""char""]"
+78,1,"[""parse_identifier_ret""]","[null, ""cmd_error_handler_t"", ""DEBUG_arg_ret""]"
+171,3,"[""cmd_parse_arg_ret"", null, null]","[""CMD_TO_STRING_ret"", null, ""cmd_parse_arg_ret""]"
+79,1,"[""plugin_get_ds_ret"", null]","[null, ""cmd_parse_arg_ret"", ""cmd_destroy_arg_ret"", ""cmd_destroy_arg_ret"", null, null, null]"
+80,1,"[""uc_get_rate_by_name_ret""]","[null, ""cmd_parse_arg_ret""]"
+81,1,"[""plugin_get_ds_ret"", null, ""uc_get_rate_by_name_arg_ret""]","[null, ""cmd_parse_arg_ret""]"
+82,1,"[""cmd_parse_arg_ret"", null, null]","[""CMD_TO_STRING_ret"", ""free_everything_and_return_arg"", ""cmd_parse_arg_ret""]"
+83,1,"[""uc_get_names_ret""]","[""free_everything_and_return_arg"", ""cmd_parse_arg_ret""]"
+165,2,"[""calloc_ret"", null]",[null]
+166,2,"[""calloc_ret"", null, null]",[null]
+167,2,"[""free_arg_ret"", null, null]",[null]
+84,1,"[""lcc_network_values_send_ret""]","[null, ""lcc_network_values_send_ret""]"
+85,1,"[""strerror_arg""]","[""strerror_ret"", null, ""strtol_arg_ret""]"
+86,1,"[""strtol_arg_ret""]","[null, ""strtol_arg_ret""]"
+87,1,"[""strerror_arg""]","[""strerror_ret"", null, ""strtod_arg_ret""]"
+88,1,"[""strtod_arg_ret"", ""strtod_arg_ret""]","[null, ""strtod_arg_ret""]"
+89,1,"[""strtod_arg_ret""]","[null, ""strtod_arg_ret""]"
+90,1,"[""c_heap_create_ret"", ""nanosleep_arg""]",[null]
+91,1,"[""lcc_network_create_ret"", ""nanosleep_arg""]",[null]
+92,1,"[""lcc_server_create_ret"", ""nanosleep_arg""]",[null]
+93,1,"[""lcc_server_create_ret"", ""nanosleep_arg""]","[""fflush_arg"", null]"
+94,1,"[""create_value_list_ret"", ""nanosleep_arg""]",[null]
+95,1,"[""create_value_list_ret"", ""nanosleep_arg""]","[""fflush_arg""]"
+96,1,"[""c_heap_get_root_ret"", null, ""double""]","[""int""]"
+97,1,"[""c_heap_get_root_ret"", null, ""double""]","[""fflush_arg""]"
+177,4,"[""atof_ret""]",[null]
+169,2,"[""atoi_ret""]",[null]
+98,1,"[""atof_ret"", ""atof_ret""]",[null]
+99,1,"[""chdir_ret""]","[""strerror_ret"", null]"
+100,1,"[""getrlimit_ret""]","[""strerror_ret"", null]"
+101,1,"[""fork_ret"", ""fork_ret""]","[""strerror_ret"", null]"
+102,1,"[""sigaction_arg"", ""calloc_ret""]",[null]
+170,2,"[""rte_eal_init_ret""]",[]
+103,1,"[""rte_eal_init_ret""]","[null, ""int""]"
+104,1,"[""cmd_destroy_putval_arg"", ""assert_arg"", ""cmd_options_t"", ""assert_arg""]","[null, ""cmd_parse_option_arg""]"
+105,1,"[""size_t""]","[null, ""cmd_parse_option_arg""]"
+106,1,"[""parse_identifier_ret""]","[null, ""cmd_parse_option_arg"", ""DEBUG_arg_ret""]"
+107,1,"[""strlen_ret"", ""strlen_ret"", ""strlen_ret"", ""strlen_ret"", ""set_option_arg"", null, ""set_option_arg"", ""strlen_arg_ret"", ""parse_identifier_arg_ret"", ""assert_arg"", ""set_option_arg"", ""strlen_arg_ret"", ""parse_identifier_arg_ret"", ""assert_arg"", ""set_option_arg"", ""strlen_arg_ret""]","[null, ""cmd_parse_option_arg""]"
+108,1,"[""plugin_get_ds_ret"", ""assert_arg""]","[null, ""cmd_parse_option_arg"", ""plugin_get_ds_arg_ret""]"
+109,1,"[""cmd_destroy_putval_arg"", null, ""assert_arg""]","[null, ""cmd_parse_option_arg""]"
+110,1,"[""set_option_arg_ret"", null, null]","[null, ""cmd_parse_option_arg_ret""]"
+111,1,"[""parse_values_ret""]","[null, ""cmd_parse_option_arg_ret""]"
+112,1,"[""realloc_ret"", null]","[null, ""cmd_parse_option_arg_ret""]"
+113,1,"[""DEBUG_arg_ret"", null]","[null, ""cmd_parse_arg_ret"", null, ""cmd_destroy_arg_ret"", ""cmd_destroy_arg_ret"", null, null, ""cmd_destroy_arg_ret"", ""cmd_destroy_arg_ret"", null, null]"
+114,1,"[""cmd_destroy_flush_arg"", null, ""cmd_options_t"", null]","[null, ""cmd_parse_option_arg""]"
+115,1,"[""cmd_parse_option_ret"", null]","[null, ""cmd_parse_option_arg_ret"", ""char"", ""size_t""]"
+116,1,"[""sizeof_arg_ret"", null]","[null, ""cmd_parse_option_arg_ret""]"
+117,1,"[""parse_identifier_ret""]","[null, ""cmd_parse_option_arg_ret"", ""parse_identifier_arg_ret""]"
+118,1,"[""isfinite_ret"", ""strtod_arg_ret"", ""strtod_arg_ret"", null]","[null, ""cmd_parse_option_arg_ret"", ""strtod_arg_ret""]"
+119,1,"[""strcasecmp_ret""]","[null, ""cmd_parse_option_arg_ret"", ""strcasecmp_arg_ret""]"
+120,1,"[""cmd_parse_arg_ret"", null, null]","[null, ""cmd_parse_arg_ret"", ""int"", ""int""]"
+178,5,"[""PyObject_CallFunctionObjArgs_ret"", null]",[]
+121,1,"[""PyList_New_ret"", null]",[]
+122,1,"[""PyErr_Occurred_ret"", null]",[]
+172,2,"[""PyObject_CallFunction_ret"", null]",[]
+179,5,"[""PyCallable_Check_ret""]",[null]
+123,1,"[""plugin_get_ds_ret"", null]","[null, ""PyMem_Free_arg_ret""]"
+124,1,"[""cpy_destroy_user_data_arg"", null]","[null, ""char"", ""strcmp_arg_ret""]"
+125,1,"[""PyCallable_Check_ret""]","[null, ""char"", ""unreg_arg_ret""]"
+180,7,[null],[]
+126,1,"[""PyImport_ImportModule_ret"", null]",[]
+127,1,"[""PyImport_ImportModule_ret"", ""PyList_SetSlice_arg""]",[]
+128,1,"[""PyObject_GetAttrString_ret"", ""PyList_SetSlice_arg""]",[]
+129,1,"[""PyUnicode_SetDefaultEncoding_ret""]",[]
+173,2,"[""PyImport_ImportModule_ret"", ""cpy_oconfig_to_pyconfig_arg""]",[]
+130,1,"[""PyObject_GetAttrString_ret"", ""cpy_oconfig_to_pyconfig_arg""]",[]
+131,1,"[""cpy_string_to_unicode_or_bytes_ret"", ""cpy_oconfig_to_pyconfig_arg""]",[]
+132,1,"[""PyList_Insert_ret""]",[]
+133,1,"[""strcmp_ret""]","[""sizeof_arg_ret"", ""strcmp_arg"", ""strcmp_arg"", ""sizeof_arg_ret"", ""free_arg""]"
+134,1,"[""strcmp_ret""]","[""sizeof_arg_ret"", null, null, ""sizeof_arg_ret"", ""free_arg""]"
+135,1,"[""yyparse_ret""]","[null, ""yyparse_ret""]"
+136,1,"[""fopen_ret"", null]","[""strerror_ret"", null, ""fopen_arg_ret""]"
+137,1,"[""free_arg_ret"", null, ""oconfig_clone_arg"", null, null, null]",[null]
+138,1,"[""oconfig_free_arg_ret"", null, null]",[null]
+139,1,"[""gethostname_ret""]",[null]
+140,1,"[""cf_read_ret""]",[null]
+141,1,"[""global_option_get_ret"", ""global_option_get_ret"", null]",[null]
+142,1,"[""change_basedir_ret""]","[null, ""change_basedir_arg_ret""]"
+143,1,"[""fork_ret"", ""fork_ret""]","[""sstrerror_ret"", null]"
+144,1,"[""fopen_ret"", null]","[""sstrerror_ret"", null, ""fopen_arg_ret""]"
+145,1,"[null, null]","[null, null]"
+146,1,"[""llist_head_arg"", null]","[null, ""callback_arg""]"
+147,1,"[""data_set_t"", null, ""value_list_t"", null]",[null]
+148,1,"[""data_set_t"", null, ""value_list_t"", null]","[null, ""data_set_t"", ""data_set_t"", null, null, null, ""value_list_t"", null]"
+174,2,"[""data_set_t"", ""data_set_t"", null, null]","[""value_list_t"", null, ""int"", null]"
+181,6,"[""notification_t"", null]","[""notification_t"", null]"

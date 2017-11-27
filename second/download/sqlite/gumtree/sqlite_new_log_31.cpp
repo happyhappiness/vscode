@@ -1,1 +1,0 @@
-sprintf(zBuf, "PHRASE %d %d", pPhrase->iColumn, pPhrase->isNot);

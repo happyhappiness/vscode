@@ -1,1 +1,0 @@
-checkAppendMsg(&sCheck, 0, "Pointer map page %d is referenced", i);

@@ -1,0 +1,1 @@
+printf("collectd shutdown while running an interactive session. This will\n");

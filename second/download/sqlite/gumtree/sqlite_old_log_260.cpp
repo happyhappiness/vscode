@@ -1,1 +1,0 @@
-sqlite3_result_error(pContext, "illegal first argument to html_snippet",-1);

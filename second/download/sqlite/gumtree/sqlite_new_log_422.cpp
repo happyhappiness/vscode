@@ -1,1 +1,0 @@
-sqlite3_mprintf("%s", sqlite3_errmsg(pTab->db));

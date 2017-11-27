@@ -1,0 +1,1 @@
+fprintf (stderr, "Unable to load plugin %s.\n", type);

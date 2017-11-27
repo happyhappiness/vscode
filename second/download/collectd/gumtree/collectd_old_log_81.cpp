@@ -1,0 +1,1 @@
+fprintf (stderr, "lt_dlopen (%s) failed: %s\n", file, error);

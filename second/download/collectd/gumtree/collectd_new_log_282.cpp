@@ -1,0 +1,1 @@
+printf ("%s: %lf percent |", status_str, percentage);

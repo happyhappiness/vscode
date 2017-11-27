@@ -1,1 +1,0 @@
-popGenericCommand(c,LIST_HEAD);

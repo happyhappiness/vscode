@@ -1,0 +1,1 @@
+ERROR ("ERROR: %s:%i: ksp->ks_type != KSTAT_TYPE_NAMED\n", __FILE__, __LINE__);

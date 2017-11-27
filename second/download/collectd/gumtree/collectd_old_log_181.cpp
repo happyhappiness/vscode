@@ -1,0 +1,1 @@
+fprintf (fh, "%12e", vc->gauge[i]);

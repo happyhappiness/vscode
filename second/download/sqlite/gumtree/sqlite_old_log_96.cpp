@@ -1,1 +1,0 @@
-checkAppendMsg(&sCheck, "Page %d is never used", i);

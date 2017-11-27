@@ -1,0 +1,1 @@
+fprintf (stderr, "Unable to change to directory `%s'.\n", basedir);

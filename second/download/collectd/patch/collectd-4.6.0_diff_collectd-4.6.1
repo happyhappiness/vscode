@@ -1,0 +1,2579 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/bindings/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/bindings/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/bindings/Makefile.in	2009-02-17 05:59:20.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/bindings/Makefile.in	2009-02-23 02:44:46.000000000 +0800
+@@ -60,14 +60,12 @@
+ BUILD_WITH_LIBMYSQL_CFLAGS = @BUILD_WITH_LIBMYSQL_CFLAGS@
+ BUILD_WITH_LIBMYSQL_LIBS = @BUILD_WITH_LIBMYSQL_LIBS@
+ BUILD_WITH_LIBNETLINK_CFLAGS = @BUILD_WITH_LIBNETLINK_CFLAGS@
+ BUILD_WITH_LIBNETLINK_LIBS = @BUILD_WITH_LIBNETLINK_LIBS@
+ BUILD_WITH_LIBOWCAPI_CPPFLAGS = @BUILD_WITH_LIBOWCAPI_CPPFLAGS@
+ BUILD_WITH_LIBOWCAPI_LIBS = @BUILD_WITH_LIBOWCAPI_LIBS@
+-BUILD_WITH_LIBPCRE_CFLAGS = @BUILD_WITH_LIBPCRE_CFLAGS@
+-BUILD_WITH_LIBPCRE_LIBS = @BUILD_WITH_LIBPCRE_LIBS@
+ BUILD_WITH_LIBPQ_CPPFLAGS = @BUILD_WITH_LIBPQ_CPPFLAGS@
+ BUILD_WITH_LIBPQ_LDFLAGS = @BUILD_WITH_LIBPQ_LDFLAGS@
+ BUILD_WITH_LIBRRD_CFLAGS = @BUILD_WITH_LIBRRD_CFLAGS@
+ BUILD_WITH_LIBRRD_LDFLAGS = @BUILD_WITH_LIBRRD_LDFLAGS@
+ BUILD_WITH_LIBSENSORS_CFLAGS = @BUILD_WITH_LIBSENSORS_CFLAGS@
+ BUILD_WITH_LIBSENSORS_LDFLAGS = @BUILD_WITH_LIBSENSORS_LDFLAGS@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/bindings/perl/Collectd/Unixsock.pm /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/bindings/perl/Collectd/Unixsock.pm
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/bindings/perl/Collectd/Unixsock.pm	2009-02-14 20:31:59.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/bindings/perl/Collectd/Unixsock.pm	2009-02-23 02:30:51.000000000 +0800
+@@ -284,13 +284,27 @@
+ 	if (!ref ($args{'values'}))
+ 	{
+ 		$values = $args{'values'};
+ 	}
+ 	else
+ 	{
+-		my $time = $args{'time'} ? $args{'time'} : time ();
++		my $time;
++
++		if ("ARRAY" ne ref ($args{'values'}))
++		{
++			cluck ("Invalid `values' argument (expected an array ref)");
++			return;
++		}
++
++		if (! scalar @{$args{'values'}})
++		{
++			cluck ("Empty `values' array");
++			return;
++		}
++
++		$time = $args{'time'} ? $args{'time'} : time ();
+ 		$values = join (':', $time, map { defined ($_) ? $_ : 'U' } (@{$args{'values'}}));
+ 	}
+ 
+ 	$msg = 'PUTVAL '
+ 	. _escape_argument ($identifier)
+ 	. $interval
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/ChangeLog /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/ChangeLog
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/ChangeLog	2009-02-17 05:56:29.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/ChangeLog	2009-02-23 02:43:17.000000000 +0800
+@@ -1,6 +1,15 @@
++2009-02-22, Version 4.6.1
++	* collectd: Many documentation fixes.
++	* Collectd::Unixsock: Error handling has been improved.
++	* regex match: Don't link with the PCRE library.
++	* bind plugin: Various bugs have been fixed. Thanks to Bruno Prémont
++	  for finding and fixing most of them.
++	* ipmi plugin: Fix an off-by-one error which could cause segmentation
++	  faults. Thanks to Peter Holik for his patch.
++
+ 2009-02-16, Version 4.6.0
+ 	* collectd: Added the `filter chain' infrastructure, which allows the
+ 	  user to use `matches' and `targets' to control value processing.
+ 	* collectd: The new `-T' command line argument allows more in-depth
+ 	  testing of a configuration. Thanks to Doug MacEachern for the patch.
+ 	* collectd-nagios: The Nagios integration command has been updated to
+@@ -66,12 +75,24 @@
+ 	  RRD accelerator daemon, rrdcached. This daemon works very similar to
+ 	  the original rrdtool plugin of collectd, but adds some more nice
+ 	  features.
+ 	* swap plugin: Code for OpenBSD (and possibly other *BSDs) has been
+ 	  added.
+ 
++2009-02-22, Version 4.5.3
++	* build system: The check for libupsclient even when `pkg-config' is
++	  not available.
++	* collectd: Fix error handling in the global cache.
++	* Collectd::Unixsock: Error handling has been improved.
++	* ascent plugin: Fix a memory leak. Thanks to Bruno Prémont for his
++	  patch.
++	* ipmi plugin: Fix an off-by-one error which could cause segmentation
++	  faults. Thanks to Peter Holik for his patch.
++	* tcpconns plugin: An endianness problem has been fixed in the *BSD
++	  code. Thanks to "thated" for reporting this.
++
+ 2009-01-02, Version 4.5.2
+ 	* build system: Check for `mysql.h' and `mysql/mysql.h', since the
+ 	  file may be in both locations, especially when the database was
+ 	  installed in a non-standard path. Thanks to Dusty Doris for
+ 	  reporting this.
+ 	* build system: Handle the _POSIX_PTHREAD_SEMANTICS defined, needed by
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/configure	2009-02-17 05:59:23.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/configure	2009-02-23 02:44:48.000000000 +0800
+@@ -1,9 +1,9 @@
+ #! /bin/sh
+ # Guess values for system-dependent variables and create Makefiles.
+-# Generated by GNU Autoconf 2.61 for collectd 4.6.0.
++# Generated by GNU Autoconf 2.61 for collectd 4.6.1.
+ #
+ # Copyright (C) 1992, 1993, 1994, 1995, 1996, 1998, 1999, 2000, 2001,
+ # 2002, 2003, 2004, 2005, 2006 Free Software Foundation, Inc.
+ # This configure script is free software; the Free Software Foundation
+ # gives unlimited permission to copy, distribute and modify it.
+ ## --------------------- ##
+@@ -723,14 +723,14 @@
+ MAKEFLAGS=
+ SHELL=${CONFIG_SHELL-/bin/sh}
+ 
+ # Identity of this package.
+ PACKAGE_NAME='collectd'
+ PACKAGE_TARNAME='collectd'
+-PACKAGE_VERSION='4.6.0'
+-PACKAGE_STRING='collectd 4.6.0'
++PACKAGE_VERSION='4.6.1'
++PACKAGE_STRING='collectd 4.6.1'
+ PACKAGE_BUGREPORT=''
+ 
+ ac_unique_file="src/collectd.c"
+ ac_default_prefix="/opt/collectd"
+ # Factoring default headers for most tests.
+ ac_includes_default="\
+@@ -944,16 +944,12 @@
+ BUILD_WITH_ORACLE_CFLAGS
+ BUILD_WITH_ORACLE_LIBS
+ BUILD_WITH_LIBOWCAPI_CPPFLAGS
+ BUILD_WITH_LIBOWCAPI_LIBS
+ BUILD_WITH_LIBPCAP_TRUE
+ BUILD_WITH_LIBPCAP_FALSE
+-BUILD_WITH_LIBPCRE_CFLAGS
+-BUILD_WITH_LIBPCRE_LIBS
+-BUILD_WITH_LIBPCRE_TRUE
+-BUILD_WITH_LIBPCRE_FALSE
+ PERL
+ PERL_CFLAGS
+ PERL_LDFLAGS
+ BUILD_WITH_LIBPERL_TRUE
+ BUILD_WITH_LIBPERL_FALSE
+ HAVE_BROKEN_PERL_LOAD_MODULE_TRUE
+@@ -1670,13 +1666,13 @@
+ # Report the --help message.
+ #
+ if test "$ac_init_help" = "long"; then
+   # Omit some internal or obsolete options to make the list less imposing.
+   # This message is too long to be a string in the A/UX 3.1 sh.
+   cat <<_ACEOF
+-\`configure' configures collectd 4.6.0 to adapt to many kinds of systems.
++\`configure' configures collectd 4.6.1 to adapt to many kinds of systems.
+ 
+ Usage: $0 [OPTION]... [VAR=VALUE]...
+ 
+ To assign environment variables (e.g., CC, CFLAGS...), specify them as
+ VAR=VALUE.  See below for descriptions of some of the useful variables.
+ 
+@@ -1740,13 +1736,13 @@
+   --host=HOST       cross-compile to build programs to run on HOST [BUILD]
+ _ACEOF
+ fi
+ 
+ if test -n "$ac_init_help"; then
+   case $ac_init_help in
+-     short | recursive ) echo "Configuration of collectd 4.6.0:";;
++     short | recursive ) echo "Configuration of collectd 4.6.1:";;
+    esac
+   cat <<\_ACEOF
+ 
+ Optional Features:
+   --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
+   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
+@@ -1869,13 +1865,12 @@
+                           Path to liboping.
+   --with-oracle[=ORACLE_HOME]
+                           Path to Oracle.
+   --with-libowcapi[=PREFIX]
+                           Path to libowcapi.
+   --with-libpcap[=PREFIX] Path to libpcap.
+-  --with-libpcre[=PREFIX] Path to libpcre.
+   --with-libperl[=PREFIX] Path to libperl.
+   --with-libpq[=PREFIX]   Path to libpq.
+   --with-libpthread=[=PREFIX]
+                           Path to libpthread.
+   --with-librrd[=PREFIX]  Path to rrdtool.
+   --with-libsensors[=PREFIX]
+@@ -1974,13 +1969,13 @@
+   done
+ fi
+ 
+ test -n "$ac_init_help" && exit $ac_status
+ if $ac_init_version; then
+   cat <<\_ACEOF
+-collectd configure 4.6.0
++collectd configure 4.6.1
+ generated by GNU Autoconf 2.61
+ 
+ Copyright (C) 1992, 1993, 1994, 1995, 1996, 1998, 1999, 2000, 2001,
+ 2002, 2003, 2004, 2005, 2006 Free Software Foundation, Inc.
+ This configure script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it.
+@@ -1988,13 +1983,13 @@
+   exit
+ fi
+ cat >config.log <<_ACEOF
+ This file contains any messages produced by compilers while
+ running configure, to aid debugging if configure makes a mistake.
+ 
+-It was created by collectd $as_me 4.6.0, which was
++It was created by collectd $as_me 4.6.1, which was
+ generated by GNU Autoconf 2.61.  Invocation command line was
+ 
+   $ $0 $@
+ 
+ _ACEOF
+ exec 5>>config.log
+@@ -2681,13 +2676,13 @@
+   fi
+ fi
+ 
+ 
+ # Define the identity of the package.
+  PACKAGE='collectd'
+- VERSION='4.6.0'
++ VERSION='4.6.1'
+ 
+ 
+ cat >>confdefs.h <<_ACEOF
+ #define PACKAGE "$PACKAGE"
+ _ACEOF
+ 
+@@ -6363,13 +6358,13 @@
+     esac
+   fi
+   rm -rf conftest*
+   ;;
+ *-*-irix6*)
+   # Find out which ABI we are using.
+-  echo '#line 6369 "configure"' > conftest.$ac_ext
++  echo '#line 6364 "configure"' > conftest.$ac_ext
+   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+   (eval $ac_compile) 2>&5
+   ac_status=$?
+   echo "$as_me:$LINENO: \$? = $ac_status" >&5
+   (exit $ac_status); }; then
+    if test "$lt_cv_prog_gnu_ld" = yes; then
+@@ -9185,17 +9180,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:9191: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:9186: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:9195: \$? = $ac_status" >&5
++   echo "$as_me:9190: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -9475,17 +9470,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:9481: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:9476: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:9485: \$? = $ac_status" >&5
++   echo "$as_me:9480: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -9579,17 +9574,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:9585: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:9580: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:9589: \$? = $ac_status" >&5
++   echo "$as_me:9584: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -11956,13 +11951,13 @@
+   	  if test "$cross_compiling" = yes; then :
+   lt_cv_dlopen_self=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 11962 "configure"
++#line 11957 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -12056,13 +12051,13 @@
+   	  if test "$cross_compiling" = yes; then :
+   lt_cv_dlopen_self_static=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 12062 "configure"
++#line 12057 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -14457,17 +14452,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:14463: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:14458: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:14467: \$? = $ac_status" >&5
++   echo "$as_me:14462: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -14561,17 +14556,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:14567: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:14562: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:14571: \$? = $ac_status" >&5
++   echo "$as_me:14566: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -16159,17 +16154,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:16165: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:16160: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:16169: \$? = $ac_status" >&5
++   echo "$as_me:16164: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -16263,17 +16258,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:16269: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:16264: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:16273: \$? = $ac_status" >&5
++   echo "$as_me:16268: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -18483,17 +18478,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:18489: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:18484: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:18493: \$? = $ac_status" >&5
++   echo "$as_me:18488: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -18773,17 +18768,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:18779: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:18774: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:18783: \$? = $ac_status" >&5
++   echo "$as_me:18778: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -18877,17 +18872,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:18883: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:18878: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:18887: \$? = $ac_status" >&5
++   echo "$as_me:18882: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -35853,299 +35848,12 @@
+   BUILD_WITH_LIBPCAP_TRUE='#'
+   BUILD_WITH_LIBPCAP_FALSE=
+ fi
+ 
+ # }}}
+ 
+-# --with-libpcre {{{
+-with_pcre_config="pcre-config"
+-with_pcre_cflags=""
+-with_pcre_libs=""
+-
+-# Check whether --with-libpcre was given.
+-if test "${with_libpcre+set}" = set; then
+-  withval=$with_libpcre;
+-		if test "x$withval" = "xno"
+-		then
+-			with_libpcre="no"
+-		else if test "x$withval" = "xyes"
+-		then
+-			with_libpcre="yes"
+-		else
+-			if test -f "$withval" && test -x "$withval"
+-			then
+-				with_pcre_config="$withval"
+-			else if test -x "$withval/bin/pcre-config"
+-			then
+-				with_pcre_config="$withval/bin/pcre-config"
+-			fi; fi
+-			with_libpcre="yes"
+-		fi; fi
+-
+-else
+-
+-		with_libpcre="yes"
+-
+-fi
+-
+-
+-if test "x$with_libpcre" = "xyes"
+-then
+-	with_pcre_cflags=`$with_pcre_config --cflags 2>/dev/null`
+-	pcre_config_status=$?
+-
+-	if test $pcre_config_status -ne 0
+-	then
+-		with_libpcre="no ($with_pcre_config failed)"
+-	else
+-		SAVE_CPPFLAGS="$CPPFLAGS"
+-		CPPFLAGS="$CPPFLAGS $with_pcre_cflags"
+-
+-
+-for ac_header in pcre.h
+-do
+-as_ac_Header=`echo "ac_cv_header_$ac_header" | $as_tr_sh`
+-if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
+-  { echo "$as_me:$LINENO: checking for $ac_header" >&5
+-echo $ECHO_N "checking for $ac_header... $ECHO_C" >&6; }
+-if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
+-  echo $ECHO_N "(cached) $ECHO_C" >&6
+-fi
+-ac_res=`eval echo '${'$as_ac_Header'}'`
+-	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+-echo "${ECHO_T}$ac_res" >&6; }
+-else
+-  # Is the header compilable?
+-{ echo "$as_me:$LINENO: checking $ac_header usability" >&5
+-echo $ECHO_N "checking $ac_header usability... $ECHO_C" >&6; }
+-cat >conftest.$ac_ext <<_ACEOF
+-/* confdefs.h.  */
+-_ACEOF
+-cat confdefs.h >>conftest.$ac_ext
+-cat >>conftest.$ac_ext <<_ACEOF
+-/* end confdefs.h.  */
+-$ac_includes_default
+-#include <$ac_header>
+-_ACEOF
+-rm -f conftest.$ac_objext
+-if { (ac_try="$ac_compile"
+-case "(($ac_try" in
+-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+-  *) ac_try_echo=$ac_try;;
+-esac
+-eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+-  (eval "$ac_compile") 2>conftest.er1
+-  ac_status=$?
+-  grep -v '^ *+' conftest.er1 >conftest.err
+-  rm -f conftest.er1
+-  cat conftest.err >&5
+-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+-  (exit $ac_status); } && {
+-	 test -z "$ac_c_werror_flag" ||
+-	 test ! -s conftest.err
+-       } && test -s conftest.$ac_objext; then
+-  ac_header_compiler=yes
+-else
+-  echo "$as_me: failed program was:" >&5
+-sed 's/^/| /' conftest.$ac_ext >&5
+-
+-	ac_header_compiler=no
+-fi
+-
+-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+-{ echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+-echo "${ECHO_T}$ac_header_compiler" >&6; }
+-
+-# Is the header present?
+-{ echo "$as_me:$LINENO: checking $ac_header presence" >&5
+-echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
+-cat >conftest.$ac_ext <<_ACEOF
+-/* confdefs.h.  */
+-_ACEOF
+-cat confdefs.h >>conftest.$ac_ext
+-cat >>conftest.$ac_ext <<_ACEOF
+-/* end confdefs.h.  */
+-#include <$ac_header>
+-_ACEOF
+-if { (ac_try="$ac_cpp conftest.$ac_ext"
+-case "(($ac_try" in
+-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+-  *) ac_try_echo=$ac_try;;
+-esac
+-eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+-  (eval "$ac_cpp conftest.$ac_ext") 2>conftest.er1
+-  ac_status=$?
+-  grep -v '^ *+' conftest.er1 >conftest.err
+-  rm -f conftest.er1
+-  cat conftest.err >&5
+-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+-  (exit $ac_status); } >/dev/null && {
+-	 test -z "$ac_c_preproc_warn_flag$ac_c_werror_flag" ||
+-	 test ! -s conftest.err
+-       }; then
+-  ac_header_preproc=yes
+-else
+-  echo "$as_me: failed program was:" >&5
+-sed 's/^/| /' conftest.$ac_ext >&5
+-
+-  ac_header_preproc=no
+-fi
+-
+-rm -f conftest.err conftest.$ac_ext
+-{ echo "$as_me:$LINENO: result: $ac_header_preproc" >&5
+-echo "${ECHO_T}$ac_header_preproc" >&6; }
+-
+-# So?  What about this header?
+-case $ac_header_compiler:$ac_header_preproc:$ac_c_preproc_warn_flag in
+-  yes:no: )
+-    { echo "$as_me:$LINENO: WARNING: $ac_header: accepted by the compiler, rejected by the preprocessor!" >&5
+-echo "$as_me: WARNING: $ac_header: accepted by the compiler, rejected by the preprocessor!" >&2;}
+-    { echo "$as_me:$LINENO: WARNING: $ac_header: proceeding with the compiler's result" >&5
+-echo "$as_me: WARNING: $ac_header: proceeding with the compiler's result" >&2;}
+-    ac_header_preproc=yes
+-    ;;
+-  no:yes:* )
+-    { echo "$as_me:$LINENO: WARNING: $ac_header: present but cannot be compiled" >&5
+-echo "$as_me: WARNING: $ac_header: present but cannot be compiled" >&2;}
+-    { echo "$as_me:$LINENO: WARNING: $ac_header:     check for missing prerequisite headers?" >&5
+-echo "$as_me: WARNING: $ac_header:     check for missing prerequisite headers?" >&2;}
+-    { echo "$as_me:$LINENO: WARNING: $ac_header: see the Autoconf documentation" >&5
+-echo "$as_me: WARNING: $ac_header: see the Autoconf documentation" >&2;}
+-    { echo "$as_me:$LINENO: WARNING: $ac_header:     section \"Present But Cannot Be Compiled\"" >&5
+-echo "$as_me: WARNING: $ac_header:     section \"Present But Cannot Be Compiled\"" >&2;}
+-    { echo "$as_me:$LINENO: WARNING: $ac_header: proceeding with the preprocessor's result" >&5
+-echo "$as_me: WARNING: $ac_header: proceeding with the preprocessor's result" >&2;}
+-    { echo "$as_me:$LINENO: WARNING: $ac_header: in the future, the compiler will take precedence" >&5
+-echo "$as_me: WARNING: $ac_header: in the future, the compiler will take precedence" >&2;}
+-
+-    ;;
+-esac
+-{ echo "$as_me:$LINENO: checking for $ac_header" >&5
+-echo $ECHO_N "checking for $ac_header... $ECHO_C" >&6; }
+-if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
+-  echo $ECHO_N "(cached) $ECHO_C" >&6
+-else
+-  eval "$as_ac_Header=\$ac_header_preproc"
+-fi
+-ac_res=`eval echo '${'$as_ac_Header'}'`
+-	       { echo "$as_me:$LINENO: result: $ac_res" >&5
+-echo "${ECHO_T}$ac_res" >&6; }
+-
+-fi
+-if test `eval echo '${'$as_ac_Header'}'` = yes; then
+-  cat >>confdefs.h <<_ACEOF
+-#define `echo "HAVE_$ac_header" | $as_tr_cpp` 1
+-_ACEOF
+-
+-else
+-  with_libpcre="no (pcre.h not found)"
+-fi
+-
+-done
+-
+-
+-		CPPFLAGS="$SAVE_CPPFLAGS"
+-	fi
+-fi
+-
+-if test "x$with_libpcre" = "xyes"
+-then
+-	with_pcre_libs=`$with_pcre_config --libs 2>/dev/null`
+-	pcre_config_status=$?
+-
+-	if test $pcre_config_status -ne 0
+-	then
+-		with_libpcre="no ($with_pcre_config failed)"
+-	else
+-		{ echo "$as_me:$LINENO: checking for pcre_compile in -lpcre" >&5
+-echo $ECHO_N "checking for pcre_compile in -lpcre... $ECHO_C" >&6; }
+-if test "${ac_cv_lib_pcre_pcre_compile+set}" = set; then
+-  echo $ECHO_N "(cached) $ECHO_C" >&6
+-else
+-  ac_check_lib_save_LIBS=$LIBS
+-LIBS="-lpcre $with_pcre_libs $LIBS"
+-cat >conftest.$ac_ext <<_ACEOF
+-/* confdefs.h.  */
+-_ACEOF
+-cat confdefs.h >>conftest.$ac_ext
+-cat >>conftest.$ac_ext <<_ACEOF
+-/* end confdefs.h.  */
+-
+-/* Override any GCC internal prototype to avoid an error.
+-   Use char because int might match the return type of a GCC
+-   builtin and then its argument prototype would still apply.  */
+-#ifdef __cplusplus
+-extern "C"
+-#endif
+-char pcre_compile ();
+-int
+-main ()
+-{
+-return pcre_compile ();
+-  ;
+-  return 0;
+-}
+-_ACEOF
+-rm -f conftest.$ac_objext conftest$ac_exeext
+-if { (ac_try="$ac_link"
+-case "(($ac_try" in
+-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+-  *) ac_try_echo=$ac_try;;
+-esac
+-eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+-  (eval "$ac_link") 2>conftest.er1
+-  ac_status=$?
+-  grep -v '^ *+' conftest.er1 >conftest.err
+-  rm -f conftest.er1
+-  cat conftest.err >&5
+-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+-  (exit $ac_status); } && {
+-	 test -z "$ac_c_werror_flag" ||
+-	 test ! -s conftest.err
+-       } && test -s conftest$ac_exeext &&
+-       $as_test_x conftest$ac_exeext; then
+-  ac_cv_lib_pcre_pcre_compile=yes
+-else
+-  echo "$as_me: failed program was:" >&5
+-sed 's/^/| /' conftest.$ac_ext >&5
+-
+-	ac_cv_lib_pcre_pcre_compile=no
+-fi
+-
+-rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+-      conftest$ac_exeext conftest.$ac_ext
+-LIBS=$ac_check_lib_save_LIBS
+-fi
+-{ echo "$as_me:$LINENO: result: $ac_cv_lib_pcre_pcre_compile" >&5
+-echo "${ECHO_T}$ac_cv_lib_pcre_pcre_compile" >&6; }
+-if test $ac_cv_lib_pcre_pcre_compile = yes; then
+-  with_libpcre="yes"
+-else
+-  with_libpcre="no (symbol 'pcre_compile' not found)"
+-fi
+-
+-	fi
+-fi
+-
+-if test "x$with_libpcre" = "xyes"
+-then
+-	BUILD_WITH_LIBPCRE_CFLAGS="$with_pcre_cflags"
+-	BUILD_WITH_LIBPCRE_LIBS="$with_pcre_libs"
+-
+-
+-fi
+- if test "x$with_libpcre" = "xyes"; then
+-  BUILD_WITH_LIBPCRE_TRUE=
+-  BUILD_WITH_LIBPCRE_FALSE='#'
+-else
+-  BUILD_WITH_LIBPCRE_TRUE='#'
+-  BUILD_WITH_LIBPCRE_FALSE=
+-fi
+-
+-# }}}
+-
+ # --with-libperl {{{
+ perl_interpreter="perl"
+ 
+ # Check whether --with-libperl was given.
+ if test "${with_libperl+set}" = set; then
+   withval=$with_libperl;
+@@ -43787,19 +43495,12 @@
+   { { echo "$as_me:$LINENO: error: conditional \"BUILD_WITH_LIBPCAP\" was never defined.
+ Usually this means the macro was only invoked conditionally." >&5
+ echo "$as_me: error: conditional \"BUILD_WITH_LIBPCAP\" was never defined.
+ Usually this means the macro was only invoked conditionally." >&2;}
+    { (exit 1); exit 1; }; }
+ fi
+-if test -z "${BUILD_WITH_LIBPCRE_TRUE}" && test -z "${BUILD_WITH_LIBPCRE_FALSE}"; then
+-  { { echo "$as_me:$LINENO: error: conditional \"BUILD_WITH_LIBPCRE\" was never defined.
+-Usually this means the macro was only invoked conditionally." >&5
+-echo "$as_me: error: conditional \"BUILD_WITH_LIBPCRE\" was never defined.
+-Usually this means the macro was only invoked conditionally." >&2;}
+-   { (exit 1); exit 1; }; }
+-fi
+ if test -z "${BUILD_WITH_LIBPERL_TRUE}" && test -z "${BUILD_WITH_LIBPERL_FALSE}"; then
+   { { echo "$as_me:$LINENO: error: conditional \"BUILD_WITH_LIBPERL\" was never defined.
+ Usually this means the macro was only invoked conditionally." >&5
+ echo "$as_me: error: conditional \"BUILD_WITH_LIBPERL\" was never defined.
+ Usually this means the macro was only invoked conditionally." >&2;}
+    { (exit 1); exit 1; }; }
+@@ -44675,13 +44376,13 @@
+ exec 6>&1
+ 
+ # Save the log message, to keep $[0] and so on meaningful, and to
+ # report actual input values of CONFIG_FILES etc. instead of their
+ # values after options handling.
+ ac_log="
+-This file was extended by collectd $as_me 4.6.0, which was
++This file was extended by collectd $as_me 4.6.1, which was
+ generated by GNU Autoconf 2.61.  Invocation command line was
+ 
+   CONFIG_FILES    = $CONFIG_FILES
+   CONFIG_HEADERS  = $CONFIG_HEADERS
+   CONFIG_LINKS    = $CONFIG_LINKS
+   CONFIG_COMMANDS = $CONFIG_COMMANDS
+@@ -44728,13 +44429,13 @@
+ 
+ Report bugs to <bug-autoconf@gnu.org>."
+ 
+ _ACEOF
+ cat >>$CONFIG_STATUS <<_ACEOF
+ ac_cs_version="\\
+-collectd config.status 4.6.0
++collectd config.status 4.6.1
+ configured by $0, generated by GNU Autoconf 2.61,
+   with options \\"`echo "$ac_configure_args" | sed 's/^ //; s/[\\""\`\$]/\\\\&/g'`\\"
+ 
+ Copyright (C) 2006 Free Software Foundation, Inc.
+ This config.status script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it."
+@@ -45136,27 +44837,27 @@
+ BUILD_WITH_ORACLE_CFLAGS!$BUILD_WITH_ORACLE_CFLAGS$ac_delim
+ BUILD_WITH_ORACLE_LIBS!$BUILD_WITH_ORACLE_LIBS$ac_delim
+ BUILD_WITH_LIBOWCAPI_CPPFLAGS!$BUILD_WITH_LIBOWCAPI_CPPFLAGS$ac_delim
+ BUILD_WITH_LIBOWCAPI_LIBS!$BUILD_WITH_LIBOWCAPI_LIBS$ac_delim
+ BUILD_WITH_LIBPCAP_TRUE!$BUILD_WITH_LIBPCAP_TRUE$ac_delim
+ BUILD_WITH_LIBPCAP_FALSE!$BUILD_WITH_LIBPCAP_FALSE$ac_delim
+-BUILD_WITH_LIBPCRE_CFLAGS!$BUILD_WITH_LIBPCRE_CFLAGS$ac_delim
+-BUILD_WITH_LIBPCRE_LIBS!$BUILD_WITH_LIBPCRE_LIBS$ac_delim
+-BUILD_WITH_LIBPCRE_TRUE!$BUILD_WITH_LIBPCRE_TRUE$ac_delim
+-BUILD_WITH_LIBPCRE_FALSE!$BUILD_WITH_LIBPCRE_FALSE$ac_delim
+ PERL!$PERL$ac_delim
+ PERL_CFLAGS!$PERL_CFLAGS$ac_delim
+ PERL_LDFLAGS!$PERL_LDFLAGS$ac_delim
+ BUILD_WITH_LIBPERL_TRUE!$BUILD_WITH_LIBPERL_TRUE$ac_delim
+ BUILD_WITH_LIBPERL_FALSE!$BUILD_WITH_LIBPERL_FALSE$ac_delim
+ HAVE_BROKEN_PERL_LOAD_MODULE_TRUE!$HAVE_BROKEN_PERL_LOAD_MODULE_TRUE$ac_delim
+ HAVE_BROKEN_PERL_LOAD_MODULE_FALSE!$HAVE_BROKEN_PERL_LOAD_MODULE_FALSE$ac_delim
+ BUILD_WITH_LIBPQ_CPPFLAGS!$BUILD_WITH_LIBPQ_CPPFLAGS$ac_delim
+ BUILD_WITH_LIBPQ_LDFLAGS!$BUILD_WITH_LIBPQ_LDFLAGS$ac_delim
+ BUILD_WITH_LIBPQ_TRUE!$BUILD_WITH_LIBPQ_TRUE$ac_delim
+ BUILD_WITH_LIBPQ_FALSE!$BUILD_WITH_LIBPQ_FALSE$ac_delim
++BUILD_WITH_LIBPTHREAD_TRUE!$BUILD_WITH_LIBPTHREAD_TRUE$ac_delim
++BUILD_WITH_LIBPTHREAD_FALSE!$BUILD_WITH_LIBPTHREAD_FALSE$ac_delim
++BUILD_WITH_LIBRRD_CFLAGS!$BUILD_WITH_LIBRRD_CFLAGS$ac_delim
++BUILD_WITH_LIBRRD_LDFLAGS!$BUILD_WITH_LIBRRD_LDFLAGS$ac_delim
+ _ACEOF
+ 
+   if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 97; then
+     break
+   elif $ac_last_try; then
+     { { echo "$as_me:$LINENO: error: could not make $CONFIG_STATUS" >&5
+@@ -45192,16 +44893,12 @@
+ _ACEOF
+ 
+ 
+ ac_delim='%!_!# '
+ for ac_last_try in false false false false false :; do
+   cat >conf$$subs.sed <<_ACEOF
+-BUILD_WITH_LIBPTHREAD_TRUE!$BUILD_WITH_LIBPTHREAD_TRUE$ac_delim
+-BUILD_WITH_LIBPTHREAD_FALSE!$BUILD_WITH_LIBPTHREAD_FALSE$ac_delim
+-BUILD_WITH_LIBRRD_CFLAGS!$BUILD_WITH_LIBRRD_CFLAGS$ac_delim
+-BUILD_WITH_LIBRRD_LDFLAGS!$BUILD_WITH_LIBRRD_LDFLAGS$ac_delim
+ BUILD_WITH_LIBSENSORS_CFLAGS!$BUILD_WITH_LIBSENSORS_CFLAGS$ac_delim
+ BUILD_WITH_LIBSENSORS_LDFLAGS!$BUILD_WITH_LIBSENSORS_LDFLAGS$ac_delim
+ BUILD_WITH_LM_SENSORS_TRUE!$BUILD_WITH_LM_SENSORS_TRUE$ac_delim
+ BUILD_WITH_LM_SENSORS_FALSE!$BUILD_WITH_LM_SENSORS_FALSE$ac_delim
+ BUILD_WITH_LIBSTATGRAB_TRUE!$BUILD_WITH_LIBSTATGRAB_TRUE$ac_delim
+ BUILD_WITH_LIBSTATGRAB_FALSE!$BUILD_WITH_LIBSTATGRAB_FALSE$ac_delim
+@@ -45289,12 +44986,16 @@
+ BUILD_PLUGIN_MATCH_VALUE_FALSE!$BUILD_PLUGIN_MATCH_VALUE_FALSE$ac_delim
+ BUILD_PLUGIN_MBMON_TRUE!$BUILD_PLUGIN_MBMON_TRUE$ac_delim
+ BUILD_PLUGIN_MBMON_FALSE!$BUILD_PLUGIN_MBMON_FALSE$ac_delim
+ BUILD_PLUGIN_MEMCACHED_TRUE!$BUILD_PLUGIN_MEMCACHED_TRUE$ac_delim
+ BUILD_PLUGIN_MEMCACHED_FALSE!$BUILD_PLUGIN_MEMCACHED_FALSE$ac_delim
+ BUILD_PLUGIN_MEMORY_TRUE!$BUILD_PLUGIN_MEMORY_TRUE$ac_delim
++BUILD_PLUGIN_MEMORY_FALSE!$BUILD_PLUGIN_MEMORY_FALSE$ac_delim
++BUILD_PLUGIN_MULTIMETER_TRUE!$BUILD_PLUGIN_MULTIMETER_TRUE$ac_delim
++BUILD_PLUGIN_MULTIMETER_FALSE!$BUILD_PLUGIN_MULTIMETER_FALSE$ac_delim
++BUILD_PLUGIN_MYSQL_TRUE!$BUILD_PLUGIN_MYSQL_TRUE$ac_delim
+ _ACEOF
+ 
+   if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 97; then
+     break
+   elif $ac_last_try; then
+     { { echo "$as_me:$LINENO: error: could not make $CONFIG_STATUS" >&5
+@@ -45330,16 +45031,12 @@
+ _ACEOF
+ 
+ 
+ ac_delim='%!_!# '
+ for ac_last_try in false false false false false :; do
+   cat >conf$$subs.sed <<_ACEOF
+-BUILD_PLUGIN_MEMORY_FALSE!$BUILD_PLUGIN_MEMORY_FALSE$ac_delim
+-BUILD_PLUGIN_MULTIMETER_TRUE!$BUILD_PLUGIN_MULTIMETER_TRUE$ac_delim
+-BUILD_PLUGIN_MULTIMETER_FALSE!$BUILD_PLUGIN_MULTIMETER_FALSE$ac_delim
+-BUILD_PLUGIN_MYSQL_TRUE!$BUILD_PLUGIN_MYSQL_TRUE$ac_delim
+ BUILD_PLUGIN_MYSQL_FALSE!$BUILD_PLUGIN_MYSQL_FALSE$ac_delim
+ BUILD_PLUGIN_NETLINK_TRUE!$BUILD_PLUGIN_NETLINK_TRUE$ac_delim
+ BUILD_PLUGIN_NETLINK_FALSE!$BUILD_PLUGIN_NETLINK_FALSE$ac_delim
+ BUILD_PLUGIN_NETWORK_TRUE!$BUILD_PLUGIN_NETWORK_TRUE$ac_delim
+ BUILD_PLUGIN_NETWORK_FALSE!$BUILD_PLUGIN_NETWORK_FALSE$ac_delim
+ BUILD_PLUGIN_NFS_TRUE!$BUILD_PLUGIN_NFS_TRUE$ac_delim
+@@ -45422,13 +45119,13 @@
+ LCC_VERSION_EXTRA!$LCC_VERSION_EXTRA$ac_delim
+ LCC_VERSION_STRING!$LCC_VERSION_STRING$ac_delim
+ LIBOBJS!$LIBOBJS$ac_delim
+ LTLIBOBJS!$LTLIBOBJS$ac_delim
+ _ACEOF
+ 
+-  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 90; then
++  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 86; then
+     break
+   elif $ac_last_try; then
+     { { echo "$as_me:$LINENO: error: could not make $CONFIG_STATUS" >&5
+ echo "$as_me: error: could not make $CONFIG_STATUS" >&2;}
+    { (exit 1); exit 1; }; }
+   else
+@@ -46251,13 +45948,12 @@
+     libnetsnmp  . . . . . $with_libnetsnmp
+     libnotify . . . . . . $with_libnotify
+     liboconfig  . . . . . $with_liboconfig
+     libopenipmi . . . . . $with_libopenipmipthread
+     liboping  . . . . . . $with_liboping
+     libpcap . . . . . . . $with_libpcap
+-    libpcre . . . . . . . $with_libpcre
+     libperl . . . . . . . $with_libperl
+     libpq . . . . . . . . $with_libpq
+     libpthread  . . . . . $with_libpthread
+     librrd  . . . . . . . $with_librrd
+     libsensors  . . . . . $with_libsensors
+     libstatgrab . . . . . $with_libstatgrab
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/configure.in	2009-02-17 05:59:03.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/configure.in	2009-02-23 02:44:31.000000000 +0800
+@@ -1760,84 +1760,12 @@
+ fi
+ AC_DEFINE_UNQUOTED(COLLECT_LIBPCAP, [$collect_libpcap],
+ 	[Wether or not to use the pcap library])
+ AM_CONDITIONAL(BUILD_WITH_LIBPCAP, test "x$with_libpcap" = "xyes")
+ # }}}
+ 
+-# --with-libpcre {{{
+-with_pcre_config="pcre-config"
+-with_pcre_cflags=""
+-with_pcre_libs=""
+-AC_ARG_WITH(libpcre, [AS_HELP_STRING([--with-libpcre@<:@=PREFIX@:>@],
+-	[Path to libpcre.])],
+-	[
+-		if test "x$withval" = "xno"
+-		then
+-			with_libpcre="no"
+-		else if test "x$withval" = "xyes"
+-		then
+-			with_libpcre="yes"
+-		else
+-			if test -f "$withval" && test -x "$withval"
+-			then
+-				with_pcre_config="$withval"
+-			else if test -x "$withval/bin/pcre-config"
+-			then
+-				with_pcre_config="$withval/bin/pcre-config"
+-			fi; fi
+-			with_libpcre="yes"
+-		fi; fi
+-	],
+-	[
+-		with_libpcre="yes"
+-	])
+-
+-if test "x$with_libpcre" = "xyes"
+-then
+-	with_pcre_cflags=`$with_pcre_config --cflags 2>/dev/null`
+-	pcre_config_status=$?
+-
+-	if test $pcre_config_status -ne 0
+-	then
+-		with_libpcre="no ($with_pcre_config failed)"
+-	else
+-		SAVE_CPPFLAGS="$CPPFLAGS"
+-		CPPFLAGS="$CPPFLAGS $with_pcre_cflags"
+-
+-		AC_CHECK_HEADERS(pcre.h, [], [with_libpcre="no (pcre.h not found)"], [])
+-
+-		CPPFLAGS="$SAVE_CPPFLAGS"
+-	fi
+-fi
+-
+-if test "x$with_libpcre" = "xyes"
+-then
+-	with_pcre_libs=`$with_pcre_config --libs 2>/dev/null`
+-	pcre_config_status=$?
+-
+-	if test $pcre_config_status -ne 0
+-	then
+-		with_libpcre="no ($with_pcre_config failed)"
+-	else
+-		AC_CHECK_LIB(pcre, pcre_compile,
+-			[with_libpcre="yes"],
+-			[with_libpcre="no (symbol 'pcre_compile' not found)"],
+-			[$with_pcre_libs])
+-	fi
+-fi
+-
+-if test "x$with_libpcre" = "xyes"
+-then
+-	BUILD_WITH_LIBPCRE_CFLAGS="$with_pcre_cflags"
+-	BUILD_WITH_LIBPCRE_LIBS="$with_pcre_libs"
+-	AC_SUBST(BUILD_WITH_LIBPCRE_CFLAGS)
+-	AC_SUBST(BUILD_WITH_LIBPCRE_LIBS)
+-fi
+-AM_CONDITIONAL(BUILD_WITH_LIBPCRE, test "x$with_libpcre" = "xyes")
+-# }}}
+-
+ # --with-libperl {{{
+ perl_interpreter="perl"
+ AC_ARG_WITH(libperl, [AS_HELP_STRING([--with-libperl@<:@=PREFIX@:>@], [Path to libperl.])],
+ [
+  	if test -x "$withval"
+ 	then
+@@ -3286,13 +3214,12 @@
+     libnetsnmp  . . . . . $with_libnetsnmp
+     libnotify . . . . . . $with_libnotify
+     liboconfig  . . . . . $with_liboconfig
+     libopenipmi . . . . . $with_libopenipmipthread
+     liboping  . . . . . . $with_liboping
+     libpcap . . . . . . . $with_libpcap
+-    libpcre . . . . . . . $with_libpcre
+     libperl . . . . . . . $with_libperl
+     libpq . . . . . . . . $with_libpq
+     libpthread  . . . . . $with_libpthread
+     librrd  . . . . . . . $with_librrd
+     libsensors  . . . . . $with_libsensors
+     libstatgrab . . . . . $with_libstatgrab
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/contrib/cussh.pl /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/contrib/cussh.pl
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/contrib/cussh.pl	2009-02-14 20:31:59.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/contrib/cussh.pl	2009-02-23 02:30:52.000000000 +0800
+@@ -107,19 +107,48 @@
+ 	}
+ 
+ 	$sock->destroy();
+ 	exit 0;
+ }
+ 
++sub tokenize {
++	my $line     = shift || return;
++	my $line_ptr = $line;
++	my @line     = ();
++
++	my $token_pattern = qr/[^"\s]+|"[^"]+"/;
++
++	while (my ($token) = $line_ptr =~ m/^($token_pattern)\s+/) {
++		$line_ptr = $';
++		push @line, $token;
++	}
++
++	if ($line_ptr =~ m/^$token_pattern$/) {
++		push @line, $line_ptr;
++	}
++	else {
++		my ($token) = split m/ /, $line_ptr, 1;
++		print STDERR "Failed to parse line: $line\n";
++		print STDERR "Parse error near token \"$token\".\n";
++		return;
++	}
++
++	foreach my $l (@line) {
++		if ($l =~ m/^"(.*)"$/) {
++			$l = $1;
++		}
++	}
++	return @line;
++}
++
+ sub getid {
+ 	my $string = shift || return;
+ 
+-	print $$string . $/;
+ 	my ($h, $p, $pi, $t, $ti) =
+-		$$string =~ m#^([^/]+)/([^/-]+)(?:-([^/]+))?/([^/-]+)(?:-([^/]+))?\s*#;
+-	$$string = $';
++		$string =~ m#^([^/]+)/([^/-]+)(?:-([^/]+))?/([^/-]+)(?:-([^/]+))?\s*#;
++	$string = $';
+ 
+ 	return if ((! $h) || (! $p) || (! $t));
+ 
+ 	my %id = ();
+ 
+ 	($id{'host'}, $id{'plugin'}, $id{'type'}) = ($h, $p, $t);
+@@ -169,50 +198,83 @@
+ See the embedded Perldoc documentation for details. To do that, run:
+   perldoc $0
+ HELP
+ 	return 1;
+ } # cmd_help
+ 
+-=item B<GETVAL> I<Identifier>
++=item B<PUTVAL> I<Identifier> I<Valuelist>
+ 
+ =cut
+ 
+ sub putval {
+ 	my $sock = shift || return;
+ 	my $line = shift || return;
+ 
+-	my $id = getid(\$line);
++	my @line = tokenize($line);
++
++	my $id;
++	my $ret;
++
++	if (! @line) {
++		return;
++	}
++
++	if (scalar(@line) < 2) {
++		print STDERR "Synopsis: PUTVAL <id> <value0> [<value1> ...]" . $/;
++		return;
++	}
++
++	$id = getid($line[0]);
+ 
+ 	if (! $id) {
+-		print STDERR $sock->{'error'} . $/;
++		print STDERR "Invalid id \"$line[0]\"." . $/;
+ 		return;
+ 	}
+ 
+ 	my ($time, @values) = split m/:/, $line;
+-	return $sock->putval(%$id, time => $time, values => \@values);
++	$ret = $sock->putval(%$id, time => $time, values => \@values);
++
++	if (! $ret) {
++		print STDERR "socket error: " . $sock->{'error'} . $/;
++	}
++	return $ret;
+ }
+ 
+-=item B<PUTVAL> I<Identifier> I<Valuelist>
++=item B<GETVAL> I<Identifier>
+ 
+ =cut
+ 
+ sub getval {
+ 	my $sock = shift || return;
+ 	my $line = shift || return;
+ 
+-	my $id = getid(\$line);
++	my @line = tokenize($line);
++
++	my $id;
++	my $vals;
++
++	if (! @line) {
++		return;
++	}
++
++	if (scalar(@line) < 1) {
++		print STDERR "Synopsis: GETVAL <id>" . $/;
++		return;
++	}
++
++	$id = getid($line[0]);
+ 
+ 	if (! $id) {
+-		print STDERR $sock->{'error'} . $/;
++		print STDERR "Invalid id \"$line[0]\"." . $/;
+ 		return;
+ 	}
+ 
+-	my $vals = $sock->getval(%$id);
++	$vals = $sock->getval(%$id);
+ 
+ 	if (! $vals) {
+-		print STDERR $sock->{'error'} . $/;
++		print STDERR "socket error: " . $sock->{'error'} . $/;
+ 		return;
+ 	}
+ 
+ 	foreach my $key (keys %$vals) {
+ 		print "\t$key: $vals->{$key}\n";
+ 	}
+@@ -224,21 +286,23 @@
+ =cut
+ 
+ sub flush {
+ 	my $sock = shift || return;
+ 	my $line = shift;
+ 
++	my @line = tokenize($line);
++
+ 	my $res;
+ 
+ 	if (! $line) {
+ 		$res = $sock->flush();
+ 	}
+ 	else {
+ 		my %args = ();
+ 
+-		foreach my $i (split m/ /, $line) {
++		foreach my $i (@line) {
+ 			my ($option, $value) = $i =~ m/^([^=]+)=(.+)$/;
+ 			next if (! ($option && $value));
+ 
+ 			if ($option eq "plugin") {
+ 				push @{$args{"plugins"}}, $value;
+ 			}
+@@ -261,31 +325,36 @@
+ 		}
+ 
+ 		$res = $sock->flush(%args);
+ 	}
+ 
+ 	if (! $res) {
+-		print STDERR $sock->{'error'} . $/;
+-		return;
++		print STDERR "socket error: " . $sock->{'error'} . $/;
+ 	}
+-	return 1;
++	return $res;
+ }
+ 
+ =item B<LISTVAL>
+ 
+ =cut
+ 
+ sub listval {
+ 	my $sock = shift || return;
++	my $line = shift;
+ 
+ 	my @res;
+ 
++	if ($line ne "") {
++		print STDERR "Synopsis: LISTVAL" . $/;
++		return;
++	}
++
+ 	@res = $sock->listval();
+ 
+ 	if (! @res) {
+-		print STDERR $sock->{'error'} . $/;
++		print STDERR "socket error: " . $sock->{'error'} . $/;
+ 		return;
+ 	}
+ 
+ 	foreach my $ident (@res) {
+ 		print $ident->{'time'} . " " . putid($ident) . $/;
+ 	}
+@@ -297,25 +366,35 @@
+ =cut
+ 
+ sub putnotif {
+ 	my $sock = shift || return;
+ 	my $line = shift || return;
+ 
++	my @line = tokenize($line);
++
++	my $ret;
++
+ 	my (%values) = ();
+-	foreach my $i (split m/ /, $line) {
+-		my($key,$val) = split m/=/, $i, 2;
++	foreach my $i (@line) {
++		my ($key, $val) = split m/=/, $i, 2;
+ 		if ($key && $val) {
+ 			$values{$key} = $val;
+ 		}
+ 		else {
+-			$values{'message'} .= ' '.$key;
++			$values{'message'} = defined($values{'message'})
++				? ($values{'message'} . ' ' . $key)
++				: $key;
+ 		}
+ 	}
+ 	$values{'time'} ||= time();
+-	my(@tmp) = %values;
+-	return $sock->putnotif(%values);
++
++	$ret = $sock->putnotif(%values);
++	if (! $ret) {
++		print STDERR "socket error: " . $sock->{'error'} . $/;
++	}
++	return $ret;
+ }
+ 
+ =back
+ 
+ These commands follow the exact same syntax as described in
+ L<collectd-unixsock(5)>.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/Makefile.in	2009-02-17 05:59:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/Makefile.in	2009-02-23 02:44:47.000000000 +0800
+@@ -87,14 +87,12 @@
+ BUILD_WITH_LIBMYSQL_CFLAGS = @BUILD_WITH_LIBMYSQL_CFLAGS@
+ BUILD_WITH_LIBMYSQL_LIBS = @BUILD_WITH_LIBMYSQL_LIBS@
+ BUILD_WITH_LIBNETLINK_CFLAGS = @BUILD_WITH_LIBNETLINK_CFLAGS@
+ BUILD_WITH_LIBNETLINK_LIBS = @BUILD_WITH_LIBNETLINK_LIBS@
+ BUILD_WITH_LIBOWCAPI_CPPFLAGS = @BUILD_WITH_LIBOWCAPI_CPPFLAGS@
+ BUILD_WITH_LIBOWCAPI_LIBS = @BUILD_WITH_LIBOWCAPI_LIBS@
+-BUILD_WITH_LIBPCRE_CFLAGS = @BUILD_WITH_LIBPCRE_CFLAGS@
+-BUILD_WITH_LIBPCRE_LIBS = @BUILD_WITH_LIBPCRE_LIBS@
+ BUILD_WITH_LIBPQ_CPPFLAGS = @BUILD_WITH_LIBPQ_CPPFLAGS@
+ BUILD_WITH_LIBPQ_LDFLAGS = @BUILD_WITH_LIBPQ_LDFLAGS@
+ BUILD_WITH_LIBRRD_CFLAGS = @BUILD_WITH_LIBRRD_CFLAGS@
+ BUILD_WITH_LIBRRD_LDFLAGS = @BUILD_WITH_LIBRRD_LDFLAGS@
+ BUILD_WITH_LIBSENSORS_CFLAGS = @BUILD_WITH_LIBSENSORS_CFLAGS@
+ BUILD_WITH_LIBSENSORS_LDFLAGS = @BUILD_WITH_LIBSENSORS_LDFLAGS@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/README /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/README
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/README	2009-02-16 19:35:57.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/README	2009-02-23 02:40:05.000000000 +0800
+@@ -30,12 +30,15 @@
+       Statistics about Ascent, a free server for the game `World of Warcraft'.
+ 
+     - battery
+       Batterycharge, -current and voltage of ACPI and PMU based laptop
+       batteries.
+ 
++    - curl
++      Parse statistics from websites using regular expressions.
++
+     - bind
+       Name server and resolver statistics from the `statistics-channel'
+       interface of BIND 9.5, 9,6 and later.
+ 
+     - cpu
+       CPU utilization: Time spent in the system, user, nice, idle, and related
+@@ -151,12 +154,15 @@
+       Please read in collectd.conf(5) why this plugin is experimental.
+ 
+     - openvpn
+       RX and TX of each client in openvpn-status.log (status-version 2).
+       <http://openvpn.net/index.php/documentation/howto.html>
+ 
++    - oracle
++      Query data from an Oracle database.
++
+     - perl
+       The perl plugin implements a Perl-interpreter into collectd. You can
+       write your own plugins in Perl and return arbitrary values using this
+       API. See collectd-perl(5).
+ 
+     - ping
+@@ -255,19 +261,12 @@
+ 
+     - unixsock
+       One can query the values from the unixsock plugin whenever they're
+       needed. Please read collectd-unixsock(5) for a description on how that's
+       done.
+ 
+-  * Filtering and rewriting values dispatched to collectd can be done by the
+-    following plugins:
+-
+-    - filter_pcre
+-      Filter and rewrite value lists based on Perl-compatible regular
+-      expressions.
+-
+   * Logging is, as everything in collectd, provided by plugins. The following
+     plugins keep up informed about what's going on:
+ 
+     - logfile
+       Writes logmessages to a file or STDOUT/STDERR.
+ 
+@@ -301,12 +300,33 @@
+       Send the notification to a remote host to handle it somehow.
+ 
+     - perl
+       Notifications are propagated to plugins written in Perl as well.
+       See collectd-perl(5).
+ 
++  * Value processing can be controlled using the "filter chain" infrastructure
++    and "matches" and "targets". The following plugins are available:
++
++    - match_regex
++      Match values by their identifier based on regular expressions.
++
++    - match_timediff
++      Match values with an invalid timestamp.
++
++    - match_value
++      Select values by their data sources' values.
++
++    - target_notification
++      Create and dispatch a notification.
++
++    - target_replace
++      Replace parts of an identifier using regular expressions.
++
++    - target_set
++      Set (overwrite) entire parts of an identifier.
++
+   * Miscellaneous plugins:
+ 
+     - uuid
+       Sets the hostname to an unique identifier. This is meant for setups
+       where each client may migrate to another physical host, possibly going
+       through one or more name changes in the process.
+@@ -377,14 +397,17 @@
+ 
+   * CoreFoundation.framework and IOKit.framework (optional)
+     For compiling on Darwin in general and the `apple_sensors' plugin in
+     particular.
+     <http://developer.apple.com/corefoundation/>
+ 
++  * libclntsh (optional)
++    Used by the `oracle' plugin.
++
+   * libcurl (optional)
+-    If you want to use the `apache', `ascent', or `nginx' plugin.
++    If you want to use the `apache', `ascent', `curl' or `nginx' plugin.
+     <http://curl.haxx.se/>
+ 
+   * libdbi (optional)
+     Used by the `dbi' plugin to connect to various databases.
+     <http://libdbi.sourceforge.net/>
+ 
+@@ -428,16 +451,12 @@
+     <http://www.owfs.org/>
+ 
+   * libpcap (optional)
+     Used to capture packets by the `dns' plugin.
+     <http://www.tcpdump.org/>
+ 
+-  * libpcre (optional)
+-    Used by the `filter_pcre' plugin.
+-    <http://www.pcre.org/>
+-
+   * libperl (optional)
+     Obviously used by the `perl' plugin. The library has to be compiled with
+     ithread support (introduced in Perl 5.6.0).
+     <http://www.perl.org/>
+ 
+   * libpq (optional)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/bind.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/bind.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/bind.c	2009-02-16 22:43:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/bind.c	2009-02-23 02:40:05.000000000 +0800
+@@ -56,13 +56,13 @@
+ 
+ /* 
+  * Some types used for the callback functions. `translation_table_ptr_t' and
+  * `list_info_ptr_t' are passed to the callbacks in the `void *user_data'
+  * pointer.
+  */
+-typedef int (*list_callback_t) (const char *name, counter_t value,
++typedef int (*list_callback_t) (const char *name, value_t value,
+     time_t current_time, void *user_data);
+ 
+ struct cb_view_s
+ {
+   char *name;
+ 
+@@ -128,13 +128,13 @@
+   { "ReqSIG0",         "dns_request",  "SIG0"        },
+   { "ReqBadSIG",       "dns_request",  "BadSIG"      },
+   { "ReqTCP",          "dns_request",  "TCP"         },
+   /* Rejects */
+   { "AuthQryRej",      "dns_reject",   "authorative" },
+   { "RecQryRej",       "dns_reject",   "recursive"   },
+-  { "XfrRej",          "dns_reject",   "transer"     },
++  { "XfrRej",          "dns_reject",   "transfer"    },
+   { "UpdateRej",       "dns_reject",   "update"      },
+   /* Responses */
+   { "Response",        "dns_response", "normal"      },
+   { "TruncatedResp",   "dns_response", "truncated"   },
+   { "RespEDNS0",       "dns_response", "EDNS0"       },
+   { "RespTSIG",        "dns_response", "TSIG"        },
+@@ -175,13 +175,13 @@
+   { "NotifyOutv6",     "dns_notify",   "tx-IPv6"     },
+   { "NotifyInv4",      "dns_notify",   "rx-IPv4"     },
+   { "NotifyInv6",      "dns_notify",   "rx-IPv6"     },
+   { "NotifyRej",       "dns_notify",   "rejected"    },
+   /* SOA/AXFS/IXFS requests */
+   { "SOAOutv4",        "dns_opcode",   "SOA-IPv4"    },
+-  { "SOAOutv6",        "dns_opcode",   "SOA-IPv4"    },
++  { "SOAOutv6",        "dns_opcode",   "SOA-IPv6"    },
+   { "AXFRReqv4",       "dns_opcode",   "AXFR-IPv4"   },
+   { "AXFRReqv6",       "dns_opcode",   "AXFR-IPv6"   },
+   { "IXFRReqv4",       "dns_opcode",   "IXFR-IPv4"   },
+   { "IXFRReqv6",       "dns_opcode",   "IXFR-IPv6"   },
+   /* Domain transfers */
+   { "XfrSuccess",      "dns_transfer", "success"     },
+@@ -249,19 +249,19 @@
+       return;
+     if ((!isalnum ((int) buffer[i])) && (buffer[i] != '-'))
+       buffer[i] = '_';
+   }
+ } /* }}} void remove_special */
+ 
+-static void submit_counter(time_t ts, const char *plugin_instance, /* {{{ */
+-    const char *type, const char *type_instance, counter_t value)
++static void submit (time_t ts, const char *plugin_instance, /* {{{ */
++    const char *type, const char *type_instance, value_t value)
+ {
+   value_t values[1];
+   value_list_t vl = VALUE_LIST_INIT;
+ 
+-  values[0].counter = value;
++  values[0] = value;
+ 
+   vl.values = values;
+   vl.values_len = 1;
+   vl.time = ts;
+   sstrncpy(vl.host, hostname_g, sizeof(vl.host));
+   sstrncpy(vl.plugin, "bind", sizeof(vl.plugin));
+@@ -274,13 +274,13 @@
+   if (type_instance) {
+     sstrncpy(vl.type_instance, type_instance,
+         sizeof(vl.type_instance));
+     remove_special (vl.plugin_instance, sizeof (vl.plugin_instance));
+   }
+   plugin_dispatch_values(&vl);
+-} /* }}} void submit_counter */
++} /* }}} void submit */
+ 
+ static size_t bind_curl_callback (void *buf, size_t size, /* {{{ */
+     size_t nmemb, void __attribute__((unused)) *stream)
+ {
+   size_t len = size * nmemb;
+ 
+@@ -309,13 +309,13 @@
+ } /* }}} size_t bind_curl_callback */
+ 
+ /*
+  * Callback, that's called with a translation table.
+  * (Plugin instance is fixed, type and type instance come from lookup table.)
+  */
+-static int bind_xml_table_callback (const char *name, counter_t value, /* {{{ */
++static int bind_xml_table_callback (const char *name, value_t value, /* {{{ */
+     time_t current_time, void *user_data)
+ {
+   translation_table_ptr_t *table = (translation_table_ptr_t *) user_data;
+   size_t i;
+ 
+   if (table == NULL)
+@@ -323,13 +323,13 @@
+ 
+   for (i = 0; i < table->table_length; i++)
+   {
+     if (strcmp (table->table[i].xml_name, name) != 0)
+       continue;
+ 
+-    submit_counter (current_time,
++    submit (current_time,
+         table->plugin_instance,
+         table->table[i].type,
+         table->table[i].type_instance,
+         value);
+     break;
+   }
+@@ -339,20 +339,20 @@
+ 
+ /*
+  * Callback, that's used for lists.
+  * (Plugin instance and type are fixed, xml name is used as type instance.)
+  */
+ static int bind_xml_list_callback (const char *name, /* {{{ */
+-    counter_t value, time_t current_time, void *user_data)
++    value_t value, time_t current_time, void *user_data)
+ {
+   list_info_ptr_t *list_info = (list_info_ptr_t *) user_data;
+ 
+   if (list_info == NULL)
+     return (-1);
+ 
+-  submit_counter (current_time,
++  submit (current_time,
+       list_info->plugin_instance,
+       list_info->type,
+       /* type instance = */ name,
+       value);
+ 
+   return (0);
+@@ -386,12 +386,43 @@
+   }
+ 
+   *ret_value = value;
+   return (0);
+ } /* }}} int bind_xml_read_counter */
+ 
++static int bind_xml_read_gauge (xmlDoc *doc, xmlNode *node, /* {{{ */
++    gauge_t *ret_value)
++{
++  char *str_ptr, *end_ptr;
++  double value;
++
++  str_ptr = (char *) xmlNodeListGetString (doc, node->xmlChildrenNode, 1);
++  if (str_ptr == NULL)
++  {
++    ERROR ("bind plugin: bind_xml_read_gauge: xmlNodeListGetString failed.");
++    return (-1);
++  }
++
++  errno = 0;
++  value = strtod (str_ptr, &end_ptr);
++  xmlFree(str_ptr);
++  if (str_ptr == end_ptr || errno)
++  {
++    if (errno && (value < 0))
++      ERROR ("bind plugin: bind_xml_read_gauge: strtod failed with underflow.");
++    else if (errno && (value > 0))
++      ERROR ("bind plugin: bind_xml_read_gauge: strtod failed with overflow.");
++    else
++      ERROR ("bind plugin: bind_xml_read_gauge: strtod failed.");
++    return (-1);
++  }
++
++  *ret_value = (gauge_t) value;
++  return (0);
++} /* }}} int bind_xml_read_gauge */
++
+ static int bind_xml_read_timestamp (const char *xpath_expression, /* {{{ */
+     xmlDoc *doc, xmlXPathContext *xpathCtx, time_t *ret_value)
+ {
+   xmlXPathObject *xpathObj = NULL;
+   xmlNode *node;
+   char *str_ptr;
+@@ -456,13 +487,13 @@
+ /* 
+  * bind_parse_generic_name_value
+  *
+  * Reads statistics in the form:
+  * <foo>
+  *   <name>QUERY</name>
+- *   <value>123</name>
++ *   <counter>123</counter>
+  * </foo>
+  */
+ static int bind_parse_generic_name_value (const char *xpath_expression, /* {{{ */
+     list_callback_t list_callback,
+     void *user_data,
+     xmlDoc *doc, xmlXPathContext *xpathCtx,
+@@ -483,16 +514,21 @@
+   num_entries = 0;
+   /* Iterate over all matching nodes. */
+   for (i = 0; xpathObj->nodesetval && (i < xpathObj->nodesetval->nodeNr); i++)
+   {
+     xmlNode *name_node = NULL;
+     xmlNode *counter = NULL;
++    xmlNode *parent;
+     xmlNode *child;
+ 
++    parent = xpathObj->nodesetval->nodeTab[i];
++    DEBUG ("bind plugin: bind_parse_generic_name_value: parent->name = %s;",
++        (char *) parent->name);
++
+     /* Iterate over all child nodes. */
+-    for (child = xpathObj->nodesetval->nodeTab[i]->xmlChildrenNode;
++    for (child = parent->xmlChildrenNode;
+         child != NULL;
+         child = child->next)
+     {
+       if (child->type != XML_ELEMENT_NODE)
+         continue;
+ 
+@@ -503,16 +539,16 @@
+     }
+ 
+     if ((name_node != NULL) && (counter != NULL))
+     {
+       char *name = (char *) xmlNodeListGetString (doc,
+           name_node->xmlChildrenNode, 1);
+-      counter_t value;
++      value_t value;
+       int status;
+ 
+-      status = bind_xml_read_counter (doc, counter, &value);
++      status = bind_xml_read_counter (doc, counter, &value.counter);
+       if (status != 0)
+         continue;
+ 
+       status = (*list_callback) (name, value, current_time, user_data);
+       if (status == 0)
+         num_entries++;
+@@ -542,13 +578,13 @@
+  * </foo>
+  */
+ static int bind_parse_generic_value_list (const char *xpath_expression, /* {{{ */
+     list_callback_t list_callback,
+     void *user_data,
+     xmlDoc *doc, xmlXPathContext *xpathCtx,
+-    time_t current_time)
++    time_t current_time, int ds_type)
+ {
+   xmlXPathObject *xpathObj = NULL;
+   int num_entries;
+   int i;
+ 
+   xpathObj = xmlXPathEvalExpression(BAD_CAST xpath_expression, xpathCtx);
+@@ -568,20 +604,24 @@
+     /* Iterate over all child nodes. */
+     for (child = xpathObj->nodesetval->nodeTab[i]->xmlChildrenNode;
+         child != NULL;
+         child = child->next)
+     {
+       char *node_name;
+-      counter_t value;
++      value_t value;
+       int status;
+ 
+       if (child->type != XML_ELEMENT_NODE)
+         continue;
+ 
+       node_name = (char *) child->name;
+-      status = bind_xml_read_counter (doc, child, &value);
++
++      if (ds_type == DS_TYPE_GAUGE)
++        status = bind_xml_read_gauge (doc, child, &value.gauge);
++      else
++        status = bind_xml_read_counter (doc, child, &value.counter);
+       if (status != 0)
+         continue;
+ 
+       status = (*list_callback) (node_name, value, current_time, user_data);
+       if (status == 0)
+         num_entries++;
+@@ -660,13 +700,13 @@
+     ssnprintf (plugin_instance, sizeof (plugin_instance), "%s-zone-%s",
+         view->name, zone_name);
+ 
+     bind_parse_generic_value_list (/* xpath = */ "counters",
+         /* callback = */ bind_xml_table_callback,
+         /* user_data = */ &table_ptr,
+-        doc, path_ctx, current_time);
++        doc, path_ctx, current_time, DS_TYPE_COUNTER);
+   } /* }}} */
+ 
+   xmlXPathFreeObject (path_obj);
+ 
+   return (0);
+ } /* }}} int bind_xml_stats_handle_zone */
+@@ -969,13 +1009,13 @@
+ 
+     if (version == 1)
+     {
+       bind_parse_generic_value_list ("server/nsstats",
+           /* callback = */ bind_xml_table_callback,
+           /* user_data = */ &table_ptr,
+-          doc, xpathCtx, current_time);
++          doc, xpathCtx, current_time, DS_TYPE_COUNTER);
+     }
+     else
+     {
+       bind_parse_generic_name_value ("server/nsstat",
+           /* callback = */ bind_xml_table_callback,
+           /* user_data = */ &table_ptr,
+@@ -1015,13 +1055,13 @@
+ 
+     if (version == 1)
+     {
+       bind_parse_generic_value_list ("server/zonestats",
+           /* callback = */ bind_xml_table_callback,
+           /* user_data = */ &table_ptr,
+-          doc, xpathCtx, current_time);
++          doc, xpathCtx, current_time, DS_TYPE_COUNTER);
+     }
+     else
+     {
+       bind_parse_generic_name_value ("server/zonestat",
+           /* callback = */ bind_xml_table_callback,
+           /* user_data = */ &table_ptr,
+@@ -1062,13 +1102,13 @@
+ 
+     if (version == 1)
+     {
+       bind_parse_generic_value_list ("server/resstats",
+           /* callback = */ bind_xml_table_callback,
+           /* user_data = */ &table_ptr,
+-          doc, xpathCtx, current_time);
++          doc, xpathCtx, current_time, DS_TYPE_COUNTER);
+     }
+     else
+     {
+       bind_parse_generic_name_value ("server/resstat",
+           /* callback = */ bind_xml_table_callback,
+           /* user_data = */ &table_ptr,
+@@ -1096,13 +1136,13 @@
+       /* plugin_instance = */ "global-memory_stats"
+     };
+ 
+     bind_parse_generic_value_list ("memory/summary",
+           /* callback = */ bind_xml_table_callback,
+           /* user_data = */ &table_ptr,
+-          doc, xpathCtx, current_time);
++          doc, xpathCtx, current_time, DS_TYPE_GAUGE);
+   }
+ 
+   if (views_num > 0)
+     bind_xml_stats_search_views (version, doc, xpathCtx, statsnode,
+         current_time);
+ 
+@@ -1312,24 +1352,33 @@
+   int i;
+ 
+   for (i = 0; i < ci->children_num; i++)
+   {
+     oconfig_item_t *child = ci->children + i;
+ 
+-    if (strcasecmp ("OpCodes", child->key) == 0)
++    if (strcasecmp ("Url", child->key) == 0) {
++      if ((child->values_num != 1) || (child->values[0].type != OCONFIG_TYPE_STRING))
++      {
++        WARNING ("bind plugin: The `Url' option needs "
++                 "exactly one string argument.");
++        return (-1);
++      }
++
++      url = strdup (child->values[0].value.string);
++    } else if (strcasecmp ("OpCodes", child->key) == 0)
+       bind_config_set_bool ("OpCodes", &global_opcodes, child);
+     else if (strcasecmp ("QTypes", child->key) == 0)
+       bind_config_set_bool ("QTypes", &global_qtypes, child);
+     else if (strcasecmp ("ServerStats", child->key) == 0)
+       bind_config_set_bool ("ServerStats", &global_server_stats, child);
+     else if (strcasecmp ("ZoneMaintStats", child->key) == 0)
+       bind_config_set_bool ("ZoneMaintStats", &global_zone_maint_stats, child);
+     else if (strcasecmp ("ResolverStats", child->key) == 0)
+       bind_config_set_bool ("ResolverStats", &global_resolver_stats, child);
+     else if (strcasecmp ("MemoryStats", child->key) == 0)
+-      bind_config_set_bool ("MemoryStats", &global_resolver_stats, child);
++      bind_config_set_bool ("MemoryStats", &global_memory_stats, child);
+     else if (strcasecmp ("View", child->key) == 0)
+       bind_config_add_view (child);
+     else
+     {
+       WARNING ("bind plugin: Unknown configuration option "
+           "`%s' will be ignored.", child->key);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/collectd.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/collectd.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/collectd.1	2009-02-17 05:11:56.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/collectd.1	2009-02-23 02:46:42.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD 1"
+-.TH COLLECTD 1 "2009-02-16" "4.6.0" "collectd"
++.TH COLLECTD 1 "2009-02-22" "4.6.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd \- System statistics collection daemon
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/collectd.conf.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/collectd.conf.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/collectd.conf.5	2009-02-17 06:01:40.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/collectd.conf.5	2009-02-23 02:46:42.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD.CONF 5"
+-.TH COLLECTD.CONF 5 "2009-02-16" "4.6.0" "collectd"
++.TH COLLECTD.CONF 5 "2009-02-22" "4.6.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd.conf \- Configuration for the system statistics collection daemon \fBcollectd\fR
+@@ -985,99 +985,12 @@
+ description see above. Valid multipliers here are \f(CW\*(C`b\*(C'\fR (byte), \f(CW\*(C`k\*(C'\fR (kilobyte),
+ \&\f(CW\*(C`m\*(C'\fR (megabyte), \f(CW\*(C`g\*(C'\fR (gigabyte), \f(CW\*(C`t\*(C'\fR (terabyte), and \f(CW\*(C`p\*(C'\fR (petabyte). Please
+ note that there are 1000 bytes in a kilobyte, not 1024.
+ .IP "\fBRecursive\fR \fItrue\fR|\fIfalse\fR" 4
+ .IX Item "Recursive true|false"
+ Controls whether or not to recurse into subdirectories. Enabled by default.
+-.ie n .SS "Plugin ""filter_pcre"""
+-.el .SS "Plugin \f(CWfilter_pcre\fP"
+-.IX Subsection "Plugin filter_pcre"
+-This plugin allows you to filter and rewrite value lists based on
+-Perl-compatible regular expressions whose syntax and semantics are as close as
+-possible to those of the Perl 5 language. See \fIpcre\fR\|(3) for details.
+-.PP
+-.Vb 5
+-\&  <Plugin filter_pcre>
+-\&    <RegEx>
+-\&      Host "^mail\ed+$"
+-\&      Plugin "^tcpconns$"
+-\&      TypeInstance "^SYN_"
+-\&
+-\&      Action NoWrite
+-\&    </RegEx>
+-\&
+-\&    <RegEx>
+-\&      Plugin "^sensors$"
+-\&      PluginInstance "^Some Weird Sensor Chip Name Prefix"
+-\&
+-\&      SubstitutePluginInstance "foo"
+-\&    </RegEx>
+-\&  </Plugin>
+-.Ve
+-.PP
+-The configuration consists of one or more \f(CW\*(C`RegEx\*(C'\fR blocks, each of which
+-specifies a regular expression identifying a set of value lists and how to
+-handle successful matches. A value list keeps the values of a single data-set
+-and is identified by the tuple (host, plugin, plugin instance, type, type
+-instance). The plugin and type instances are optional components. If they are
+-missing they are treated as empty strings. Within those blocks, the following
+-options are recognized:
+-.IP "\fBHost\fR \fIregex\fR" 4
+-.IX Item "Host regex"
+-.PD 0
+-.IP "\fBPlugin\fR \fIregex\fR" 4
+-.IX Item "Plugin regex"
+-.IP "\fBPluginInstance\fR \fIregex\fR" 4
+-.IX Item "PluginInstance regex"
+-.IP "\fBType\fR \fIregex\fR" 4
+-.IX Item "Type regex"
+-.IP "\fBTypeInstance\fR \fIregex\fR" 4
+-.IX Item "TypeInstance regex"
+-.PD
+-Specifies the regular expression for each component of the identifier. If any
+-of these options is missing it is interpreted as a pattern which matches any
+-string. All five components of a value list have to match the appropriate
+-regular expression to trigger the specified action.
+-.IP "\fBAction\fR \fINoWrite\fR|\fINoThresholdCheck\fR|\fIIgnore\fR" 4
+-.IX Item "Action NoWrite|NoThresholdCheck|Ignore"
+-Specify how to handle successful matches:
+-.RS 4
+-.IP "\fBNoWrite\fR" 4
+-.IX Item "NoWrite"
+-Do not send the value list to any output (a.k.a. write) plugins.
+-.IP "\fBNoThresholdCheck\fR" 4
+-.IX Item "NoThresholdCheck"
+-Skip threshold checking for this value list.
+-.IP "\fBIgnore\fR" 4
+-.IX Item "Ignore"
+-Completely ignore this value list.
+-.RE
+-.RS 4
+-.Sp
+-Two or more actions may be combined by specifying multiple \fBAction\fR options.
+-.RE
+-.IP "\fBSubstituteHost\fR \fIreplacement\fR" 4
+-.IX Item "SubstituteHost replacement"
+-.PD 0
+-.IP "\fBSubstitutePlugin\fR \fIreplacement\fR" 4
+-.IX Item "SubstitutePlugin replacement"
+-.IP "\fBSubstitutePluginInstance\fR \fIreplacement\fR" 4
+-.IX Item "SubstitutePluginInstance replacement"
+-.IP "\fBSubstituteType\fR \fIreplacement\fR" 4
+-.IX Item "SubstituteType replacement"
+-.IP "\fBSubstituteTypeInstance\fR \fIreplacement\fR" 4
+-.IX Item "SubstituteTypeInstance replacement"
+-.PD
+-Upon a successful match, the matching substring will be replaced by the
+-specified \fIreplacement\fR text. These options require that an appropriate regex
+-has been specified before, e.\ g. \fBSubstituteHost\fR requires that the
+-\&\fBHost\fR option has been specified before.
+-.Sp
+-\&\fBNote\fR: It is not recommended to modify the type unless you really know what
+-you are doing. The type is used to identify the data-set definition of the
+-dispatched values.
+ .ie n .SS "Plugin ""hddtemp"""
+ .el .SS "Plugin \f(CWhddtemp\fP"
+ .IX Subsection "Plugin hddtemp"
+ To get values from \fBhddtemp\fR collectd connects to \fBlocalhost\fR (127.0.0.1),
+ port \fB7634/tcp\fR. The \fBHost\fR and \fBPort\fR options can be used to change these
+ default values, see below. \f(CW\*(C`hddtemp\*(C'\fR has to be running to work correctly. If
+@@ -3366,13 +3279,12 @@
+ \&\fIcollectd\-unixsock\fR\|(5),
+ \&\fItypes.db\fR\|(5),
+ \&\fIhddtemp\fR\|(8),
+ \&\fIiptables\fR\|(8),
+ kstat(3KSTAT),
+ \&\fImbmon\fR\|(1),
+-\&\fIpcre\fR\|(3),
+ \&\fIpsql\fR\|(1),
+ \&\fIregex\fR\|(7),
+ \&\fIrrdtool\fR\|(1),
+ \&\fIsensors\fR\|(1)
+ .SH "AUTHOR"
+ .IX Header "AUTHOR"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/collectd.conf.pod /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/collectd.conf.pod
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/collectd.conf.pod	2009-02-17 05:56:37.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/collectd.conf.pod	2009-02-23 02:46:40.000000000 +0800
+@@ -956,103 +956,12 @@
+ =item B<Recursive> I<true>|I<false>
+ 
+ Controls whether or not to recurse into subdirectories. Enabled by default.
+ 
+ =back
+ 
+-=head2 Plugin C<filter_pcre>
+-
+-This plugin allows you to filter and rewrite value lists based on
+-Perl-compatible regular expressions whose syntax and semantics are as close as
+-possible to those of the Perl 5 language. See L<pcre(3)> for details.
+-
+-  <Plugin filter_pcre>
+-    <RegEx>
+-      Host "^mail\d+$"
+-      Plugin "^tcpconns$"
+-      TypeInstance "^SYN_"
+-
+-      Action NoWrite
+-    </RegEx>
+-
+-    <RegEx>
+-      Plugin "^sensors$"
+-      PluginInstance "^Some Weird Sensor Chip Name Prefix"
+-
+-      SubstitutePluginInstance "foo"
+-    </RegEx>
+-  </Plugin>
+-
+-The configuration consists of one or more C<RegEx> blocks, each of which
+-specifies a regular expression identifying a set of value lists and how to
+-handle successful matches. A value list keeps the values of a single data-set
+-and is identified by the tuple (host, plugin, plugin instance, type, type
+-instance). The plugin and type instances are optional components. If they are
+-missing they are treated as empty strings. Within those blocks, the following
+-options are recognized:
+-
+-=over 4
+-
+-=item B<Host> I<regex>
+-
+-=item B<Plugin> I<regex>
+-
+-=item B<PluginInstance> I<regex>
+-
+-=item B<Type> I<regex>
+-
+-=item B<TypeInstance> I<regex>
+-
+-Specifies the regular expression for each component of the identifier. If any
+-of these options is missing it is interpreted as a pattern which matches any
+-string. All five components of a value list have to match the appropriate
+-regular expression to trigger the specified action.
+-
+-=item B<Action> I<NoWrite>|I<NoThresholdCheck>|I<Ignore>
+-
+-Specify how to handle successful matches:
+-
+-=over 4
+-
+-=item B<NoWrite>
+-
+-Do not send the value list to any output (a.k.a. write) plugins.
+-
+-=item B<NoThresholdCheck>
+-
+-Skip threshold checking for this value list.
+-
+-=item B<Ignore>
+-
+-Completely ignore this value list.
+-
+-=back
+-
+-Two or more actions may be combined by specifying multiple B<Action> options.
+-
+-=item B<SubstituteHost> I<replacement>
+-
+-=item B<SubstitutePlugin> I<replacement>
+-
+-=item B<SubstitutePluginInstance> I<replacement>
+-
+-=item B<SubstituteType> I<replacement>
+-
+-=item B<SubstituteTypeInstance> I<replacement>
+-
+-Upon a successful match, the matching substring will be replaced by the
+-specified I<replacement> text. These options require that an appropriate regex
+-has been specified before, e.E<nbsp>g. B<SubstituteHost> requires that the
+-B<Host> option has been specified before.
+-
+-B<Note>: It is not recommended to modify the type unless you really know what
+-you are doing. The type is used to identify the data-set definition of the
+-dispatched values.
+-
+-=back
+-
+ =head2 Plugin C<hddtemp>
+ 
+ To get values from B<hddtemp> collectd connects to B<localhost> (127.0.0.1),
+ port B<7634/tcp>. The B<Host> and B<Port> options can be used to change these
+ default values, see below. C<hddtemp> has to be running to work correctly. If
+ C<hddtemp> is not running timeouts may appear which may interfere with other
+@@ -3606,13 +3515,12 @@
+ L<collectd-unixsock(5)>,
+ L<types.db(5)>,
+ L<hddtemp(8)>,
+ L<iptables(8)>,
+ L<kstat(3KSTAT)>,
+ L<mbmon(1)>,
+-L<pcre(3)>,
+ L<psql(1)>,
+ L<regex(7)>,
+ L<rrdtool(1)>,
+ L<sensors(1)>
+ 
+ =head1 AUTHOR
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/collectd-email.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/collectd-email.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/collectd-email.5	2009-02-17 05:11:57.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/collectd-email.5	2009-02-23 02:46:42.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-EMAIL 5"
+-.TH COLLECTD-EMAIL 5 "2007-10-24" "4.6.0" "collectd"
++.TH COLLECTD-EMAIL 5 "2009-02-22" "4.6.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-email \- Documentation of collectd's \f(CW\*(C`email plugin\*(C'\fR
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/collectd-exec.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/collectd-exec.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/collectd-exec.5	2009-02-17 05:11:57.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/collectd-exec.5	2009-02-23 02:46:42.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-EXEC 5"
+-.TH COLLECTD-EXEC 5 "2009-02-16" "4.6.0" "collectd"
++.TH COLLECTD-EXEC 5 "2009-02-22" "4.6.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-exec \- Documentation of collectd's \f(CW\*(C`exec plugin\*(C'\fR
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/collectdmon.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/collectdmon.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/collectdmon.1	2009-02-17 05:11:57.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/collectdmon.1	2009-02-23 02:46:43.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTDMON 1"
+-.TH COLLECTDMON 1 "2008-05-06" "4.6.0" "collectd"
++.TH COLLECTDMON 1 "2009-02-22" "4.6.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectdmon \- Monitoring daemon for collectd
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/collectd-nagios.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/collectd-nagios.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/collectd-nagios.1	2009-02-17 05:11:56.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/collectd-nagios.1	2009-02-23 02:46:42.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-NAGIOS 1"
+-.TH COLLECTD-NAGIOS 1 "2009-02-16" "4.6.0" "collectd"
++.TH COLLECTD-NAGIOS 1 "2009-02-22" "4.6.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-nagios \- Nagios plugin for querying collectd
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/collectd-perl.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/collectd-perl.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/collectd-perl.5	2009-02-17 05:11:57.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/collectd-perl.5	2009-02-23 02:46:43.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-PERL 5"
+-.TH COLLECTD-PERL 5 "2009-02-16" "4.6.0" "collectd"
++.TH COLLECTD-PERL 5 "2009-02-22" "4.6.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-perl \- Documentation of collectd's \f(CW\*(C`perl plugin\*(C'\fR
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/collectd-snmp.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/collectd-snmp.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/collectd-snmp.5	2009-02-17 05:11:57.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/collectd-snmp.5	2009-02-23 02:46:43.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-SNMP 5"
+-.TH COLLECTD-SNMP 5 "2008-05-06" "4.6.0" "collectd"
++.TH COLLECTD-SNMP 5 "2009-02-22" "4.6.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-snmp \- Documentation of collectd's \f(CW\*(C`snmp plugin\*(C'\fR
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/collectd-unixsock.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/collectd-unixsock.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/collectd-unixsock.5	2009-02-17 05:11:57.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/collectd-unixsock.5	2009-02-23 02:46:43.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-UNIXSOCK 5"
+-.TH COLLECTD-UNIXSOCK 5 "2009-02-14" "4.6.0" "collectd"
++.TH COLLECTD-UNIXSOCK 5 "2009-02-22" "4.6.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-unixsock \- Documentation of collectd's \f(CW\*(C`unixsock plugin\*(C'\fR
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/config.h.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/config.h.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/config.h.in	2009-02-17 06:01:03.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/config.h.in	2009-02-23 02:45:48.000000000 +0800
+@@ -423,15 +423,12 @@
+ /* Define to 1 if you have the <paths.h> header file. */
+ #undef HAVE_PATHS_H
+ 
+ /* Define to 1 if you have the <pcap.h> header file. */
+ #undef HAVE_PCAP_H
+ 
+-/* Define to 1 if you have the <pcre.h> header file. */
+-#undef HAVE_PCRE_H
+-
+ /* Define if Perl supports ithreads. */
+ #undef HAVE_PERL_ITHREADS
+ 
+ /* Define if Perl's struct mgvtbl has member svt_local. */
+ #undef HAVE_PERL_STRUCT_MGVTBL_SVT_LOCAL
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/ipmi.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/ipmi.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/ipmi.c	2009-02-16 19:35:57.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/ipmi.c	2009-02-23 02:40:06.000000000 +0800
+@@ -231,41 +231,60 @@
+ static int sensor_list_add (ipmi_sensor_t *sensor)
+ {
+   ipmi_sensor_id_t sensor_id;
+   c_ipmi_sensor_list_t *list_item;
+   c_ipmi_sensor_list_t *list_prev;
+ 
++  char buffer[DATA_MAX_NAME_LEN];
++  const char *entity_id_string;
+   char sensor_name[DATA_MAX_NAME_LEN];
+   char *sensor_name_ptr;
+-  int sensor_type, len;
++  int sensor_type;
+   const char *type;
+   ipmi_entity_t *ent = ipmi_sensor_get_entity(sensor);
+ 
+   sensor_id = ipmi_sensor_convert_to_id (sensor);
+ 
+-  memset (sensor_name, 0, sizeof (sensor_name));
+-  ipmi_sensor_get_name (sensor, sensor_name, sizeof (sensor_name));
+-  sensor_name[sizeof (sensor_name) - 1] = 0;
+-
+-  len = DATA_MAX_NAME_LEN - strlen(sensor_name);
+-  strncat(sensor_name, " ", len--);
+-  strncat(sensor_name, ipmi_entity_get_entity_id_string(ent), len);
+-
+-  sensor_name_ptr = strstr (sensor_name, ").");
+-  if (sensor_name_ptr == NULL)
+-    sensor_name_ptr = sensor_name;
++  memset (buffer, 0, sizeof (buffer));
++  ipmi_sensor_get_name (sensor, buffer, sizeof (buffer));
++  buffer[sizeof (buffer) - 1] = 0;
++
++  entity_id_string = ipmi_entity_get_entity_id_string (ent);
++
++  if (entity_id_string == NULL)
++    sstrncpy (sensor_name, buffer, sizeof (sensor_name));
+   else
+-  {
+-    char *sensor_name_ptr_id = strstr (sensor_name, "(");
++    ssnprintf (sensor_name, sizeof (sensor_name),
++        "%s %s", buffer, entity_id_string);
+ 
++  sstrncpy (buffer, sensor_name, sizeof (buffer));
++  sensor_name_ptr = strstr (buffer, ").");
++  if (sensor_name_ptr != NULL)
++  {
++    /* If name is something like "foo (123).bar",
++     * change that to "bar (123)".
++     * Both, sensor_name_ptr and sensor_id_ptr point to memory within the
++     * `buffer' array, which holds a copy of the current `sensor_name'. */
++    char *sensor_id_ptr;
++
++    /* `sensor_name_ptr' points to ").bar". */
++    sensor_name_ptr[1] = 0;
++    /* `buffer' holds "foo (123)\0bar\0". */
+     sensor_name_ptr += 2;
+-    len = DATA_MAX_NAME_LEN - strlen(sensor_name);
+-    strncat(sensor_name, " ", len--);
+-    strncat(sensor_name, sensor_name_ptr_id, 
+-      MIN(sensor_name_ptr - sensor_name_ptr_id - 1, len));
++    /* `sensor_name_ptr' now points to "bar". */
++
++    sensor_id_ptr = strstr (buffer, "(");
++    if (sensor_id_ptr != NULL)
++    {
++      /* `sensor_id_ptr' now points to "(123)". */
++      ssnprintf (sensor_name, sizeof (sensor_name),
++          "%s %s", sensor_name_ptr, sensor_id_ptr); 
++    }
++    /* else: don't touch sensor_name. */
+   }
++  sensor_name_ptr = sensor_name;
+ 
+   /* Both `ignorelist' and `plugin_instance' may be NULL. */
+   if (ignorelist_match (ignorelist, sensor_name_ptr) != 0)
+     return (0);
+ 
+   /* FIXME: Use rate unit or base unit to scale the value */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/libcollectdclient/lcc_features.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/libcollectdclient/lcc_features.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/libcollectdclient/lcc_features.h	2009-02-17 06:00:24.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/libcollectdclient/lcc_features.h	2009-02-23 02:45:25.000000000 +0800
+@@ -31,17 +31,17 @@
+ #endif
+ 
+ #define LCC_API_VERSION 0
+ 
+ #define LCC_VERSION_MAJOR 4
+ #define LCC_VERSION_MINOR 6
+-#define LCC_VERSION_PATCH 0
++#define LCC_VERSION_PATCH 1
+ 
+ #define LCC_VERSION_EXTRA ""
+ 
+-#define LCC_VERSION_STRING "4.6.0"
++#define LCC_VERSION_STRING "4.6.1"
+ 
+ #define LCC_VERSION_ENCODE(major, minor, patch) \
+ 	((major) * 10000 + (minor) * 100 + (patch))
+ 
+ #define LCC_VERSION \
+ 	LCC_VERSION_ENCODE(LCC_VERSION_MAJOR, LCC_VERSION_MINOR, LCC_VERSION_PATCH)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/libcollectdclient/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/libcollectdclient/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/libcollectdclient/Makefile.in	2009-02-17 05:59:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/libcollectdclient/Makefile.in	2009-02-23 02:44:47.000000000 +0800
+@@ -99,14 +99,12 @@
+ BUILD_WITH_LIBMYSQL_CFLAGS = @BUILD_WITH_LIBMYSQL_CFLAGS@
+ BUILD_WITH_LIBMYSQL_LIBS = @BUILD_WITH_LIBMYSQL_LIBS@
+ BUILD_WITH_LIBNETLINK_CFLAGS = @BUILD_WITH_LIBNETLINK_CFLAGS@
+ BUILD_WITH_LIBNETLINK_LIBS = @BUILD_WITH_LIBNETLINK_LIBS@
+ BUILD_WITH_LIBOWCAPI_CPPFLAGS = @BUILD_WITH_LIBOWCAPI_CPPFLAGS@
+ BUILD_WITH_LIBOWCAPI_LIBS = @BUILD_WITH_LIBOWCAPI_LIBS@
+-BUILD_WITH_LIBPCRE_CFLAGS = @BUILD_WITH_LIBPCRE_CFLAGS@
+-BUILD_WITH_LIBPCRE_LIBS = @BUILD_WITH_LIBPCRE_LIBS@
+ BUILD_WITH_LIBPQ_CPPFLAGS = @BUILD_WITH_LIBPQ_CPPFLAGS@
+ BUILD_WITH_LIBPQ_LDFLAGS = @BUILD_WITH_LIBPQ_LDFLAGS@
+ BUILD_WITH_LIBRRD_CFLAGS = @BUILD_WITH_LIBRRD_CFLAGS@
+ BUILD_WITH_LIBRRD_LDFLAGS = @BUILD_WITH_LIBRRD_LDFLAGS@
+ BUILD_WITH_LIBSENSORS_CFLAGS = @BUILD_WITH_LIBSENSORS_CFLAGS@
+ BUILD_WITH_LIBSENSORS_LDFLAGS = @BUILD_WITH_LIBSENSORS_LDFLAGS@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/libiptc/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/libiptc/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/libiptc/Makefile.in	2009-02-17 05:59:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/libiptc/Makefile.in	2009-02-23 02:44:47.000000000 +0800
+@@ -82,14 +82,12 @@
+ BUILD_WITH_LIBMYSQL_CFLAGS = @BUILD_WITH_LIBMYSQL_CFLAGS@
+ BUILD_WITH_LIBMYSQL_LIBS = @BUILD_WITH_LIBMYSQL_LIBS@
+ BUILD_WITH_LIBNETLINK_CFLAGS = @BUILD_WITH_LIBNETLINK_CFLAGS@
+ BUILD_WITH_LIBNETLINK_LIBS = @BUILD_WITH_LIBNETLINK_LIBS@
+ BUILD_WITH_LIBOWCAPI_CPPFLAGS = @BUILD_WITH_LIBOWCAPI_CPPFLAGS@
+ BUILD_WITH_LIBOWCAPI_LIBS = @BUILD_WITH_LIBOWCAPI_LIBS@
+-BUILD_WITH_LIBPCRE_CFLAGS = @BUILD_WITH_LIBPCRE_CFLAGS@
+-BUILD_WITH_LIBPCRE_LIBS = @BUILD_WITH_LIBPCRE_LIBS@
+ BUILD_WITH_LIBPQ_CPPFLAGS = @BUILD_WITH_LIBPQ_CPPFLAGS@
+ BUILD_WITH_LIBPQ_LDFLAGS = @BUILD_WITH_LIBPQ_LDFLAGS@
+ BUILD_WITH_LIBRRD_CFLAGS = @BUILD_WITH_LIBRRD_CFLAGS@
+ BUILD_WITH_LIBRRD_LDFLAGS = @BUILD_WITH_LIBRRD_LDFLAGS@
+ BUILD_WITH_LIBSENSORS_CFLAGS = @BUILD_WITH_LIBSENSORS_CFLAGS@
+ BUILD_WITH_LIBSENSORS_LDFLAGS = @BUILD_WITH_LIBSENSORS_LDFLAGS@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/liboconfig/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/liboconfig/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/liboconfig/Makefile.in	2009-02-17 05:59:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/liboconfig/Makefile.in	2009-02-23 02:44:47.000000000 +0800
+@@ -90,14 +90,12 @@
+ BUILD_WITH_LIBMYSQL_CFLAGS = @BUILD_WITH_LIBMYSQL_CFLAGS@
+ BUILD_WITH_LIBMYSQL_LIBS = @BUILD_WITH_LIBMYSQL_LIBS@
+ BUILD_WITH_LIBNETLINK_CFLAGS = @BUILD_WITH_LIBNETLINK_CFLAGS@
+ BUILD_WITH_LIBNETLINK_LIBS = @BUILD_WITH_LIBNETLINK_LIBS@
+ BUILD_WITH_LIBOWCAPI_CPPFLAGS = @BUILD_WITH_LIBOWCAPI_CPPFLAGS@
+ BUILD_WITH_LIBOWCAPI_LIBS = @BUILD_WITH_LIBOWCAPI_LIBS@
+-BUILD_WITH_LIBPCRE_CFLAGS = @BUILD_WITH_LIBPCRE_CFLAGS@
+-BUILD_WITH_LIBPCRE_LIBS = @BUILD_WITH_LIBPCRE_LIBS@
+ BUILD_WITH_LIBPQ_CPPFLAGS = @BUILD_WITH_LIBPQ_CPPFLAGS@
+ BUILD_WITH_LIBPQ_LDFLAGS = @BUILD_WITH_LIBPQ_LDFLAGS@
+ BUILD_WITH_LIBRRD_CFLAGS = @BUILD_WITH_LIBRRD_CFLAGS@
+ BUILD_WITH_LIBRRD_LDFLAGS = @BUILD_WITH_LIBRRD_LDFLAGS@
+ BUILD_WITH_LIBSENSORS_CFLAGS = @BUILD_WITH_LIBSENSORS_CFLAGS@
+ BUILD_WITH_LIBSENSORS_LDFLAGS = @BUILD_WITH_LIBSENSORS_LDFLAGS@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/liboping/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/liboping/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/liboping/Makefile.in	2009-02-17 05:59:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/liboping/Makefile.in	2009-02-23 02:44:47.000000000 +0800
+@@ -84,14 +84,12 @@
+ BUILD_WITH_LIBMYSQL_CFLAGS = @BUILD_WITH_LIBMYSQL_CFLAGS@
+ BUILD_WITH_LIBMYSQL_LIBS = @BUILD_WITH_LIBMYSQL_LIBS@
+ BUILD_WITH_LIBNETLINK_CFLAGS = @BUILD_WITH_LIBNETLINK_CFLAGS@
+ BUILD_WITH_LIBNETLINK_LIBS = @BUILD_WITH_LIBNETLINK_LIBS@
+ BUILD_WITH_LIBOWCAPI_CPPFLAGS = @BUILD_WITH_LIBOWCAPI_CPPFLAGS@
+ BUILD_WITH_LIBOWCAPI_LIBS = @BUILD_WITH_LIBOWCAPI_LIBS@
+-BUILD_WITH_LIBPCRE_CFLAGS = @BUILD_WITH_LIBPCRE_CFLAGS@
+-BUILD_WITH_LIBPCRE_LIBS = @BUILD_WITH_LIBPCRE_LIBS@
+ BUILD_WITH_LIBPQ_CPPFLAGS = @BUILD_WITH_LIBPQ_CPPFLAGS@
+ BUILD_WITH_LIBPQ_LDFLAGS = @BUILD_WITH_LIBPQ_LDFLAGS@
+ BUILD_WITH_LIBRRD_CFLAGS = @BUILD_WITH_LIBRRD_CFLAGS@
+ BUILD_WITH_LIBRRD_LDFLAGS = @BUILD_WITH_LIBRRD_LDFLAGS@
+ BUILD_WITH_LIBSENSORS_CFLAGS = @BUILD_WITH_LIBSENSORS_CFLAGS@
+ BUILD_WITH_LIBSENSORS_LDFLAGS = @BUILD_WITH_LIBSENSORS_LDFLAGS@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/Makefile.am /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/Makefile.am
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/Makefile.am	2009-02-17 00:50:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/Makefile.am	2009-02-23 02:40:05.000000000 +0800
+@@ -411,15 +411,13 @@
+ collectd_DEPENDENCIES += logfile.la
+ endif
+ 
+ if BUILD_PLUGIN_MATCH_REGEX
+ pkglib_LTLIBRARIES += match_regex.la
+ match_regex_la_SOURCES = match_regex.c
+-match_regex_la_CPPFLAGS = $(BUILD_WITH_LIBPCRE_CFLAGS)
+-match_regex_la_LDFLAGS = -module -avoid-version \
+-		$(BUILD_WITH_LIBPCRE_LIBS)
++match_regex_la_LDFLAGS = -module -avoid-version
+ collectd_LDADD += "-dlopen" match_regex.la
+ collectd_DEPENDENCIES += match_regex.la
+ endif
+ 
+ if BUILD_PLUGIN_MATCH_TIMEDIFF
+ pkglib_LTLIBRARIES += match_timediff.la
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/Makefile.in	2009-02-17 05:59:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/Makefile.in	2009-02-23 02:44:47.000000000 +0800
+@@ -590,13 +590,13 @@
+ 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
+ 	$(logfile_la_LDFLAGS) $(LDFLAGS) -o $@
+ @BUILD_PLUGIN_LOGFILE_TRUE@am_logfile_la_rpath = -rpath $(pkglibdir)
+ match_regex_la_LIBADD =
+ am__match_regex_la_SOURCES_DIST = match_regex.c
+ @BUILD_PLUGIN_MATCH_REGEX_TRUE@am_match_regex_la_OBJECTS =  \
+-@BUILD_PLUGIN_MATCH_REGEX_TRUE@	match_regex_la-match_regex.lo
++@BUILD_PLUGIN_MATCH_REGEX_TRUE@	match_regex.lo
+ match_regex_la_OBJECTS = $(am_match_regex_la_OBJECTS)
+ match_regex_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
+ 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
+ 	$(match_regex_la_LDFLAGS) $(LDFLAGS) -o $@
+ @BUILD_PLUGIN_MATCH_REGEX_TRUE@am_match_regex_la_rpath = -rpath \
+ @BUILD_PLUGIN_MATCH_REGEX_TRUE@	$(pkglibdir)
+@@ -1187,14 +1187,12 @@
+ BUILD_WITH_LIBMYSQL_CFLAGS = @BUILD_WITH_LIBMYSQL_CFLAGS@
+ BUILD_WITH_LIBMYSQL_LIBS = @BUILD_WITH_LIBMYSQL_LIBS@
+ BUILD_WITH_LIBNETLINK_CFLAGS = @BUILD_WITH_LIBNETLINK_CFLAGS@
+ BUILD_WITH_LIBNETLINK_LIBS = @BUILD_WITH_LIBNETLINK_LIBS@
+ BUILD_WITH_LIBOWCAPI_CPPFLAGS = @BUILD_WITH_LIBOWCAPI_CPPFLAGS@
+ BUILD_WITH_LIBOWCAPI_LIBS = @BUILD_WITH_LIBOWCAPI_LIBS@
+-BUILD_WITH_LIBPCRE_CFLAGS = @BUILD_WITH_LIBPCRE_CFLAGS@
+-BUILD_WITH_LIBPCRE_LIBS = @BUILD_WITH_LIBPCRE_LIBS@
+ BUILD_WITH_LIBPQ_CPPFLAGS = @BUILD_WITH_LIBPQ_CPPFLAGS@
+ BUILD_WITH_LIBPQ_LDFLAGS = @BUILD_WITH_LIBPQ_LDFLAGS@
+ BUILD_WITH_LIBRRD_CFLAGS = @BUILD_WITH_LIBRRD_CFLAGS@
+ BUILD_WITH_LIBRRD_LDFLAGS = @BUILD_WITH_LIBRRD_LDFLAGS@
+ BUILD_WITH_LIBSENSORS_CFLAGS = @BUILD_WITH_LIBSENSORS_CFLAGS@
+ BUILD_WITH_LIBSENSORS_LDFLAGS = @BUILD_WITH_LIBSENSORS_LDFLAGS@
+@@ -1557,16 +1555,13 @@
+ @BUILD_PLUGIN_LOAD_TRUE@	$(am__append_118)
+ @BUILD_PLUGIN_LOAD_TRUE@load_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_LOAD_TRUE@load_la_LIBADD = $(am__append_119)
+ @BUILD_PLUGIN_LOGFILE_TRUE@logfile_la_SOURCES = logfile.c
+ @BUILD_PLUGIN_LOGFILE_TRUE@logfile_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_MATCH_REGEX_TRUE@match_regex_la_SOURCES = match_regex.c
+-@BUILD_PLUGIN_MATCH_REGEX_TRUE@match_regex_la_CPPFLAGS = $(BUILD_WITH_LIBPCRE_CFLAGS)
+-@BUILD_PLUGIN_MATCH_REGEX_TRUE@match_regex_la_LDFLAGS = -module -avoid-version \
+-@BUILD_PLUGIN_MATCH_REGEX_TRUE@		$(BUILD_WITH_LIBPCRE_LIBS)
+-
++@BUILD_PLUGIN_MATCH_REGEX_TRUE@match_regex_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_MATCH_TIMEDIFF_TRUE@match_timediff_la_SOURCES = match_timediff.c
+ @BUILD_PLUGIN_MATCH_TIMEDIFF_TRUE@match_timediff_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_MATCH_VALUE_TRUE@match_value_la_SOURCES = match_value.c
+ @BUILD_PLUGIN_MATCH_VALUE_TRUE@match_value_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_MBMON_TRUE@mbmon_la_SOURCES = mbmon.c
+ @BUILD_PLUGIN_MBMON_TRUE@mbmon_la_LDFLAGS = -module -avoid-version \
+@@ -2083,13 +2078,13 @@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/iptables.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ipvs_la-ipvs.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/irq.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvirt_la-libvirt.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/load_la-load.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/logfile.Plo@am__quote@
+-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/match_regex_la-match_regex.Plo@am__quote@
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/match_regex.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/match_timediff.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/match_value.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mbmon.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/memcached.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/memory_la-memory.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/multimeter.Plo@am__quote@
+@@ -2252,19 +2247,12 @@
+ @am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(load_la_CFLAGS) $(CFLAGS) -MT load_la-load.lo -MD -MP -MF $(DEPDIR)/load_la-load.Tpo -c -o load_la-load.lo `test -f 'load.c' || echo '$(srcdir)/'`load.c
+ @am__fastdepCC_TRUE@	mv -f $(DEPDIR)/load_la-load.Tpo $(DEPDIR)/load_la-load.Plo
+ @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='load.c' object='load_la-load.lo' libtool=yes @AMDEPBACKSLASH@
+ @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+ @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(load_la_CFLAGS) $(CFLAGS) -c -o load_la-load.lo `test -f 'load.c' || echo '$(srcdir)/'`load.c
+ 
+-match_regex_la-match_regex.lo: match_regex.c
+-@am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(match_regex_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT match_regex_la-match_regex.lo -MD -MP -MF $(DEPDIR)/match_regex_la-match_regex.Tpo -c -o match_regex_la-match_regex.lo `test -f 'match_regex.c' || echo '$(srcdir)/'`match_regex.c
+-@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/match_regex_la-match_regex.Tpo $(DEPDIR)/match_regex_la-match_regex.Plo
+-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='match_regex.c' object='match_regex_la-match_regex.lo' libtool=yes @AMDEPBACKSLASH@
+-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(match_regex_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o match_regex_la-match_regex.lo `test -f 'match_regex.c' || echo '$(srcdir)/'`match_regex.c
+-
+ memory_la-memory.lo: memory.c
+ @am__fastdepCC_TRUE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(memory_la_CFLAGS) $(CFLAGS) -MT memory_la-memory.lo -MD -MP -MF $(DEPDIR)/memory_la-memory.Tpo -c -o memory_la-memory.lo `test -f 'memory.c' || echo '$(srcdir)/'`memory.c
+ @am__fastdepCC_TRUE@	mv -f $(DEPDIR)/memory_la-memory.Tpo $(DEPDIR)/memory_la-memory.Plo
+ @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='memory.c' object='memory_la-memory.lo' libtool=yes @AMDEPBACKSLASH@
+ @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+ @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(memory_la_CFLAGS) $(CFLAGS) -c -o memory_la-memory.lo `test -f 'memory.c' || echo '$(srcdir)/'`memory.c
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/types.db /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/types.db
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/types.db	2009-02-16 19:35:58.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/types.db	2009-02-23 02:40:06.000000000 +0800
+@@ -30,12 +30,13 @@
+ dns_update		value:COUNTER:0:65535
+ dns_zops		value:COUNTER:0:65535
+ dns_notify		value:COUNTER:0:65535
+ dns_transfer		value:COUNTER:0:65535
+ dns_query		value:COUNTER:0:65535
+ dns_response		value:COUNTER:0:65535
++dns_reject		value:COUNTER:0:65535
+ email_check		value:GAUGE:0:U
+ email_count		value:GAUGE:0:U
+ email_size		value:GAUGE:0:U
+ entropy			entropy:GAUGE:0:4294967295
+ fanspeed		value:GAUGE:0:U
+ files			value:GAUGE:0:U
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/types.db.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/types.db.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/src/types.db.5	2009-02-17 05:11:58.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/src/types.db.5	2009-02-23 02:46:43.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "TYPES.DB 5"
+-.TH TYPES.DB 5 "2009-02-16" "4.6.0" "collectd"
++.TH TYPES.DB 5 "2009-02-22" "4.6.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ types.db \- Data\-set specifications for the system statistics collection daemon
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/version-gen.sh /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/version-gen.sh
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.0/version-gen.sh	2009-02-16 22:43:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.6.1/version-gen.sh	2009-02-23 02:43:26.000000000 +0800
+@@ -1,9 +1,9 @@
+ #!/bin/sh
+ 
+-DEFAULT_VERSION="4.6.0.git"
++DEFAULT_VERSION="4.6.1.git"
+ 
+ VERSION="$( git describe 2> /dev/null | sed -e 's/^collectd-//' )"
+ 
+ if test -z "$VERSION"; then
+ 	VERSION="$DEFAULT_VERSION"
+ fi

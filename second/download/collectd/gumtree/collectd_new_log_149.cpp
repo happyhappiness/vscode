@@ -1,0 +1,1 @@
+fprintf (fh, "-1 Unknown command: %s\n", fields[0]);

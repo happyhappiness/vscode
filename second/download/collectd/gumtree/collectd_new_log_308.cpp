@@ -1,0 +1,1 @@
+YYFPRINTF (stderr, "   $%d = ", yyi + 1);

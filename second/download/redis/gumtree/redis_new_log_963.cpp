@@ -1,1 +1,0 @@
-rdbCheckInfo("Checking RDB file %s", argv[1]);

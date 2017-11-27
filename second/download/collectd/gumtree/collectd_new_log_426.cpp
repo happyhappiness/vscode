@@ -1,0 +1,3 @@
+PyErr_SetString(PyExc_TypeError, "This function needs a string or a "
+                                       "callable object as its only "
+                                       "parameter.");

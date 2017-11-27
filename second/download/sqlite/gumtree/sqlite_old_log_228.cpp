@@ -1,1 +1,0 @@
-sqlite3VdbeError(p, "no such savepoint: %s", zName);

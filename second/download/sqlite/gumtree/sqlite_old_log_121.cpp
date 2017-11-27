@@ -1,1 +1,0 @@
-sqlite3_mprintf("no such vfs: %s", zVfs);

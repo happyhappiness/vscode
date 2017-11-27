@@ -1,1 +1,0 @@
-serverLog(LL_DEBUG, "[PSYNC] Slave request offset: %lld", offset);

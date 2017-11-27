@@ -1,0 +1,1 @@
+fprintf (fh, " %s=", vc->ds->ds[i].name);

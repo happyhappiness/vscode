@@ -1,1 +1,0 @@
-historyfile = sdscatprintf(sdsempty(),"%s/.rediscli_history",getenv("HOME"));

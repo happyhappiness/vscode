@@ -1,0 +1,2822 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/ChangeLog /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/ChangeLog
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/ChangeLog	2007-04-10 23:24:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/ChangeLog	2007-05-30 04:50:31.000000000 +0800
+@@ -1,6 +1,12 @@
++2007-05-29, Version 3.11.5
++	* configure: Added `AC_SYS_LARGEFILE' for LFS.
++	* ntpd plugin: Fix a potential buffer overflow.
++	* processes plugin: Fix a bug when run under Linux 2.4. All processes
++	  were accounted as `zombies'.
++
+ 2007-04-10, Version 3.11.4
+ 	* dns plugin: Change the order of includes to make the plugin compile
+ 	  under FreeBSD.
+ 
+ 2007-03-30, Version 3.11.3
+ 	* configure: Have the configure-script define `HAVE_LIBKSTAT' instead
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/config.guess /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/config.guess
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/config.guess	2006-10-12 20:52:19.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/config.guess	2007-04-20 10:09:10.000000000 +0800
+@@ -1,13 +1,13 @@
+ #! /bin/sh
+ # Attempt to guess a canonical system name.
+ #   Copyright (C) 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
+ #   2000, 2001, 2002, 2003, 2004, 2005, 2006 Free Software Foundation,
+ #   Inc.
+ 
+-timestamp='2006-07-02'
++timestamp='2007-03-06'
+ 
+ # This file is free software; you can redistribute it and/or modify it
+ # under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 2 of the License, or
+ # (at your option) any later version.
+ #
+@@ -158,12 +158,13 @@
+ 	    /usr/sbin/$sysctl 2>/dev/null || echo unknown)`
+ 	case "${UNAME_MACHINE_ARCH}" in
+ 	    armeb) machine=armeb-unknown ;;
+ 	    arm*) machine=arm-unknown ;;
+ 	    sh3el) machine=shl-unknown ;;
+ 	    sh3eb) machine=sh-unknown ;;
++	    sh5el) machine=sh5le-unknown ;;
+ 	    *) machine=${UNAME_MACHINE_ARCH}-unknown ;;
+ 	esac
+ 	# The Operating System including object format, if it has switched
+ 	# to ELF recently, or will in the future.
+ 	case "${UNAME_MACHINE_ARCH}" in
+ 	    arm*|i386|m68k|ns32k|sh3*|sparc|vax)
+@@ -777,28 +778,31 @@
+ 		echo ${UNAME_MACHINE}-unknown-freebsd`echo ${UNAME_RELEASE}|sed -e 's/[-(].*//'` ;;
+ 	esac
+ 	exit ;;
+     i*:CYGWIN*:*)
+ 	echo ${UNAME_MACHINE}-pc-cygwin
+ 	exit ;;
+-    i*:MINGW*:*)
++    *:MINGW*:*)
+ 	echo ${UNAME_MACHINE}-pc-mingw32
+ 	exit ;;
+     i*:windows32*:*)
+     	# uname -m includes "-pc" on this system.
+     	echo ${UNAME_MACHINE}-mingw32
+ 	exit ;;
+     i*:PW*:*)
+ 	echo ${UNAME_MACHINE}-pc-pw32
+ 	exit ;;
+-    x86:Interix*:[3456]*)
+-	echo i586-pc-interix${UNAME_RELEASE}
+-	exit ;;
+-    EM64T:Interix*:[3456]*)
+-	echo x86_64-unknown-interix${UNAME_RELEASE}
+-	exit ;;
++    *:Interix*:[3456]*)
++    	case ${UNAME_MACHINE} in
++	    x86) 
++		echo i586-pc-interix${UNAME_RELEASE}
++		exit ;;
++	    EM64T | authenticamd)
++		echo x86_64-unknown-interix${UNAME_RELEASE}
++		exit ;;
++	esac ;;
+     [345]86:Windows_95:* | [345]86:Windows_98:* | [345]86:Windows_NT:*)
+ 	echo i${UNAME_MACHINE}-pc-mks
+ 	exit ;;
+     i*:Windows_NT*:* | Pentium*:Windows_NT*:*)
+ 	# How do we know it's Interix rather than the generic POSIX subsystem?
+ 	# It also conflicts with pre-2.0 versions of AT&T UWIN. Should we
+@@ -947,12 +951,15 @@
+     vax:Linux:*:*)
+ 	echo ${UNAME_MACHINE}-dec-linux-gnu
+ 	exit ;;
+     x86_64:Linux:*:*)
+ 	echo x86_64-unknown-linux-gnu
+ 	exit ;;
++    xtensa:Linux:*:*)
++    	echo xtensa-unknown-linux-gnu
++	exit ;;
+     i*86:Linux:*:*)
+ 	# The BFD linker knows what the default object file format is, so
+ 	# first see if it will tell us. cd to the root directory to prevent
+ 	# problems with other programs or directories called `ld' in the path.
+ 	# Set LC_ALL=C to ensure ld outputs messages in English.
+ 	ld_supported_targets=`cd /; LC_ALL=C ld --help 2>&1 \
+@@ -1205,12 +1212,21 @@
+     SX-5:SUPER-UX:*:*)
+ 	echo sx5-nec-superux${UNAME_RELEASE}
+ 	exit ;;
+     SX-6:SUPER-UX:*:*)
+ 	echo sx6-nec-superux${UNAME_RELEASE}
+ 	exit ;;
++    SX-7:SUPER-UX:*:*)
++	echo sx7-nec-superux${UNAME_RELEASE}
++	exit ;;
++    SX-8:SUPER-UX:*:*)
++	echo sx8-nec-superux${UNAME_RELEASE}
++	exit ;;
++    SX-8R:SUPER-UX:*:*)
++	echo sx8r-nec-superux${UNAME_RELEASE}
++	exit ;;
+     Power*:Rhapsody:*:*)
+ 	echo powerpc-apple-rhapsody${UNAME_RELEASE}
+ 	exit ;;
+     *:Rhapsody:*:*)
+ 	echo ${UNAME_MACHINE}-apple-rhapsody${UNAME_RELEASE}
+ 	exit ;;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/config.sub /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/config.sub
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/config.sub	2006-10-12 20:52:19.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/config.sub	2007-04-20 10:09:10.000000000 +0800
+@@ -1,13 +1,13 @@
+ #! /bin/sh
+ # Configuration validation subroutine script.
+ #   Copyright (C) 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
+ #   2000, 2001, 2002, 2003, 2004, 2005, 2006 Free Software Foundation,
+ #   Inc.
+ 
+-timestamp='2006-09-20'
++timestamp='2007-01-18'
+ 
+ # This file is (in principle) common to ALL GNU software.
+ # The presence of a machine in this file suggests that SOME GNU software
+ # can handle that machine.  It does not imply ALL GNU software can.
+ #
+ # This file is free software; you can redistribute it and/or modify
+@@ -242,18 +242,18 @@
+ 	| alpha64 | alpha64ev[4-8] | alpha64ev56 | alpha64ev6[78] | alpha64pca5[67] \
+ 	| am33_2.0 \
+ 	| arc | arm | arm[bl]e | arme[lb] | armv[2345] | armv[345][lb] | avr | avr32 \
+ 	| bfin \
+ 	| c4x | clipper \
+ 	| d10v | d30v | dlx | dsp16xx \
+-	| fr30 | frv \
++	| fido | fr30 | frv \
+ 	| h8300 | h8500 | hppa | hppa1.[01] | hppa2.0 | hppa2.0[nw] | hppa64 \
+ 	| i370 | i860 | i960 | ia64 \
+ 	| ip2k | iq2000 \
+ 	| m32c | m32r | m32rle | m68000 | m68k | m88k \
+-	| maxq | mb | microblaze | mcore \
++	| maxq | mb | microblaze | mcore | mep \
+ 	| mips | mipsbe | mipseb | mipsel | mipsle \
+ 	| mips16 \
+ 	| mips64 | mips64el \
+ 	| mips64vr | mips64vrel \
+ 	| mips64orion | mips64orionel \
+ 	| mips64vr4100 | mips64vr4100el \
+@@ -321,13 +321,13 @@
+ 	| avr-* | avr32-* \
+ 	| bfin-* | bs2000-* \
+ 	| c[123]* | c30-* | [cjt]90-* | c4x-* | c54x-* | c55x-* | c6x-* \
+ 	| clipper-* | craynv-* | cydra-* \
+ 	| d10v-* | d30v-* | dlx-* \
+ 	| elxsi-* \
+-	| f30[01]-* | f700-* | fr30-* | frv-* | fx80-* \
++	| f30[01]-* | f700-* | fido-* | fr30-* | frv-* | fx80-* \
+ 	| h8300-* | h8500-* \
+ 	| hppa-* | hppa1.[01]-* | hppa2.0-* | hppa2.0[nw]-* | hppa64-* \
+ 	| i*86-* | i860-* | i960-* | ia64-* \
+ 	| ip2k-* | iq2000-* \
+ 	| m32c-* | m32r-* | m32rle-* \
+ 	| m68000-* | m680[012346]0-* | m68360-* | m683?2-* | m68k-* \
+@@ -922,12 +922,15 @@
+ 		basic_machine=i386-sequent
+ 		;;
+ 	sh)
+ 		basic_machine=sh-hitachi
+ 		os=-hms
+ 		;;
++	sh5el)
++		basic_machine=sh5le-unknown
++		;;
+ 	sh64)
+ 		basic_machine=sh64-unknown
+ 		;;
+ 	sparclite-wrs | simso-wrs)
+ 		basic_machine=sparclite-wrs
+ 		os=-vxworks
+@@ -1216,13 +1219,13 @@
+ 	      | -interix* | -uwin* | -mks* | -rhapsody* | -darwin* | -opened* \
+ 	      | -openstep* | -oskit* | -conix* | -pw32* | -nonstopux* \
+ 	      | -storm-chaos* | -tops10* | -tenex* | -tops20* | -its* \
+ 	      | -os2* | -vos* | -palmos* | -uclinux* | -nucleus* \
+ 	      | -morphos* | -superux* | -rtmk* | -rtmk-nova* | -windiss* \
+ 	      | -powermax* | -dnix* | -nx6 | -nx7 | -sei* | -dragonfly* \
+-	      | -skyos* | -haiku* | -rdos* | -toppers*)
++	      | -skyos* | -haiku* | -rdos* | -toppers* | -drops*)
+ 	# Remember, each alternative MUST END IN *, to match a version number.
+ 		;;
+ 	-qnx*)
+ 		case $basic_machine in
+ 		    x86-* | i*86-*)
+ 			;;
+@@ -1411,12 +1414,15 @@
+ 		# default.
+ 		# os=-sunos4
+ 		;;
+ 	m68*-cisco)
+ 		os=-aout
+ 		;;
++        mep-*)
++		os=-elf
++		;;
+ 	mips*-cisco)
+ 		os=-elf
+ 		;;
+ 	mips*-*)
+ 		os=-elf
+ 		;;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/configure	2007-04-10 23:25:07.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/configure	2007-05-30 04:56:00.000000000 +0800
+@@ -1,9 +1,9 @@
+ #! /bin/sh
+ # Guess values for system-dependent variables and create Makefiles.
+-# Generated by GNU Autoconf 2.61 for collectd 3.11.4.
++# Generated by GNU Autoconf 2.61 for collectd 3.11.5.
+ #
+ # Copyright (C) 1992, 1993, 1994, 1995, 1996, 1998, 1999, 2000, 2001,
+ # 2002, 2003, 2004, 2005, 2006 Free Software Foundation, Inc.
+ # This configure script is free software; the Free Software Foundation
+ # gives unlimited permission to copy, distribute and modify it.
+ ## --------------------- ##
+@@ -723,14 +723,14 @@
+ MAKEFLAGS=
+ SHELL=${CONFIG_SHELL-/bin/sh}
+ 
+ # Identity of this package.
+ PACKAGE_NAME='collectd'
+ PACKAGE_TARNAME='collectd'
+-PACKAGE_VERSION='3.11.4'
+-PACKAGE_STRING='collectd 3.11.4'
++PACKAGE_VERSION='3.11.5'
++PACKAGE_STRING='collectd 3.11.5'
+ PACKAGE_BUGREPORT=''
+ 
+ ac_unique_file="src/collectd.c"
+ ac_default_prefix="/opt/collectd"
+ # Factoring default headers for most tests.
+ ac_includes_default="\
+@@ -1489,13 +1489,13 @@
+ # Report the --help message.
+ #
+ if test "$ac_init_help" = "long"; then
+   # Omit some internal or obsolete options to make the list less imposing.
+   # This message is too long to be a string in the A/UX 3.1 sh.
+   cat <<_ACEOF
+-\`configure' configures collectd 3.11.4 to adapt to many kinds of systems.
++\`configure' configures collectd 3.11.5 to adapt to many kinds of systems.
+ 
+ Usage: $0 [OPTION]... [VAR=VALUE]...
+ 
+ To assign environment variables (e.g., CC, CFLAGS...), specify them as
+ VAR=VALUE.  See below for descriptions of some of the useful variables.
+ 
+@@ -1559,19 +1559,20 @@
+   --host=HOST       cross-compile to build programs to run on HOST [BUILD]
+ _ACEOF
+ fi
+ 
+ if test -n "$ac_init_help"; then
+   case $ac_init_help in
+-     short | recursive ) echo "Configuration of collectd 3.11.4:";;
++     short | recursive ) echo "Configuration of collectd 3.11.5:";;
+    esac
+   cat <<\_ACEOF
+ 
+ Optional Features:
+   --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
+   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
++  --disable-largefile     omit support for large files
+   --disable-dependency-tracking  speeds up one-time build
+   --enable-dependency-tracking   do not reject slow dependency extractors
+   --enable-static[=PKGS]  build static libraries [default=no]
+   --enable-shared[=PKGS]  build shared libraries [default=yes]
+   --enable-fast-install[=PKGS]
+                           optimize for fast installation [default=yes]
+@@ -1717,13 +1718,13 @@
+   done
+ fi
+ 
+ test -n "$ac_init_help" && exit $ac_status
+ if $ac_init_version; then
+   cat <<\_ACEOF
+-collectd configure 3.11.4
++collectd configure 3.11.5
+ generated by GNU Autoconf 2.61
+ 
+ Copyright (C) 1992, 1993, 1994, 1995, 1996, 1998, 1999, 2000, 2001,
+ 2002, 2003, 2004, 2005, 2006 Free Software Foundation, Inc.
+ This configure script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it.
+@@ -1731,13 +1732,13 @@
+   exit
+ fi
+ cat >config.log <<_ACEOF
+ This file contains any messages produced by compilers while
+ running configure, to aid debugging if configure makes a mistake.
+ 
+-It was created by collectd $as_me 3.11.4, which was
++It was created by collectd $as_me 3.11.5, which was
+ generated by GNU Autoconf 2.61.  Invocation command line was
+ 
+   $ $0 $@
+ 
+ _ACEOF
+ exec 5>>config.log
+@@ -2404,13 +2405,13 @@
+   fi
+ fi
+ 
+ 
+ # Define the identity of the package.
+  PACKAGE='collectd'
+- VERSION='3.11.4'
++ VERSION='3.11.5'
+ 
+ 
+ cat >>confdefs.h <<_ACEOF
+ #define PACKAGE "$PACKAGE"
+ _ACEOF
+ 
+@@ -2559,12 +2560,1457 @@
+ ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
+ ac_compiler_gnu=$ac_cv_c_compiler_gnu
+ 
+ 
+ 
+ 
++DEPDIR="${am__leading_dot}deps"
++
++ac_config_commands="$ac_config_commands depfiles"
++
++
++am_make=${MAKE-make}
++cat > confinc << 'END'
++am__doit:
++	@echo done
++.PHONY: am__doit
++END
++# If we don't find an include directive, just comment out the code.
++{ echo "$as_me:$LINENO: checking for style of include used by $am_make" >&5
++echo $ECHO_N "checking for style of include used by $am_make... $ECHO_C" >&6; }
++am__include="#"
++am__quote=
++_am_result=none
++# First try GNU make style include.
++echo "include confinc" > confmf
++# We grep out `Entering directory' and `Leaving directory'
++# messages which can occur if `w' ends up in MAKEFLAGS.
++# In particular we don't look at `^make:' because GNU make might
++# be invoked under some other name (usually "gmake"), in which
++# case it prints its new name instead of `make'.
++if test "`$am_make -s -f confmf 2> /dev/null | grep -v 'ing directory'`" = "done"; then
++   am__include=include
++   am__quote=
++   _am_result=GNU
++fi
++# Now try BSD make style include.
++if test "$am__include" = "#"; then
++   echo '.include "confinc"' > confmf
++   if test "`$am_make -s -f confmf 2> /dev/null`" = "done"; then
++      am__include=.include
++      am__quote="\""
++      _am_result=BSD
++   fi
++fi
++
++
++{ echo "$as_me:$LINENO: result: $_am_result" >&5
++echo "${ECHO_T}$_am_result" >&6; }
++rm -f confinc confmf
++
++# Check whether --enable-dependency-tracking was given.
++if test "${enable_dependency_tracking+set}" = set; then
++  enableval=$enable_dependency_tracking;
++fi
++
++if test "x$enable_dependency_tracking" != xno; then
++  am_depcomp="$ac_aux_dir/depcomp"
++  AMDEPBACKSLASH='\'
++fi
++
++
++if test "x$enable_dependency_tracking" != xno; then
++  AMDEP_TRUE=
++  AMDEP_FALSE='#'
++else
++  AMDEP_TRUE='#'
++  AMDEP_FALSE=
++fi
++
++
++
++ac_ext=c
++ac_cpp='$CPP $CPPFLAGS'
++ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
++ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
++ac_compiler_gnu=$ac_cv_c_compiler_gnu
++if test -n "$ac_tool_prefix"; then
++  # Extract the first word of "${ac_tool_prefix}gcc", so it can be a program name with args.
++set dummy ${ac_tool_prefix}gcc; ac_word=$2
++{ echo "$as_me:$LINENO: checking for $ac_word" >&5
++echo $ECHO_N "checking for $ac_word... $ECHO_C" >&6; }
++if test "${ac_cv_prog_CC+set}" = set; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++else
++  if test -n "$CC"; then
++  ac_cv_prog_CC="$CC" # Let the user override the test.
++else
++as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
++for as_dir in $PATH
++do
++  IFS=$as_save_IFS
++  test -z "$as_dir" && as_dir=.
++  for ac_exec_ext in '' $ac_executable_extensions; do
++  if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
++    ac_cv_prog_CC="${ac_tool_prefix}gcc"
++    echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
++    break 2
++  fi
++done
++done
++IFS=$as_save_IFS
++
++fi
++fi
++CC=$ac_cv_prog_CC
++if test -n "$CC"; then
++  { echo "$as_me:$LINENO: result: $CC" >&5
++echo "${ECHO_T}$CC" >&6; }
++else
++  { echo "$as_me:$LINENO: result: no" >&5
++echo "${ECHO_T}no" >&6; }
++fi
++
++
++fi
++if test -z "$ac_cv_prog_CC"; then
++  ac_ct_CC=$CC
++  # Extract the first word of "gcc", so it can be a program name with args.
++set dummy gcc; ac_word=$2
++{ echo "$as_me:$LINENO: checking for $ac_word" >&5
++echo $ECHO_N "checking for $ac_word... $ECHO_C" >&6; }
++if test "${ac_cv_prog_ac_ct_CC+set}" = set; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++else
++  if test -n "$ac_ct_CC"; then
++  ac_cv_prog_ac_ct_CC="$ac_ct_CC" # Let the user override the test.
++else
++as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
++for as_dir in $PATH
++do
++  IFS=$as_save_IFS
++  test -z "$as_dir" && as_dir=.
++  for ac_exec_ext in '' $ac_executable_extensions; do
++  if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
++    ac_cv_prog_ac_ct_CC="gcc"
++    echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
++    break 2
++  fi
++done
++done
++IFS=$as_save_IFS
++
++fi
++fi
++ac_ct_CC=$ac_cv_prog_ac_ct_CC
++if test -n "$ac_ct_CC"; then
++  { echo "$as_me:$LINENO: result: $ac_ct_CC" >&5
++echo "${ECHO_T}$ac_ct_CC" >&6; }
++else
++  { echo "$as_me:$LINENO: result: no" >&5
++echo "${ECHO_T}no" >&6; }
++fi
++
++  if test "x$ac_ct_CC" = x; then
++    CC=""
++  else
++    case $cross_compiling:$ac_tool_warned in
++yes:)
++{ echo "$as_me:$LINENO: WARNING: In the future, Autoconf will not detect cross-tools
++whose name does not start with the host triplet.  If you think this
++configuration is useful to you, please write to autoconf@gnu.org." >&5
++echo "$as_me: WARNING: In the future, Autoconf will not detect cross-tools
++whose name does not start with the host triplet.  If you think this
++configuration is useful to you, please write to autoconf@gnu.org." >&2;}
++ac_tool_warned=yes ;;
++esac
++    CC=$ac_ct_CC
++  fi
++else
++  CC="$ac_cv_prog_CC"
++fi
++
++if test -z "$CC"; then
++          if test -n "$ac_tool_prefix"; then
++    # Extract the first word of "${ac_tool_prefix}cc", so it can be a program name with args.
++set dummy ${ac_tool_prefix}cc; ac_word=$2
++{ echo "$as_me:$LINENO: checking for $ac_word" >&5
++echo $ECHO_N "checking for $ac_word... $ECHO_C" >&6; }
++if test "${ac_cv_prog_CC+set}" = set; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++else
++  if test -n "$CC"; then
++  ac_cv_prog_CC="$CC" # Let the user override the test.
++else
++as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
++for as_dir in $PATH
++do
++  IFS=$as_save_IFS
++  test -z "$as_dir" && as_dir=.
++  for ac_exec_ext in '' $ac_executable_extensions; do
++  if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
++    ac_cv_prog_CC="${ac_tool_prefix}cc"
++    echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
++    break 2
++  fi
++done
++done
++IFS=$as_save_IFS
++
++fi
++fi
++CC=$ac_cv_prog_CC
++if test -n "$CC"; then
++  { echo "$as_me:$LINENO: result: $CC" >&5
++echo "${ECHO_T}$CC" >&6; }
++else
++  { echo "$as_me:$LINENO: result: no" >&5
++echo "${ECHO_T}no" >&6; }
++fi
++
++
++  fi
++fi
++if test -z "$CC"; then
++  # Extract the first word of "cc", so it can be a program name with args.
++set dummy cc; ac_word=$2
++{ echo "$as_me:$LINENO: checking for $ac_word" >&5
++echo $ECHO_N "checking for $ac_word... $ECHO_C" >&6; }
++if test "${ac_cv_prog_CC+set}" = set; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++else
++  if test -n "$CC"; then
++  ac_cv_prog_CC="$CC" # Let the user override the test.
++else
++  ac_prog_rejected=no
++as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
++for as_dir in $PATH
++do
++  IFS=$as_save_IFS
++  test -z "$as_dir" && as_dir=.
++  for ac_exec_ext in '' $ac_executable_extensions; do
++  if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
++    if test "$as_dir/$ac_word$ac_exec_ext" = "/usr/ucb/cc"; then
++       ac_prog_rejected=yes
++       continue
++     fi
++    ac_cv_prog_CC="cc"
++    echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
++    break 2
++  fi
++done
++done
++IFS=$as_save_IFS
++
++if test $ac_prog_rejected = yes; then
++  # We found a bogon in the path, so make sure we never use it.
++  set dummy $ac_cv_prog_CC
++  shift
++  if test $# != 0; then
++    # We chose a different compiler from the bogus one.
++    # However, it has the same basename, so the bogon will be chosen
++    # first if we set CC to just the basename; use the full file name.
++    shift
++    ac_cv_prog_CC="$as_dir/$ac_word${1+' '}$@"
++  fi
++fi
++fi
++fi
++CC=$ac_cv_prog_CC
++if test -n "$CC"; then
++  { echo "$as_me:$LINENO: result: $CC" >&5
++echo "${ECHO_T}$CC" >&6; }
++else
++  { echo "$as_me:$LINENO: result: no" >&5
++echo "${ECHO_T}no" >&6; }
++fi
++
++
++fi
++if test -z "$CC"; then
++  if test -n "$ac_tool_prefix"; then
++  for ac_prog in cl.exe
++  do
++    # Extract the first word of "$ac_tool_prefix$ac_prog", so it can be a program name with args.
++set dummy $ac_tool_prefix$ac_prog; ac_word=$2
++{ echo "$as_me:$LINENO: checking for $ac_word" >&5
++echo $ECHO_N "checking for $ac_word... $ECHO_C" >&6; }
++if test "${ac_cv_prog_CC+set}" = set; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++else
++  if test -n "$CC"; then
++  ac_cv_prog_CC="$CC" # Let the user override the test.
++else
++as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
++for as_dir in $PATH
++do
++  IFS=$as_save_IFS
++  test -z "$as_dir" && as_dir=.
++  for ac_exec_ext in '' $ac_executable_extensions; do
++  if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
++    ac_cv_prog_CC="$ac_tool_prefix$ac_prog"
++    echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
++    break 2
++  fi
++done
++done
++IFS=$as_save_IFS
++
++fi
++fi
++CC=$ac_cv_prog_CC
++if test -n "$CC"; then
++  { echo "$as_me:$LINENO: result: $CC" >&5
++echo "${ECHO_T}$CC" >&6; }
++else
++  { echo "$as_me:$LINENO: result: no" >&5
++echo "${ECHO_T}no" >&6; }
++fi
++
++
++    test -n "$CC" && break
++  done
++fi
++if test -z "$CC"; then
++  ac_ct_CC=$CC
++  for ac_prog in cl.exe
++do
++  # Extract the first word of "$ac_prog", so it can be a program name with args.
++set dummy $ac_prog; ac_word=$2
++{ echo "$as_me:$LINENO: checking for $ac_word" >&5
++echo $ECHO_N "checking for $ac_word... $ECHO_C" >&6; }
++if test "${ac_cv_prog_ac_ct_CC+set}" = set; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++else
++  if test -n "$ac_ct_CC"; then
++  ac_cv_prog_ac_ct_CC="$ac_ct_CC" # Let the user override the test.
++else
++as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
++for as_dir in $PATH
++do
++  IFS=$as_save_IFS
++  test -z "$as_dir" && as_dir=.
++  for ac_exec_ext in '' $ac_executable_extensions; do
++  if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
++    ac_cv_prog_ac_ct_CC="$ac_prog"
++    echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
++    break 2
++  fi
++done
++done
++IFS=$as_save_IFS
++
++fi
++fi
++ac_ct_CC=$ac_cv_prog_ac_ct_CC
++if test -n "$ac_ct_CC"; then
++  { echo "$as_me:$LINENO: result: $ac_ct_CC" >&5
++echo "${ECHO_T}$ac_ct_CC" >&6; }
++else
++  { echo "$as_me:$LINENO: result: no" >&5
++echo "${ECHO_T}no" >&6; }
++fi
++
++
++  test -n "$ac_ct_CC" && break
++done
++
++  if test "x$ac_ct_CC" = x; then
++    CC=""
++  else
++    case $cross_compiling:$ac_tool_warned in
++yes:)
++{ echo "$as_me:$LINENO: WARNING: In the future, Autoconf will not detect cross-tools
++whose name does not start with the host triplet.  If you think this
++configuration is useful to you, please write to autoconf@gnu.org." >&5
++echo "$as_me: WARNING: In the future, Autoconf will not detect cross-tools
++whose name does not start with the host triplet.  If you think this
++configuration is useful to you, please write to autoconf@gnu.org." >&2;}
++ac_tool_warned=yes ;;
++esac
++    CC=$ac_ct_CC
++  fi
++fi
++
++fi
++
++
++test -z "$CC" && { { echo "$as_me:$LINENO: error: no acceptable C compiler found in \$PATH
++See \`config.log' for more details." >&5
++echo "$as_me: error: no acceptable C compiler found in \$PATH
++See \`config.log' for more details." >&2;}
++   { (exit 1); exit 1; }; }
++
++# Provide some information about the compiler.
++echo "$as_me:$LINENO: checking for C compiler version" >&5
++ac_compiler=`set X $ac_compile; echo $2`
++{ (ac_try="$ac_compiler --version >&5"
++case "(($ac_try" in
++  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
++  *) ac_try_echo=$ac_try;;
++esac
++eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
++  (eval "$ac_compiler --version >&5") 2>&5
++  ac_status=$?
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); }
++{ (ac_try="$ac_compiler -v >&5"
++case "(($ac_try" in
++  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
++  *) ac_try_echo=$ac_try;;
++esac
++eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
++  (eval "$ac_compiler -v >&5") 2>&5
++  ac_status=$?
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); }
++{ (ac_try="$ac_compiler -V >&5"
++case "(($ac_try" in
++  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
++  *) ac_try_echo=$ac_try;;
++esac
++eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
++  (eval "$ac_compiler -V >&5") 2>&5
++  ac_status=$?
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); }
++
++cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++
++int
++main ()
++{
++
++  ;
++  return 0;
++}
++_ACEOF
++ac_clean_files_save=$ac_clean_files
++ac_clean_files="$ac_clean_files a.out a.exe b.out"
++# Try to create an executable without -o first, disregard a.out.
++# It will help us diagnose broken compilers, and finding out an intuition
++# of exeext.
++{ echo "$as_me:$LINENO: checking for C compiler default output file name" >&5
++echo $ECHO_N "checking for C compiler default output file name... $ECHO_C" >&6; }
++ac_link_default=`echo "$ac_link" | sed 's/ -o *conftest[^ ]*//'`
++#
++# List of possible output files, starting from the most likely.
++# The algorithm is not robust to junk in `.', hence go to wildcards (a.*)
++# only as a last resort.  b.out is created by i960 compilers.
++ac_files='a_out.exe a.exe conftest.exe a.out conftest a.* conftest.* b.out'
++#
++# The IRIX 6 linker writes into existing files which may not be
++# executable, retaining their permissions.  Remove them first so a
++# subsequent execution test works.
++ac_rmfiles=
++for ac_file in $ac_files
++do
++  case $ac_file in
++    *.$ac_ext | *.xcoff | *.tds | *.d | *.pdb | *.xSYM | *.bb | *.bbg | *.map | *.inf | *.o | *.obj ) ;;
++    * ) ac_rmfiles="$ac_rmfiles $ac_file";;
++  esac
++done
++rm -f $ac_rmfiles
++
++if { (ac_try="$ac_link_default"
++case "(($ac_try" in
++  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
++  *) ac_try_echo=$ac_try;;
++esac
++eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
++  (eval "$ac_link_default") 2>&5
++  ac_status=$?
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); }; then
++  # Autoconf-2.13 could set the ac_cv_exeext variable to `no'.
++# So ignore a value of `no', otherwise this would lead to `EXEEXT = no'
++# in a Makefile.  We should not override ac_cv_exeext if it was cached,
++# so that the user can short-circuit this test for compilers unknown to
++# Autoconf.
++for ac_file in $ac_files ''
++do
++  test -f "$ac_file" || continue
++  case $ac_file in
++    *.$ac_ext | *.xcoff | *.tds | *.d | *.pdb | *.xSYM | *.bb | *.bbg | *.map | *.inf | *.o | *.obj )
++	;;
++    [ab].out )
++	# We found the default executable, but exeext='' is most
++	# certainly right.
++	break;;
++    *.* )
++        if test "${ac_cv_exeext+set}" = set && test "$ac_cv_exeext" != no;
++	then :; else
++	   ac_cv_exeext=`expr "$ac_file" : '[^.]*\(\..*\)'`
++	fi
++	# We set ac_cv_exeext here because the later test for it is not
++	# safe: cross compilers may not add the suffix if given an `-o'
++	# argument, so we may need to know it at that point already.
++	# Even if this section looks crufty: it has the advantage of
++	# actually working.
++	break;;
++    * )
++	break;;
++  esac
++done
++test "$ac_cv_exeext" = no && ac_cv_exeext=
++
++else
++  ac_file=''
++fi
++
++{ echo "$as_me:$LINENO: result: $ac_file" >&5
++echo "${ECHO_T}$ac_file" >&6; }
++if test -z "$ac_file"; then
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++{ { echo "$as_me:$LINENO: error: C compiler cannot create executables
++See \`config.log' for more details." >&5
++echo "$as_me: error: C compiler cannot create executables
++See \`config.log' for more details." >&2;}
++   { (exit 77); exit 77; }; }
++fi
++
++ac_exeext=$ac_cv_exeext
++
++# Check that the compiler produces executables we can run.  If not, either
++# the compiler is broken, or we cross compile.
++{ echo "$as_me:$LINENO: checking whether the C compiler works" >&5
++echo $ECHO_N "checking whether the C compiler works... $ECHO_C" >&6; }
++# FIXME: These cross compiler hacks should be removed for Autoconf 3.0
++# If not cross compiling, check that we can run a simple program.
++if test "$cross_compiling" != yes; then
++  if { ac_try='./$ac_file'
++  { (case "(($ac_try" in
++  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
++  *) ac_try_echo=$ac_try;;
++esac
++eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
++  (eval "$ac_try") 2>&5
++  ac_status=$?
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); }; }; then
++    cross_compiling=no
++  else
++    if test "$cross_compiling" = maybe; then
++	cross_compiling=yes
++    else
++	{ { echo "$as_me:$LINENO: error: cannot run C compiled programs.
++If you meant to cross compile, use \`--host'.
++See \`config.log' for more details." >&5
++echo "$as_me: error: cannot run C compiled programs.
++If you meant to cross compile, use \`--host'.
++See \`config.log' for more details." >&2;}
++   { (exit 1); exit 1; }; }
++    fi
++  fi
++fi
++{ echo "$as_me:$LINENO: result: yes" >&5
++echo "${ECHO_T}yes" >&6; }
++
++rm -f a.out a.exe conftest$ac_cv_exeext b.out
++ac_clean_files=$ac_clean_files_save
++# Check that the compiler produces executables we can run.  If not, either
++# the compiler is broken, or we cross compile.
++{ echo "$as_me:$LINENO: checking whether we are cross compiling" >&5
++echo $ECHO_N "checking whether we are cross compiling... $ECHO_C" >&6; }
++{ echo "$as_me:$LINENO: result: $cross_compiling" >&5
++echo "${ECHO_T}$cross_compiling" >&6; }
++
++{ echo "$as_me:$LINENO: checking for suffix of executables" >&5
++echo $ECHO_N "checking for suffix of executables... $ECHO_C" >&6; }
++if { (ac_try="$ac_link"
++case "(($ac_try" in
++  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
++  *) ac_try_echo=$ac_try;;
++esac
++eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
++  (eval "$ac_link") 2>&5
++  ac_status=$?
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); }; then
++  # If both `conftest.exe' and `conftest' are `present' (well, observable)
++# catch `conftest.exe'.  For instance with Cygwin, `ls conftest' will
++# work properly (i.e., refer to `conftest.exe'), while it won't with
++# `rm'.
++for ac_file in conftest.exe conftest conftest.*; do
++  test -f "$ac_file" || continue
++  case $ac_file in
++    *.$ac_ext | *.xcoff | *.tds | *.d | *.pdb | *.xSYM | *.bb | *.bbg | *.map | *.inf | *.o | *.obj ) ;;
++    *.* ) ac_cv_exeext=`expr "$ac_file" : '[^.]*\(\..*\)'`
++	  break;;
++    * ) break;;
++  esac
++done
++else
++  { { echo "$as_me:$LINENO: error: cannot compute suffix of executables: cannot compile and link
++See \`config.log' for more details." >&5
++echo "$as_me: error: cannot compute suffix of executables: cannot compile and link
++See \`config.log' for more details." >&2;}
++   { (exit 1); exit 1; }; }
++fi
++
++rm -f conftest$ac_cv_exeext
++{ echo "$as_me:$LINENO: result: $ac_cv_exeext" >&5
++echo "${ECHO_T}$ac_cv_exeext" >&6; }
++
++rm -f conftest.$ac_ext
++EXEEXT=$ac_cv_exeext
++ac_exeext=$EXEEXT
++{ echo "$as_me:$LINENO: checking for suffix of object files" >&5
++echo $ECHO_N "checking for suffix of object files... $ECHO_C" >&6; }
++if test "${ac_cv_objext+set}" = set; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++else
++  cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++
++int
++main ()
++{
++
++  ;
++  return 0;
++}
++_ACEOF
++rm -f conftest.o conftest.obj
++if { (ac_try="$ac_compile"
++case "(($ac_try" in
++  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
++  *) ac_try_echo=$ac_try;;
++esac
++eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
++  (eval "$ac_compile") 2>&5
++  ac_status=$?
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); }; then
++  for ac_file in conftest.o conftest.obj conftest.*; do
++  test -f "$ac_file" || continue;
++  case $ac_file in
++    *.$ac_ext | *.xcoff | *.tds | *.d | *.pdb | *.xSYM | *.bb | *.bbg | *.map | *.inf ) ;;
++    *) ac_cv_objext=`expr "$ac_file" : '.*\.\(.*\)'`
++       break;;
++  esac
++done
++else
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++{ { echo "$as_me:$LINENO: error: cannot compute suffix of object files: cannot compile
++See \`config.log' for more details." >&5
++echo "$as_me: error: cannot compute suffix of object files: cannot compile
++See \`config.log' for more details." >&2;}
++   { (exit 1); exit 1; }; }
++fi
++
++rm -f conftest.$ac_cv_objext conftest.$ac_ext
++fi
++{ echo "$as_me:$LINENO: result: $ac_cv_objext" >&5
++echo "${ECHO_T}$ac_cv_objext" >&6; }
++OBJEXT=$ac_cv_objext
++ac_objext=$OBJEXT
++{ echo "$as_me:$LINENO: checking whether we are using the GNU C compiler" >&5
++echo $ECHO_N "checking whether we are using the GNU C compiler... $ECHO_C" >&6; }
++if test "${ac_cv_c_compiler_gnu+set}" = set; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++else
++  cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++
++int
++main ()
++{
++#ifndef __GNUC__
++       choke me
++#endif
++
++  ;
++  return 0;
++}
++_ACEOF
++rm -f conftest.$ac_objext
++if { (ac_try="$ac_compile"
++case "(($ac_try" in
++  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
++  *) ac_try_echo=$ac_try;;
++esac
++eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
++  (eval "$ac_compile") 2>conftest.er1
++  ac_status=$?
++  grep -v '^ *+' conftest.er1 >conftest.err
++  rm -f conftest.er1
++  cat conftest.err >&5
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } && {
++	 test -z "$ac_c_werror_flag" ||
++	 test ! -s conftest.err
++       } && test -s conftest.$ac_objext; then
++  ac_compiler_gnu=yes
++else
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++	ac_compiler_gnu=no
++fi
++
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
++ac_cv_c_compiler_gnu=$ac_compiler_gnu
++
++fi
++{ echo "$as_me:$LINENO: result: $ac_cv_c_compiler_gnu" >&5
++echo "${ECHO_T}$ac_cv_c_compiler_gnu" >&6; }
++GCC=`test $ac_compiler_gnu = yes && echo yes`
++ac_test_CFLAGS=${CFLAGS+set}
++ac_save_CFLAGS=$CFLAGS
++{ echo "$as_me:$LINENO: checking whether $CC accepts -g" >&5
++echo $ECHO_N "checking whether $CC accepts -g... $ECHO_C" >&6; }
++if test "${ac_cv_prog_cc_g+set}" = set; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++else
++  ac_save_c_werror_flag=$ac_c_werror_flag
++   ac_c_werror_flag=yes
++   ac_cv_prog_cc_g=no
++   CFLAGS="-g"
++   cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++
++int
++main ()
++{
++
++  ;
++  return 0;
++}
++_ACEOF
++rm -f conftest.$ac_objext
++if { (ac_try="$ac_compile"
++case "(($ac_try" in
++  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
++  *) ac_try_echo=$ac_try;;
++esac
++eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
++  (eval "$ac_compile") 2>conftest.er1
++  ac_status=$?
++  grep -v '^ *+' conftest.er1 >conftest.err
++  rm -f conftest.er1
++  cat conftest.err >&5
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } && {
++	 test -z "$ac_c_werror_flag" ||
++	 test ! -s conftest.err
++       } && test -s conftest.$ac_objext; then
++  ac_cv_prog_cc_g=yes
++else
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++	CFLAGS=""
++      cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++
++int
++main ()
++{
++
++  ;
++  return 0;
++}
++_ACEOF
++rm -f conftest.$ac_objext
++if { (ac_try="$ac_compile"
++case "(($ac_try" in
++  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
++  *) ac_try_echo=$ac_try;;
++esac
++eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
++  (eval "$ac_compile") 2>conftest.er1
++  ac_status=$?
++  grep -v '^ *+' conftest.er1 >conftest.err
++  rm -f conftest.er1
++  cat conftest.err >&5
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } && {
++	 test -z "$ac_c_werror_flag" ||
++	 test ! -s conftest.err
++       } && test -s conftest.$ac_objext; then
++  :
++else
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++	ac_c_werror_flag=$ac_save_c_werror_flag
++	 CFLAGS="-g"
++	 cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++
++int
++main ()
++{
++
++  ;
++  return 0;
++}
++_ACEOF
++rm -f conftest.$ac_objext
++if { (ac_try="$ac_compile"
++case "(($ac_try" in
++  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
++  *) ac_try_echo=$ac_try;;
++esac
++eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
++  (eval "$ac_compile") 2>conftest.er1
++  ac_status=$?
++  grep -v '^ *+' conftest.er1 >conftest.err
++  rm -f conftest.er1
++  cat conftest.err >&5
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } && {
++	 test -z "$ac_c_werror_flag" ||
++	 test ! -s conftest.err
++       } && test -s conftest.$ac_objext; then
++  ac_cv_prog_cc_g=yes
++else
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++
++fi
++
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
++fi
++
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
++fi
++
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
++   ac_c_werror_flag=$ac_save_c_werror_flag
++fi
++{ echo "$as_me:$LINENO: result: $ac_cv_prog_cc_g" >&5
++echo "${ECHO_T}$ac_cv_prog_cc_g" >&6; }
++if test "$ac_test_CFLAGS" = set; then
++  CFLAGS=$ac_save_CFLAGS
++elif test $ac_cv_prog_cc_g = yes; then
++  if test "$GCC" = yes; then
++    CFLAGS="-g -O2"
++  else
++    CFLAGS="-g"
++  fi
++else
++  if test "$GCC" = yes; then
++    CFLAGS="-O2"
++  else
++    CFLAGS=
++  fi
++fi
++{ echo "$as_me:$LINENO: checking for $CC option to accept ISO C89" >&5
++echo $ECHO_N "checking for $CC option to accept ISO C89... $ECHO_C" >&6; }
++if test "${ac_cv_prog_cc_c89+set}" = set; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++else
++  ac_cv_prog_cc_c89=no
++ac_save_CC=$CC
++cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++#include <stdarg.h>
++#include <stdio.h>
++#include <sys/types.h>
++#include <sys/stat.h>
++/* Most of the following tests are stolen from RCS 5.7's src/conf.sh.  */
++struct buf { int x; };
++FILE * (*rcsopen) (struct buf *, struct stat *, int);
++static char *e (p, i)
++     char **p;
++     int i;
++{
++  return p[i];
++}
++static char *f (char * (*g) (char **, int), char **p, ...)
++{
++  char *s;
++  va_list v;
++  va_start (v,p);
++  s = g (p, va_arg (v,int));
++  va_end (v);
++  return s;
++}
++
++/* OSF 4.0 Compaq cc is some sort of almost-ANSI by default.  It has
++   function prototypes and stuff, but not '\xHH' hex character constants.
++   These don't provoke an error unfortunately, instead are silently treated
++   as 'x'.  The following induces an error, until -std is added to get
++   proper ANSI mode.  Curiously '\x00'!='x' always comes out true, for an
++   array size at least.  It's necessary to write '\x00'==0 to get something
++   that's true only with -std.  */
++int osf4_cc_array ['\x00' == 0 ? 1 : -1];
++
++/* IBM C 6 for AIX is almost-ANSI by default, but it replaces macro parameters
++   inside strings and character constants.  */
++#define FOO(x) 'x'
++int xlc6_cc_array[FOO(a) == 'x' ? 1 : -1];
++
++int test (int i, double x);
++struct s1 {int (*f) (int a);};
++struct s2 {int (*f) (double a);};
++int pairnames (int, char **, FILE *(*)(struct buf *, struct stat *, int), int, int);
++int argc;
++char **argv;
++int
++main ()
++{
++return f (e, argv, 0) != argv[0]  ||  f (e, argv, 1) != argv[1];
++  ;
++  return 0;
++}
++_ACEOF
++for ac_arg in '' -qlanglvl=extc89 -qlanglvl=ansi -std \
++	-Ae "-Aa -D_HPUX_SOURCE" "-Xc -D__EXTENSIONS__"
++do
++  CC="$ac_save_CC $ac_arg"
++  rm -f conftest.$ac_objext
++if { (ac_try="$ac_compile"
++case "(($ac_try" in
++  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
++  *) ac_try_echo=$ac_try;;
++esac
++eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
++  (eval "$ac_compile") 2>conftest.er1
++  ac_status=$?
++  grep -v '^ *+' conftest.er1 >conftest.err
++  rm -f conftest.er1
++  cat conftest.err >&5
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } && {
++	 test -z "$ac_c_werror_flag" ||
++	 test ! -s conftest.err
++       } && test -s conftest.$ac_objext; then
++  ac_cv_prog_cc_c89=$ac_arg
++else
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++
++fi
++
++rm -f core conftest.err conftest.$ac_objext
++  test "x$ac_cv_prog_cc_c89" != "xno" && break
++done
++rm -f conftest.$ac_ext
++CC=$ac_save_CC
++
++fi
++# AC_CACHE_VAL
++case "x$ac_cv_prog_cc_c89" in
++  x)
++    { echo "$as_me:$LINENO: result: none needed" >&5
++echo "${ECHO_T}none needed" >&6; } ;;
++  xno)
++    { echo "$as_me:$LINENO: result: unsupported" >&5
++echo "${ECHO_T}unsupported" >&6; } ;;
++  *)
++    CC="$CC $ac_cv_prog_cc_c89"
++    { echo "$as_me:$LINENO: result: $ac_cv_prog_cc_c89" >&5
++echo "${ECHO_T}$ac_cv_prog_cc_c89" >&6; } ;;
++esac
++
++
++ac_ext=c
++ac_cpp='$CPP $CPPFLAGS'
++ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
++ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
++ac_compiler_gnu=$ac_cv_c_compiler_gnu
++
++depcc="$CC"   am_compiler_list=
++
++{ echo "$as_me:$LINENO: checking dependency style of $depcc" >&5
++echo $ECHO_N "checking dependency style of $depcc... $ECHO_C" >&6; }
++if test "${am_cv_CC_dependencies_compiler_type+set}" = set; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++else
++  if test -z "$AMDEP_TRUE" && test -f "$am_depcomp"; then
++  # We make a subdir and do the tests there.  Otherwise we can end up
++  # making bogus files that we don't know about and never remove.  For
++  # instance it was reported that on HP-UX the gcc test will end up
++  # making a dummy file named `D' -- because `-MD' means `put the output
++  # in D'.
++  mkdir conftest.dir
++  # Copy depcomp to subdir because otherwise we won't find it if we're
++  # using a relative directory.
++  cp "$am_depcomp" conftest.dir
++  cd conftest.dir
++  # We will build objects and dependencies in a subdirectory because
++  # it helps to detect inapplicable dependency modes.  For instance
++  # both Tru64's cc and ICC support -MD to output dependencies as a
++  # side effect of compilation, but ICC will put the dependencies in
++  # the current directory while Tru64 will put them in the object
++  # directory.
++  mkdir sub
++
++  am_cv_CC_dependencies_compiler_type=none
++  if test "$am_compiler_list" = ""; then
++     am_compiler_list=`sed -n 's/^#*\([a-zA-Z0-9]*\))$/\1/p' < ./depcomp`
++  fi
++  for depmode in $am_compiler_list; do
++    # Setup a source with many dependencies, because some compilers
++    # like to wrap large dependency lists on column 80 (with \), and
++    # we should not choose a depcomp mode which is confused by this.
++    #
++    # We need to recreate these files for each test, as the compiler may
++    # overwrite some of them when testing with obscure command lines.
++    # This happens at least with the AIX C compiler.
++    : > sub/conftest.c
++    for i in 1 2 3 4 5 6; do
++      echo '#include "conftst'$i'.h"' >> sub/conftest.c
++      # Using `: > sub/conftst$i.h' creates only sub/conftst1.h with
++      # Solaris 8's {/usr,}/bin/sh.
++      touch sub/conftst$i.h
++    done
++    echo "${am__include} ${am__quote}sub/conftest.Po${am__quote}" > confmf
++
++    case $depmode in
++    nosideeffect)
++      # after this tag, mechanisms are not by side-effect, so they'll
++      # only be used when explicitly requested
++      if test "x$enable_dependency_tracking" = xyes; then
++	continue
++      else
++	break
++      fi
++      ;;
++    none) break ;;
++    esac
++    # We check with `-c' and `-o' for the sake of the "dashmstdout"
++    # mode.  It turns out that the SunPro C++ compiler does not properly
++    # handle `-M -o', and we need to detect this.
++    if depmode=$depmode \
++       source=sub/conftest.c object=sub/conftest.${OBJEXT-o} \
++       depfile=sub/conftest.Po tmpdepfile=sub/conftest.TPo \
++       $SHELL ./depcomp $depcc -c -o sub/conftest.${OBJEXT-o} sub/conftest.c \
++         >/dev/null 2>conftest.err &&
++       grep sub/conftst6.h sub/conftest.Po > /dev/null 2>&1 &&
++       grep sub/conftest.${OBJEXT-o} sub/conftest.Po > /dev/null 2>&1 &&
++       ${MAKE-make} -s -f confmf > /dev/null 2>&1; then
++      # icc doesn't choke on unknown options, it will just issue warnings
++      # or remarks (even with -Werror).  So we grep stderr for any message
++      # that says an option was ignored or not supported.
++      # When given -MP, icc 7.0 and 7.1 complain thusly:
++      #   icc: Command line warning: ignoring option '-M'; no argument required
++      # The diagnosis changed in icc 8.0:
++      #   icc: Command line remark: option '-MP' not supported
++      if (grep 'ignoring option' conftest.err ||
++          grep 'not supported' conftest.err) >/dev/null 2>&1; then :; else
++        am_cv_CC_dependencies_compiler_type=$depmode
++        break
++      fi
++    fi
++  done
++
++  cd ..
++  rm -rf conftest.dir
++else
++  am_cv_CC_dependencies_compiler_type=none
++fi
++
++fi
++{ echo "$as_me:$LINENO: result: $am_cv_CC_dependencies_compiler_type" >&5
++echo "${ECHO_T}$am_cv_CC_dependencies_compiler_type" >&6; }
++CCDEPMODE=depmode=$am_cv_CC_dependencies_compiler_type
++
++
++
++if
++  test "x$enable_dependency_tracking" != xno \
++  && test "$am_cv_CC_dependencies_compiler_type" = gcc3; then
++  am__fastdepCC_TRUE=
++  am__fastdepCC_FALSE='#'
++else
++  am__fastdepCC_TRUE='#'
++  am__fastdepCC_FALSE=
++fi
++
++
++
++# Check whether --enable-largefile was given.
++if test "${enable_largefile+set}" = set; then
++  enableval=$enable_largefile;
++fi
++
++if test "$enable_largefile" != no; then
++
++  { echo "$as_me:$LINENO: checking for special C compiler options needed for large files" >&5
++echo $ECHO_N "checking for special C compiler options needed for large files... $ECHO_C" >&6; }
++if test "${ac_cv_sys_largefile_CC+set}" = set; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++else
++  ac_cv_sys_largefile_CC=no
++     if test "$GCC" != yes; then
++       ac_save_CC=$CC
++       while :; do
++	 # IRIX 6.2 and later do not support large files by default,
++	 # so use the C compiler's -n32 option if that helps.
++	 cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++#include <sys/types.h>
++ /* Check that off_t can represent 2**63 - 1 correctly.
++    We can't simply define LARGE_OFF_T to be 9223372036854775807,
++    since some C++ compilers masquerading as C compilers
++    incorrectly reject 9223372036854775807.  */
++#define LARGE_OFF_T (((off_t) 1 << 62) - 1 + ((off_t) 1 << 62))
++  int off_t_is_large[(LARGE_OFF_T % 2147483629 == 721
++		       && LARGE_OFF_T % 2147483647 == 1)
++		      ? 1 : -1];
++int
++main ()
++{
++
++  ;
++  return 0;
++}
++_ACEOF
++	 rm -f conftest.$ac_objext
++if { (ac_try="$ac_compile"
++case "(($ac_try" in
++  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
++  *) ac_try_echo=$ac_try;;
++esac
++eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
++  (eval "$ac_compile") 2>conftest.er1
++  ac_status=$?
++  grep -v '^ *+' conftest.er1 >conftest.err
++  rm -f conftest.er1
++  cat conftest.err >&5
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } && {
++	 test -z "$ac_c_werror_flag" ||
++	 test ! -s conftest.err
++       } && test -s conftest.$ac_objext; then
++  break
++else
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++
++fi
++
++rm -f core conftest.err conftest.$ac_objext
++	 CC="$CC -n32"
++	 rm -f conftest.$ac_objext
++if { (ac_try="$ac_compile"
++case "(($ac_try" in
++  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
++  *) ac_try_echo=$ac_try;;
++esac
++eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
++  (eval "$ac_compile") 2>conftest.er1
++  ac_status=$?
++  grep -v '^ *+' conftest.er1 >conftest.err
++  rm -f conftest.er1
++  cat conftest.err >&5
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } && {
++	 test -z "$ac_c_werror_flag" ||
++	 test ! -s conftest.err
++       } && test -s conftest.$ac_objext; then
++  ac_cv_sys_largefile_CC=' -n32'; break
++else
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++
++fi
++
++rm -f core conftest.err conftest.$ac_objext
++	 break
++       done
++       CC=$ac_save_CC
++       rm -f conftest.$ac_ext
++    fi
++fi
++{ echo "$as_me:$LINENO: result: $ac_cv_sys_largefile_CC" >&5
++echo "${ECHO_T}$ac_cv_sys_largefile_CC" >&6; }
++  if test "$ac_cv_sys_largefile_CC" != no; then
++    CC=$CC$ac_cv_sys_largefile_CC
++  fi
++
++  { echo "$as_me:$LINENO: checking for _FILE_OFFSET_BITS value needed for large files" >&5
++echo $ECHO_N "checking for _FILE_OFFSET_BITS value needed for large files... $ECHO_C" >&6; }
++if test "${ac_cv_sys_file_offset_bits+set}" = set; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++else
++  while :; do
++  cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++#include <sys/types.h>
++ /* Check that off_t can represent 2**63 - 1 correctly.
++    We can't simply define LARGE_OFF_T to be 9223372036854775807,
++    since some C++ compilers masquerading as C compilers
++    incorrectly reject 9223372036854775807.  */
++#define LARGE_OFF_T (((off_t) 1 << 62) - 1 + ((off_t) 1 << 62))
++  int off_t_is_large[(LARGE_OFF_T % 2147483629 == 721
++		       && LARGE_OFF_T % 2147483647 == 1)
++		      ? 1 : -1];
++int
++main ()
++{
++
++  ;
++  return 0;
++}
++_ACEOF
++rm -f conftest.$ac_objext
++if { (ac_try="$ac_compile"
++case "(($ac_try" in
++  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
++  *) ac_try_echo=$ac_try;;
++esac
++eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
++  (eval "$ac_compile") 2>conftest.er1
++  ac_status=$?
++  grep -v '^ *+' conftest.er1 >conftest.err
++  rm -f conftest.er1
++  cat conftest.err >&5
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } && {
++	 test -z "$ac_c_werror_flag" ||
++	 test ! -s conftest.err
++       } && test -s conftest.$ac_objext; then
++  ac_cv_sys_file_offset_bits=no; break
++else
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++
++fi
++
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
++  cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++#define _FILE_OFFSET_BITS 64
++#include <sys/types.h>
++ /* Check that off_t can represent 2**63 - 1 correctly.
++    We can't simply define LARGE_OFF_T to be 9223372036854775807,
++    since some C++ compilers masquerading as C compilers
++    incorrectly reject 9223372036854775807.  */
++#define LARGE_OFF_T (((off_t) 1 << 62) - 1 + ((off_t) 1 << 62))
++  int off_t_is_large[(LARGE_OFF_T % 2147483629 == 721
++		       && LARGE_OFF_T % 2147483647 == 1)
++		      ? 1 : -1];
++int
++main ()
++{
++
++  ;
++  return 0;
++}
++_ACEOF
++rm -f conftest.$ac_objext
++if { (ac_try="$ac_compile"
++case "(($ac_try" in
++  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
++  *) ac_try_echo=$ac_try;;
++esac
++eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
++  (eval "$ac_compile") 2>conftest.er1
++  ac_status=$?
++  grep -v '^ *+' conftest.er1 >conftest.err
++  rm -f conftest.er1
++  cat conftest.err >&5
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } && {
++	 test -z "$ac_c_werror_flag" ||
++	 test ! -s conftest.err
++       } && test -s conftest.$ac_objext; then
++  ac_cv_sys_file_offset_bits=64; break
++else
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++
++fi
++
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
++  ac_cv_sys_file_offset_bits=unknown
++  break
++done
++fi
++{ echo "$as_me:$LINENO: result: $ac_cv_sys_file_offset_bits" >&5
++echo "${ECHO_T}$ac_cv_sys_file_offset_bits" >&6; }
++case $ac_cv_sys_file_offset_bits in #(
++  no | unknown) ;;
++  *)
++cat >>confdefs.h <<_ACEOF
++#define _FILE_OFFSET_BITS $ac_cv_sys_file_offset_bits
++_ACEOF
++;;
++esac
++rm -f conftest*
++  if test $ac_cv_sys_file_offset_bits = unknown; then
++    { echo "$as_me:$LINENO: checking for _LARGE_FILES value needed for large files" >&5
++echo $ECHO_N "checking for _LARGE_FILES value needed for large files... $ECHO_C" >&6; }
++if test "${ac_cv_sys_large_files+set}" = set; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++else
++  while :; do
++  cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++#include <sys/types.h>
++ /* Check that off_t can represent 2**63 - 1 correctly.
++    We can't simply define LARGE_OFF_T to be 9223372036854775807,
++    since some C++ compilers masquerading as C compilers
++    incorrectly reject 9223372036854775807.  */
++#define LARGE_OFF_T (((off_t) 1 << 62) - 1 + ((off_t) 1 << 62))
++  int off_t_is_large[(LARGE_OFF_T % 2147483629 == 721
++		       && LARGE_OFF_T % 2147483647 == 1)
++		      ? 1 : -1];
++int
++main ()
++{
++
++  ;
++  return 0;
++}
++_ACEOF
++rm -f conftest.$ac_objext
++if { (ac_try="$ac_compile"
++case "(($ac_try" in
++  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
++  *) ac_try_echo=$ac_try;;
++esac
++eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
++  (eval "$ac_compile") 2>conftest.er1
++  ac_status=$?
++  grep -v '^ *+' conftest.er1 >conftest.err
++  rm -f conftest.er1
++  cat conftest.err >&5
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } && {
++	 test -z "$ac_c_werror_flag" ||
++	 test ! -s conftest.err
++       } && test -s conftest.$ac_objext; then
++  ac_cv_sys_large_files=no; break
++else
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++
++fi
++
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
++  cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++#define _LARGE_FILES 1
++#include <sys/types.h>
++ /* Check that off_t can represent 2**63 - 1 correctly.
++    We can't simply define LARGE_OFF_T to be 9223372036854775807,
++    since some C++ compilers masquerading as C compilers
++    incorrectly reject 9223372036854775807.  */
++#define LARGE_OFF_T (((off_t) 1 << 62) - 1 + ((off_t) 1 << 62))
++  int off_t_is_large[(LARGE_OFF_T % 2147483629 == 721
++		       && LARGE_OFF_T % 2147483647 == 1)
++		      ? 1 : -1];
++int
++main ()
++{
++
++  ;
++  return 0;
++}
++_ACEOF
++rm -f conftest.$ac_objext
++if { (ac_try="$ac_compile"
++case "(($ac_try" in
++  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
++  *) ac_try_echo=$ac_try;;
++esac
++eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
++  (eval "$ac_compile") 2>conftest.er1
++  ac_status=$?
++  grep -v '^ *+' conftest.er1 >conftest.err
++  rm -f conftest.er1
++  cat conftest.err >&5
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } && {
++	 test -z "$ac_c_werror_flag" ||
++	 test ! -s conftest.err
++       } && test -s conftest.$ac_objext; then
++  ac_cv_sys_large_files=1; break
++else
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++
++fi
++
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
++  ac_cv_sys_large_files=unknown
++  break
++done
++fi
++{ echo "$as_me:$LINENO: result: $ac_cv_sys_large_files" >&5
++echo "${ECHO_T}$ac_cv_sys_large_files" >&6; }
++case $ac_cv_sys_large_files in #(
++  no | unknown) ;;
++  *)
++cat >>confdefs.h <<_ACEOF
++#define _LARGE_FILES $ac_cv_sys_large_files
++_ACEOF
++;;
++esac
++rm -f conftest*
++  fi
++fi
++
++
+ #
+ # Checks for programs.
+ #
+ ac_ext=c
+ ac_cpp='$CPP $CPPFLAGS'
+ ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
+@@ -2908,255 +4354,12 @@
+ eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+   (eval "$ac_compiler -V >&5") 2>&5
+   ac_status=$?
+   echo "$as_me:$LINENO: \$? = $ac_status" >&5
+   (exit $ac_status); }
+ 
+-cat >conftest.$ac_ext <<_ACEOF
+-/* confdefs.h.  */
+-_ACEOF
+-cat confdefs.h >>conftest.$ac_ext
+-cat >>conftest.$ac_ext <<_ACEOF
+-/* end confdefs.h.  */
+-
+-int
+-main ()
+-{
+-
+-  ;
+-  return 0;
+-}
+-_ACEOF
+-ac_clean_files_save=$ac_clean_files
+-ac_clean_files="$ac_clean_files a.out a.exe b.out"
+-# Try to create an executable without -o first, disregard a.out.
+-# It will help us diagnose broken compilers, and finding out an intuition
+-# of exeext.
+-{ echo "$as_me:$LINENO: checking for C compiler default output file name" >&5
+-echo $ECHO_N "checking for C compiler default output file name... $ECHO_C" >&6; }
+-ac_link_default=`echo "$ac_link" | sed 's/ -o *conftest[^ ]*//'`
+-#
+-# List of possible output files, starting from the most likely.
+-# The algorithm is not robust to junk in `.', hence go to wildcards (a.*)
+-# only as a last resort.  b.out is created by i960 compilers.
+-ac_files='a_out.exe a.exe conftest.exe a.out conftest a.* conftest.* b.out'
+-#
+-# The IRIX 6 linker writes into existing files which may not be
+-# executable, retaining their permissions.  Remove them first so a
+-# subsequent execution test works.
+-ac_rmfiles=
+-for ac_file in $ac_files
+-do
+-  case $ac_file in
+-    *.$ac_ext | *.xcoff | *.tds | *.d | *.pdb | *.xSYM | *.bb | *.bbg | *.map | *.inf | *.o | *.obj ) ;;
+-    * ) ac_rmfiles="$ac_rmfiles $ac_file";;
+-  esac
+-done
+-rm -f $ac_rmfiles
+-
+-if { (ac_try="$ac_link_default"
+-case "(($ac_try" in
+-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+-  *) ac_try_echo=$ac_try;;
+-esac
+-eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+-  (eval "$ac_link_default") 2>&5
+-  ac_status=$?
+-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+-  (exit $ac_status); }; then
+-  # Autoconf-2.13 could set the ac_cv_exeext variable to `no'.
+-# So ignore a value of `no', otherwise this would lead to `EXEEXT = no'
+-# in a Makefile.  We should not override ac_cv_exeext if it was cached,
+-# so that the user can short-circuit this test for compilers unknown to
+-# Autoconf.
+-for ac_file in $ac_files ''
+-do
+-  test -f "$ac_file" || continue
+-  case $ac_file in
+-    *.$ac_ext | *.xcoff | *.tds | *.d | *.pdb | *.xSYM | *.bb | *.bbg | *.map | *.inf | *.o | *.obj )
+-	;;
+-    [ab].out )
+-	# We found the default executable, but exeext='' is most
+-	# certainly right.
+-	break;;
+-    *.* )
+-        if test "${ac_cv_exeext+set}" = set && test "$ac_cv_exeext" != no;
+-	then :; else
+-	   ac_cv_exeext=`expr "$ac_file" : '[^.]*\(\..*\)'`
+-	fi
+-	# We set ac_cv_exeext here because the later test for it is not
+-	# safe: cross compilers may not add the suffix if given an `-o'
+-	# argument, so we may need to know it at that point already.
+-	# Even if this section looks crufty: it has the advantage of
+-	# actually working.
+-	break;;
+-    * )
+-	break;;
+-  esac
+-done
+-test "$ac_cv_exeext" = no && ac_cv_exeext=
+-
+-else
+-  ac_file=''
+-fi
+-
+-{ echo "$as_me:$LINENO: result: $ac_file" >&5
+-echo "${ECHO_T}$ac_file" >&6; }
+-if test -z "$ac_file"; then
+-  echo "$as_me: failed program was:" >&5
+-sed 's/^/| /' conftest.$ac_ext >&5
+-
+-{ { echo "$as_me:$LINENO: error: C compiler cannot create executables
+-See \`config.log' for more details." >&5
+-echo "$as_me: error: C compiler cannot create executables
+-See \`config.log' for more details." >&2;}
+-   { (exit 77); exit 77; }; }
+-fi
+-
+-ac_exeext=$ac_cv_exeext
+-
+-# Check that the compiler produces executables we can run.  If not, either
+-# the compiler is broken, or we cross compile.
+-{ echo "$as_me:$LINENO: checking whether the C compiler works" >&5
+-echo $ECHO_N "checking whether the C compiler works... $ECHO_C" >&6; }
+-# FIXME: These cross compiler hacks should be removed for Autoconf 3.0
+-# If not cross compiling, check that we can run a simple program.
+-if test "$cross_compiling" != yes; then
+-  if { ac_try='./$ac_file'
+-  { (case "(($ac_try" in
+-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+-  *) ac_try_echo=$ac_try;;
+-esac
+-eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+-  (eval "$ac_try") 2>&5
+-  ac_status=$?
+-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+-  (exit $ac_status); }; }; then
+-    cross_compiling=no
+-  else
+-    if test "$cross_compiling" = maybe; then
+-	cross_compiling=yes
+-    else
+-	{ { echo "$as_me:$LINENO: error: cannot run C compiled programs.
+-If you meant to cross compile, use \`--host'.
+-See \`config.log' for more details." >&5
+-echo "$as_me: error: cannot run C compiled programs.
+-If you meant to cross compile, use \`--host'.
+-See \`config.log' for more details." >&2;}
+-   { (exit 1); exit 1; }; }
+-    fi
+-  fi
+-fi
+-{ echo "$as_me:$LINENO: result: yes" >&5
+-echo "${ECHO_T}yes" >&6; }
+-
+-rm -f a.out a.exe conftest$ac_cv_exeext b.out
+-ac_clean_files=$ac_clean_files_save
+-# Check that the compiler produces executables we can run.  If not, either
+-# the compiler is broken, or we cross compile.
+-{ echo "$as_me:$LINENO: checking whether we are cross compiling" >&5
+-echo $ECHO_N "checking whether we are cross compiling... $ECHO_C" >&6; }
+-{ echo "$as_me:$LINENO: result: $cross_compiling" >&5
+-echo "${ECHO_T}$cross_compiling" >&6; }
+-
+-{ echo "$as_me:$LINENO: checking for suffix of executables" >&5
+-echo $ECHO_N "checking for suffix of executables... $ECHO_C" >&6; }
+-if { (ac_try="$ac_link"
+-case "(($ac_try" in
+-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+-  *) ac_try_echo=$ac_try;;
+-esac
+-eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+-  (eval "$ac_link") 2>&5
+-  ac_status=$?
+-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+-  (exit $ac_status); }; then
+-  # If both `conftest.exe' and `conftest' are `present' (well, observable)
+-# catch `conftest.exe'.  For instance with Cygwin, `ls conftest' will
+-# work properly (i.e., refer to `conftest.exe'), while it won't with
+-# `rm'.
+-for ac_file in conftest.exe conftest conftest.*; do
+-  test -f "$ac_file" || continue
+-  case $ac_file in
+-    *.$ac_ext | *.xcoff | *.tds | *.d | *.pdb | *.xSYM | *.bb | *.bbg | *.map | *.inf | *.o | *.obj ) ;;
+-    *.* ) ac_cv_exeext=`expr "$ac_file" : '[^.]*\(\..*\)'`
+-	  break;;
+-    * ) break;;
+-  esac
+-done
+-else
+-  { { echo "$as_me:$LINENO: error: cannot compute suffix of executables: cannot compile and link
+-See \`config.log' for more details." >&5
+-echo "$as_me: error: cannot compute suffix of executables: cannot compile and link
+-See \`config.log' for more details." >&2;}
+-   { (exit 1); exit 1; }; }
+-fi
+-
+-rm -f conftest$ac_cv_exeext
+-{ echo "$as_me:$LINENO: result: $ac_cv_exeext" >&5
+-echo "${ECHO_T}$ac_cv_exeext" >&6; }
+-
+-rm -f conftest.$ac_ext
+-EXEEXT=$ac_cv_exeext
+-ac_exeext=$EXEEXT
+-{ echo "$as_me:$LINENO: checking for suffix of object files" >&5
+-echo $ECHO_N "checking for suffix of object files... $ECHO_C" >&6; }
+-if test "${ac_cv_objext+set}" = set; then
+-  echo $ECHO_N "(cached) $ECHO_C" >&6
+-else
+-  cat >conftest.$ac_ext <<_ACEOF
+-/* confdefs.h.  */
+-_ACEOF
+-cat confdefs.h >>conftest.$ac_ext
+-cat >>conftest.$ac_ext <<_ACEOF
+-/* end confdefs.h.  */
+-
+-int
+-main ()
+-{
+-
+-  ;
+-  return 0;
+-}
+-_ACEOF
+-rm -f conftest.o conftest.obj
+-if { (ac_try="$ac_compile"
+-case "(($ac_try" in
+-  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+-  *) ac_try_echo=$ac_try;;
+-esac
+-eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+-  (eval "$ac_compile") 2>&5
+-  ac_status=$?
+-  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+-  (exit $ac_status); }; then
+-  for ac_file in conftest.o conftest.obj conftest.*; do
+-  test -f "$ac_file" || continue;
+-  case $ac_file in
+-    *.$ac_ext | *.xcoff | *.tds | *.d | *.pdb | *.xSYM | *.bb | *.bbg | *.map | *.inf ) ;;
+-    *) ac_cv_objext=`expr "$ac_file" : '.*\.\(.*\)'`
+-       break;;
+-  esac
+-done
+-else
+-  echo "$as_me: failed program was:" >&5
+-sed 's/^/| /' conftest.$ac_ext >&5
+-
+-{ { echo "$as_me:$LINENO: error: cannot compute suffix of object files: cannot compile
+-See \`config.log' for more details." >&5
+-echo "$as_me: error: cannot compute suffix of object files: cannot compile
+-See \`config.log' for more details." >&2;}
+-   { (exit 1); exit 1; }; }
+-fi
+-
+-rm -f conftest.$ac_cv_objext conftest.$ac_ext
+-fi
+-{ echo "$as_me:$LINENO: result: $ac_cv_objext" >&5
+-echo "${ECHO_T}$ac_cv_objext" >&6; }
+-OBJEXT=$ac_cv_objext
+-ac_objext=$OBJEXT
+ { echo "$as_me:$LINENO: checking whether we are using the GNU C compiler" >&5
+ echo $ECHO_N "checking whether we are using the GNU C compiler... $ECHO_C" >&6; }
+ if test "${ac_cv_c_compiler_gnu+set}" = set; then
+   echo $ECHO_N "(cached) $ECHO_C" >&6
+ else
+   cat >conftest.$ac_ext <<_ACEOF
+@@ -3480,77 +4683,12 @@
+ 
+ ac_ext=c
+ ac_cpp='$CPP $CPPFLAGS'
+ ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
+ ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
+ ac_compiler_gnu=$ac_cv_c_compiler_gnu
+-DEPDIR="${am__leading_dot}deps"
+-
+-ac_config_commands="$ac_config_commands depfiles"
+-
+-
+-am_make=${MAKE-make}
+-cat > confinc << 'END'
+-am__doit:
+-	@echo done
+-.PHONY: am__doit
+-END
+-# If we don't find an include directive, just comment out the code.
+-{ echo "$as_me:$LINENO: checking for style of include used by $am_make" >&5
+-echo $ECHO_N "checking for style of include used by $am_make... $ECHO_C" >&6; }
+-am__include="#"
+-am__quote=
+-_am_result=none
+-# First try GNU make style include.
+-echo "include confinc" > confmf
+-# We grep out `Entering directory' and `Leaving directory'
+-# messages which can occur if `w' ends up in MAKEFLAGS.
+-# In particular we don't look at `^make:' because GNU make might
+-# be invoked under some other name (usually "gmake"), in which
+-# case it prints its new name instead of `make'.
+-if test "`$am_make -s -f confmf 2> /dev/null | grep -v 'ing directory'`" = "done"; then
+-   am__include=include
+-   am__quote=
+-   _am_result=GNU
+-fi
+-# Now try BSD make style include.
+-if test "$am__include" = "#"; then
+-   echo '.include "confinc"' > confmf
+-   if test "`$am_make -s -f confmf 2> /dev/null`" = "done"; then
+-      am__include=.include
+-      am__quote="\""
+-      _am_result=BSD
+-   fi
+-fi
+-
+-
+-{ echo "$as_me:$LINENO: result: $_am_result" >&5
+-echo "${ECHO_T}$_am_result" >&6; }
+-rm -f confinc confmf
+-
+-# Check whether --enable-dependency-tracking was given.
+-if test "${enable_dependency_tracking+set}" = set; then
+-  enableval=$enable_dependency_tracking;
+-fi
+-
+-if test "x$enable_dependency_tracking" != xno; then
+-  am_depcomp="$ac_aux_dir/depcomp"
+-  AMDEPBACKSLASH='\'
+-fi
+-
+-
+-if test "x$enable_dependency_tracking" != xno; then
+-  AMDEP_TRUE=
+-  AMDEP_FALSE='#'
+-else
+-  AMDEP_TRUE='#'
+-  AMDEP_FALSE=
+-fi
+-
+-
+-
+ 
+ depcc="$CC"   am_compiler_list=
+ 
+ { echo "$as_me:$LINENO: checking dependency style of $depcc" >&5
+ echo $ECHO_N "checking dependency style of $depcc... $ECHO_C" >&6; }
+ if test "${am_cv_CC_dependencies_compiler_type+set}" = set; then
+@@ -4819,13 +5956,13 @@
+     esac
+   fi
+   rm -rf conftest*
+   ;;
+ *-*-irix6*)
+   # Find out which ABI we are using.
+-  echo '#line 4825 "configure"' > conftest.$ac_ext
++  echo '#line 5962 "configure"' > conftest.$ac_ext
+   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+   (eval $ac_compile) 2>&5
+   ac_status=$?
+   echo "$as_me:$LINENO: \$? = $ac_status" >&5
+   (exit $ac_status); }; then
+    if test "$lt_cv_prog_gnu_ld" = yes; then
+@@ -7316,17 +8453,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:7322: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:8459: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:7326: \$? = $ac_status" >&5
++   echo "$as_me:8463: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -7584,17 +8721,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:7590: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:8727: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:7594: \$? = $ac_status" >&5
++   echo "$as_me:8731: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -7688,17 +8825,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:7694: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:8831: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:7698: \$? = $ac_status" >&5
++   echo "$as_me:8835: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -9985,13 +11122,13 @@
+   	  if test "$cross_compiling" = yes; then :
+   lt_cv_dlopen_self=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 9991 "configure"
++#line 11128 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -10085,13 +11222,13 @@
+   	  if test "$cross_compiling" = yes; then :
+   lt_cv_dlopen_self_static=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 10091 "configure"
++#line 11228 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -12421,17 +13558,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:12427: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:13564: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:12431: \$? = $ac_status" >&5
++   echo "$as_me:13568: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -12525,17 +13662,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:12531: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:13668: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:12535: \$? = $ac_status" >&5
++   echo "$as_me:13672: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -14086,17 +15223,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:14092: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:15229: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:14096: \$? = $ac_status" >&5
++   echo "$as_me:15233: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -14190,17 +15327,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:14196: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:15333: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:14200: \$? = $ac_status" >&5
++   echo "$as_me:15337: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -16377,17 +17514,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:16383: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:17520: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:16387: \$? = $ac_status" >&5
++   echo "$as_me:17524: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -16645,17 +17782,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:16651: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:17788: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:16655: \$? = $ac_status" >&5
++   echo "$as_me:17792: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -16749,17 +17886,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:16755: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:17892: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:16759: \$? = $ac_status" >&5
++   echo "$as_me:17896: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -39408,12 +40545,19 @@
+   { { echo "$as_me:$LINENO: error: conditional \"am__fastdepCC\" was never defined.
+ Usually this means the macro was only invoked conditionally." >&5
+ echo "$as_me: error: conditional \"am__fastdepCC\" was never defined.
+ Usually this means the macro was only invoked conditionally." >&2;}
+    { (exit 1); exit 1; }; }
+ fi
++if test -z "${am__fastdepCC_TRUE}" && test -z "${am__fastdepCC_FALSE}"; then
++  { { echo "$as_me:$LINENO: error: conditional \"am__fastdepCC\" was never defined.
++Usually this means the macro was only invoked conditionally." >&5
++echo "$as_me: error: conditional \"am__fastdepCC\" was never defined.
++Usually this means the macro was only invoked conditionally." >&2;}
++   { (exit 1); exit 1; }; }
++fi
+ if test -z "${COMPILER_IS_GCC_TRUE}" && test -z "${COMPILER_IS_GCC_FALSE}"; then
+   { { echo "$as_me:$LINENO: error: conditional \"COMPILER_IS_GCC\" was never defined.
+ Usually this means the macro was only invoked conditionally." >&5
+ echo "$as_me: error: conditional \"COMPILER_IS_GCC\" was never defined.
+ Usually this means the macro was only invoked conditionally." >&2;}
+    { (exit 1); exit 1; }; }
+@@ -40065,13 +41209,13 @@
+ exec 6>&1
+ 
+ # Save the log message, to keep $[0] and so on meaningful, and to
+ # report actual input values of CONFIG_FILES etc. instead of their
+ # values after options handling.
+ ac_log="
+-This file was extended by collectd $as_me 3.11.4, which was
++This file was extended by collectd $as_me 3.11.5, which was
+ generated by GNU Autoconf 2.61.  Invocation command line was
+ 
+   CONFIG_FILES    = $CONFIG_FILES
+   CONFIG_HEADERS  = $CONFIG_HEADERS
+   CONFIG_LINKS    = $CONFIG_LINKS
+   CONFIG_COMMANDS = $CONFIG_COMMANDS
+@@ -40118,13 +41262,13 @@
+ 
+ Report bugs to <bug-autoconf@gnu.org>."
+ 
+ _ACEOF
+ cat >>$CONFIG_STATUS <<_ACEOF
+ ac_cs_version="\\
+-collectd config.status 3.11.4
++collectd config.status 3.11.5
+ configured by $0, generated by GNU Autoconf 2.61,
+   with options \\"`echo "$ac_configure_args" | sed 's/^ //; s/[\\""\`\$]/\\\\&/g'`\\"
+ 
+ Copyright (C) 2006 Free Software Foundation, Inc.
+ This config.status script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it."
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/configure.in	2007-04-10 23:24:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/configure.in	2007-05-30 04:46:03.000000000 +0800
+@@ -1,15 +1,17 @@
+ dnl Process this file with autoconf to produce a configure script.
+-AC_INIT(collectd, 3.11.4)
++AC_INIT(collectd, 3.11.5)
+ AC_CONFIG_SRCDIR(src/collectd.c)
+ AC_CONFIG_HEADERS(src/config.h)
+ AM_INIT_AUTOMAKE(dist-bzip2)
+ AC_LANG(C)
+ 
+ AC_PREFIX_DEFAULT("/opt/collectd")
+ 
++AC_SYS_LARGEFILE
++
+ #
+ # Checks for programs.
+ #
+ AC_PROG_CC
+ AC_PROG_CPP
+ AC_PROG_INSTALL
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/src/collectd.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/src/collectd.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/src/collectd.1	2007-04-10 23:26:46.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/src/collectd.1	2007-05-30 04:45:41.000000000 +0800
+@@ -126,13 +126,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD 1"
+-.TH COLLECTD 1 "2007-04-10" "3.11.4" "collectd"
++.TH COLLECTD 1 "2007-05-29" "3.11.4" "collectd"
+ .SH "NAME"
+ collectd \- System statistics collection daemon
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ collectd \fI[options]\fR
+ .SH "DESCRIPTION"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/src/collectd.conf.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/src/collectd.conf.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/src/collectd.conf.5	2007-04-10 23:26:47.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/src/collectd.conf.5	2007-05-30 04:45:42.000000000 +0800
+@@ -126,13 +126,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD.CONF 5"
+-.TH COLLECTD.CONF 5 "2007-04-10" "3.11.4" "collectd"
++.TH COLLECTD.CONF 5 "2007-05-29" "3.11.4" "collectd"
+ .SH "NAME"
+ collectd.conf \- Configuration for the system statistics collection daemon \fBcollectd\fR
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ .Vb 5
+ \&  Mode    Client
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/src/collectd.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/src/collectd.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/src/collectd.h	2007-04-10 23:24:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/src/collectd.h	2007-05-30 04:41:54.000000000 +0800
+@@ -21,13 +21,13 @@
+  **/
+ 
+ #ifndef COLLECTD_H
+ #define COLLECTD_H
+ 
+ #if HAVE_CONFIG_H
+-# include <config.h>
++# include "config.h"
+ #endif
+ 
+ #include <stdio.h>
+ #if HAVE_SYS_TYPES_H
+ # include <sys/types.h>
+ #endif
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/src/common.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/src/common.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/src/common.c	2007-04-10 23:24:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/src/common.c	2007-05-30 04:41:54.000000000 +0800
+@@ -19,12 +19,16 @@
+  *
+  * Authors:
+  *   Florian octo Forster <octo at verplant.org>
+  *   Niki W. Waibel <niki.waibel@gmx.net>
+ **/
+ 
++#if HAVE_CONFIG_H
++# include "config.h"
++#endif
++
+ #include "common.h"
+ #include "utils_debug.h"
+ 
+ #ifdef HAVE_MATH_H
+ #  include <math.h>
+ #endif
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/src/config.h.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/src/config.h.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/src/config.h.in	2007-04-10 23:26:10.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/src/config.h.in	2007-05-30 04:57:00.000000000 +0800
+@@ -689,12 +689,18 @@
+ /* Define to 1 if you can safely include both <sys/time.h> and <time.h>. */
+ #undef TIME_WITH_SYS_TIME
+ 
+ /* Version number of package */
+ #undef VERSION
+ 
++/* Number of bits in a file offset, on hosts where this is settable. */
++#undef _FILE_OFFSET_BITS
++
++/* Define for large files, on AIX-style hosts. */
++#undef _LARGE_FILES
++
+ /* Define to empty if `const' does not conform to ANSI C. */
+ #undef const
+ 
+ /* Define to `int' if <sys/types.h> doesn't define. */
+ #undef gid_t
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/src/multimeter.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/src/multimeter.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/src/multimeter.c	2007-04-10 23:24:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/src/multimeter.c	2007-05-30 04:41:55.000000000 +0800
+@@ -20,19 +20,20 @@
+  *   Peter Holik <peter at holik.at>
+  *
+  * Used multimeter: Metex M-4650CR
+  *
+  **/
+ 
+-#include <termios.h>
+-#include <sys/ioctl.h>
+-#include <math.h>
+ #include "collectd.h"
+ #include "common.h"
+ #include "plugin.h"
+ 
++#include <termios.h>
++#include <sys/ioctl.h>
++#include <math.h>
++
+ #define MODULE_NAME "multimeter"
+ 
+ static char *multimeter_file = "multimeter.rrd";
+ 
+ static char *ds_def[] =
+ {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/src/network.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/src/network.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/src/network.c	2007-04-10 23:24:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/src/network.c	2007-05-30 04:41:55.000000000 +0800
+@@ -17,12 +17,16 @@
+  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+  *
+  * Authors:
+  *   Florian octo Forster <octo at verplant.org>
+  **/
+ 
++#if HAVE_CONFIG_H
++# include "config.h"
++#endif
++
+ #include <stdlib.h>
+ #include <stdio.h>
+ #include <string.h>
+ #include <sys/types.h>
+ #include <sys/socket.h>
+ #include <netdb.h>
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/src/ntpd.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/src/ntpd.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/src/ntpd.c	2007-04-10 23:24:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/src/ntpd.c	2007-05-30 04:42:01.000000000 +0800
+@@ -628,12 +628,20 @@
+ 					"%i bytes - %i bytes header",
+ 					(int) pkt_item_num, (int) pkt_item_len,
+ 					(int) status, (int) RESP_HEADER_SIZE);
+ 			continue;
+ 		}
+ 
++		if (pkt_item_len > res_item_size)
++		{
++			syslog (LOG_ERR, "ntpd plugin: (pkt_item_len = %i) "
++					">= (res_item_size = %i)",
++					pkt_item_len, res_item_size);
++			continue;
++		}
++
+ 		/* If this is the first packet (time wise, not sequence wise),
+ 		 * set `res_size'. If it's not the first packet check if the
+ 		 * items have the same size. Discard invalid packets. */
+ 		if (items_num == 0) /* first packet */
+ 		{
+ 			DBG ("*res_size = %i", pkt_item_len);
+@@ -644,15 +652,22 @@
+ 			DBG ("Error: *res_size = %i; pkt_item_len = %i;",
+ 					*res_size, pkt_item_len);
+ 			syslog (LOG_ERR, "Item sizes differ.");
+ 			continue;
+ 		}
+ 
++		/*
++		 * Because the items in the packet may be smaller than the
++		 * items requested, the following holds true:
++		 */
++		assert ((*res_size == pkt_item_len)
++				&& (pkt_item_len <= res_item_size));
++
+ 		/* Calculate the padding. No idea why there might be any padding.. */
+ 		pkt_padding = 0;
+-		if (res_item_size > pkt_item_len)
++		if (pkt_item_len < res_item_size)
+ 			pkt_padding = res_item_size - pkt_item_len;
+ 		DBG ("res_item_size = %i; pkt_padding = %i;",
+ 				res_item_size, pkt_padding);
+ 
+ 		/* Extract the sequence number */
+ 		pkt_sequence = INFO_SEQ (res.auth_seq);
+@@ -691,43 +706,53 @@
+ 		 * We start by allocating some more memory.
+ 		 */
+ 		DBG ("realloc (%p, %i)", (void *) *res_data,
+ 				(items_num + pkt_item_num) * res_item_size);
+ 		items = realloc ((void *) *res_data,
+ 				(items_num + pkt_item_num) * res_item_size);
+-		items_num += pkt_item_num;
+ 		if (items == NULL)
+ 		{
+ 			items = *res_data;
+ 			syslog (LOG_ERR, "ntpd plugin: realloc failed.");
+ 			continue;
+ 		}
++		items_num += pkt_item_num;
+ 		*res_data = items;
+ 
+ 		for (i = 0; i < pkt_item_num; i++)
+ 		{
++			/* dst: There are already `*res_items' items with
++			 *      res_item_size bytes each in in `*res_data'. Set
++			 *      dst to the first byte after that. */
+ 			void *dst = (void *) (*res_data + ((*res_items) * res_item_size));
++			/* src: We use `pkt_item_len' to calculate the offset
++			 *      from the beginning of the packet, because the
++			 *      items in the packet may be smaller than the
++			 *      items that were requested. We skip `i' such
++			 *      items. */
+ 			void *src = (void *) (((char *) res.data) + (i * pkt_item_len));
+ 
+ 			/* Set the padding to zeros */
+ 			if (pkt_padding != 0)
+ 				memset (dst, '\0', res_item_size);
+ 			memcpy (dst, src, (size_t) pkt_item_len);
+ 
++			/* Increment `*res_items' by one, so `dst' will end up
++			 * one further in the next round. */
+ 			(*res_items)++;
+-		}
++		} /* for (pkt_item_num) */
+ 
+ 		pkt_recvd[pkt_sequence] = (char) 1;
+ 		pkt_recvd_num++;
+ 
+ 		if ((pkt_recvd_num - 1) == pkt_lastseq)
+ 			done = 1;
+ 	} /* while (done == 0) */
+ 
+ 	return (0);
+-}
++} /* int ntpd_receive_response */
+ 
+ /* For a description of the arguments see `ntpd_do_query' below. */
+ static int ntpd_send_request (int req_code, int req_items, int req_size, char *req_data)
+ {
+ 	int             sd;
+ 	struct req_pkt  req;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/src/processes.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/src/processes.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/src/processes.c	2007-04-10 23:24:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/src/processes.c	2007-05-30 04:41:55.000000000 +0800
+@@ -705,36 +705,40 @@
+ 	fields[1] = fields[1] + 1;
+ 	fields[1][name_len] = '\0';
+ 	strncpy (ps->name, fields[1], PROCSTAT_NAME_LEN);
+ 
+ 	ppid = atoi (fields[3]);
+ 
+-	if ((tasks = ps_read_tasks (pid)) == NULL)
++ 	*state = fields[2][0];
++ 
++ 	if (*state == 'Z')
+ 	{
+-		/* This happends for zombied, e.g. */
+-		DBG ("ps_read_tasks (%i) failed.", pid);
+-		*state = 'Z';
+ 		ps->num_lwp  = 0;
+ 		ps->num_proc = 0;
+ 	}
++ 	else if ((tasks = ps_read_tasks (pid)) == NULL)
++ 	{
++ 		/* Kernel 2.4 or so */
++ 		ps->num_lwp  = 1;
++ 		ps->num_proc = 1;
++ 	}
+ 	else
+ 	{
+-		*state = '\0';
+ 		ps->num_lwp  = 0;
+ 		ps->num_proc = 1;
+ 		for (i = 0; tasks[i] != 0; i++)
+ 			ps->num_lwp++;
+ 
+ 		free (tasks);
+ 		tasks = NULL;
+ 	}
+ 
+-	/* Leave the rest at zero if this is only an LWP */
++ 	/* Leave the rest at zero if this is only a zombi */
+ 	if (ps->num_proc == 0)
+ 	{
+-		DBG ("This is only an LWP: pid = %i; name = %s;",
++ 		DBG ("This is only a zombi: pid = %i; name = %s;",
+ 				pid, ps->name);
+ 		return (0);
+ 	}
+ 
+ 	cpu_user_counter   = atoll (fields[13]);
+ 	cpu_system_counter = atoll (fields[14]);
+@@ -748,14 +752,12 @@
+ 	vmem_rss = vmem_rss * pagesize_g;
+ 
+ 	ps->cpu_user_counter = (unsigned long) cpu_user_counter;
+ 	ps->cpu_system_counter = (unsigned long) cpu_system_counter;
+ 	ps->vmem_rss = (unsigned long) vmem_rss;
+ 
+-	*state = fields[2][0];
+-
+ 	/* success */
+ 	return (0);
+ } /* int ps_read_process (...) */
+ #endif /* KERNEL_LINUX */
+ 
+ #if HAVE_THREAD_INFO
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/src/utils_debug.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/src/utils_debug.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/src/utils_debug.c	2007-04-10 23:24:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/src/utils_debug.c	2007-05-30 04:41:55.000000000 +0800
+@@ -17,12 +17,16 @@
+  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+  *
+  * Authors:
+  *   Niki W. Waibel <niki.waibel at gmx.net>
+  **/
+ 
++#if HAVE_CONFIG_H
++# include "config.h"
++#endif
++
+ #include "common.h"
+ #include "utils_debug.h"
+ 
+ #if COLLECT_DEBUG
+ 
+ static void cu_vdebug(const char *file, int line, const char *func,
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/src/utils_ignorelist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/src/utils_ignorelist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/src/utils_ignorelist.c	2007-04-10 23:24:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/src/utils_ignorelist.c	2007-05-30 04:41:55.000000000 +0800
+@@ -44,12 +44,16 @@
+  * Later during read and write (plugin's registered functions) get
+  * the information whether this entry would be collected or not:
+  *   if (ignorelist_match (myconfig_ignore, thisentry))
+  *     return;
+  **/
+ 
++#if HAVE_CONFIG_H
++# include "config.h"
++#endif
++
+ #include "common.h"
+ #include "utils_debug.h"
+ #include "utils_ignorelist.h"
+ 
+ /*
+  * private prototypes
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/src/utils_mount.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/src/utils_mount.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.4/src/utils_mount.c	2007-04-10 23:24:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.11.5/src/utils_mount.c	2007-05-30 04:41:55.000000000 +0800
+@@ -18,13 +18,15 @@
+  * USA.
+  *
+  * Author:
+  *   Niki W. Waibel <niki.waibel@gmx.net>
+ **/
+ 
+-
++#if HAVE_CONFIG_H
++# include "config.h"
++#endif
+ 
+ #include "common.h"
+ #if HAVE_XFS_XQM_H
+ # include <xfs/xqm.h>
+ #define XFS_SUPER_MAGIC_STR "XFSB"
+ #define XFS_SUPER_MAGIC2_STR "BSFX"

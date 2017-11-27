@@ -1,1 +1,0 @@
-sqlite3ErrorMsg(pParse, "unrecognized token: \"%.*s\"", n, zSql);

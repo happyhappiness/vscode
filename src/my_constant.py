@@ -6,7 +6,7 @@
 """
 repository
 """
-REPOS = 'git'
+REPOS = 'collectd'
 """
 stroed file name prefix
 """

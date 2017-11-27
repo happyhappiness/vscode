@@ -1,0 +1,1 @@
+fprintf (stderr, "ERROR: %s:%i: ksp == NULL\n", __FILE__, __LINE__);

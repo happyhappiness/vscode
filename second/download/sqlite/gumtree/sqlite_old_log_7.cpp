@@ -1,1 +1,0 @@
-sqlite3_mprintf("%s", &zCsr[1]);

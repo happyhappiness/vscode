@@ -1,0 +1,1 @@
+printf("apcups: Failed...\n");

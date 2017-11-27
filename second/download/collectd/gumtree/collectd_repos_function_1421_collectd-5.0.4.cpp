@@ -1,0 +1,6 @@
+static inline void watchlist_add (uint32_t *wl, int item)
+{
+	assert (item >= 0);
+	assert (item < ((WL_LEN + 1) * 32));
+	wl[item / 32] |= FLAG (item);
+}

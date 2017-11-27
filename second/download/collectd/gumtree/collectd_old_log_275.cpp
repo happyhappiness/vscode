@@ -1,0 +1,1 @@
+printf ("CRITICAL: Sum = %lf\n", total);

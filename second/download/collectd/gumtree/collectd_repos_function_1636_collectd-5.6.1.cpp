@@ -1,0 +1,4 @@
+static int ceph_cb_boolean(void *ctx, int bool_val)
+{
+    return CEPH_CB_CONTINUE;
+}

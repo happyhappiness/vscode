@@ -1,1 +1,0 @@
-printf("\n# Press ctrl+c when you have had enough of it... :)\n");

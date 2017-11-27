@@ -1,0 +1,1 @@
+fprintf (fh, "%s%s\n", level_str, msg);

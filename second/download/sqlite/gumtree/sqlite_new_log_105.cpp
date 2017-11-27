@@ -1,1 +1,0 @@
-sqlite3FindCollSeq(db, ENC(db), pIdx->azColl[0], 0);

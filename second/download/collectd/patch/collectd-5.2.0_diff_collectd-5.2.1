@@ -1,0 +1,3971 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/aclocal.m4 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/aclocal.m4
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/aclocal.m4	2012-11-18 06:23:29.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/aclocal.m4	2013-01-27 21:47:27.745516342 +0800
+@@ -9891,12 +9891,29 @@
+ # _AM_IF_OPTION(OPTION, IF-SET, [IF-NOT-SET])
+ # -------------------------------------------
+ # Execute IF-SET if OPTION is set, IF-NOT-SET otherwise.
+ AC_DEFUN([_AM_IF_OPTION],
+ [m4_ifset(_AM_MANGLE_OPTION([$1]), [$2], [$3])])
+ 
++# Copyright (C) 2001, 2003, 2005  Free Software Foundation, Inc.
++#
++# This file is free software; the Free Software Foundation
++# gives unlimited permission to copy and/or distribute it,
++# with or without modifications, as long as this notice is preserved.
++
++# AM_RUN_LOG(COMMAND)
++# -------------------
++# Run COMMAND, save the exit status in ac_status, and log it.
++# (This has been adapted from Autoconf's _AC_RUN_LOG macro.)
++AC_DEFUN([AM_RUN_LOG],
++[{ echo "$as_me:$LINENO: $1" >&AS_MESSAGE_LOG_FD
++   ($1) >&AS_MESSAGE_LOG_FD 2>&AS_MESSAGE_LOG_FD
++   ac_status=$?
++   echo "$as_me:$LINENO: \$? = $ac_status" >&AS_MESSAGE_LOG_FD
++   (exit $ac_status); }])
++
+ # Check to make sure that the build environment is sane.    -*- Autoconf -*-
+ 
+ # Copyright (C) 1996, 1997, 2000, 2001, 2003, 2005, 2008
+ # Free Software Foundation, Inc.
+ #
+ # This file is free software; the Free Software Foundation
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/bindings/Makefile.am /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/bindings/Makefile.am
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/bindings/Makefile.am	2012-11-18 06:23:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/bindings/Makefile.am	2013-01-27 21:47:05.745518763 +0800
+@@ -2,12 +2,13 @@
+ 
+ if BUILD_WITH_JAVA
+ SUBDIRS += java
+ endif
+ 
+ EXTRA_DIST = perl/Makefile.PL \
++	     perl/uninstall_mod.pl \
+ 	     perl/lib/Collectd.pm \
+ 	     perl/lib/Collectd/Unixsock.pm \
+ 	     perl/lib/Collectd/Plugins/Monitorus.pm \
+ 	     perl/lib/Collectd/Plugins/OpenVZ.pm
+ 
+ CLEANFILES = \
+@@ -30,28 +31,24 @@
+ install-exec-local:
+ 	[ ! -f buildperl/Makefile ] || ( cd buildperl && $(MAKE) install )
+ 
+ # Perl 'make uninstall' does not work as well as wanted.
+ # So we do the work here.
+ uninstall-local:
+-	rm -f $(DESTDIR)$(mandir)/man3/Collectd::Unixsock.3pm
+-	rm -f $(DESTDIR)$(datarootdir)/perl5/Collectd.pm
+-	rm -f $(DESTDIR)$(datarootdir)/perl5/Collectd/Plugins/OpenVZ.pm
+-	rm -f $(DESTDIR)$(datarootdir)/perl5/Collectd/Unixsock.pm
+-	rm -f $(DESTDIR)$(prefix)/lib64/perl5/perllocal.pod
+-	rm -f $(DESTDIR)$(prefix)/lib64/perl5/auto/Collectd/.packlist
++	@PERL@ -I$(DESTDIR)$(prefix) $(srcdir)/perl/uninstall_mod.pl Collectd
++	find $(DESTDIR)$(prefix) -name "perllocal.pod" -exec rm {} \;
+ 
+ clean-local:
+ 	rm -rf buildperl
+ 
+ perl: buildperl/Makefile
+ 	cd buildperl && $(MAKE)
+ 
+ buildperl/Makefile: .perl-directory-stamp buildperl/Makefile.PL \
+ 	$(top_builddir)/config.status
+-	cd buildperl && @PERL@ Makefile.PL INSTALL_BASE=$(prefix) @PERL_BINDINGS_OPTIONS@
++	cd buildperl && @PERL@ Makefile.PL INSTALL_BASE=$(DESTDIR)$(prefix) @PERL_BINDINGS_OPTIONS@
+ 
+ buildperl/Makefile.PL: .perl-directory-stamp $(top_builddir)/config.status
+ 
+ .perl-directory-stamp:
+ 	if test ! -d buildperl; then \
+ 	  mkdir -p buildperl/Collectd/Plugins; \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/bindings/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/bindings/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/bindings/Makefile.in	2012-11-18 06:23:37.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/bindings/Makefile.in	2013-01-27 21:47:35.746769797 +0800
+@@ -324,12 +324,13 @@
+ target_alias = @target_alias@
+ top_build_prefix = @top_build_prefix@
+ top_builddir = @top_builddir@
+ top_srcdir = @top_srcdir@
+ SUBDIRS = $(am__append_1)
+ EXTRA_DIST = perl/Makefile.PL \
++	     perl/uninstall_mod.pl \
+ 	     perl/lib/Collectd.pm \
+ 	     perl/lib/Collectd/Unixsock.pm \
+ 	     perl/lib/Collectd/Plugins/Monitorus.pm \
+ 	     perl/lib/Collectd/Plugins/OpenVZ.pm
+ 
+ CLEANFILES = \
+@@ -701,28 +702,24 @@
+ install-exec-local:
+ 	[ ! -f buildperl/Makefile ] || ( cd buildperl && $(MAKE) install )
+ 
+ # Perl 'make uninstall' does not work as well as wanted.
+ # So we do the work here.
+ uninstall-local:
+-	rm -f $(DESTDIR)$(mandir)/man3/Collectd::Unixsock.3pm
+-	rm -f $(DESTDIR)$(datarootdir)/perl5/Collectd.pm
+-	rm -f $(DESTDIR)$(datarootdir)/perl5/Collectd/Plugins/OpenVZ.pm
+-	rm -f $(DESTDIR)$(datarootdir)/perl5/Collectd/Unixsock.pm
+-	rm -f $(DESTDIR)$(prefix)/lib64/perl5/perllocal.pod
+-	rm -f $(DESTDIR)$(prefix)/lib64/perl5/auto/Collectd/.packlist
++	@PERL@ -I$(DESTDIR)$(prefix) $(srcdir)/perl/uninstall_mod.pl Collectd
++	find $(DESTDIR)$(prefix) -name "perllocal.pod" -exec rm {} \;
+ 
+ clean-local:
+ 	rm -rf buildperl
+ 
+ perl: buildperl/Makefile
+ 	cd buildperl && $(MAKE)
+ 
+ buildperl/Makefile: .perl-directory-stamp buildperl/Makefile.PL \
+ 	$(top_builddir)/config.status
+-	cd buildperl && @PERL@ Makefile.PL INSTALL_BASE=$(prefix) @PERL_BINDINGS_OPTIONS@
++	cd buildperl && @PERL@ Makefile.PL INSTALL_BASE=$(DESTDIR)$(prefix) @PERL_BINDINGS_OPTIONS@
+ 
+ buildperl/Makefile.PL: .perl-directory-stamp $(top_builddir)/config.status
+ 
+ .perl-directory-stamp:
+ 	if test ! -d buildperl; then \
+ 	  mkdir -p buildperl/Collectd/Plugins; \
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/bindings/perl: uninstall_mod.pl
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/ChangeLog /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/ChangeLog
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/ChangeLog	2012-11-18 06:23:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/ChangeLog	2013-01-27 21:47:18.246255910 +0800
+@@ -1,6 +1,34 @@
++2013-01-27, Version 5.1.2
++	* Build system: "make distcheck" has been fixed. Build fixes Solaris
++	  and systems without gcrypt. Thanks to Yves Mettier for his patches.
++	* collectd: The complaint mechanism was fixed. It reported messages
++	  more frequently than intended.
++	* collectd-tg: A manual page has been added.
++	* dns plugin: Build issues on FreeBSD have been fixed. Thanks to
++	  Ed Schouten for his patch.
++	* ethstat plugin: Fix the "Map" config option. An incorrectly used
++	  character pointer may lead to a segmentation fault.
++	* network plugin: Build issues on FreeBSD have been fixed. Thanks to
++	  Ed Schouten for his patch.
++	* postgresql plugin: A memory leak in the writing code has been fixed.
++	  A use-after-free issue that happened when more than one database was
++	  configured was fixed. Thanks to Sebastian Harl for fixing these
++	  problems.
++	* redis plugin: A build failure has been fixed. Thanks to Pierre-Yves
++	  Ritschard for his patch.
++	* varnish plugin: Fix a problem with instances without name.
++	* write_graphite: A regression which rendered the "SeparateInstances"
++	  and "AlwaysAppendDS" options unusable has been fixed. A failed
++	  assertion when using types with many data sources has been fixed.
++	  Improve reporting of connection errors to not spam log files too
++	  much. Thanks to Pierre-Yves Ritschard for reporting the logging
++	  problem.
++	* zfs_arc plugin: Fix the type used for mutex misses. Thanks to Yves
++	  Mettier for reporting this bug.
++
+ 2012-11-17, Version 5.2.0
+ 	* collectd: The performance of the LISTVAL command has been improved.
+ 	  Thanks to Yves Mettier for the patch.
+ 	* collectd: The possibility to configure the collection interval on a
+ 	  per-plugin basis has been added. Huge thanks to Sebastian Harl for
+ 	  his work.
+@@ -44,12 +72,30 @@
+ 	* swap plugin: The "ReportBytes" config option has been added. The AIX
+ 	  version now also exports "reserved" pages and swap-in / swap-out
+ 	  "traffic". Thanks to Manuel Rozada for the patch.
+ 	* tcpconns plugin: Use a netlink socket rather than reading from /proc
+ 	  for improved performance. Thanks to Michael Stapelberg for the patch.
+ 
++2013-01-25, Version 5.1.2
++	* Build system: "make distcheck" has been fixed. Thanks to Yves
++	  Mettier for his patches.
++	* collectd: The complaint mechanism was fixed. It reported messages
++	  more frequently than intended.
++	* dns plugin: Build issues on FreeBSD have been fixed. Thanks to
++	  Ed Schouten for his patch.
++	* ethstat plugin: Fix the "Map" config option. An incorrectly used
++	  character pointer may lead to a segmentation fault.
++	* network plugin: Build issues on FreeBSD have been fixed. Thanks to
++	  Ed Schouten for his patch.
++	* varnish plugin: Fix a problem with instances without name.
++	* write_graphite: Improve reporting of connection errors to not spam
++	  log files too much. Thanks to Pierre-Yves Ritschard for reporting
++	  this problem.
++	* zfs_arc plugin: Fix the type used for mutex misses. Thanks to Yves
++	  Mettier for reporting this bug.
++
+ 2012-11-11, Version 5.1.1
+ 	* collectd: Create new directories with mode 0777 and let umask remove
+ 	  unwanted permission bits.
+ 	* collectd: Build issues have been fixed.
+ 	* collectd: An incorrect assertion has been fixed in some common code
+ 	  for Solaris. This should resolve pseudo-random assertion failures
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/configure	2012-11-18 06:23:39.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/configure	2013-01-27 21:47:38.246766497 +0800
+@@ -1,9 +1,9 @@
+ #! /bin/sh
+ # Guess values for system-dependent variables and create Makefiles.
+-# Generated by GNU Autoconf 2.65 for collectd 5.2.0.
++# Generated by GNU Autoconf 2.65 for collectd 5.2.1.
+ #
+ #
+ # Copyright (C) 1992, 1993, 1994, 1995, 1996, 1998, 1999, 2000, 2001,
+ # 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009 Free Software Foundation,
+ # Inc.
+ #
+@@ -699,14 +699,14 @@
+ MFLAGS=
+ MAKEFLAGS=
+ 
+ # Identity of this package.
+ PACKAGE_NAME='collectd'
+ PACKAGE_TARNAME='collectd'
+-PACKAGE_VERSION='5.2.0'
+-PACKAGE_STRING='collectd 5.2.0'
++PACKAGE_VERSION='5.2.1'
++PACKAGE_STRING='collectd 5.2.1'
+ PACKAGE_BUGREPORT=''
+ PACKAGE_URL=''
+ 
+ ac_unique_file="src/collectd.c"
+ # Factoring default headers for most tests.
+ ac_includes_default="\
+@@ -2035,13 +2035,13 @@
+ # Report the --help message.
+ #
+ if test "$ac_init_help" = "long"; then
+   # Omit some internal or obsolete options to make the list less imposing.
+   # This message is too long to be a string in the A/UX 3.1 sh.
+   cat <<_ACEOF
+-\`configure' configures collectd 5.2.0 to adapt to many kinds of systems.
++\`configure' configures collectd 5.2.1 to adapt to many kinds of systems.
+ 
+ Usage: $0 [OPTION]... [VAR=VALUE]...
+ 
+ To assign environment variables (e.g., CC, CFLAGS...), specify them as
+ VAR=VALUE.  See below for descriptions of some of the useful variables.
+ 
+@@ -2105,13 +2105,13 @@
+   --host=HOST       cross-compile to build programs to run on HOST [BUILD]
+ _ACEOF
+ fi
+ 
+ if test -n "$ac_init_help"; then
+   case $ac_init_help in
+-     short | recursive ) echo "Configuration of collectd 5.2.0:";;
++     short | recursive ) echo "Configuration of collectd 5.2.1:";;
+    esac
+   cat <<\_ACEOF
+ 
+ Optional Features:
+   --disable-option-checking  ignore unrecognized --enable/--with options
+   --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
+@@ -2417,13 +2417,13 @@
+   done
+ fi
+ 
+ test -n "$ac_init_help" && exit $ac_status
+ if $ac_init_version; then
+   cat <<\_ACEOF
+-collectd configure 5.2.0
++collectd configure 5.2.1
+ generated by GNU Autoconf 2.65
+ 
+ Copyright (C) 2009 Free Software Foundation, Inc.
+ This configure script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it.
+ _ACEOF
+@@ -2932,13 +2932,13 @@
+ 
+ } # ac_fn_c_check_member
+ cat >config.log <<_ACEOF
+ This file contains any messages produced by compilers while
+ running configure, to aid debugging if configure makes a mistake.
+ 
+-It was created by collectd $as_me 5.2.0, which was
++It was created by collectd $as_me 5.2.1, which was
+ generated by GNU Autoconf 2.65.  Invocation command line was
+ 
+   $ $0 $@
+ 
+ _ACEOF
+ exec 5>>config.log
+@@ -12289,13 +12289,13 @@
+   fi
+ fi
+ 
+ 
+ # Define the identity of the package.
+  PACKAGE='collectd'
+- VERSION='5.2.0'
++ VERSION='5.2.1'
+ 
+ 
+ cat >>confdefs.h <<_ACEOF
+ #define PACKAGE "$PACKAGE"
+ _ACEOF
+ 
+@@ -12323,13 +12323,94 @@
+ # We need awk for the "check" target.  The system "awk" is bad on
+ # some platforms.
+ # Always define AMTAR for backward compatibility.
+ 
+ AMTAR=${AMTAR-"${am_missing_run}tar"}
+ 
+-am__tar='${AMTAR} chof - "$$tardir"'; am__untar='${AMTAR} xf -'
++
++{ $as_echo "$as_me:${as_lineno-$LINENO}: checking how to create a pax tar archive" >&5
++$as_echo_n "checking how to create a pax tar archive... " >&6; }
++# Loop over all known methods to create a tar archive until one works.
++_am_tools='gnutar  pax cpio none'
++_am_tools=${am_cv_prog_tar_pax-$_am_tools}
++# Do not fold the above two line into one, because Tru64 sh and
++# Solaris sh will not grok spaces in the rhs of `-'.
++for _am_tool in $_am_tools
++do
++  case $_am_tool in
++  gnutar)
++    for _am_tar in tar gnutar gtar;
++    do
++      { echo "$as_me:$LINENO: $_am_tar --version" >&5
++   ($_am_tar --version) >&5 2>&5
++   ac_status=$?
++   echo "$as_me:$LINENO: \$? = $ac_status" >&5
++   (exit $ac_status); } && break
++    done
++    am__tar="$_am_tar --format=posix -chf - "'"$$tardir"'
++    am__tar_="$_am_tar --format=posix -chf - "'"$tardir"'
++    am__untar="$_am_tar -xf -"
++    ;;
++  plaintar)
++    # Must skip GNU tar: if it does not support --format= it doesn't create
++    # ustar tarball either.
++    (tar --version) >/dev/null 2>&1 && continue
++    am__tar='tar chf - "$$tardir"'
++    am__tar_='tar chf - "$tardir"'
++    am__untar='tar xf -'
++    ;;
++  pax)
++    am__tar='pax -L -x pax -w "$$tardir"'
++    am__tar_='pax -L -x pax -w "$tardir"'
++    am__untar='pax -r'
++    ;;
++  cpio)
++    am__tar='find "$$tardir" -print | cpio -o -H pax -L'
++    am__tar_='find "$tardir" -print | cpio -o -H pax -L'
++    am__untar='cpio -i -H pax -d'
++    ;;
++  none)
++    am__tar=false
++    am__tar_=false
++    am__untar=false
++    ;;
++  esac
++
++  # If the value was cached, stop now.  We just wanted to have am__tar
++  # and am__untar set.
++  test -n "${am_cv_prog_tar_pax}" && break
++
++  # tar/untar a dummy directory, and stop if the command works
++  rm -rf conftest.dir
++  mkdir conftest.dir
++  echo GrepMe > conftest.dir/file
++  { echo "$as_me:$LINENO: tardir=conftest.dir && eval $am__tar_ >conftest.tar" >&5
++   (tardir=conftest.dir && eval $am__tar_ >conftest.tar) >&5 2>&5
++   ac_status=$?
++   echo "$as_me:$LINENO: \$? = $ac_status" >&5
++   (exit $ac_status); }
++  rm -rf conftest.dir
++  if test -s conftest.tar; then
++    { echo "$as_me:$LINENO: $am__untar <conftest.tar" >&5
++   ($am__untar <conftest.tar) >&5 2>&5
++   ac_status=$?
++   echo "$as_me:$LINENO: \$? = $ac_status" >&5
++   (exit $ac_status); }
++    grep GrepMe conftest.dir/file >/dev/null 2>&1 && break
++  fi
++done
++rm -rf conftest.dir
++
++if test "${am_cv_prog_tar_pax+set}" = set; then :
++  $as_echo_n "(cached) " >&6
++else
++  am_cv_prog_tar_pax=$_am_tool
++fi
++
++{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $am_cv_prog_tar_pax" >&5
++$as_echo "$am_cv_prog_tar_pax" >&6; }
+ 
+ 
+ 
+ 
+ depcc="$CC"   am_compiler_list=
+ 
+@@ -32718,13 +32799,13 @@
+ 
+ cat >>$CONFIG_STATUS <<\_ACEOF || ac_write_fail=1
+ # Save the log message, to keep $0 and so on meaningful, and to
+ # report actual input values of CONFIG_FILES etc. instead of their
+ # values after options handling.
+ ac_log="
+-This file was extended by collectd $as_me 5.2.0, which was
++This file was extended by collectd $as_me 5.2.1, which was
+ generated by GNU Autoconf 2.65.  Invocation command line was
+ 
+   CONFIG_FILES    = $CONFIG_FILES
+   CONFIG_HEADERS  = $CONFIG_HEADERS
+   CONFIG_LINKS    = $CONFIG_LINKS
+   CONFIG_COMMANDS = $CONFIG_COMMANDS
+@@ -32784,13 +32865,13 @@
+ Report bugs to the package provider."
+ 
+ _ACEOF
+ cat >>$CONFIG_STATUS <<_ACEOF || ac_write_fail=1
+ ac_cs_config="`$as_echo "$ac_configure_args" | sed 's/^ //; s/[\\""\`\$]/\\\\&/g'`"
+ ac_cs_version="\\
+-collectd config.status 5.2.0
++collectd config.status 5.2.1
+ configured by $0, generated by GNU Autoconf 2.65,
+   with options \\"\$ac_cs_config\\"
+ 
+ Copyright (C) 2009 Free Software Foundation, Inc.
+ This config.status script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it."
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/configure.in	2012-11-18 06:23:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/configure.in	2013-01-27 21:47:18.246255910 +0800
+@@ -21,13 +21,13 @@
+ 	 AC_LIBTOOL_DLOPEN
+ 	 AC_CONFIG_SUBDIRS(libltdl)
+ 	 AC_DEFINE(LIBTOOL_VERSION, 1, [Define to used libtool version.])
+ 	]
+ )
+ 
+-AM_INIT_AUTOMAKE(dist-bzip2)
++AM_INIT_AUTOMAKE([tar-pax dist-bzip2])
+ AC_LANG(C)
+ 
+ AC_PREFIX_DEFAULT("/opt/collectd")
+ 
+ AC_SYS_LARGEFILE
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/contrib/collection3/etc/collection.conf /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/contrib/collection3/etc/collection.conf
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/contrib/collection3/etc/collection.conf	2012-11-18 06:23:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/contrib/collection3/etc/collection.conf	2013-01-27 21:47:05.745518763 +0800
+@@ -1,28 +1,28 @@
+ #DataDir "/var/lib/collectd/rrd"
+ GraphWidth 400
+ #UnixSockAddr "/var/run/collectd-unixsock"
+ <Type apache_bytes>
+-  DataSources count
++  DataSources value
+   DSName "count Bytes/s"
+   RRDTitle "Apache Traffic"
+   RRDVerticalLabel "Bytes/s"
+   RRDFormat "%5.1lf%s"
+   Color count 0000ff
+ </Type>
+ <Type apache_requests>
+-  DataSources count
++  DataSources value
+   DSName "count Requests/s"
+   RRDTitle "Apache Traffic"
+   RRDVerticalLabel "Requests/s"
+   RRDFormat "%5.2lf"
+   Color count 00d000
+ </Type>
+ <Type apache_scoreboard>
+   Module GenericStacked
+-  DataSources count
++  DataSources value
+   RRDTitle "Apache scoreboard on {hostname}"
+   RRDVerticalLabel "Slots"
+   RRDFormat "%6.2lf"
+   DSName closing Closing
+   DSName dnslookup DNS lookup
+   DSName finishing Finishing
+@@ -242,20 +242,20 @@
+   DSName "value Queries/s"
+   RRDTitle "DNS Opcode {type_instance}"
+   RRDVerticalLabel "Queries/s"
+   RRDFormat "%6.1lf"
+ </Type>
+ <Type conntrack>
+-  DataSources conntrack
++  DataSources value
+   DSName conntrack Conntrack count
+   RRDTitle "nf_conntrack connections on {hostname}"
+   RRDVerticalLabel "Count"
+   RRDFormat "%4.0lf"
+ </Type>
+ <Type entropy>
+-  DataSources entropy
++  DataSources value
+   DSName entropy Entropy bits
+   RRDTitle "Available entropy on {hostname}"
+   RRDVerticalLabel "Bits"
+   RRDFormat "%4.0lf"
+ </Type>
+ <Type fanspeed>
+@@ -264,13 +264,13 @@
+   RRDTitle "Fanspeed ({instance})"
+   RRDVerticalLabel "RPM"
+   RRDFormat "%6.1lf"
+   Color value 00b000
+ </Type>
+ <Type frequency>
+-  DataSources frequency
++  DataSources value
+   DSName frequency Frequency
+   RRDTitle "Frequency ({type_instance})"
+   RRDVerticalLabel "Hertz"
+   RRDFormat "%4.1lfHz"
+   Color frequency a000a0
+ </Type>
+@@ -539,21 +539,21 @@
+   RRDTitle "MySQL Traffic ({plugin_instance})"
+   RRDVerticalLabel "Bits per second"
+   RRDFormat "%5.1lf%s"
+   Scale 8
+ </Type>
+ <Type percent>
+-  DataSources percent
++  DataSources value
+   DSName percent Percent
+   RRDTitle "Percent ({type_instance})"
+   RRDVerticalLabel "Percent"
+   RRDFormat "%4.1lf%%"
+   Color percent 0000ff
+ </Type>
+ <Type ping>
+-  DataSources ping
++  DataSources value
+   DSName "ping Latency"
+   RRDTitle "Network latency ({type_instance})"
+   RRDVerticalLabel "Milliseconds"
+   RRDFormat "%5.2lfms"
+ </Type>
+ <Type power>
+@@ -697,13 +697,13 @@
+   RRDTitle "Time {instance}"
+   RRDVerticalLabel "Seconds"
+   RRDFormat "%6.2lf %ss"
+   Scale 0.001
+ </Type>
+ <Type users>
+-  DataSources users
++  DataSources value
+   DSName users Users
+   RRDTitle "Users ({type_instance}) on {hostname}"
+   RRDVerticalLabel "Users"
+   RRDFormat "%.1lf"
+   Color users 0000f0
+ </Type>
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/README /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/README
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/README	2012-11-18 06:23:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/README	2013-01-27 21:47:18.246255910 +0800
+@@ -219,12 +219,15 @@
+ 
+     - perl
+       The perl plugin implements a Perl-interpreter into collectd. You can
+       write your own plugins in Perl and return arbitrary values using this
+       API. See collectd-perl(5).
+ 
++    - pf
++      Query statistics from BSD's packet filter "pf".
++
+     - pinba
+       Receive and dispatch timing values from Pinba, a profiling extension for
+       PHP.
+ 
+     - ping
+       Network latency: Time to reach the default gateway or another given
+@@ -455,12 +458,16 @@
+ 
+     - target_set
+       Set (overwrite) entire parts of an identifier.
+ 
+   * Miscellaneous plugins:
+ 
++    - aggregation
++      Selects multiple value lists based on patterns or regular expressions
++      and creates new aggregated values lists from those.
++
+     - threshold
+       Checks values against configured thresholds and creates notifications if
+       values are out of bounds. See collectd-threshold(5) for details.
+ 
+     - uuid
+       Sets the hostname to an unique identifier. This is meant for setups
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/amqp.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/amqp.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/amqp.c	2012-11-18 06:23:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/amqp.c	2013-01-27 21:47:18.246255910 +0800
+@@ -71,12 +71,13 @@
+     _Bool   store_rates;
+     int     format;
+     /* publish & graphite format only */
+     char    *prefix;
+     char    *postfix;
+     char    escape_char;
++    unsigned int graphite_flags;
+ 
+     /* subscribe only */
+     char   *exchange_type;
+     char   *queue;
+ 
+     amqp_connection_state_t connection;
+@@ -791,13 +792,13 @@
+         format_json_finalize (buffer, &bfill, &bfree);
+     }
+     else if (conf->format == CAMQP_FORMAT_GRAPHITE)
+     {
+         status = format_graphite (buffer, sizeof (buffer), ds, vl,
+                     conf->prefix, conf->postfix, conf->escape_char,
+-                    conf->store_rates);
++                    conf->graphite_flags);
+         if (status != 0)
+         {
+             ERROR ("amqp plugin: format_graphite failed with status %i.",
+                     status);
+             return (status);
+         }
+@@ -931,13 +932,17 @@
+             if (tmp)
+                 conf->delivery_mode = CAMQP_DM_PERSISTENT;
+             else
+                 conf->delivery_mode = CAMQP_DM_VOLATILE;
+         }
+         else if ((strcasecmp ("StoreRates", child->key) == 0) && publish)
++        {
+             status = cf_util_get_boolean (child, &conf->store_rates);
++            (void) cf_util_get_flag (child, &conf->graphite_flags,
++                    GRAPHITE_STORE_RATES);
++        }
+         else if ((strcasecmp ("Format", child->key) == 0) && publish)
+             status = camqp_config_set_format (child, conf);
+         else if ((strcasecmp ("GraphitePrefix", child->key) == 0) && publish)
+             status = cf_util_get_string (child, &conf->prefix);
+         else if ((strcasecmp ("GraphitePostfix", child->key) == 0) && publish)
+             status = cf_util_get_string (child, &conf->postfix);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/apcups.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/apcups.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/apcups.c	2012-11-18 06:23:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/apcups.c	2013-01-27 21:47:05.745518763 +0800
+@@ -447,13 +447,13 @@
+ 
+ 	apcups_detail.linev    =   -1.0;
+ 	apcups_detail.outputv  =   -1.0;
+ 	apcups_detail.battv    =   -1.0;
+ 	apcups_detail.loadpct  =   -1.0;
+ 	apcups_detail.bcharge  =   -1.0;
+-	apcups_detail.timeleft =   -1.0;
++	apcups_detail.timeleft =    NAN;
+ 	apcups_detail.itemp    = -300.0;
+ 	apcups_detail.linefreq =   -1.0;
+ 
+ 	status = apc_query_server (conf_host == NULL
+ 			? APCUPS_DEFAULT_HOST
+ 			: conf_host,
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/collectd.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/collectd.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/collectd.1	2012-11-18 06:24:49.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/collectd.1	2013-01-27 21:48:10.255517985 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD 1"
+-.TH COLLECTD 1 "2012-11-17" "5.2.0" "collectd"
++.TH COLLECTD 1 "2013-01-27" "5.2.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd \- System statistics collection daemon
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/collectd.conf.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/collectd.conf.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/collectd.conf.5	2012-11-18 06:24:50.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/collectd.conf.5	2013-01-27 21:48:10.746767002 +0800
+@@ -121,30 +121,34 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD.CONF 5"
+-.TH COLLECTD.CONF 5 "2012-11-17" "5.2.0" "collectd"
++.TH COLLECTD.CONF 5 "2013-01-27" "5.2.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd.conf \- Configuration for the system statistics collection daemon \fBcollectd\fR
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ .Vb 3
+ \&  BaseDir "/path/to/data/"
+ \&  PIDFile "/path/to/pidfile/collectd.pid"
+ \&  Server  "123.123.123.123" 12345
+-\&
++\&  
+ \&  LoadPlugin cpu
+ \&  LoadPlugin load
++\&  
++\&  <LoadPlugin df>
++\&    Interval 3600
++\&  </LoadPlugin>
++\&  
+ \&  LoadPlugin ping
+-\&
+ \&  <Plugin ping>
+ \&    Host "example.org"
+ \&    Host "provider.net"
+ \&  </Plugin>
+ .Ve
+ .SH "DESCRIPTION"
+@@ -194,15 +198,16 @@
+ will be mostly useless.
+ .Sp
+ Starting with collectd 4.9, this may also be a block in which further options
+ affecting the behavior of \fBLoadPlugin\fR may be specified. The following
+ options are allowed inside a \fBLoadPlugin\fR block:
+ .Sp
+-.Vb 3
++.Vb 4
+ \&  <LoadPlugin perl>
+ \&    Globals true
++\&    Interval 10
+ \&  </LoadPlugin>
+ .Ve
+ .RS 4
+ .IP "\fBGlobals\fR \fBtrue|false\fR" 4
+ .IX Item "Globals true|false"
+ If enabled, collectd will export all global symbols of the plugin (and of all
+@@ -528,14 +533,14 @@
+ .IP "\fBPersistent\fR \fBtrue\fR|\fBfalse\fR (Publish only)" 4
+ .IX Item "Persistent true|false (Publish only)"
+ Selects the \fIdelivery method\fR to use. If set to \fBtrue\fR, the \fIpersistent\fR
+ mode will be used, i.e. delivery is guaranteed. If set to \fBfalse\fR (the
+ default), the \fItransient\fR delivery mode will be used, i.e. messages may be
+ lost due to high load, overflowing queues or similar issues.
+-.IP "\fBFormat\fR \fBCommand\fR|\fB\s-1JSON\s0\fR (Publish only)" 4
+-.IX Item "Format Command|JSON (Publish only)"
++.IP "\fBFormat\fR \fBCommand\fR|\fB\s-1JSON\s0\fR|\fBGraphite\fR (Publish only)" 4
++.IX Item "Format Command|JSON|Graphite (Publish only)"
+ Selects the format in which messages are sent to the broker. If set to
+ \&\fBCommand\fR (the default), values are sent as \f(CW\*(C`PUTVAL\*(C'\fR commands which are
+ identical to the syntax used by the \fIExec\fR and \fIUnixSock plugins\fR. In this
+ case, the \f(CW\*(C`Content\-Type\*(C'\fR header field will be set to \f(CW\*(C`text/collectd\*(C'\fR.
+ .Sp
+ If set to \fB\s-1JSON\s0\fR, the values are encoded in the \fIJavaScript Object Notation\fR,
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/collectd.conf.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/collectd.conf.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/collectd.conf.in	2012-11-18 06:23:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/collectd.conf.in	2013-01-27 21:47:18.246255910 +0800
+@@ -13,13 +13,22 @@
+ #Hostname    "localhost"
+ #FQDNLookup   true
+ #BaseDir     "@localstatedir@/lib/@PACKAGE_NAME@"
+ #PIDFile     "@localstatedir@/run/@PACKAGE_NAME@.pid"
+ #PluginDir   "@libdir@/@PACKAGE_NAME@"
+ #TypesDB     "@prefix@/share/@PACKAGE_NAME@/types.db"
++
++#----------------------------------------------------------------------------#
++# Interval at which to query values. This may be overwritten on a per-plugin #
++# base by using the 'Interval' option of the LoadPlugin block:               #
++#   <LoadPlugin foo>                                                         #
++#       Interval 60                                                          #
++#   </LoadPlugin>                                                            #
++#----------------------------------------------------------------------------#
+ #Interval     10
++
+ #Timeout      2
+ #ReadThreads  5
+ 
+ ##############################################################################
+ # Logging                                                                    #
+ #----------------------------------------------------------------------------#
+@@ -749,12 +758,17 @@
+ #			Type counter
+ #			InstancePrefix "rt36_tickets"
+ #			InstancesFrom "type"
+ #			ValuesFrom "count"
+ #		</Result>
+ #	</Query>
++#	<Writer sqlstore>
++#		# See contrib/postgresql/collectd_insert.sql for details
++#		Statement "SELECT collectd_insert($1, $2, $3, $4, $5, $6, $7, $8, $9);"
++#		StoreRates true
++#	</Writer>
+ #	<Database foo>
+ #		Host "hostname"
+ #		Port "5432"
+ #		User "username"
+ #		Password "secret"
+ #		SSLMode "prefer"
+@@ -764,12 +778,18 @@
+ #	<Database bar>
+ #		Interval 60
+ #		Service "service_name"
+ #		Query backend # predefined
+ #		Query rt36_tickets
+ #	</Database>
++#	<Database qux>
++#		Service "collectd_store"
++#		Writer sqlstore
++#		# see collectd.conf(5) for details
++#		CommitInterval 30
++#	</Database>
+ #</Plugin>
+ 
+ #<Plugin powerdns>
+ #  <Server "server_name">
+ #    Collect "latency"
+ #    Collect "udp-answers" "udp-queries"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/collectd.conf.pod /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/collectd.conf.pod
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/collectd.conf.pod	2012-11-18 06:23:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/collectd.conf.pod	2013-01-27 21:47:18.246255910 +0800
+@@ -4,17 +4,21 @@
+ 
+ =head1 SYNOPSIS
+ 
+   BaseDir "/path/to/data/"
+   PIDFile "/path/to/pidfile/collectd.pid"
+   Server  "123.123.123.123" 12345
+-
++  
+   LoadPlugin cpu
+   LoadPlugin load
++  
++  <LoadPlugin df>
++    Interval 3600
++  </LoadPlugin>
++  
+   LoadPlugin ping
+-
+   <Plugin ping>
+     Host "example.org"
+     Host "provider.net"
+   </Plugin>
+ 
+ =head1 DESCRIPTION
+@@ -70,12 +74,13 @@
+ Starting with collectd 4.9, this may also be a block in which further options
+ affecting the behavior of B<LoadPlugin> may be specified. The following
+ options are allowed inside a B<LoadPlugin> block:
+ 
+   <LoadPlugin perl>
+     Globals true
++    Interval 10
+   </LoadPlugin>
+ 
+ =over 4
+ 
+ =item B<Globals> B<true|false>
+ 
+@@ -424,13 +429,13 @@
+ 
+ Selects the I<delivery method> to use. If set to B<true>, the I<persistent>
+ mode will be used, i.e. delivery is guaranteed. If set to B<false> (the
+ default), the I<transient> delivery mode will be used, i.e. messages may be
+ lost due to high load, overflowing queues or similar issues.
+ 
+-=item B<Format> B<Command>|B<JSON> (Publish only)
++=item B<Format> B<Command>|B<JSON>|B<Graphite> (Publish only)
+ 
+ Selects the format in which messages are sent to the broker. If set to
+ B<Command> (the default), values are sent as C<PUTVAL> commands which are
+ identical to the syntax used by the I<Exec> and I<UnixSock plugins>. In this
+ case, the C<Content-Type> header field will be set to C<text/collectd>.
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/collectdctl.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/collectdctl.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/collectdctl.1	2012-11-18 06:24:49.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/collectdctl.1	2013-01-27 21:48:10.746767002 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTDCTL 1"
+-.TH COLLECTDCTL 1 "2012-11-17" "5.2.0" "collectd"
++.TH COLLECTDCTL 1 "2013-01-27" "5.2.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectdctl \- Control interface for collectd
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/collectd-email.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/collectd-email.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/collectd-email.5	2012-11-18 06:24:49.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/collectd-email.5	2013-01-27 21:48:10.746767002 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-EMAIL 5"
+-.TH COLLECTD-EMAIL 5 "2012-11-17" "5.2.0" "collectd"
++.TH COLLECTD-EMAIL 5 "2013-01-27" "5.2.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-email \- Documentation of collectd's \f(CW\*(C`email plugin\*(C'\fR
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/collectd-exec.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/collectd-exec.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/collectd-exec.5	2012-11-18 06:24:49.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/collectd-exec.5	2013-01-27 21:48:10.746767002 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-EXEC 5"
+-.TH COLLECTD-EXEC 5 "2012-11-17" "5.2.0" "collectd"
++.TH COLLECTD-EXEC 5 "2013-01-27" "5.2.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-exec \- Documentation of collectd's \f(CW\*(C`exec plugin\*(C'\fR
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/collectd-java.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/collectd-java.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/collectd-java.5	2012-11-18 06:24:49.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/collectd-java.5	2013-01-27 21:48:11.246767718 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-JAVA 5"
+-.TH COLLECTD-JAVA 5 "2012-11-17" "5.2.0" "collectd"
++.TH COLLECTD-JAVA 5 "2013-01-27" "5.2.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-java \- Documentation of collectd's "java plugin"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/collectdmon.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/collectdmon.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/collectdmon.1	2012-11-18 06:24:49.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/collectdmon.1	2013-01-27 21:48:11.246767718 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTDMON 1"
+-.TH COLLECTDMON 1 "2012-11-17" "5.2.0" "collectd"
++.TH COLLECTDMON 1 "2013-01-27" "5.2.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectdmon \- Monitoring daemon for collectd
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/collectd-nagios.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/collectd-nagios.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/collectd-nagios.1	2012-11-18 06:24:49.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/collectd-nagios.1	2013-01-27 21:48:11.246767718 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-NAGIOS 1"
+-.TH COLLECTD-NAGIOS 1 "2012-11-17" "5.2.0" "collectd"
++.TH COLLECTD-NAGIOS 1 "2013-01-27" "5.2.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-nagios \- Nagios plugin for querying collectd
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/collectd-perl.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/collectd-perl.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/collectd-perl.5	2012-11-18 06:24:49.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/collectd-perl.5	2013-01-27 21:48:11.246767718 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-PERL 5"
+-.TH COLLECTD-PERL 5 "2012-11-17" "5.2.0" "collectd"
++.TH COLLECTD-PERL 5 "2013-01-27" "5.2.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-perl \- Documentation of collectd's \f(CW\*(C`perl plugin\*(C'\fR
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/collectd-python.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/collectd-python.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/collectd-python.5	2012-11-18 06:24:49.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/collectd-python.5	2013-01-27 21:48:11.746767648 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-PYTHON 5"
+-.TH COLLECTD-PYTHON 5 "2012-11-17" "5.2.0" "collectd"
++.TH COLLECTD-PYTHON 5 "2013-01-27" "5.2.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-python \- Documentation of collectd's \f(CW\*(C`python plugin\*(C'\fR
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/collectd-snmp.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/collectd-snmp.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/collectd-snmp.5	2012-11-18 06:24:49.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/collectd-snmp.5	2013-01-27 21:48:11.746767648 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-SNMP 5"
+-.TH COLLECTD-SNMP 5 "2012-11-17" "5.2.0" "collectd"
++.TH COLLECTD-SNMP 5 "2013-01-27" "5.2.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-snmp \- Documentation of collectd's \f(CW\*(C`snmp plugin\*(C'\fR
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src: collectd-tg.1
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src: collectd-tg.pod
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/collectd-threshold.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/collectd-threshold.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/collectd-threshold.5	2012-11-18 06:24:49.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/collectd-threshold.5	2013-01-27 21:48:11.746767648 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-THRESHOLD 5"
+-.TH COLLECTD-THRESHOLD 5 "2012-11-17" "5.2.0" "collectd"
++.TH COLLECTD-THRESHOLD 5 "2013-01-27" "5.2.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-threshold \- Documentation of collectd's \fIThreshold plugin\fR
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/collectd-unixsock.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/collectd-unixsock.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/collectd-unixsock.5	2012-11-18 06:24:50.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/collectd-unixsock.5	2013-01-27 21:48:11.746767648 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-UNIXSOCK 5"
+-.TH COLLECTD-UNIXSOCK 5 "2012-11-17" "5.2.0" "collectd"
++.TH COLLECTD-UNIXSOCK 5 "2013-01-27" "5.2.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-unixsock \- Documentation of collectd's \f(CW\*(C`unixsock plugin\*(C'\fR
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/dbi.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/dbi.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/dbi.c	2012-11-18 06:23:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/dbi.c	2013-01-27 21:47:05.745518763 +0800
+@@ -190,39 +190,12 @@
+  *     ...
+  *     Query "plugin_instance0"
+  *   </Database>
+  * </Plugin>
+  */
+ 
+-static int cdbi_config_set_string (char **ret_string, /* {{{ */
+-    oconfig_item_t *ci)
+-{
+-  char *string;
+-
+-  if ((ci->values_num != 1)
+-      || (ci->values[0].type != OCONFIG_TYPE_STRING))
+-  {
+-    WARNING ("dbi plugin: The `%s' config option "
+-        "needs exactly one string argument.", ci->key);
+-    return (-1);
+-  }
+-
+-  string = strdup (ci->values[0].value.string);
+-  if (string == NULL)
+-  {
+-    ERROR ("dbi plugin: strdup failed.");
+-    return (-1);
+-  }
+-
+-  if (*ret_string != NULL)
+-    free (*ret_string);
+-  *ret_string = string;
+-
+-  return (0);
+-} /* }}} int cdbi_config_set_string */
+-
+ static int cdbi_config_add_database_driver_option (cdbi_database_t *db, /* {{{ */
+     oconfig_item_t *ci)
+ {
+   cdbi_driver_option_t *option;
+ 
+   if ((ci->values_num != 2)
+@@ -283,30 +256,30 @@
+   {
+     ERROR ("dbi plugin: malloc failed.");
+     return (-1);
+   }
+   memset (db, 0, sizeof (*db));
+ 
+-  status = cdbi_config_set_string (&db->name, ci);
++  status = cf_util_get_string (ci, &db->name);
+   if (status != 0)
+   {
+     sfree (db);
+     return (status);
+   }
+ 
+   /* Fill the `cdbi_database_t' structure.. */
+   for (i = 0; i < ci->children_num; i++)
+   {
+     oconfig_item_t *child = ci->children + i;
+ 
+     if (strcasecmp ("Driver", child->key) == 0)
+-      status = cdbi_config_set_string (&db->driver, child);
++      status = cf_util_get_string (child, &db->driver);
+     else if (strcasecmp ("DriverOption", child->key) == 0)
+       status = cdbi_config_add_database_driver_option (db, child);
+     else if (strcasecmp ("SelectDB", child->key) == 0)
+-      status = cdbi_config_set_string (&db->select_db, child);
++      status = cf_util_get_string (child, &db->select_db);
+     else if (strcasecmp ("Query", child->key) == 0)
+       status = udb_query_pick_from_list (child, queries, queries_num,
+           &db->queries, &db->queries_num);
+     else
+     {
+       WARNING ("dbi plugin: Option `%s' not allowed here.", child->key);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/ethstat.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/ethstat.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/ethstat.c	2012-11-18 06:23:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/ethstat.c	2013-01-27 21:47:05.745518763 +0800
+@@ -70,22 +70,23 @@
+ 
+   status = cf_util_get_string (ci, interfaces + interfaces_num);
+   if (status != 0)
+     return (status);
+ 
+   interfaces_num++;
+-  INFO("ethstat plugin: Registred interface %s",
++  INFO("ethstat plugin: Registered interface %s",
+       interfaces[interfaces_num - 1]);
+ 
+   return (0);
+ } /* }}} int ethstat_add_interface */
+ 
+ static int ethstat_add_map (const oconfig_item_t *ci) /* {{{ */
+ {
+   value_map_t *map;
+   int status;
++  char *key;
+ 
+   if ((ci->values_num < 2)
+       || (ci->values_num > 3)
+       || (ci->values[0].type != OCONFIG_TYPE_STRING)
+       || (ci->values[1].type != OCONFIG_TYPE_STRING)
+       || ((ci->values_num == 3)
+@@ -93,15 +94,23 @@
+   {
+     ERROR ("ethstat plugin: The %s option requires "
+         "two or three string arguments.", ci->key);
+     return (-1);
+   }
+ 
++  key = strdup (ci->values[0].value.string);
++  if (key == NULL)
++  {
++    ERROR ("ethstat plugin: strdup(3) failed.");
++    return (ENOMEM);
++  }
++
+   map = malloc (sizeof (*map));
+   if (map == NULL)
+   {
++    sfree (key);
+     ERROR ("ethstat plugin: malloc(3) failed.");
+     return (ENOMEM);
+   }
+   memset (map, 0, sizeof (*map));
+ 
+   sstrncpy (map->type, ci->values[1].value.string, sizeof (map->type));
+@@ -112,29 +121,30 @@
+   if (value_map == NULL)
+   {
+     value_map = c_avl_create ((void *) strcmp);
+     if (value_map == NULL)
+     {
+       sfree (map);
++      sfree (key);
+       ERROR ("ethstat plugin: c_avl_create() failed.");
+       return (-1);
+     }
+   }
+ 
+   status = c_avl_insert (value_map,
+-      /* key = */ ci->values[0].value.string,
++      /* key = */ key,
+       /* value = */ map);
+   if (status != 0)
+   {
+-    sfree (map);
+     if (status > 0)
+-      ERROR ("ethstat plugin: Multiple mappings for \"%s\".",
+-          ci->values[0].value.string);
++      ERROR ("ethstat plugin: Multiple mappings for \"%s\".", key);
+     else
+-      ERROR ("ethstat plugin: c_avl_insert(\"%s\") failed.",
+-          ci->values[0].value.string);
++      ERROR ("ethstat plugin: c_avl_insert(\"%s\") failed.", key);
++
++    sfree (map);
++    sfree (key);
+     return (-1);
+   }
+ 
+   return (0);
+ } /* }}} int ethstat_add_map */
+ 
+@@ -325,13 +335,34 @@
+   for (i = 0; i < interfaces_num; i++)
+     ethstat_read_interface (interfaces[i]);
+ 
+   return 0;
+ }
+ 
++static int ethstat_shutdown (void)
++{
++  void *key = NULL;
++  void *value = NULL;
++
++  if (value_map == NULL)
++    return (0);
++
++  while (c_avl_pick (value_map, &key, &value) == 0)
++  {
++    sfree (key);
++    sfree (value);
++  }
++
++  c_avl_destroy (value_map);
++  value_map = NULL;
++
++  return (0);
++}
++
+ void module_register (void)
+ {
+   plugin_register_complex_config ("ethstat", ethstat_config);
+   plugin_register_read ("ethstat", ethstat_read);
++  plugin_register_shutdown ("ethstat", ethstat_shutdown);
+ }
+ 
+ /* vim: set sw=2 sts=2 et fdm=marker : */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/libcollectdclient/collectd/lcc_features.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/libcollectdclient/collectd/lcc_features.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/libcollectdclient/collectd/lcc_features.h	2012-11-18 06:24:42.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/libcollectdclient/collectd/lcc_features.h	2013-01-27 21:48:00.255520203 +0800
+@@ -36,17 +36,17 @@
+ #endif
+ 
+ #define LCC_API_VERSION 0
+ 
+ #define LCC_VERSION_MAJOR 5
+ #define LCC_VERSION_MINOR 2
+-#define LCC_VERSION_PATCH 0
++#define LCC_VERSION_PATCH 1
+ 
+ #define LCC_VERSION_EXTRA ""
+ 
+-#define LCC_VERSION_STRING "5.2.0"
++#define LCC_VERSION_STRING "5.2.1"
+ 
+ #define LCC_VERSION_ENCODE(major, minor, patch) \
+ 	((major) * 10000 + (minor) * 100 + (patch))
+ 
+ #define LCC_VERSION \
+ 	LCC_VERSION_ENCODE(LCC_VERSION_MAJOR, LCC_VERSION_MINOR, LCC_VERSION_PATCH)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/libcollectdclient/Makefile.am /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/libcollectdclient/Makefile.am
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/libcollectdclient/Makefile.am	2012-11-18 06:23:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/libcollectdclient/Makefile.am	2013-01-27 21:47:18.246255910 +0800
+@@ -8,13 +8,13 @@
+ lib_LTLIBRARIES = libcollectdclient.la
+ nodist_pkgconfig_DATA = libcollectdclient.pc
+ 
+ BUILT_SOURCES = collectd/lcc_features.h
+ 
+ libcollectdclient_la_SOURCES = client.c network.c network_buffer.c
+-libcollectdclient_la_CPPFLAGS = $(AM_CPPFLAGS)
++libcollectdclient_la_CPPFLAGS = $(AM_CPPFLAGS) -I$(top_srcdir)/src
+ libcollectdclient_la_LDFLAGS = -version-info 1:0:0
+ libcollectdclient_la_LIBADD = 
+ if BUILD_WITH_LIBGCRYPT
+ libcollectdclient_la_CPPFLAGS += $(GCRYPT_CPPFLAGS)
+ libcollectdclient_la_LDFLAGS += $(GCRYPT_LDFLAGS)
+ libcollectdclient_la_LIBADD += $(GCRYPT_LIBS)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/libcollectdclient/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/libcollectdclient/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/libcollectdclient/Makefile.in	2012-11-18 06:23:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/libcollectdclient/Makefile.in	2013-01-27 21:47:37.246495955 +0800
+@@ -345,13 +345,14 @@
+ @COMPILER_IS_GCC_TRUE@AM_CFLAGS = -Wall -Werror
+ pkginclude_HEADERS = collectd/client.h collectd/network.h collectd/network_buffer.h collectd/lcc_features.h
+ lib_LTLIBRARIES = libcollectdclient.la
+ nodist_pkgconfig_DATA = libcollectdclient.pc
+ BUILT_SOURCES = collectd/lcc_features.h
+ libcollectdclient_la_SOURCES = client.c network.c network_buffer.c
+-libcollectdclient_la_CPPFLAGS = $(AM_CPPFLAGS) $(am__append_1)
++libcollectdclient_la_CPPFLAGS = $(AM_CPPFLAGS) -I$(top_srcdir)/src \
++	$(am__append_1)
+ libcollectdclient_la_LDFLAGS = -version-info 1:0:0 $(am__append_2)
+ libcollectdclient_la_LIBADD = $(am__append_3)
+ all: $(BUILT_SOURCES)
+ 	$(MAKE) $(AM_MAKEFLAGS) all-am
+ 
+ .SUFFIXES:
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/libcollectdclient/network_buffer.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/libcollectdclient/network_buffer.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/libcollectdclient/network_buffer.c	2012-11-18 06:23:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/libcollectdclient/network_buffer.c	2013-01-27 21:47:18.246255910 +0800
+@@ -103,15 +103,17 @@
+   size_t free;
+ 
+   lcc_security_level_t seclevel;
+   char *username;
+   char *password;
+ 
++#if HAVE_LIBGCRYPT
+   gcry_cipher_hd_t encr_cypher;
+   size_t encr_header_len;
+   char encr_iv[16];
++#endif
+ };
+ 
+ #define SSTRNCPY(dst,src,sz) do { \
+   strncpy ((dst), (src), (sz));   \
+   (dst)[(sz) - 1] = 0;            \
+ } while (0)
+@@ -125,22 +127,26 @@
+   static _Bool need_init = 1;
+ 
+   if (!need_init)
+     return (result);
+   need_init = 0;
+ 
++#if HAVE_LIBGCRYPT
+   gcry_control (GCRYCTL_SET_THREAD_CBS, &gcry_threads_pthread);
+ 
+   if (!gcry_check_version (GCRYPT_VERSION))
+     return (0);
+ 
+   gcry_control (GCRYCTL_INIT_SECMEM, 32768, 0);
+   gcry_control (GCRYCTL_INITIALIZATION_FINISHED, 0);
+ 
+   result = 1;
+   return (1);
++#else
++  return(0);
++#endif
+ } /* }}} _Bool have_gcrypt */
+ 
+ static uint64_t htonll (uint64_t val) /* {{{ */
+ {
+   static int config = 0;
+ 
+@@ -491,12 +497,13 @@
+ 
+   nb->ptr = buffer;
+   nb->free = buffer_size;
+   return (0);
+ } /* }}} int nb_add_value_list */
+ 
++#if HAVE_LIBGCRYPT
+ static int nb_add_signature (lcc_network_buffer_t *nb) /* {{{ */
+ {
+   char *buffer;
+   size_t buffer_size;
+ 
+   gcry_md_hd_t hd;
+@@ -617,12 +624,13 @@
+     nb->encr_cypher = NULL;
+     return (-1);
+   }
+ 
+   return (0);
+ } /* }}} int nb_add_encryption */
++#endif
+ 
+ /*
+  * Public functions
+  */
+ lcc_network_buffer_t *lcc_network_buffer_create (size_t size) /* {{{ */
+ {
+@@ -717,12 +725,13 @@
+ 
+   memset (nb->buffer, 0, nb->size);
+   memset (&nb->state, 0, sizeof (nb->state));
+   nb->ptr = nb->buffer;
+   nb->free = nb->size;
+ 
++#if HAVE_LIBGCRYPT
+   if (nb->seclevel == SIGN)
+   {
+     size_t username_len;
+     uint16_t pkg_type = htons (TYPE_SIGN_SHA256);
+     uint16_t pkg_length = PART_SIGNATURE_SHA256_SIZE;
+ 
+@@ -762,25 +771,28 @@
+     ADD_STATIC (nb, pkg_user_len);
+     ADD_GENERIC (nb, nb->username, username_length);
+     ADD_GENERIC (nb, nb->encr_iv, sizeof (nb->encr_iv));
+     ADD_GENERIC (nb, hash, sizeof (hash));
+     assert ((nb->encr_header_len + nb->free) == nb->size);
+   }
++#endif
+ 
+   return (0);
+ } /* }}} int lcc_network_buffer_initialize */
+ 
+ int lcc_network_buffer_finalize (lcc_network_buffer_t *nb) /* {{{ */
+ {
+   if (nb == NULL)
+     return (EINVAL);
+ 
++#if HAVE_LIBGCRYPT
+   if (nb->seclevel == SIGN)
+     nb_add_signature (nb);
+   else if (nb->seclevel == ENCRYPT)
+     nb_add_encryption (nb);
++#endif
+ 
+   return (0);
+ } /* }}} int lcc_network_buffer_finalize */
+ 
+ int lcc_network_buffer_add_value (lcc_network_buffer_t *nb, /* {{{ */
+     const lcc_value_list_t *vl)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/Makefile.am /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/Makefile.am
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/Makefile.am	2012-11-18 06:23:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/Makefile.am	2013-01-27 21:47:18.246255910 +0800
+@@ -116,12 +116,15 @@
+ collectd_tg_SOURCES = collectd-tg.c \
+ 		      utils_heap.c utils_heap.h
+ collectd_tg_LDADD =
+ if BUILD_WITH_LIBSOCKET
+ collectd_tg_LDADD += -lsocket
+ endif
++if BUILD_WITH_LIBRT
++collectd_tg_LDADD += -lrt
++endif
+ if BUILD_AIX
+ collectd_tg_LDADD += -lm
+ endif
+ collectd_tg_LDADD += libcollectdclient/libcollectdclient.la
+ collectd_tg_DEPENDENCIES = libcollectdclient/libcollectdclient.la
+ 
+@@ -1366,12 +1369,13 @@
+ 		collectd-java.5 \
+ 		collectdmon.1 \
+ 		collectd-nagios.1 \
+ 		collectd-perl.5 \
+ 		collectd-python.5 \
+ 		collectd-snmp.5 \
++		collectd-tg.1 \
+ 		collectd-threshold.5 \
+ 		collectd-unixsock.5 \
+ 		types.db.5
+ 
+ #collectd_1_SOURCES = collectd.pod
+ 
+@@ -1385,12 +1389,13 @@
+ 		collectdmon.pod \
+ 		collectd-nagios.pod \
+ 		collectd-perl.pod \
+ 		collectd-python.pod \
+ 		collectd.pod \
+ 		collectd-snmp.pod \
++		collectd-tg.pod \
+ 		collectd-threshold.pod \
+ 		collectd-unixsock.pod \
+ 		postgresql_default.conf \
+ 		types.db.pod
+ 
+ .pod.1:
+@@ -1407,13 +1412,13 @@
+ 	@if grep '\<POD ERRORS\>' $@ >/dev/null 2>&1; \
+ 	then \
+ 		echo "$@ has some POD errors!"; false; \
+ 	fi
+ 
+ pinba.pb-c.c pinba.pb-c.h: pinba.proto
+-	protoc-c --c_out . pinba.proto
++	protoc-c -I$(srcdir) --c_out . $(srcdir)/pinba.proto
+ 
+ install-exec-hook:
+ 	$(mkinstalldirs) $(DESTDIR)$(sysconfdir)
+ 	if test -e $(DESTDIR)$(sysconfdir)/collectd.conf; \
+ 	then \
+ 		$(INSTALL) -m 0640 collectd.conf $(DESTDIR)$(sysconfdir)/collectd.conf.pkg-orig; \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/Makefile.in	2012-11-18 06:23:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/Makefile.in	2013-01-27 21:47:36.748017182 +0800
+@@ -60,420 +60,421 @@
+ @BUILD_WITH_OWN_LIBOCONFIG_FALSE@am__append_15 = -loconfig
+ @BUILD_WITH_LIBSOCKET_TRUE@am__append_16 = -lsocket
+ @BUILD_AIX_TRUE@am__append_17 = -lm
+ @BUILD_WITH_LIBSOCKET_TRUE@am__append_18 = -lsocket
+ @BUILD_AIX_TRUE@am__append_19 = -lm
+ @BUILD_WITH_LIBSOCKET_TRUE@am__append_20 = -lsocket
+-@BUILD_AIX_TRUE@am__append_21 = -lm
+-@BUILD_PLUGIN_AGGREGATION_TRUE@am__append_22 = aggregation.la
+-@BUILD_PLUGIN_AGGREGATION_TRUE@am__append_23 = "-dlopen" aggregation.la
+-@BUILD_PLUGIN_AGGREGATION_TRUE@am__append_24 = aggregation.la
+-@BUILD_PLUGIN_AMQP_TRUE@am__append_25 = amqp.la
+-@BUILD_PLUGIN_AMQP_TRUE@am__append_26 = "-dlopen" amqp.la
+-@BUILD_PLUGIN_AMQP_TRUE@am__append_27 = amqp.la
+-@BUILD_PLUGIN_APACHE_TRUE@am__append_28 = apache.la
+-@BUILD_PLUGIN_APACHE_TRUE@am__append_29 = "-dlopen" apache.la
+-@BUILD_PLUGIN_APACHE_TRUE@@BUILD_WITH_LIBCURL_TRUE@am__append_30 = $(BUILD_WITH_LIBCURL_CFLAGS)
+-@BUILD_PLUGIN_APACHE_TRUE@@BUILD_WITH_LIBCURL_TRUE@am__append_31 = $(BUILD_WITH_LIBCURL_LIBS)
+-@BUILD_PLUGIN_APACHE_TRUE@am__append_32 = apache.la
+-@BUILD_PLUGIN_APCUPS_TRUE@am__append_33 = apcups.la
+-@BUILD_PLUGIN_APCUPS_TRUE@@BUILD_WITH_LIBSOCKET_TRUE@am__append_34 = -lsocket
+-@BUILD_PLUGIN_APCUPS_TRUE@am__append_35 = "-dlopen" apcups.la
+-@BUILD_PLUGIN_APCUPS_TRUE@am__append_36 = apcups.la
+-@BUILD_PLUGIN_APPLE_SENSORS_TRUE@am__append_37 = apple_sensors.la
+-@BUILD_PLUGIN_APPLE_SENSORS_TRUE@am__append_38 = "-dlopen" apple_sensors.la
+-@BUILD_PLUGIN_APPLE_SENSORS_TRUE@am__append_39 = apple_sensors.la
+-@BUILD_PLUGIN_ASCENT_TRUE@am__append_40 = ascent.la
+-@BUILD_PLUGIN_ASCENT_TRUE@am__append_41 = "-dlopen" ascent.la
+-@BUILD_PLUGIN_ASCENT_TRUE@am__append_42 = ascent.la
+-@BUILD_PLUGIN_BATTERY_TRUE@am__append_43 = battery.la
+-@BUILD_PLUGIN_BATTERY_TRUE@@BUILD_WITH_LIBIOKIT_TRUE@am__append_44 = -lIOKit
+-@BUILD_PLUGIN_BATTERY_TRUE@am__append_45 = "-dlopen" battery.la
+-@BUILD_PLUGIN_BATTERY_TRUE@am__append_46 = battery.la
+-@BUILD_PLUGIN_BIND_TRUE@am__append_47 = bind.la
+-@BUILD_PLUGIN_BIND_TRUE@am__append_48 = "-dlopen" bind.la
+-@BUILD_PLUGIN_BIND_TRUE@am__append_49 = bind.la
+-@BUILD_PLUGIN_CONNTRACK_TRUE@am__append_50 = conntrack.la
+-@BUILD_PLUGIN_CONNTRACK_TRUE@am__append_51 = "-dlopen" conntrack.la
+-@BUILD_PLUGIN_CONNTRACK_TRUE@am__append_52 = conntrack.la
+-@BUILD_PLUGIN_CONTEXTSWITCH_TRUE@am__append_53 = contextswitch.la
+-@BUILD_PLUGIN_CONTEXTSWITCH_TRUE@@BUILD_WITH_PERFSTAT_TRUE@am__append_54 = -lperfstat
+-@BUILD_PLUGIN_CONTEXTSWITCH_TRUE@am__append_55 = "-dlopen" contextswitch.la
+-@BUILD_PLUGIN_CONTEXTSWITCH_TRUE@am__append_56 = contextswitch.la
+-@BUILD_PLUGIN_CPU_TRUE@am__append_57 = cpu.la
+-@BUILD_PLUGIN_CPU_TRUE@@BUILD_WITH_LIBKSTAT_TRUE@am__append_58 = -lkstat
+-@BUILD_PLUGIN_CPU_TRUE@@BUILD_WITH_LIBDEVINFO_TRUE@am__append_59 = -ldevinfo
+-@BUILD_PLUGIN_CPU_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_60 = $(BUILD_WITH_LIBSTATGRAB_CFLAGS)
+-@BUILD_PLUGIN_CPU_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_61 = $(BUILD_WITH_LIBSTATGRAB_LDFLAGS)
+-@BUILD_PLUGIN_CPU_TRUE@@BUILD_WITH_PERFSTAT_TRUE@am__append_62 = -lperfstat
+-@BUILD_PLUGIN_CPU_TRUE@am__append_63 = "-dlopen" cpu.la
+-@BUILD_PLUGIN_CPU_TRUE@am__append_64 = cpu.la
+-@BUILD_PLUGIN_CPUFREQ_TRUE@am__append_65 = cpufreq.la
+-@BUILD_PLUGIN_CPUFREQ_TRUE@am__append_66 = "-dlopen" cpufreq.la
+-@BUILD_PLUGIN_CPUFREQ_TRUE@am__append_67 = cpufreq.la
+-@BUILD_PLUGIN_CSV_TRUE@am__append_68 = csv.la
+-@BUILD_PLUGIN_CSV_TRUE@am__append_69 = "-dlopen" csv.la
+-@BUILD_PLUGIN_CSV_TRUE@am__append_70 = csv.la
+-@BUILD_PLUGIN_CURL_TRUE@am__append_71 = curl.la
+-@BUILD_PLUGIN_CURL_TRUE@am__append_72 = "-dlopen" curl.la
+-@BUILD_PLUGIN_CURL_TRUE@@BUILD_WITH_LIBCURL_TRUE@am__append_73 = $(BUILD_WITH_LIBCURL_CFLAGS)
+-@BUILD_PLUGIN_CURL_TRUE@@BUILD_WITH_LIBCURL_TRUE@am__append_74 = $(BUILD_WITH_LIBCURL_LIBS)
+-@BUILD_PLUGIN_CURL_TRUE@am__append_75 = curl.la
+-@BUILD_PLUGIN_CURL_JSON_TRUE@am__append_76 = curl_json.la
+-@BUILD_PLUGIN_CURL_JSON_TRUE@@BUILD_WITH_LIBCURL_TRUE@am__append_77 = $(BUILD_WITH_LIBCURL_CFLAGS)
+-@BUILD_PLUGIN_CURL_JSON_TRUE@@BUILD_WITH_LIBCURL_TRUE@am__append_78 = $(BUILD_WITH_LIBCURL_LIBS)
+-@BUILD_PLUGIN_CURL_JSON_TRUE@am__append_79 = "-dlopen" curl_json.la
+-@BUILD_PLUGIN_CURL_JSON_TRUE@am__append_80 = curl_json.la
+-@BUILD_PLUGIN_CURL_XML_TRUE@am__append_81 = curl_xml.la
+-@BUILD_PLUGIN_CURL_XML_TRUE@am__append_82 = "-dlopen" curl_xml.la
+-@BUILD_PLUGIN_CURL_XML_TRUE@am__append_83 = curl_xml.la
+-@BUILD_PLUGIN_DBI_TRUE@am__append_84 = dbi.la
+-@BUILD_PLUGIN_DBI_TRUE@am__append_85 = "-dlopen" dbi.la
+-@BUILD_PLUGIN_DBI_TRUE@am__append_86 = dbi.la
+-@BUILD_PLUGIN_DF_TRUE@am__append_87 = df.la
+-@BUILD_PLUGIN_DF_TRUE@am__append_88 = "-dlopen" df.la
+-@BUILD_PLUGIN_DF_TRUE@am__append_89 = df.la
+-@BUILD_PLUGIN_DISK_TRUE@am__append_90 = disk.la
+-@BUILD_PLUGIN_DISK_TRUE@@BUILD_WITH_LIBKSTAT_TRUE@am__append_91 = -lkstat
+-@BUILD_PLUGIN_DISK_TRUE@@BUILD_WITH_LIBDEVINFO_TRUE@am__append_92 = -ldevinfo
+-@BUILD_PLUGIN_DISK_TRUE@@BUILD_WITH_LIBIOKIT_TRUE@am__append_93 = -lIOKit
+-@BUILD_PLUGIN_DISK_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_94 = $(BUILD_WITH_LIBSTATGRAB_CFLAGS)  
+-@BUILD_PLUGIN_DISK_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_95 = $(BUILD_WITH_LIBSTATGRAB_LDFLAGS)
+-@BUILD_PLUGIN_DISK_TRUE@@BUILD_WITH_PERFSTAT_TRUE@am__append_96 = -lperfstat
+-@BUILD_PLUGIN_DISK_TRUE@am__append_97 = "-dlopen" disk.la
+-@BUILD_PLUGIN_DISK_TRUE@am__append_98 = disk.la
+-@BUILD_PLUGIN_DNS_TRUE@am__append_99 = dns.la
+-@BUILD_PLUGIN_DNS_TRUE@am__append_100 = "-dlopen" dns.la
+-@BUILD_PLUGIN_DNS_TRUE@am__append_101 = dns.la
+-@BUILD_PLUGIN_EMAIL_TRUE@am__append_102 = email.la
+-@BUILD_PLUGIN_EMAIL_TRUE@am__append_103 = "-dlopen" email.la
+-@BUILD_PLUGIN_EMAIL_TRUE@am__append_104 = email.la
+-@BUILD_PLUGIN_ENTROPY_TRUE@am__append_105 = entropy.la
+-@BUILD_PLUGIN_ENTROPY_TRUE@am__append_106 = "-dlopen" entropy.la
+-@BUILD_PLUGIN_ENTROPY_TRUE@am__append_107 = entropy.la
+-@BUILD_PLUGIN_EXEC_TRUE@am__append_108 = exec.la
+-@BUILD_PLUGIN_EXEC_TRUE@am__append_109 = "-dlopen" exec.la
+-@BUILD_PLUGIN_EXEC_TRUE@am__append_110 = exec.la
+-@BUILD_PLUGIN_ETHSTAT_TRUE@am__append_111 = ethstat.la
+-@BUILD_PLUGIN_ETHSTAT_TRUE@am__append_112 = "-dlopen" ethstat.la
+-@BUILD_PLUGIN_ETHSTAT_TRUE@am__append_113 = ethstat.la
+-@BUILD_PLUGIN_FILECOUNT_TRUE@am__append_114 = filecount.la
+-@BUILD_PLUGIN_FILECOUNT_TRUE@am__append_115 = "-dlopen" filecount.la
+-@BUILD_PLUGIN_FILECOUNT_TRUE@am__append_116 = filecount.la
+-@BUILD_PLUGIN_GMOND_TRUE@am__append_117 = gmond.la
+-@BUILD_PLUGIN_GMOND_TRUE@am__append_118 = "-dlopen" gmond.la
+-@BUILD_PLUGIN_GMOND_TRUE@am__append_119 = gmond.la
+-@BUILD_PLUGIN_HDDTEMP_TRUE@am__append_120 = hddtemp.la
+-@BUILD_PLUGIN_HDDTEMP_TRUE@@BUILD_WITH_LIBSOCKET_TRUE@am__append_121 = -lsocket
+-@BUILD_PLUGIN_HDDTEMP_TRUE@am__append_122 = "-dlopen" hddtemp.la
+-@BUILD_PLUGIN_HDDTEMP_TRUE@am__append_123 = hddtemp.la
+-@BUILD_PLUGIN_INTERFACE_TRUE@am__append_124 = interface.la
+-@BUILD_PLUGIN_INTERFACE_TRUE@am__append_125 = "-dlopen" interface.la
+-@BUILD_PLUGIN_INTERFACE_TRUE@am__append_126 = interface.la
+-@BUILD_PLUGIN_INTERFACE_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_127 = $(BUILD_WITH_LIBSTATGRAB_CFLAGS)
+-@BUILD_PLUGIN_INTERFACE_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_128 = $(BUILD_WITH_LIBSTATGRAB_LDFLAGS)
+-@BUILD_PLUGIN_INTERFACE_TRUE@@BUILD_WITH_LIBKSTAT_TRUE@@BUILD_WITH_LIBSTATGRAB_FALSE@am__append_129 = -lkstat
+-@BUILD_PLUGIN_INTERFACE_TRUE@@BUILD_WITH_LIBDEVINFO_TRUE@@BUILD_WITH_LIBSTATGRAB_FALSE@am__append_130 = -ldevinfo
+-@BUILD_PLUGIN_INTERFACE_TRUE@@BUILD_WITH_PERFSTAT_TRUE@am__append_131 = -lperfstat
+-@BUILD_PLUGIN_IPTABLES_TRUE@am__append_132 = iptables.la
+-@BUILD_PLUGIN_IPTABLES_TRUE@am__append_133 = "-dlopen" iptables.la
+-@BUILD_PLUGIN_IPTABLES_TRUE@am__append_134 = iptables.la
+-@BUILD_PLUGIN_IPMI_TRUE@am__append_135 = ipmi.la
+-@BUILD_PLUGIN_IPMI_TRUE@am__append_136 = "-dlopen" ipmi.la
+-@BUILD_PLUGIN_IPMI_TRUE@am__append_137 = ipmi.la
+-@BUILD_PLUGIN_IPVS_TRUE@am__append_138 = ipvs.la
+-@BUILD_PLUGIN_IPVS_TRUE@am__append_139 = "-dlopen" ipvs.la
+-@BUILD_PLUGIN_IPVS_TRUE@am__append_140 = ipvs.la
+-@BUILD_PLUGIN_IRQ_TRUE@am__append_141 = irq.la
+-@BUILD_PLUGIN_IRQ_TRUE@am__append_142 = "-dlopen" irq.la
+-@BUILD_PLUGIN_IRQ_TRUE@am__append_143 = irq.la
+-@BUILD_PLUGIN_JAVA_TRUE@am__append_144 = java.la
+-@BUILD_PLUGIN_JAVA_TRUE@am__append_145 = "-dlopen" java.la
+-@BUILD_PLUGIN_JAVA_TRUE@am__append_146 = java.la
+-@BUILD_PLUGIN_LIBVIRT_TRUE@am__append_147 = libvirt.la
+-@BUILD_PLUGIN_LIBVIRT_TRUE@am__append_148 = "-dlopen" libvirt.la
+-@BUILD_PLUGIN_LIBVIRT_TRUE@am__append_149 = libvirt.la
+-@BUILD_PLUGIN_LOAD_TRUE@am__append_150 = load.la
+-@BUILD_PLUGIN_LOAD_TRUE@am__append_151 = "-dlopen" load.la
+-@BUILD_PLUGIN_LOAD_TRUE@am__append_152 = load.la
+-@BUILD_PLUGIN_LOAD_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_153 = $(BUILD_WITH_LIBSTATGRAB_CFLAGS)
+-@BUILD_PLUGIN_LOAD_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_154 = $(BUILD_WITH_LIBSTATGRAB_LDFLAGS)
+-@BUILD_PLUGIN_LOAD_TRUE@@BUILD_WITH_PERFSTAT_TRUE@am__append_155 = -lperfstat
+-@BUILD_PLUGIN_LOGFILE_TRUE@am__append_156 = logfile.la
+-@BUILD_PLUGIN_LOGFILE_TRUE@am__append_157 = "-dlopen" logfile.la
+-@BUILD_PLUGIN_LOGFILE_TRUE@am__append_158 = logfile.la
+-@BUILD_PLUGIN_LPAR_TRUE@am__append_159 = lpar.la
+-@BUILD_PLUGIN_LPAR_TRUE@am__append_160 = "-dlopen" lpar.la
+-@BUILD_PLUGIN_LPAR_TRUE@am__append_161 = lpar.la
+-@BUILD_PLUGIN_MADWIFI_TRUE@am__append_162 = madwifi.la
+-@BUILD_PLUGIN_MADWIFI_TRUE@am__append_163 = "-dlopen" madwifi.la
+-@BUILD_PLUGIN_MADWIFI_TRUE@am__append_164 = madwifi.la
+-@BUILD_PLUGIN_MATCH_EMPTY_COUNTER_TRUE@am__append_165 = match_empty_counter.la
+-@BUILD_PLUGIN_MATCH_EMPTY_COUNTER_TRUE@am__append_166 = "-dlopen" match_empty_counter.la
+-@BUILD_PLUGIN_MATCH_EMPTY_COUNTER_TRUE@am__append_167 = match_empty_counter.la
+-@BUILD_PLUGIN_MATCH_HASHED_TRUE@am__append_168 = match_hashed.la
+-@BUILD_PLUGIN_MATCH_HASHED_TRUE@am__append_169 = "-dlopen" match_hashed.la
+-@BUILD_PLUGIN_MATCH_HASHED_TRUE@am__append_170 = match_hashed.la
+-@BUILD_PLUGIN_MATCH_REGEX_TRUE@am__append_171 = match_regex.la
+-@BUILD_PLUGIN_MATCH_REGEX_TRUE@am__append_172 = "-dlopen" match_regex.la
+-@BUILD_PLUGIN_MATCH_REGEX_TRUE@am__append_173 = match_regex.la
+-@BUILD_PLUGIN_MATCH_TIMEDIFF_TRUE@am__append_174 = match_timediff.la
+-@BUILD_PLUGIN_MATCH_TIMEDIFF_TRUE@am__append_175 = "-dlopen" match_timediff.la
+-@BUILD_PLUGIN_MATCH_TIMEDIFF_TRUE@am__append_176 = match_timediff.la
+-@BUILD_PLUGIN_MATCH_VALUE_TRUE@am__append_177 = match_value.la
+-@BUILD_PLUGIN_MATCH_VALUE_TRUE@am__append_178 = "-dlopen" match_value.la
+-@BUILD_PLUGIN_MATCH_VALUE_TRUE@am__append_179 = match_value.la
+-@BUILD_PLUGIN_MBMON_TRUE@am__append_180 = mbmon.la
+-@BUILD_PLUGIN_MBMON_TRUE@@BUILD_WITH_LIBSOCKET_TRUE@am__append_181 = -lsocket
+-@BUILD_PLUGIN_MBMON_TRUE@am__append_182 = "-dlopen" mbmon.la
+-@BUILD_PLUGIN_MBMON_TRUE@am__append_183 = mbmon.la
+-@BUILD_PLUGIN_MD_TRUE@am__append_184 = md.la
+-@BUILD_PLUGIN_MD_TRUE@am__append_185 = "-dlopen" md.la
+-@BUILD_PLUGIN_MD_TRUE@am__append_186 = md.la
+-@BUILD_PLUGIN_MEMCACHEC_TRUE@am__append_187 = memcachec.la
+-@BUILD_PLUGIN_MEMCACHEC_TRUE@am__append_188 = "-dlopen" memcachec.la
+-@BUILD_PLUGIN_MEMCACHEC_TRUE@am__append_189 = memcachec.la
+-@BUILD_PLUGIN_MEMCACHED_TRUE@am__append_190 = memcached.la
+-@BUILD_PLUGIN_MEMCACHED_TRUE@@BUILD_WITH_LIBSOCKET_TRUE@am__append_191 = -lsocket
+-@BUILD_PLUGIN_MEMCACHED_TRUE@am__append_192 = "-dlopen" memcached.la
+-@BUILD_PLUGIN_MEMCACHED_TRUE@am__append_193 = memcached.la
+-@BUILD_PLUGIN_MEMORY_TRUE@am__append_194 = memory.la
+-@BUILD_PLUGIN_MEMORY_TRUE@am__append_195 = "-dlopen" memory.la
+-@BUILD_PLUGIN_MEMORY_TRUE@am__append_196 = memory.la
+-@BUILD_PLUGIN_MEMORY_TRUE@@BUILD_WITH_LIBKSTAT_TRUE@am__append_197 = -lkstat
+-@BUILD_PLUGIN_MEMORY_TRUE@@BUILD_WITH_LIBDEVINFO_TRUE@am__append_198 = -ldevinfo
+-@BUILD_PLUGIN_MEMORY_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_199 = $(BUILD_WITH_LIBSTATGRAB_CFLAGS)
+-@BUILD_PLUGIN_MEMORY_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_200 = $(BUILD_WITH_LIBSTATGRAB_LDFLAGS)
+-@BUILD_PLUGIN_MEMORY_TRUE@@BUILD_WITH_PERFSTAT_TRUE@am__append_201 = -lperfstat
+-@BUILD_PLUGIN_MODBUS_TRUE@am__append_202 = modbus.la
+-@BUILD_PLUGIN_MODBUS_TRUE@am__append_203 = "-dlopen" modbus.la
+-@BUILD_PLUGIN_MODBUS_TRUE@am__append_204 = modbus.la
+-@BUILD_PLUGIN_MULTIMETER_TRUE@am__append_205 = multimeter.la
+-@BUILD_PLUGIN_MULTIMETER_TRUE@am__append_206 = "-dlopen" multimeter.la
+-@BUILD_PLUGIN_MULTIMETER_TRUE@am__append_207 = multimeter.la
+-@BUILD_PLUGIN_MYSQL_TRUE@am__append_208 = mysql.la
+-@BUILD_PLUGIN_MYSQL_TRUE@am__append_209 = "-dlopen" mysql.la
+-@BUILD_PLUGIN_MYSQL_TRUE@@BUILD_WITH_LIBMYSQL_TRUE@am__append_210 = $(BUILD_WITH_LIBMYSQL_CFLAGS)
+-@BUILD_PLUGIN_MYSQL_TRUE@@BUILD_WITH_LIBMYSQL_TRUE@am__append_211 = $(BUILD_WITH_LIBMYSQL_LIBS)
+-@BUILD_PLUGIN_MYSQL_TRUE@am__append_212 = mysql.la
+-@BUILD_PLUGIN_NETAPP_TRUE@am__append_213 = netapp.la
+-@BUILD_PLUGIN_NETAPP_TRUE@am__append_214 = "-dlopen" netapp.la
+-@BUILD_PLUGIN_NETAPP_TRUE@am__append_215 = netapp.la
+-@BUILD_PLUGIN_NETLINK_TRUE@am__append_216 = netlink.la
+-@BUILD_PLUGIN_NETLINK_TRUE@am__append_217 = "-dlopen" netlink.la
+-@BUILD_PLUGIN_NETLINK_TRUE@am__append_218 = netlink.la
+-@BUILD_PLUGIN_NETWORK_TRUE@am__append_219 = network.la
+-@BUILD_PLUGIN_NETWORK_TRUE@@BUILD_WITH_LIBSOCKET_TRUE@am__append_220 = -lsocket
+-@BUILD_PLUGIN_NETWORK_TRUE@@BUILD_WITH_LIBGCRYPT_TRUE@am__append_221 = $(GCRYPT_CPPFLAGS)
+-@BUILD_PLUGIN_NETWORK_TRUE@@BUILD_WITH_LIBGCRYPT_TRUE@am__append_222 = $(GCRYPT_LDFLAGS)
+-@BUILD_PLUGIN_NETWORK_TRUE@@BUILD_WITH_LIBGCRYPT_TRUE@am__append_223 = $(GCRYPT_LIBS)
+-@BUILD_PLUGIN_NETWORK_TRUE@am__append_224 = "-dlopen" network.la
+-@BUILD_PLUGIN_NETWORK_TRUE@am__append_225 = network.la
+-@BUILD_PLUGIN_NFS_TRUE@am__append_226 = nfs.la
+-@BUILD_PLUGIN_NFS_TRUE@am__append_227 = "-dlopen" nfs.la
+-@BUILD_PLUGIN_NFS_TRUE@am__append_228 = nfs.la
+-@BUILD_PLUGIN_FSCACHE_TRUE@am__append_229 = fscache.la
+-@BUILD_PLUGIN_FSCACHE_TRUE@am__append_230 = "-dlopen" fscache.la
+-@BUILD_PLUGIN_FSCACHE_TRUE@am__append_231 = fscache.la
+-@BUILD_PLUGIN_NGINX_TRUE@am__append_232 = nginx.la
+-@BUILD_PLUGIN_NGINX_TRUE@@BUILD_WITH_LIBCURL_TRUE@am__append_233 = $(BUILD_WITH_LIBCURL_CFLAGS)
+-@BUILD_PLUGIN_NGINX_TRUE@@BUILD_WITH_LIBCURL_TRUE@am__append_234 = $(BUILD_WITH_LIBCURL_LIBS)
+-@BUILD_PLUGIN_NGINX_TRUE@am__append_235 = "-dlopen" nginx.la
+-@BUILD_PLUGIN_NGINX_TRUE@am__append_236 = nginx.la
+-@BUILD_PLUGIN_NOTIFY_DESKTOP_TRUE@am__append_237 = notify_desktop.la
+-@BUILD_PLUGIN_NOTIFY_DESKTOP_TRUE@am__append_238 = "-dlopen" notify_desktop.la
+-@BUILD_PLUGIN_NOTIFY_DESKTOP_TRUE@am__append_239 = notify_desktop.la
+-@BUILD_PLUGIN_NOTIFY_EMAIL_TRUE@am__append_240 = notify_email.la
+-@BUILD_PLUGIN_NOTIFY_EMAIL_TRUE@am__append_241 = "-dlopen" notify_email.la
+-@BUILD_PLUGIN_NOTIFY_EMAIL_TRUE@am__append_242 = notify_email.la
+-@BUILD_PLUGIN_NTPD_TRUE@am__append_243 = ntpd.la
+-@BUILD_PLUGIN_NTPD_TRUE@@BUILD_WITH_LIBSOCKET_TRUE@am__append_244 = -lsocket
+-@BUILD_PLUGIN_NTPD_TRUE@am__append_245 = "-dlopen" ntpd.la
+-@BUILD_PLUGIN_NTPD_TRUE@am__append_246 = ntpd.la
+-@BUILD_PLUGIN_NUMA_TRUE@am__append_247 = numa.la
+-@BUILD_PLUGIN_NUMA_TRUE@am__append_248 = "-dlopen" numa.la
+-@BUILD_PLUGIN_NUMA_TRUE@am__append_249 = numa.la
+-@BUILD_PLUGIN_NUT_TRUE@am__append_250 = nut.la
+-@BUILD_PLUGIN_NUT_TRUE@am__append_251 = "-dlopen" nut.la
+-@BUILD_PLUGIN_NUT_TRUE@am__append_252 = nut.la
+-@BUILD_PLUGIN_OLSRD_TRUE@am__append_253 = olsrd.la
+-@BUILD_PLUGIN_OLSRD_TRUE@@BUILD_WITH_LIBSOCKET_TRUE@am__append_254 = -lsocket
+-@BUILD_PLUGIN_OLSRD_TRUE@am__append_255 = "-dlopen" olsrd.la
+-@BUILD_PLUGIN_OLSRD_TRUE@am__append_256 = olsrd.la
+-@BUILD_PLUGIN_ONEWIRE_TRUE@am__append_257 = onewire.la
+-@BUILD_PLUGIN_ONEWIRE_TRUE@am__append_258 = "-dlopen" onewire.la
+-@BUILD_PLUGIN_ONEWIRE_TRUE@am__append_259 = onewire.la
+-@BUILD_PLUGIN_OPENVPN_TRUE@am__append_260 = openvpn.la
+-@BUILD_PLUGIN_OPENVPN_TRUE@am__append_261 = "-dlopen" openvpn.la
+-@BUILD_PLUGIN_OPENVPN_TRUE@am__append_262 = openvpn.la
+-@BUILD_PLUGIN_ORACLE_TRUE@am__append_263 = oracle.la
+-@BUILD_PLUGIN_ORACLE_TRUE@am__append_264 = "-dlopen" oracle.la
+-@BUILD_PLUGIN_ORACLE_TRUE@am__append_265 = oracle.la
+-@BUILD_PLUGIN_PERL_TRUE@am__append_266 = perl.la
++@BUILD_WITH_LIBRT_TRUE@am__append_21 = -lrt
++@BUILD_AIX_TRUE@am__append_22 = -lm
++@BUILD_PLUGIN_AGGREGATION_TRUE@am__append_23 = aggregation.la
++@BUILD_PLUGIN_AGGREGATION_TRUE@am__append_24 = "-dlopen" aggregation.la
++@BUILD_PLUGIN_AGGREGATION_TRUE@am__append_25 = aggregation.la
++@BUILD_PLUGIN_AMQP_TRUE@am__append_26 = amqp.la
++@BUILD_PLUGIN_AMQP_TRUE@am__append_27 = "-dlopen" amqp.la
++@BUILD_PLUGIN_AMQP_TRUE@am__append_28 = amqp.la
++@BUILD_PLUGIN_APACHE_TRUE@am__append_29 = apache.la
++@BUILD_PLUGIN_APACHE_TRUE@am__append_30 = "-dlopen" apache.la
++@BUILD_PLUGIN_APACHE_TRUE@@BUILD_WITH_LIBCURL_TRUE@am__append_31 = $(BUILD_WITH_LIBCURL_CFLAGS)
++@BUILD_PLUGIN_APACHE_TRUE@@BUILD_WITH_LIBCURL_TRUE@am__append_32 = $(BUILD_WITH_LIBCURL_LIBS)
++@BUILD_PLUGIN_APACHE_TRUE@am__append_33 = apache.la
++@BUILD_PLUGIN_APCUPS_TRUE@am__append_34 = apcups.la
++@BUILD_PLUGIN_APCUPS_TRUE@@BUILD_WITH_LIBSOCKET_TRUE@am__append_35 = -lsocket
++@BUILD_PLUGIN_APCUPS_TRUE@am__append_36 = "-dlopen" apcups.la
++@BUILD_PLUGIN_APCUPS_TRUE@am__append_37 = apcups.la
++@BUILD_PLUGIN_APPLE_SENSORS_TRUE@am__append_38 = apple_sensors.la
++@BUILD_PLUGIN_APPLE_SENSORS_TRUE@am__append_39 = "-dlopen" apple_sensors.la
++@BUILD_PLUGIN_APPLE_SENSORS_TRUE@am__append_40 = apple_sensors.la
++@BUILD_PLUGIN_ASCENT_TRUE@am__append_41 = ascent.la
++@BUILD_PLUGIN_ASCENT_TRUE@am__append_42 = "-dlopen" ascent.la
++@BUILD_PLUGIN_ASCENT_TRUE@am__append_43 = ascent.la
++@BUILD_PLUGIN_BATTERY_TRUE@am__append_44 = battery.la
++@BUILD_PLUGIN_BATTERY_TRUE@@BUILD_WITH_LIBIOKIT_TRUE@am__append_45 = -lIOKit
++@BUILD_PLUGIN_BATTERY_TRUE@am__append_46 = "-dlopen" battery.la
++@BUILD_PLUGIN_BATTERY_TRUE@am__append_47 = battery.la
++@BUILD_PLUGIN_BIND_TRUE@am__append_48 = bind.la
++@BUILD_PLUGIN_BIND_TRUE@am__append_49 = "-dlopen" bind.la
++@BUILD_PLUGIN_BIND_TRUE@am__append_50 = bind.la
++@BUILD_PLUGIN_CONNTRACK_TRUE@am__append_51 = conntrack.la
++@BUILD_PLUGIN_CONNTRACK_TRUE@am__append_52 = "-dlopen" conntrack.la
++@BUILD_PLUGIN_CONNTRACK_TRUE@am__append_53 = conntrack.la
++@BUILD_PLUGIN_CONTEXTSWITCH_TRUE@am__append_54 = contextswitch.la
++@BUILD_PLUGIN_CONTEXTSWITCH_TRUE@@BUILD_WITH_PERFSTAT_TRUE@am__append_55 = -lperfstat
++@BUILD_PLUGIN_CONTEXTSWITCH_TRUE@am__append_56 = "-dlopen" contextswitch.la
++@BUILD_PLUGIN_CONTEXTSWITCH_TRUE@am__append_57 = contextswitch.la
++@BUILD_PLUGIN_CPU_TRUE@am__append_58 = cpu.la
++@BUILD_PLUGIN_CPU_TRUE@@BUILD_WITH_LIBKSTAT_TRUE@am__append_59 = -lkstat
++@BUILD_PLUGIN_CPU_TRUE@@BUILD_WITH_LIBDEVINFO_TRUE@am__append_60 = -ldevinfo
++@BUILD_PLUGIN_CPU_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_61 = $(BUILD_WITH_LIBSTATGRAB_CFLAGS)
++@BUILD_PLUGIN_CPU_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_62 = $(BUILD_WITH_LIBSTATGRAB_LDFLAGS)
++@BUILD_PLUGIN_CPU_TRUE@@BUILD_WITH_PERFSTAT_TRUE@am__append_63 = -lperfstat
++@BUILD_PLUGIN_CPU_TRUE@am__append_64 = "-dlopen" cpu.la
++@BUILD_PLUGIN_CPU_TRUE@am__append_65 = cpu.la
++@BUILD_PLUGIN_CPUFREQ_TRUE@am__append_66 = cpufreq.la
++@BUILD_PLUGIN_CPUFREQ_TRUE@am__append_67 = "-dlopen" cpufreq.la
++@BUILD_PLUGIN_CPUFREQ_TRUE@am__append_68 = cpufreq.la
++@BUILD_PLUGIN_CSV_TRUE@am__append_69 = csv.la
++@BUILD_PLUGIN_CSV_TRUE@am__append_70 = "-dlopen" csv.la
++@BUILD_PLUGIN_CSV_TRUE@am__append_71 = csv.la
++@BUILD_PLUGIN_CURL_TRUE@am__append_72 = curl.la
++@BUILD_PLUGIN_CURL_TRUE@am__append_73 = "-dlopen" curl.la
++@BUILD_PLUGIN_CURL_TRUE@@BUILD_WITH_LIBCURL_TRUE@am__append_74 = $(BUILD_WITH_LIBCURL_CFLAGS)
++@BUILD_PLUGIN_CURL_TRUE@@BUILD_WITH_LIBCURL_TRUE@am__append_75 = $(BUILD_WITH_LIBCURL_LIBS)
++@BUILD_PLUGIN_CURL_TRUE@am__append_76 = curl.la
++@BUILD_PLUGIN_CURL_JSON_TRUE@am__append_77 = curl_json.la
++@BUILD_PLUGIN_CURL_JSON_TRUE@@BUILD_WITH_LIBCURL_TRUE@am__append_78 = $(BUILD_WITH_LIBCURL_CFLAGS)
++@BUILD_PLUGIN_CURL_JSON_TRUE@@BUILD_WITH_LIBCURL_TRUE@am__append_79 = $(BUILD_WITH_LIBCURL_LIBS)
++@BUILD_PLUGIN_CURL_JSON_TRUE@am__append_80 = "-dlopen" curl_json.la
++@BUILD_PLUGIN_CURL_JSON_TRUE@am__append_81 = curl_json.la
++@BUILD_PLUGIN_CURL_XML_TRUE@am__append_82 = curl_xml.la
++@BUILD_PLUGIN_CURL_XML_TRUE@am__append_83 = "-dlopen" curl_xml.la
++@BUILD_PLUGIN_CURL_XML_TRUE@am__append_84 = curl_xml.la
++@BUILD_PLUGIN_DBI_TRUE@am__append_85 = dbi.la
++@BUILD_PLUGIN_DBI_TRUE@am__append_86 = "-dlopen" dbi.la
++@BUILD_PLUGIN_DBI_TRUE@am__append_87 = dbi.la
++@BUILD_PLUGIN_DF_TRUE@am__append_88 = df.la
++@BUILD_PLUGIN_DF_TRUE@am__append_89 = "-dlopen" df.la
++@BUILD_PLUGIN_DF_TRUE@am__append_90 = df.la
++@BUILD_PLUGIN_DISK_TRUE@am__append_91 = disk.la
++@BUILD_PLUGIN_DISK_TRUE@@BUILD_WITH_LIBKSTAT_TRUE@am__append_92 = -lkstat
++@BUILD_PLUGIN_DISK_TRUE@@BUILD_WITH_LIBDEVINFO_TRUE@am__append_93 = -ldevinfo
++@BUILD_PLUGIN_DISK_TRUE@@BUILD_WITH_LIBIOKIT_TRUE@am__append_94 = -lIOKit
++@BUILD_PLUGIN_DISK_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_95 = $(BUILD_WITH_LIBSTATGRAB_CFLAGS)  
++@BUILD_PLUGIN_DISK_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_96 = $(BUILD_WITH_LIBSTATGRAB_LDFLAGS)
++@BUILD_PLUGIN_DISK_TRUE@@BUILD_WITH_PERFSTAT_TRUE@am__append_97 = -lperfstat
++@BUILD_PLUGIN_DISK_TRUE@am__append_98 = "-dlopen" disk.la
++@BUILD_PLUGIN_DISK_TRUE@am__append_99 = disk.la
++@BUILD_PLUGIN_DNS_TRUE@am__append_100 = dns.la
++@BUILD_PLUGIN_DNS_TRUE@am__append_101 = "-dlopen" dns.la
++@BUILD_PLUGIN_DNS_TRUE@am__append_102 = dns.la
++@BUILD_PLUGIN_EMAIL_TRUE@am__append_103 = email.la
++@BUILD_PLUGIN_EMAIL_TRUE@am__append_104 = "-dlopen" email.la
++@BUILD_PLUGIN_EMAIL_TRUE@am__append_105 = email.la
++@BUILD_PLUGIN_ENTROPY_TRUE@am__append_106 = entropy.la
++@BUILD_PLUGIN_ENTROPY_TRUE@am__append_107 = "-dlopen" entropy.la
++@BUILD_PLUGIN_ENTROPY_TRUE@am__append_108 = entropy.la
++@BUILD_PLUGIN_EXEC_TRUE@am__append_109 = exec.la
++@BUILD_PLUGIN_EXEC_TRUE@am__append_110 = "-dlopen" exec.la
++@BUILD_PLUGIN_EXEC_TRUE@am__append_111 = exec.la
++@BUILD_PLUGIN_ETHSTAT_TRUE@am__append_112 = ethstat.la
++@BUILD_PLUGIN_ETHSTAT_TRUE@am__append_113 = "-dlopen" ethstat.la
++@BUILD_PLUGIN_ETHSTAT_TRUE@am__append_114 = ethstat.la
++@BUILD_PLUGIN_FILECOUNT_TRUE@am__append_115 = filecount.la
++@BUILD_PLUGIN_FILECOUNT_TRUE@am__append_116 = "-dlopen" filecount.la
++@BUILD_PLUGIN_FILECOUNT_TRUE@am__append_117 = filecount.la
++@BUILD_PLUGIN_GMOND_TRUE@am__append_118 = gmond.la
++@BUILD_PLUGIN_GMOND_TRUE@am__append_119 = "-dlopen" gmond.la
++@BUILD_PLUGIN_GMOND_TRUE@am__append_120 = gmond.la
++@BUILD_PLUGIN_HDDTEMP_TRUE@am__append_121 = hddtemp.la
++@BUILD_PLUGIN_HDDTEMP_TRUE@@BUILD_WITH_LIBSOCKET_TRUE@am__append_122 = -lsocket
++@BUILD_PLUGIN_HDDTEMP_TRUE@am__append_123 = "-dlopen" hddtemp.la
++@BUILD_PLUGIN_HDDTEMP_TRUE@am__append_124 = hddtemp.la
++@BUILD_PLUGIN_INTERFACE_TRUE@am__append_125 = interface.la
++@BUILD_PLUGIN_INTERFACE_TRUE@am__append_126 = "-dlopen" interface.la
++@BUILD_PLUGIN_INTERFACE_TRUE@am__append_127 = interface.la
++@BUILD_PLUGIN_INTERFACE_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_128 = $(BUILD_WITH_LIBSTATGRAB_CFLAGS)
++@BUILD_PLUGIN_INTERFACE_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_129 = $(BUILD_WITH_LIBSTATGRAB_LDFLAGS)
++@BUILD_PLUGIN_INTERFACE_TRUE@@BUILD_WITH_LIBKSTAT_TRUE@@BUILD_WITH_LIBSTATGRAB_FALSE@am__append_130 = -lkstat
++@BUILD_PLUGIN_INTERFACE_TRUE@@BUILD_WITH_LIBDEVINFO_TRUE@@BUILD_WITH_LIBSTATGRAB_FALSE@am__append_131 = -ldevinfo
++@BUILD_PLUGIN_INTERFACE_TRUE@@BUILD_WITH_PERFSTAT_TRUE@am__append_132 = -lperfstat
++@BUILD_PLUGIN_IPTABLES_TRUE@am__append_133 = iptables.la
++@BUILD_PLUGIN_IPTABLES_TRUE@am__append_134 = "-dlopen" iptables.la
++@BUILD_PLUGIN_IPTABLES_TRUE@am__append_135 = iptables.la
++@BUILD_PLUGIN_IPMI_TRUE@am__append_136 = ipmi.la
++@BUILD_PLUGIN_IPMI_TRUE@am__append_137 = "-dlopen" ipmi.la
++@BUILD_PLUGIN_IPMI_TRUE@am__append_138 = ipmi.la
++@BUILD_PLUGIN_IPVS_TRUE@am__append_139 = ipvs.la
++@BUILD_PLUGIN_IPVS_TRUE@am__append_140 = "-dlopen" ipvs.la
++@BUILD_PLUGIN_IPVS_TRUE@am__append_141 = ipvs.la
++@BUILD_PLUGIN_IRQ_TRUE@am__append_142 = irq.la
++@BUILD_PLUGIN_IRQ_TRUE@am__append_143 = "-dlopen" irq.la
++@BUILD_PLUGIN_IRQ_TRUE@am__append_144 = irq.la
++@BUILD_PLUGIN_JAVA_TRUE@am__append_145 = java.la
++@BUILD_PLUGIN_JAVA_TRUE@am__append_146 = "-dlopen" java.la
++@BUILD_PLUGIN_JAVA_TRUE@am__append_147 = java.la
++@BUILD_PLUGIN_LIBVIRT_TRUE@am__append_148 = libvirt.la
++@BUILD_PLUGIN_LIBVIRT_TRUE@am__append_149 = "-dlopen" libvirt.la
++@BUILD_PLUGIN_LIBVIRT_TRUE@am__append_150 = libvirt.la
++@BUILD_PLUGIN_LOAD_TRUE@am__append_151 = load.la
++@BUILD_PLUGIN_LOAD_TRUE@am__append_152 = "-dlopen" load.la
++@BUILD_PLUGIN_LOAD_TRUE@am__append_153 = load.la
++@BUILD_PLUGIN_LOAD_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_154 = $(BUILD_WITH_LIBSTATGRAB_CFLAGS)
++@BUILD_PLUGIN_LOAD_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_155 = $(BUILD_WITH_LIBSTATGRAB_LDFLAGS)
++@BUILD_PLUGIN_LOAD_TRUE@@BUILD_WITH_PERFSTAT_TRUE@am__append_156 = -lperfstat
++@BUILD_PLUGIN_LOGFILE_TRUE@am__append_157 = logfile.la
++@BUILD_PLUGIN_LOGFILE_TRUE@am__append_158 = "-dlopen" logfile.la
++@BUILD_PLUGIN_LOGFILE_TRUE@am__append_159 = logfile.la
++@BUILD_PLUGIN_LPAR_TRUE@am__append_160 = lpar.la
++@BUILD_PLUGIN_LPAR_TRUE@am__append_161 = "-dlopen" lpar.la
++@BUILD_PLUGIN_LPAR_TRUE@am__append_162 = lpar.la
++@BUILD_PLUGIN_MADWIFI_TRUE@am__append_163 = madwifi.la
++@BUILD_PLUGIN_MADWIFI_TRUE@am__append_164 = "-dlopen" madwifi.la
++@BUILD_PLUGIN_MADWIFI_TRUE@am__append_165 = madwifi.la
++@BUILD_PLUGIN_MATCH_EMPTY_COUNTER_TRUE@am__append_166 = match_empty_counter.la
++@BUILD_PLUGIN_MATCH_EMPTY_COUNTER_TRUE@am__append_167 = "-dlopen" match_empty_counter.la
++@BUILD_PLUGIN_MATCH_EMPTY_COUNTER_TRUE@am__append_168 = match_empty_counter.la
++@BUILD_PLUGIN_MATCH_HASHED_TRUE@am__append_169 = match_hashed.la
++@BUILD_PLUGIN_MATCH_HASHED_TRUE@am__append_170 = "-dlopen" match_hashed.la
++@BUILD_PLUGIN_MATCH_HASHED_TRUE@am__append_171 = match_hashed.la
++@BUILD_PLUGIN_MATCH_REGEX_TRUE@am__append_172 = match_regex.la
++@BUILD_PLUGIN_MATCH_REGEX_TRUE@am__append_173 = "-dlopen" match_regex.la
++@BUILD_PLUGIN_MATCH_REGEX_TRUE@am__append_174 = match_regex.la
++@BUILD_PLUGIN_MATCH_TIMEDIFF_TRUE@am__append_175 = match_timediff.la
++@BUILD_PLUGIN_MATCH_TIMEDIFF_TRUE@am__append_176 = "-dlopen" match_timediff.la
++@BUILD_PLUGIN_MATCH_TIMEDIFF_TRUE@am__append_177 = match_timediff.la
++@BUILD_PLUGIN_MATCH_VALUE_TRUE@am__append_178 = match_value.la
++@BUILD_PLUGIN_MATCH_VALUE_TRUE@am__append_179 = "-dlopen" match_value.la
++@BUILD_PLUGIN_MATCH_VALUE_TRUE@am__append_180 = match_value.la
++@BUILD_PLUGIN_MBMON_TRUE@am__append_181 = mbmon.la
++@BUILD_PLUGIN_MBMON_TRUE@@BUILD_WITH_LIBSOCKET_TRUE@am__append_182 = -lsocket
++@BUILD_PLUGIN_MBMON_TRUE@am__append_183 = "-dlopen" mbmon.la
++@BUILD_PLUGIN_MBMON_TRUE@am__append_184 = mbmon.la
++@BUILD_PLUGIN_MD_TRUE@am__append_185 = md.la
++@BUILD_PLUGIN_MD_TRUE@am__append_186 = "-dlopen" md.la
++@BUILD_PLUGIN_MD_TRUE@am__append_187 = md.la
++@BUILD_PLUGIN_MEMCACHEC_TRUE@am__append_188 = memcachec.la
++@BUILD_PLUGIN_MEMCACHEC_TRUE@am__append_189 = "-dlopen" memcachec.la
++@BUILD_PLUGIN_MEMCACHEC_TRUE@am__append_190 = memcachec.la
++@BUILD_PLUGIN_MEMCACHED_TRUE@am__append_191 = memcached.la
++@BUILD_PLUGIN_MEMCACHED_TRUE@@BUILD_WITH_LIBSOCKET_TRUE@am__append_192 = -lsocket
++@BUILD_PLUGIN_MEMCACHED_TRUE@am__append_193 = "-dlopen" memcached.la
++@BUILD_PLUGIN_MEMCACHED_TRUE@am__append_194 = memcached.la
++@BUILD_PLUGIN_MEMORY_TRUE@am__append_195 = memory.la
++@BUILD_PLUGIN_MEMORY_TRUE@am__append_196 = "-dlopen" memory.la
++@BUILD_PLUGIN_MEMORY_TRUE@am__append_197 = memory.la
++@BUILD_PLUGIN_MEMORY_TRUE@@BUILD_WITH_LIBKSTAT_TRUE@am__append_198 = -lkstat
++@BUILD_PLUGIN_MEMORY_TRUE@@BUILD_WITH_LIBDEVINFO_TRUE@am__append_199 = -ldevinfo
++@BUILD_PLUGIN_MEMORY_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_200 = $(BUILD_WITH_LIBSTATGRAB_CFLAGS)
++@BUILD_PLUGIN_MEMORY_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_201 = $(BUILD_WITH_LIBSTATGRAB_LDFLAGS)
++@BUILD_PLUGIN_MEMORY_TRUE@@BUILD_WITH_PERFSTAT_TRUE@am__append_202 = -lperfstat
++@BUILD_PLUGIN_MODBUS_TRUE@am__append_203 = modbus.la
++@BUILD_PLUGIN_MODBUS_TRUE@am__append_204 = "-dlopen" modbus.la
++@BUILD_PLUGIN_MODBUS_TRUE@am__append_205 = modbus.la
++@BUILD_PLUGIN_MULTIMETER_TRUE@am__append_206 = multimeter.la
++@BUILD_PLUGIN_MULTIMETER_TRUE@am__append_207 = "-dlopen" multimeter.la
++@BUILD_PLUGIN_MULTIMETER_TRUE@am__append_208 = multimeter.la
++@BUILD_PLUGIN_MYSQL_TRUE@am__append_209 = mysql.la
++@BUILD_PLUGIN_MYSQL_TRUE@am__append_210 = "-dlopen" mysql.la
++@BUILD_PLUGIN_MYSQL_TRUE@@BUILD_WITH_LIBMYSQL_TRUE@am__append_211 = $(BUILD_WITH_LIBMYSQL_CFLAGS)
++@BUILD_PLUGIN_MYSQL_TRUE@@BUILD_WITH_LIBMYSQL_TRUE@am__append_212 = $(BUILD_WITH_LIBMYSQL_LIBS)
++@BUILD_PLUGIN_MYSQL_TRUE@am__append_213 = mysql.la
++@BUILD_PLUGIN_NETAPP_TRUE@am__append_214 = netapp.la
++@BUILD_PLUGIN_NETAPP_TRUE@am__append_215 = "-dlopen" netapp.la
++@BUILD_PLUGIN_NETAPP_TRUE@am__append_216 = netapp.la
++@BUILD_PLUGIN_NETLINK_TRUE@am__append_217 = netlink.la
++@BUILD_PLUGIN_NETLINK_TRUE@am__append_218 = "-dlopen" netlink.la
++@BUILD_PLUGIN_NETLINK_TRUE@am__append_219 = netlink.la
++@BUILD_PLUGIN_NETWORK_TRUE@am__append_220 = network.la
++@BUILD_PLUGIN_NETWORK_TRUE@@BUILD_WITH_LIBSOCKET_TRUE@am__append_221 = -lsocket
++@BUILD_PLUGIN_NETWORK_TRUE@@BUILD_WITH_LIBGCRYPT_TRUE@am__append_222 = $(GCRYPT_CPPFLAGS)
++@BUILD_PLUGIN_NETWORK_TRUE@@BUILD_WITH_LIBGCRYPT_TRUE@am__append_223 = $(GCRYPT_LDFLAGS)
++@BUILD_PLUGIN_NETWORK_TRUE@@BUILD_WITH_LIBGCRYPT_TRUE@am__append_224 = $(GCRYPT_LIBS)
++@BUILD_PLUGIN_NETWORK_TRUE@am__append_225 = "-dlopen" network.la
++@BUILD_PLUGIN_NETWORK_TRUE@am__append_226 = network.la
++@BUILD_PLUGIN_NFS_TRUE@am__append_227 = nfs.la
++@BUILD_PLUGIN_NFS_TRUE@am__append_228 = "-dlopen" nfs.la
++@BUILD_PLUGIN_NFS_TRUE@am__append_229 = nfs.la
++@BUILD_PLUGIN_FSCACHE_TRUE@am__append_230 = fscache.la
++@BUILD_PLUGIN_FSCACHE_TRUE@am__append_231 = "-dlopen" fscache.la
++@BUILD_PLUGIN_FSCACHE_TRUE@am__append_232 = fscache.la
++@BUILD_PLUGIN_NGINX_TRUE@am__append_233 = nginx.la
++@BUILD_PLUGIN_NGINX_TRUE@@BUILD_WITH_LIBCURL_TRUE@am__append_234 = $(BUILD_WITH_LIBCURL_CFLAGS)
++@BUILD_PLUGIN_NGINX_TRUE@@BUILD_WITH_LIBCURL_TRUE@am__append_235 = $(BUILD_WITH_LIBCURL_LIBS)
++@BUILD_PLUGIN_NGINX_TRUE@am__append_236 = "-dlopen" nginx.la
++@BUILD_PLUGIN_NGINX_TRUE@am__append_237 = nginx.la
++@BUILD_PLUGIN_NOTIFY_DESKTOP_TRUE@am__append_238 = notify_desktop.la
++@BUILD_PLUGIN_NOTIFY_DESKTOP_TRUE@am__append_239 = "-dlopen" notify_desktop.la
++@BUILD_PLUGIN_NOTIFY_DESKTOP_TRUE@am__append_240 = notify_desktop.la
++@BUILD_PLUGIN_NOTIFY_EMAIL_TRUE@am__append_241 = notify_email.la
++@BUILD_PLUGIN_NOTIFY_EMAIL_TRUE@am__append_242 = "-dlopen" notify_email.la
++@BUILD_PLUGIN_NOTIFY_EMAIL_TRUE@am__append_243 = notify_email.la
++@BUILD_PLUGIN_NTPD_TRUE@am__append_244 = ntpd.la
++@BUILD_PLUGIN_NTPD_TRUE@@BUILD_WITH_LIBSOCKET_TRUE@am__append_245 = -lsocket
++@BUILD_PLUGIN_NTPD_TRUE@am__append_246 = "-dlopen" ntpd.la
++@BUILD_PLUGIN_NTPD_TRUE@am__append_247 = ntpd.la
++@BUILD_PLUGIN_NUMA_TRUE@am__append_248 = numa.la
++@BUILD_PLUGIN_NUMA_TRUE@am__append_249 = "-dlopen" numa.la
++@BUILD_PLUGIN_NUMA_TRUE@am__append_250 = numa.la
++@BUILD_PLUGIN_NUT_TRUE@am__append_251 = nut.la
++@BUILD_PLUGIN_NUT_TRUE@am__append_252 = "-dlopen" nut.la
++@BUILD_PLUGIN_NUT_TRUE@am__append_253 = nut.la
++@BUILD_PLUGIN_OLSRD_TRUE@am__append_254 = olsrd.la
++@BUILD_PLUGIN_OLSRD_TRUE@@BUILD_WITH_LIBSOCKET_TRUE@am__append_255 = -lsocket
++@BUILD_PLUGIN_OLSRD_TRUE@am__append_256 = "-dlopen" olsrd.la
++@BUILD_PLUGIN_OLSRD_TRUE@am__append_257 = olsrd.la
++@BUILD_PLUGIN_ONEWIRE_TRUE@am__append_258 = onewire.la
++@BUILD_PLUGIN_ONEWIRE_TRUE@am__append_259 = "-dlopen" onewire.la
++@BUILD_PLUGIN_ONEWIRE_TRUE@am__append_260 = onewire.la
++@BUILD_PLUGIN_OPENVPN_TRUE@am__append_261 = openvpn.la
++@BUILD_PLUGIN_OPENVPN_TRUE@am__append_262 = "-dlopen" openvpn.la
++@BUILD_PLUGIN_OPENVPN_TRUE@am__append_263 = openvpn.la
++@BUILD_PLUGIN_ORACLE_TRUE@am__append_264 = oracle.la
++@BUILD_PLUGIN_ORACLE_TRUE@am__append_265 = "-dlopen" oracle.la
++@BUILD_PLUGIN_ORACLE_TRUE@am__append_266 = oracle.la
++@BUILD_PLUGIN_PERL_TRUE@am__append_267 = perl.la
+ # Work-around for issues #41 and #42 - Perl 5.10 incorrectly introduced
+ # __attribute__nonnull__(3) for Perl_load_module().
+-@BUILD_PLUGIN_PERL_TRUE@@HAVE_BROKEN_PERL_LOAD_MODULE_TRUE@am__append_267 = -Wno-nonnull
+-@BUILD_PLUGIN_PERL_TRUE@am__append_268 = "-dlopen" perl.la
+-@BUILD_PLUGIN_PERL_TRUE@am__append_269 = perl.la
+-@BUILD_PLUGIN_PF_TRUE@am__append_270 = pf.la
+-@BUILD_PLUGIN_PF_TRUE@am__append_271 = "-dlopen" pf.la
+-@BUILD_PLUGIN_PF_TRUE@am__append_272 = pf.la
+-@BUILD_PLUGIN_PINBA_TRUE@am__append_273 = pinba.pb-c.c pinba.pb-c.h
++@BUILD_PLUGIN_PERL_TRUE@@HAVE_BROKEN_PERL_LOAD_MODULE_TRUE@am__append_268 = -Wno-nonnull
++@BUILD_PLUGIN_PERL_TRUE@am__append_269 = "-dlopen" perl.la
++@BUILD_PLUGIN_PERL_TRUE@am__append_270 = perl.la
++@BUILD_PLUGIN_PF_TRUE@am__append_271 = pf.la
++@BUILD_PLUGIN_PF_TRUE@am__append_272 = "-dlopen" pf.la
++@BUILD_PLUGIN_PF_TRUE@am__append_273 = pf.la
+ @BUILD_PLUGIN_PINBA_TRUE@am__append_274 = pinba.pb-c.c pinba.pb-c.h
+-@BUILD_PLUGIN_PINBA_TRUE@am__append_275 = pinba.la
+-@BUILD_PLUGIN_PINBA_TRUE@am__append_276 = "-dlopen" pinba.la
+-@BUILD_PLUGIN_PINBA_TRUE@am__append_277 = pinba.la
+-@BUILD_PLUGIN_PING_TRUE@am__append_278 = ping.la
+-@BUILD_PLUGIN_PING_TRUE@am__append_279 = "-dlopen" ping.la
+-@BUILD_PLUGIN_PING_TRUE@am__append_280 = ping.la
+-@BUILD_PLUGIN_POSTGRESQL_TRUE@am__append_281 = postgresql.la
+-@BUILD_PLUGIN_POSTGRESQL_TRUE@am__append_282 = "-dlopen" postgresql.la
+-@BUILD_PLUGIN_POSTGRESQL_TRUE@am__append_283 = postgresql.la
+-@BUILD_PLUGIN_POWERDNS_TRUE@am__append_284 = powerdns.la
+-@BUILD_PLUGIN_POWERDNS_TRUE@am__append_285 = "-dlopen" powerdns.la
+-@BUILD_PLUGIN_POWERDNS_TRUE@am__append_286 = powerdns.la
+-@BUILD_PLUGIN_PYTHON_TRUE@am__append_287 = python.la
+-@BUILD_PLUGIN_PYTHON_TRUE@@COMPILER_IS_GCC_TRUE@am__append_288 = -fno-strict-aliasing -Wno-strict-aliasing
+-@BUILD_PLUGIN_PYTHON_TRUE@am__append_289 = "-dlopen" python.la
+-@BUILD_PLUGIN_PYTHON_TRUE@am__append_290 = python.la
+-@BUILD_PLUGIN_PROCESSES_TRUE@am__append_291 = processes.la
+-@BUILD_PLUGIN_PROCESSES_TRUE@am__append_292 = "-dlopen" processes.la
+-@BUILD_PLUGIN_PROCESSES_TRUE@am__append_293 = processes.la
+-@BUILD_PLUGIN_PROCESSES_TRUE@@BUILD_WITH_LIBKVM_GETPROCS_TRUE@am__append_294 = -lkvm
+-@BUILD_PLUGIN_PROTOCOLS_TRUE@am__append_295 = protocols.la
+-@BUILD_PLUGIN_PROTOCOLS_TRUE@am__append_296 = "-dlopen" protocols.la
+-@BUILD_PLUGIN_PROTOCOLS_TRUE@am__append_297 = protocols.la
+-@BUILD_PLUGIN_REDIS_TRUE@am__append_298 = redis.la
+-@BUILD_PLUGIN_REDIS_TRUE@am__append_299 = "-dlopen" redis.la
+-@BUILD_PLUGIN_REDIS_TRUE@am__append_300 = redis.la
+-@BUILD_PLUGIN_ROUTEROS_TRUE@am__append_301 = routeros.la
+-@BUILD_PLUGIN_ROUTEROS_TRUE@am__append_302 = "-dlopen" routeros.la
+-@BUILD_PLUGIN_ROUTEROS_TRUE@am__append_303 = routeros.la
+-@BUILD_PLUGIN_RRDCACHED_TRUE@am__append_304 = rrdcached.la
+-@BUILD_PLUGIN_RRDCACHED_TRUE@am__append_305 = "-dlopen" rrdcached.la
+-@BUILD_PLUGIN_RRDCACHED_TRUE@am__append_306 = rrdcached.la
+-@BUILD_PLUGIN_RRDTOOL_TRUE@am__append_307 = rrdtool.la
+-@BUILD_PLUGIN_RRDTOOL_TRUE@am__append_308 = "-dlopen" rrdtool.la
+-@BUILD_PLUGIN_RRDTOOL_TRUE@am__append_309 = rrdtool.la
+-@BUILD_PLUGIN_SENSORS_TRUE@am__append_310 = sensors.la
+-@BUILD_PLUGIN_SENSORS_TRUE@am__append_311 = "-dlopen" sensors.la
+-@BUILD_PLUGIN_SENSORS_TRUE@am__append_312 = sensors.la
+-@BUILD_PLUGIN_SERIAL_TRUE@am__append_313 = serial.la
+-@BUILD_PLUGIN_SERIAL_TRUE@am__append_314 = "-dlopen" serial.la
+-@BUILD_PLUGIN_SERIAL_TRUE@am__append_315 = serial.la
+-@BUILD_PLUGIN_SNMP_TRUE@am__append_316 = snmp.la
+-@BUILD_PLUGIN_SNMP_TRUE@@BUILD_WITH_LIBNETSNMP_TRUE@am__append_317 = $(BUILD_WITH_LIBSNMP_CFLAGS)
+-@BUILD_PLUGIN_SNMP_TRUE@@BUILD_WITH_LIBNETSNMP_TRUE@am__append_318 = $(BUILD_WITH_LIBSNMP_LIBS)
+-@BUILD_PLUGIN_SNMP_TRUE@@BUILD_WITH_LIBPTHREAD_TRUE@am__append_319 = -lpthread
+-@BUILD_PLUGIN_SNMP_TRUE@am__append_320 = "-dlopen" snmp.la
+-@BUILD_PLUGIN_SNMP_TRUE@am__append_321 = snmp.la
+-@BUILD_PLUGIN_SWAP_TRUE@am__append_322 = swap.la
+-@BUILD_PLUGIN_SWAP_TRUE@am__append_323 = "-dlopen" swap.la
+-@BUILD_PLUGIN_SWAP_TRUE@am__append_324 = swap.la
+-@BUILD_PLUGIN_SWAP_TRUE@@BUILD_WITH_LIBKSTAT_TRUE@am__append_325 = -lkstat
+-@BUILD_PLUGIN_SWAP_TRUE@@BUILD_WITH_LIBDEVINFO_TRUE@am__append_326 = -ldevinfo
+-@BUILD_PLUGIN_SWAP_TRUE@@BUILD_WITH_LIBKVM_GETSWAPINFO_TRUE@am__append_327 = -lkvm
+-@BUILD_PLUGIN_SWAP_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_328 = $(BUILD_WITH_LIBSTATGRAB_CFLAGS)
+-@BUILD_PLUGIN_SWAP_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_329 = $(BUILD_WITH_LIBSTATGRAB_LDFLAGS)
+-@BUILD_PLUGIN_SWAP_TRUE@@BUILD_WITH_PERFSTAT_TRUE@am__append_330 = -lperfstat
+-@BUILD_PLUGIN_SYSLOG_TRUE@am__append_331 = syslog.la
+-@BUILD_PLUGIN_SYSLOG_TRUE@am__append_332 = "-dlopen" syslog.la
+-@BUILD_PLUGIN_SYSLOG_TRUE@am__append_333 = syslog.la
+-@BUILD_PLUGIN_TABLE_TRUE@am__append_334 = table.la
+-@BUILD_PLUGIN_TABLE_TRUE@am__append_335 = "-dlopen" table.la
+-@BUILD_PLUGIN_TABLE_TRUE@am__append_336 = table.la
+-@BUILD_PLUGIN_TAIL_TRUE@am__append_337 = tail.la
+-@BUILD_PLUGIN_TAIL_TRUE@am__append_338 = "-dlopen" tail.la
+-@BUILD_PLUGIN_TAIL_TRUE@am__append_339 = tail.la
+-@BUILD_PLUGIN_TAPE_TRUE@am__append_340 = tape.la
+-@BUILD_PLUGIN_TAPE_TRUE@am__append_341 = "-dlopen" tape.la
+-@BUILD_PLUGIN_TAPE_TRUE@am__append_342 = tape.la
+-@BUILD_PLUGIN_TARGET_NOTIFICATION_TRUE@am__append_343 = target_notification.la
+-@BUILD_PLUGIN_TARGET_NOTIFICATION_TRUE@am__append_344 = "-dlopen" target_notification.la
+-@BUILD_PLUGIN_TARGET_NOTIFICATION_TRUE@am__append_345 = target_notification.la
+-@BUILD_PLUGIN_TARGET_REPLACE_TRUE@am__append_346 = target_replace.la
+-@BUILD_PLUGIN_TARGET_REPLACE_TRUE@am__append_347 = "-dlopen" target_replace.la
+-@BUILD_PLUGIN_TARGET_REPLACE_TRUE@am__append_348 = target_replace.la
+-@BUILD_PLUGIN_TARGET_SCALE_TRUE@am__append_349 = target_scale.la
+-@BUILD_PLUGIN_TARGET_SCALE_TRUE@am__append_350 = "-dlopen" target_scale.la
+-@BUILD_PLUGIN_TARGET_SCALE_TRUE@am__append_351 = target_scale.la
+-@BUILD_PLUGIN_TARGET_SET_TRUE@am__append_352 = target_set.la
+-@BUILD_PLUGIN_TARGET_SET_TRUE@am__append_353 = "-dlopen" target_set.la
+-@BUILD_PLUGIN_TARGET_SET_TRUE@am__append_354 = target_set.la
+-@BUILD_PLUGIN_TARGET_V5UPGRADE_TRUE@am__append_355 = target_v5upgrade.la
+-@BUILD_PLUGIN_TARGET_V5UPGRADE_TRUE@am__append_356 = "-dlopen" target_v5upgrade.la
+-@BUILD_PLUGIN_TARGET_V5UPGRADE_TRUE@am__append_357 = target_v5upgrade.la
+-@BUILD_PLUGIN_TCPCONNS_TRUE@am__append_358 = tcpconns.la
+-@BUILD_PLUGIN_TCPCONNS_TRUE@am__append_359 = "-dlopen" tcpconns.la
+-@BUILD_PLUGIN_TCPCONNS_TRUE@am__append_360 = tcpconns.la
+-@BUILD_PLUGIN_TCPCONNS_TRUE@@BUILD_WITH_LIBKVM_NLIST_TRUE@am__append_361 = -lkvm
+-@BUILD_PLUGIN_TEAMSPEAK2_TRUE@am__append_362 = teamspeak2.la
+-@BUILD_PLUGIN_TEAMSPEAK2_TRUE@am__append_363 = "-dlopen" teamspeak2.la
+-@BUILD_PLUGIN_TEAMSPEAK2_TRUE@am__append_364 = teamspeak2.la
+-@BUILD_PLUGIN_TED_TRUE@am__append_365 = ted.la
+-@BUILD_PLUGIN_TED_TRUE@am__append_366 = "-dlopen" ted.la
+-@BUILD_PLUGIN_TED_TRUE@am__append_367 = ted.la
+-@BUILD_PLUGIN_THERMAL_TRUE@am__append_368 = thermal.la
+-@BUILD_PLUGIN_THERMAL_TRUE@am__append_369 = "-dlopen" thermal.la
+-@BUILD_PLUGIN_THERMAL_TRUE@am__append_370 = thermal.la
+-@BUILD_PLUGIN_THRESHOLD_TRUE@am__append_371 = threshold.la
+-@BUILD_PLUGIN_THRESHOLD_TRUE@am__append_372 = "-dlopen" threshold.la
+-@BUILD_PLUGIN_THRESHOLD_TRUE@am__append_373 = threshold.la
+-@BUILD_PLUGIN_TOKYOTYRANT_TRUE@am__append_374 = tokyotyrant.la
+-@BUILD_PLUGIN_TOKYOTYRANT_TRUE@@BUILD_WITH_LIBSOCKET_TRUE@am__append_375 = -lsocket
+-@BUILD_PLUGIN_TOKYOTYRANT_TRUE@am__append_376 = "-dlopen" tokyotyrant.la
+-@BUILD_PLUGIN_TOKYOTYRANT_TRUE@am__append_377 = tokyotyrant.la
+-@BUILD_PLUGIN_UNIXSOCK_TRUE@am__append_378 = unixsock.la
+-@BUILD_PLUGIN_UNIXSOCK_TRUE@am__append_379 = "-dlopen" unixsock.la
+-@BUILD_PLUGIN_UNIXSOCK_TRUE@am__append_380 = unixsock.la
+-@BUILD_PLUGIN_UPTIME_TRUE@am__append_381 = uptime.la
+-@BUILD_PLUGIN_UPTIME_TRUE@@BUILD_WITH_LIBKSTAT_TRUE@am__append_382 = -lkstat
+-@BUILD_PLUGIN_UPTIME_TRUE@@BUILD_WITH_PERFSTAT_TRUE@am__append_383 = -lperfstat
+-@BUILD_PLUGIN_UPTIME_TRUE@am__append_384 = "-dlopen" uptime.la
+-@BUILD_PLUGIN_UPTIME_TRUE@am__append_385 = uptime.la
+-@BUILD_PLUGIN_USERS_TRUE@am__append_386 = users.la
+-@BUILD_PLUGIN_USERS_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_387 = $(BUILD_WITH_LIBSTATGRAB_CFLAGS)
+-@BUILD_PLUGIN_USERS_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_388 = $(BUILD_WITH_LIBSTATGRAB_LDFLAGS)
+-@BUILD_PLUGIN_USERS_TRUE@am__append_389 = "-dlopen" users.la
+-@BUILD_PLUGIN_USERS_TRUE@am__append_390 = users.la
+-@BUILD_PLUGIN_UUID_TRUE@am__append_391 = uuid.la
+-@BUILD_PLUGIN_UUID_TRUE@am__append_392 = "-dlopen" uuid.la
+-@BUILD_PLUGIN_UUID_TRUE@am__append_393 = uuid.la
+-@BUILD_PLUGIN_VARNISH_TRUE@am__append_394 = varnish.la
+-@BUILD_PLUGIN_VARNISH_TRUE@am__append_395 = "-dlopen" varnish.la
+-@BUILD_PLUGIN_VARNISH_TRUE@am__append_396 = varnish.la
+-@BUILD_PLUGIN_VMEM_TRUE@am__append_397 = vmem.la
+-@BUILD_PLUGIN_VMEM_TRUE@am__append_398 = "-dlopen" vmem.la
+-@BUILD_PLUGIN_VMEM_TRUE@am__append_399 = vmem.la
+-@BUILD_PLUGIN_VSERVER_TRUE@am__append_400 = vserver.la
+-@BUILD_PLUGIN_VSERVER_TRUE@am__append_401 = "-dlopen" vserver.la
+-@BUILD_PLUGIN_VSERVER_TRUE@am__append_402 = vserver.la
+-@BUILD_PLUGIN_WIRELESS_TRUE@am__append_403 = wireless.la
+-@BUILD_PLUGIN_WIRELESS_TRUE@am__append_404 = "-dlopen" wireless.la
+-@BUILD_PLUGIN_WIRELESS_TRUE@am__append_405 = wireless.la
+-@BUILD_PLUGIN_WRITE_GRAPHITE_TRUE@am__append_406 = write_graphite.la
+-@BUILD_PLUGIN_WRITE_GRAPHITE_TRUE@am__append_407 = "-dlopen" write_graphite.la
+-@BUILD_PLUGIN_WRITE_GRAPHITE_TRUE@am__append_408 = write_graphite.la
+-@BUILD_PLUGIN_WRITE_HTTP_TRUE@am__append_409 = write_http.la
+-@BUILD_PLUGIN_WRITE_HTTP_TRUE@am__append_410 = "-dlopen" write_http.la
+-@BUILD_PLUGIN_WRITE_HTTP_TRUE@@BUILD_WITH_LIBCURL_TRUE@am__append_411 = $(BUILD_WITH_LIBCURL_CFLAGS)
+-@BUILD_PLUGIN_WRITE_HTTP_TRUE@@BUILD_WITH_LIBCURL_TRUE@am__append_412 = $(BUILD_WITH_LIBCURL_LIBS)
+-@BUILD_PLUGIN_WRITE_HTTP_TRUE@am__append_413 = write_http.la
+-@BUILD_PLUGIN_WRITE_MONGODB_TRUE@am__append_414 = write_mongodb.la
+-@BUILD_PLUGIN_WRITE_MONGODB_TRUE@am__append_415 = "-dlopen" write_mongodb.la
+-@BUILD_PLUGIN_WRITE_MONGODB_TRUE@am__append_416 = write_mongodb.la
+-@BUILD_PLUGIN_WRITE_REDIS_TRUE@am__append_417 = write_redis.la
+-@BUILD_PLUGIN_WRITE_REDIS_TRUE@am__append_418 = "-dlopen" write_redis.la
+-@BUILD_PLUGIN_WRITE_REDIS_TRUE@am__append_419 = write_redis.la
+-@BUILD_PLUGIN_XMMS_TRUE@am__append_420 = xmms.la
+-@BUILD_PLUGIN_XMMS_TRUE@am__append_421 = "-dlopen" xmms.la
+-@BUILD_PLUGIN_XMMS_TRUE@am__append_422 = xmms.la
+-@BUILD_PLUGIN_ZFS_ARC_TRUE@am__append_423 = zfs_arc.la
+-@BUILD_PLUGIN_ZFS_ARC_TRUE@am__append_424 = "-dlopen" zfs_arc.la
+-@BUILD_PLUGIN_ZFS_ARC_TRUE@am__append_425 = zfs_arc.la
+-@BUILD_FEATURE_DEBUG_TRUE@am__append_426 = utils_vl_lookup_test
++@BUILD_PLUGIN_PINBA_TRUE@am__append_275 = pinba.pb-c.c pinba.pb-c.h
++@BUILD_PLUGIN_PINBA_TRUE@am__append_276 = pinba.la
++@BUILD_PLUGIN_PINBA_TRUE@am__append_277 = "-dlopen" pinba.la
++@BUILD_PLUGIN_PINBA_TRUE@am__append_278 = pinba.la
++@BUILD_PLUGIN_PING_TRUE@am__append_279 = ping.la
++@BUILD_PLUGIN_PING_TRUE@am__append_280 = "-dlopen" ping.la
++@BUILD_PLUGIN_PING_TRUE@am__append_281 = ping.la
++@BUILD_PLUGIN_POSTGRESQL_TRUE@am__append_282 = postgresql.la
++@BUILD_PLUGIN_POSTGRESQL_TRUE@am__append_283 = "-dlopen" postgresql.la
++@BUILD_PLUGIN_POSTGRESQL_TRUE@am__append_284 = postgresql.la
++@BUILD_PLUGIN_POWERDNS_TRUE@am__append_285 = powerdns.la
++@BUILD_PLUGIN_POWERDNS_TRUE@am__append_286 = "-dlopen" powerdns.la
++@BUILD_PLUGIN_POWERDNS_TRUE@am__append_287 = powerdns.la
++@BUILD_PLUGIN_PYTHON_TRUE@am__append_288 = python.la
++@BUILD_PLUGIN_PYTHON_TRUE@@COMPILER_IS_GCC_TRUE@am__append_289 = -fno-strict-aliasing -Wno-strict-aliasing
++@BUILD_PLUGIN_PYTHON_TRUE@am__append_290 = "-dlopen" python.la
++@BUILD_PLUGIN_PYTHON_TRUE@am__append_291 = python.la
++@BUILD_PLUGIN_PROCESSES_TRUE@am__append_292 = processes.la
++@BUILD_PLUGIN_PROCESSES_TRUE@am__append_293 = "-dlopen" processes.la
++@BUILD_PLUGIN_PROCESSES_TRUE@am__append_294 = processes.la
++@BUILD_PLUGIN_PROCESSES_TRUE@@BUILD_WITH_LIBKVM_GETPROCS_TRUE@am__append_295 = -lkvm
++@BUILD_PLUGIN_PROTOCOLS_TRUE@am__append_296 = protocols.la
++@BUILD_PLUGIN_PROTOCOLS_TRUE@am__append_297 = "-dlopen" protocols.la
++@BUILD_PLUGIN_PROTOCOLS_TRUE@am__append_298 = protocols.la
++@BUILD_PLUGIN_REDIS_TRUE@am__append_299 = redis.la
++@BUILD_PLUGIN_REDIS_TRUE@am__append_300 = "-dlopen" redis.la
++@BUILD_PLUGIN_REDIS_TRUE@am__append_301 = redis.la
++@BUILD_PLUGIN_ROUTEROS_TRUE@am__append_302 = routeros.la
++@BUILD_PLUGIN_ROUTEROS_TRUE@am__append_303 = "-dlopen" routeros.la
++@BUILD_PLUGIN_ROUTEROS_TRUE@am__append_304 = routeros.la
++@BUILD_PLUGIN_RRDCACHED_TRUE@am__append_305 = rrdcached.la
++@BUILD_PLUGIN_RRDCACHED_TRUE@am__append_306 = "-dlopen" rrdcached.la
++@BUILD_PLUGIN_RRDCACHED_TRUE@am__append_307 = rrdcached.la
++@BUILD_PLUGIN_RRDTOOL_TRUE@am__append_308 = rrdtool.la
++@BUILD_PLUGIN_RRDTOOL_TRUE@am__append_309 = "-dlopen" rrdtool.la
++@BUILD_PLUGIN_RRDTOOL_TRUE@am__append_310 = rrdtool.la
++@BUILD_PLUGIN_SENSORS_TRUE@am__append_311 = sensors.la
++@BUILD_PLUGIN_SENSORS_TRUE@am__append_312 = "-dlopen" sensors.la
++@BUILD_PLUGIN_SENSORS_TRUE@am__append_313 = sensors.la
++@BUILD_PLUGIN_SERIAL_TRUE@am__append_314 = serial.la
++@BUILD_PLUGIN_SERIAL_TRUE@am__append_315 = "-dlopen" serial.la
++@BUILD_PLUGIN_SERIAL_TRUE@am__append_316 = serial.la
++@BUILD_PLUGIN_SNMP_TRUE@am__append_317 = snmp.la
++@BUILD_PLUGIN_SNMP_TRUE@@BUILD_WITH_LIBNETSNMP_TRUE@am__append_318 = $(BUILD_WITH_LIBSNMP_CFLAGS)
++@BUILD_PLUGIN_SNMP_TRUE@@BUILD_WITH_LIBNETSNMP_TRUE@am__append_319 = $(BUILD_WITH_LIBSNMP_LIBS)
++@BUILD_PLUGIN_SNMP_TRUE@@BUILD_WITH_LIBPTHREAD_TRUE@am__append_320 = -lpthread
++@BUILD_PLUGIN_SNMP_TRUE@am__append_321 = "-dlopen" snmp.la
++@BUILD_PLUGIN_SNMP_TRUE@am__append_322 = snmp.la
++@BUILD_PLUGIN_SWAP_TRUE@am__append_323 = swap.la
++@BUILD_PLUGIN_SWAP_TRUE@am__append_324 = "-dlopen" swap.la
++@BUILD_PLUGIN_SWAP_TRUE@am__append_325 = swap.la
++@BUILD_PLUGIN_SWAP_TRUE@@BUILD_WITH_LIBKSTAT_TRUE@am__append_326 = -lkstat
++@BUILD_PLUGIN_SWAP_TRUE@@BUILD_WITH_LIBDEVINFO_TRUE@am__append_327 = -ldevinfo
++@BUILD_PLUGIN_SWAP_TRUE@@BUILD_WITH_LIBKVM_GETSWAPINFO_TRUE@am__append_328 = -lkvm
++@BUILD_PLUGIN_SWAP_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_329 = $(BUILD_WITH_LIBSTATGRAB_CFLAGS)
++@BUILD_PLUGIN_SWAP_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_330 = $(BUILD_WITH_LIBSTATGRAB_LDFLAGS)
++@BUILD_PLUGIN_SWAP_TRUE@@BUILD_WITH_PERFSTAT_TRUE@am__append_331 = -lperfstat
++@BUILD_PLUGIN_SYSLOG_TRUE@am__append_332 = syslog.la
++@BUILD_PLUGIN_SYSLOG_TRUE@am__append_333 = "-dlopen" syslog.la
++@BUILD_PLUGIN_SYSLOG_TRUE@am__append_334 = syslog.la
++@BUILD_PLUGIN_TABLE_TRUE@am__append_335 = table.la
++@BUILD_PLUGIN_TABLE_TRUE@am__append_336 = "-dlopen" table.la
++@BUILD_PLUGIN_TABLE_TRUE@am__append_337 = table.la
++@BUILD_PLUGIN_TAIL_TRUE@am__append_338 = tail.la
++@BUILD_PLUGIN_TAIL_TRUE@am__append_339 = "-dlopen" tail.la
++@BUILD_PLUGIN_TAIL_TRUE@am__append_340 = tail.la
++@BUILD_PLUGIN_TAPE_TRUE@am__append_341 = tape.la
++@BUILD_PLUGIN_TAPE_TRUE@am__append_342 = "-dlopen" tape.la
++@BUILD_PLUGIN_TAPE_TRUE@am__append_343 = tape.la
++@BUILD_PLUGIN_TARGET_NOTIFICATION_TRUE@am__append_344 = target_notification.la
++@BUILD_PLUGIN_TARGET_NOTIFICATION_TRUE@am__append_345 = "-dlopen" target_notification.la
++@BUILD_PLUGIN_TARGET_NOTIFICATION_TRUE@am__append_346 = target_notification.la
++@BUILD_PLUGIN_TARGET_REPLACE_TRUE@am__append_347 = target_replace.la
++@BUILD_PLUGIN_TARGET_REPLACE_TRUE@am__append_348 = "-dlopen" target_replace.la
++@BUILD_PLUGIN_TARGET_REPLACE_TRUE@am__append_349 = target_replace.la
++@BUILD_PLUGIN_TARGET_SCALE_TRUE@am__append_350 = target_scale.la
++@BUILD_PLUGIN_TARGET_SCALE_TRUE@am__append_351 = "-dlopen" target_scale.la
++@BUILD_PLUGIN_TARGET_SCALE_TRUE@am__append_352 = target_scale.la
++@BUILD_PLUGIN_TARGET_SET_TRUE@am__append_353 = target_set.la
++@BUILD_PLUGIN_TARGET_SET_TRUE@am__append_354 = "-dlopen" target_set.la
++@BUILD_PLUGIN_TARGET_SET_TRUE@am__append_355 = target_set.la
++@BUILD_PLUGIN_TARGET_V5UPGRADE_TRUE@am__append_356 = target_v5upgrade.la
++@BUILD_PLUGIN_TARGET_V5UPGRADE_TRUE@am__append_357 = "-dlopen" target_v5upgrade.la
++@BUILD_PLUGIN_TARGET_V5UPGRADE_TRUE@am__append_358 = target_v5upgrade.la
++@BUILD_PLUGIN_TCPCONNS_TRUE@am__append_359 = tcpconns.la
++@BUILD_PLUGIN_TCPCONNS_TRUE@am__append_360 = "-dlopen" tcpconns.la
++@BUILD_PLUGIN_TCPCONNS_TRUE@am__append_361 = tcpconns.la
++@BUILD_PLUGIN_TCPCONNS_TRUE@@BUILD_WITH_LIBKVM_NLIST_TRUE@am__append_362 = -lkvm
++@BUILD_PLUGIN_TEAMSPEAK2_TRUE@am__append_363 = teamspeak2.la
++@BUILD_PLUGIN_TEAMSPEAK2_TRUE@am__append_364 = "-dlopen" teamspeak2.la
++@BUILD_PLUGIN_TEAMSPEAK2_TRUE@am__append_365 = teamspeak2.la
++@BUILD_PLUGIN_TED_TRUE@am__append_366 = ted.la
++@BUILD_PLUGIN_TED_TRUE@am__append_367 = "-dlopen" ted.la
++@BUILD_PLUGIN_TED_TRUE@am__append_368 = ted.la
++@BUILD_PLUGIN_THERMAL_TRUE@am__append_369 = thermal.la
++@BUILD_PLUGIN_THERMAL_TRUE@am__append_370 = "-dlopen" thermal.la
++@BUILD_PLUGIN_THERMAL_TRUE@am__append_371 = thermal.la
++@BUILD_PLUGIN_THRESHOLD_TRUE@am__append_372 = threshold.la
++@BUILD_PLUGIN_THRESHOLD_TRUE@am__append_373 = "-dlopen" threshold.la
++@BUILD_PLUGIN_THRESHOLD_TRUE@am__append_374 = threshold.la
++@BUILD_PLUGIN_TOKYOTYRANT_TRUE@am__append_375 = tokyotyrant.la
++@BUILD_PLUGIN_TOKYOTYRANT_TRUE@@BUILD_WITH_LIBSOCKET_TRUE@am__append_376 = -lsocket
++@BUILD_PLUGIN_TOKYOTYRANT_TRUE@am__append_377 = "-dlopen" tokyotyrant.la
++@BUILD_PLUGIN_TOKYOTYRANT_TRUE@am__append_378 = tokyotyrant.la
++@BUILD_PLUGIN_UNIXSOCK_TRUE@am__append_379 = unixsock.la
++@BUILD_PLUGIN_UNIXSOCK_TRUE@am__append_380 = "-dlopen" unixsock.la
++@BUILD_PLUGIN_UNIXSOCK_TRUE@am__append_381 = unixsock.la
++@BUILD_PLUGIN_UPTIME_TRUE@am__append_382 = uptime.la
++@BUILD_PLUGIN_UPTIME_TRUE@@BUILD_WITH_LIBKSTAT_TRUE@am__append_383 = -lkstat
++@BUILD_PLUGIN_UPTIME_TRUE@@BUILD_WITH_PERFSTAT_TRUE@am__append_384 = -lperfstat
++@BUILD_PLUGIN_UPTIME_TRUE@am__append_385 = "-dlopen" uptime.la
++@BUILD_PLUGIN_UPTIME_TRUE@am__append_386 = uptime.la
++@BUILD_PLUGIN_USERS_TRUE@am__append_387 = users.la
++@BUILD_PLUGIN_USERS_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_388 = $(BUILD_WITH_LIBSTATGRAB_CFLAGS)
++@BUILD_PLUGIN_USERS_TRUE@@BUILD_WITH_LIBSTATGRAB_TRUE@am__append_389 = $(BUILD_WITH_LIBSTATGRAB_LDFLAGS)
++@BUILD_PLUGIN_USERS_TRUE@am__append_390 = "-dlopen" users.la
++@BUILD_PLUGIN_USERS_TRUE@am__append_391 = users.la
++@BUILD_PLUGIN_UUID_TRUE@am__append_392 = uuid.la
++@BUILD_PLUGIN_UUID_TRUE@am__append_393 = "-dlopen" uuid.la
++@BUILD_PLUGIN_UUID_TRUE@am__append_394 = uuid.la
++@BUILD_PLUGIN_VARNISH_TRUE@am__append_395 = varnish.la
++@BUILD_PLUGIN_VARNISH_TRUE@am__append_396 = "-dlopen" varnish.la
++@BUILD_PLUGIN_VARNISH_TRUE@am__append_397 = varnish.la
++@BUILD_PLUGIN_VMEM_TRUE@am__append_398 = vmem.la
++@BUILD_PLUGIN_VMEM_TRUE@am__append_399 = "-dlopen" vmem.la
++@BUILD_PLUGIN_VMEM_TRUE@am__append_400 = vmem.la
++@BUILD_PLUGIN_VSERVER_TRUE@am__append_401 = vserver.la
++@BUILD_PLUGIN_VSERVER_TRUE@am__append_402 = "-dlopen" vserver.la
++@BUILD_PLUGIN_VSERVER_TRUE@am__append_403 = vserver.la
++@BUILD_PLUGIN_WIRELESS_TRUE@am__append_404 = wireless.la
++@BUILD_PLUGIN_WIRELESS_TRUE@am__append_405 = "-dlopen" wireless.la
++@BUILD_PLUGIN_WIRELESS_TRUE@am__append_406 = wireless.la
++@BUILD_PLUGIN_WRITE_GRAPHITE_TRUE@am__append_407 = write_graphite.la
++@BUILD_PLUGIN_WRITE_GRAPHITE_TRUE@am__append_408 = "-dlopen" write_graphite.la
++@BUILD_PLUGIN_WRITE_GRAPHITE_TRUE@am__append_409 = write_graphite.la
++@BUILD_PLUGIN_WRITE_HTTP_TRUE@am__append_410 = write_http.la
++@BUILD_PLUGIN_WRITE_HTTP_TRUE@am__append_411 = "-dlopen" write_http.la
++@BUILD_PLUGIN_WRITE_HTTP_TRUE@@BUILD_WITH_LIBCURL_TRUE@am__append_412 = $(BUILD_WITH_LIBCURL_CFLAGS)
++@BUILD_PLUGIN_WRITE_HTTP_TRUE@@BUILD_WITH_LIBCURL_TRUE@am__append_413 = $(BUILD_WITH_LIBCURL_LIBS)
++@BUILD_PLUGIN_WRITE_HTTP_TRUE@am__append_414 = write_http.la
++@BUILD_PLUGIN_WRITE_MONGODB_TRUE@am__append_415 = write_mongodb.la
++@BUILD_PLUGIN_WRITE_MONGODB_TRUE@am__append_416 = "-dlopen" write_mongodb.la
++@BUILD_PLUGIN_WRITE_MONGODB_TRUE@am__append_417 = write_mongodb.la
++@BUILD_PLUGIN_WRITE_REDIS_TRUE@am__append_418 = write_redis.la
++@BUILD_PLUGIN_WRITE_REDIS_TRUE@am__append_419 = "-dlopen" write_redis.la
++@BUILD_PLUGIN_WRITE_REDIS_TRUE@am__append_420 = write_redis.la
++@BUILD_PLUGIN_XMMS_TRUE@am__append_421 = xmms.la
++@BUILD_PLUGIN_XMMS_TRUE@am__append_422 = "-dlopen" xmms.la
++@BUILD_PLUGIN_XMMS_TRUE@am__append_423 = xmms.la
++@BUILD_PLUGIN_ZFS_ARC_TRUE@am__append_424 = zfs_arc.la
++@BUILD_PLUGIN_ZFS_ARC_TRUE@am__append_425 = "-dlopen" zfs_arc.la
++@BUILD_PLUGIN_ZFS_ARC_TRUE@am__append_426 = zfs_arc.la
++@BUILD_FEATURE_DEBUG_TRUE@am__append_427 = utils_vl_lookup_test
+ subdir = src
+ DIST_COMMON = $(dist_man_MANS) $(srcdir)/Makefile.am \
+ 	$(srcdir)/Makefile.in $(srcdir)/collectd.conf.in \
+ 	$(srcdir)/config.h.in
+ ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
+ am__aclocal_m4_deps = $(top_srcdir)/configure.in
+@@ -2093,144 +2094,144 @@
+ collectd_CPPFLAGS = $(AM_CPPFLAGS) $(LTDLINCL)
+ collectd_CFLAGS = $(AM_CFLAGS) $(am__append_11)
+ collectd_LDFLAGS = -export-dynamic $(am__append_10)
+ collectd_LDADD = -lm $(am__append_3) $(am__append_4) $(am__append_5) \
+ 	$(am__append_6) $(am__append_7) $(am__append_8) \
+ 	$(am__append_9) $(am__append_12) $(am__append_13) \
+-	$(am__append_15) $(am__append_23) $(am__append_26) \
+-	$(am__append_29) $(am__append_35) $(am__append_38) \
+-	$(am__append_41) $(am__append_45) $(am__append_48) \
+-	$(am__append_51) $(am__append_55) $(am__append_63) \
+-	$(am__append_66) $(am__append_69) $(am__append_72) \
+-	$(am__append_79) $(am__append_82) $(am__append_85) \
+-	$(am__append_88) $(am__append_97) $(am__append_100) \
+-	$(am__append_103) $(am__append_106) $(am__append_109) \
+-	$(am__append_112) $(am__append_115) $(am__append_118) \
+-	$(am__append_122) $(am__append_125) $(am__append_133) \
+-	$(am__append_136) $(am__append_139) $(am__append_142) \
+-	$(am__append_145) $(am__append_148) $(am__append_151) \
+-	$(am__append_157) $(am__append_160) $(am__append_163) \
+-	$(am__append_166) $(am__append_169) $(am__append_172) \
+-	$(am__append_175) $(am__append_178) $(am__append_182) \
+-	$(am__append_185) $(am__append_188) $(am__append_192) \
+-	$(am__append_195) $(am__append_203) $(am__append_206) \
+-	$(am__append_209) $(am__append_214) $(am__append_217) \
+-	$(am__append_224) $(am__append_227) $(am__append_230) \
+-	$(am__append_235) $(am__append_238) $(am__append_241) \
+-	$(am__append_245) $(am__append_248) $(am__append_251) \
+-	$(am__append_255) $(am__append_258) $(am__append_261) \
+-	$(am__append_264) $(am__append_268) $(am__append_271) \
+-	$(am__append_276) $(am__append_279) $(am__append_282) \
+-	$(am__append_285) $(am__append_289) $(am__append_292) \
+-	$(am__append_296) $(am__append_299) $(am__append_302) \
+-	$(am__append_305) $(am__append_308) $(am__append_311) \
+-	$(am__append_314) $(am__append_320) $(am__append_323) \
+-	$(am__append_332) $(am__append_335) $(am__append_338) \
+-	$(am__append_341) $(am__append_344) $(am__append_347) \
+-	$(am__append_350) $(am__append_353) $(am__append_356) \
+-	$(am__append_359) $(am__append_363) $(am__append_366) \
+-	$(am__append_369) $(am__append_372) $(am__append_376) \
+-	$(am__append_379) $(am__append_384) $(am__append_389) \
+-	$(am__append_392) $(am__append_395) $(am__append_398) \
+-	$(am__append_401) $(am__append_404) $(am__append_407) \
+-	$(am__append_410) $(am__append_415) $(am__append_418) \
+-	$(am__append_421) $(am__append_424)
+-collectd_DEPENDENCIES = $(am__append_14) $(am__append_24) \
+-	$(am__append_27) $(am__append_32) $(am__append_36) \
+-	$(am__append_39) $(am__append_42) $(am__append_46) \
+-	$(am__append_49) $(am__append_52) $(am__append_56) \
+-	$(am__append_64) $(am__append_67) $(am__append_70) \
+-	$(am__append_75) $(am__append_80) $(am__append_83) \
+-	$(am__append_86) $(am__append_89) $(am__append_98) \
+-	$(am__append_101) $(am__append_104) $(am__append_107) \
+-	$(am__append_110) $(am__append_113) $(am__append_116) \
+-	$(am__append_119) $(am__append_123) $(am__append_126) \
+-	$(am__append_134) $(am__append_137) $(am__append_140) \
+-	$(am__append_143) $(am__append_146) $(am__append_149) \
+-	$(am__append_152) $(am__append_158) $(am__append_161) \
+-	$(am__append_164) $(am__append_167) $(am__append_170) \
+-	$(am__append_173) $(am__append_176) $(am__append_179) \
+-	$(am__append_183) $(am__append_186) $(am__append_189) \
+-	$(am__append_193) $(am__append_196) $(am__append_204) \
+-	$(am__append_207) $(am__append_212) $(am__append_215) \
+-	$(am__append_218) $(am__append_225) $(am__append_228) \
+-	$(am__append_231) $(am__append_236) $(am__append_239) \
+-	$(am__append_242) $(am__append_246) $(am__append_249) \
+-	$(am__append_252) $(am__append_256) $(am__append_259) \
+-	$(am__append_262) $(am__append_265) $(am__append_269) \
+-	$(am__append_272) $(am__append_277) $(am__append_280) \
+-	$(am__append_283) $(am__append_286) $(am__append_290) \
+-	$(am__append_293) $(am__append_297) $(am__append_300) \
+-	$(am__append_303) $(am__append_306) $(am__append_309) \
+-	$(am__append_312) $(am__append_315) $(am__append_321) \
+-	$(am__append_324) $(am__append_333) $(am__append_336) \
+-	$(am__append_339) $(am__append_342) $(am__append_345) \
+-	$(am__append_348) $(am__append_351) $(am__append_354) \
+-	$(am__append_357) $(am__append_360) $(am__append_364) \
+-	$(am__append_367) $(am__append_370) $(am__append_373) \
+-	$(am__append_377) $(am__append_380) $(am__append_385) \
+-	$(am__append_390) $(am__append_393) $(am__append_396) \
+-	$(am__append_399) $(am__append_402) $(am__append_405) \
+-	$(am__append_408) $(am__append_413) $(am__append_416) \
+-	$(am__append_419) $(am__append_422) $(am__append_425)
+-collectdmon_SOURCES = collectdmon.c
+-collectdmon_CPPFLAGS = $(AM_CPPFLAGS)
+-collectd_nagios_SOURCES = collectd-nagios.c
+-collectd_nagios_LDADD = $(am__append_16) $(am__append_17) \
+-	libcollectdclient/libcollectdclient.la
+-collectd_nagios_DEPENDENCIES = libcollectdclient/libcollectdclient.la
+-collectdctl_SOURCES = collectdctl.c
+-collectdctl_LDADD = $(am__append_18) $(am__append_19) \
+-	libcollectdclient/libcollectdclient.la
+-collectdctl_DEPENDENCIES = libcollectdclient/libcollectdclient.la
+-collectd_tg_SOURCES = collectd-tg.c \
+-		      utils_heap.c utils_heap.h
+-
+-collectd_tg_LDADD = $(am__append_20) $(am__append_21) \
+-	libcollectdclient/libcollectdclient.la
+-collectd_tg_DEPENDENCIES = libcollectdclient/libcollectdclient.la
+-pkglib_LTLIBRARIES = $(am__append_22) $(am__append_25) \
++	$(am__append_15) $(am__append_24) $(am__append_27) \
++	$(am__append_30) $(am__append_36) $(am__append_39) \
++	$(am__append_42) $(am__append_46) $(am__append_49) \
++	$(am__append_52) $(am__append_56) $(am__append_64) \
++	$(am__append_67) $(am__append_70) $(am__append_73) \
++	$(am__append_80) $(am__append_83) $(am__append_86) \
++	$(am__append_89) $(am__append_98) $(am__append_101) \
++	$(am__append_104) $(am__append_107) $(am__append_110) \
++	$(am__append_113) $(am__append_116) $(am__append_119) \
++	$(am__append_123) $(am__append_126) $(am__append_134) \
++	$(am__append_137) $(am__append_140) $(am__append_143) \
++	$(am__append_146) $(am__append_149) $(am__append_152) \
++	$(am__append_158) $(am__append_161) $(am__append_164) \
++	$(am__append_167) $(am__append_170) $(am__append_173) \
++	$(am__append_176) $(am__append_179) $(am__append_183) \
++	$(am__append_186) $(am__append_189) $(am__append_193) \
++	$(am__append_196) $(am__append_204) $(am__append_207) \
++	$(am__append_210) $(am__append_215) $(am__append_218) \
++	$(am__append_225) $(am__append_228) $(am__append_231) \
++	$(am__append_236) $(am__append_239) $(am__append_242) \
++	$(am__append_246) $(am__append_249) $(am__append_252) \
++	$(am__append_256) $(am__append_259) $(am__append_262) \
++	$(am__append_265) $(am__append_269) $(am__append_272) \
++	$(am__append_277) $(am__append_280) $(am__append_283) \
++	$(am__append_286) $(am__append_290) $(am__append_293) \
++	$(am__append_297) $(am__append_300) $(am__append_303) \
++	$(am__append_306) $(am__append_309) $(am__append_312) \
++	$(am__append_315) $(am__append_321) $(am__append_324) \
++	$(am__append_333) $(am__append_336) $(am__append_339) \
++	$(am__append_342) $(am__append_345) $(am__append_348) \
++	$(am__append_351) $(am__append_354) $(am__append_357) \
++	$(am__append_360) $(am__append_364) $(am__append_367) \
++	$(am__append_370) $(am__append_373) $(am__append_377) \
++	$(am__append_380) $(am__append_385) $(am__append_390) \
++	$(am__append_393) $(am__append_396) $(am__append_399) \
++	$(am__append_402) $(am__append_405) $(am__append_408) \
++	$(am__append_411) $(am__append_416) $(am__append_419) \
++	$(am__append_422) $(am__append_425)
++collectd_DEPENDENCIES = $(am__append_14) $(am__append_25) \
+ 	$(am__append_28) $(am__append_33) $(am__append_37) \
+ 	$(am__append_40) $(am__append_43) $(am__append_47) \
+ 	$(am__append_50) $(am__append_53) $(am__append_57) \
+ 	$(am__append_65) $(am__append_68) $(am__append_71) \
+ 	$(am__append_76) $(am__append_81) $(am__append_84) \
+ 	$(am__append_87) $(am__append_90) $(am__append_99) \
+ 	$(am__append_102) $(am__append_105) $(am__append_108) \
+ 	$(am__append_111) $(am__append_114) $(am__append_117) \
+-	$(am__append_120) $(am__append_124) $(am__append_132) \
++	$(am__append_120) $(am__append_124) $(am__append_127) \
+ 	$(am__append_135) $(am__append_138) $(am__append_141) \
+ 	$(am__append_144) $(am__append_147) $(am__append_150) \
+-	$(am__append_156) $(am__append_159) $(am__append_162) \
++	$(am__append_153) $(am__append_159) $(am__append_162) \
+ 	$(am__append_165) $(am__append_168) $(am__append_171) \
+ 	$(am__append_174) $(am__append_177) $(am__append_180) \
+ 	$(am__append_184) $(am__append_187) $(am__append_190) \
+-	$(am__append_194) $(am__append_202) $(am__append_205) \
++	$(am__append_194) $(am__append_197) $(am__append_205) \
+ 	$(am__append_208) $(am__append_213) $(am__append_216) \
+ 	$(am__append_219) $(am__append_226) $(am__append_229) \
+ 	$(am__append_232) $(am__append_237) $(am__append_240) \
+ 	$(am__append_243) $(am__append_247) $(am__append_250) \
+ 	$(am__append_253) $(am__append_257) $(am__append_260) \
+ 	$(am__append_263) $(am__append_266) $(am__append_270) \
+-	$(am__append_275) $(am__append_278) $(am__append_281) \
++	$(am__append_273) $(am__append_278) $(am__append_281) \
+ 	$(am__append_284) $(am__append_287) $(am__append_291) \
+-	$(am__append_295) $(am__append_298) $(am__append_301) \
++	$(am__append_294) $(am__append_298) $(am__append_301) \
+ 	$(am__append_304) $(am__append_307) $(am__append_310) \
+ 	$(am__append_313) $(am__append_316) $(am__append_322) \
+-	$(am__append_331) $(am__append_334) $(am__append_337) \
++	$(am__append_325) $(am__append_334) $(am__append_337) \
+ 	$(am__append_340) $(am__append_343) $(am__append_346) \
+ 	$(am__append_349) $(am__append_352) $(am__append_355) \
+-	$(am__append_358) $(am__append_362) $(am__append_365) \
++	$(am__append_358) $(am__append_361) $(am__append_365) \
+ 	$(am__append_368) $(am__append_371) $(am__append_374) \
+ 	$(am__append_378) $(am__append_381) $(am__append_386) \
+ 	$(am__append_391) $(am__append_394) $(am__append_397) \
+ 	$(am__append_400) $(am__append_403) $(am__append_406) \
+ 	$(am__append_409) $(am__append_414) $(am__append_417) \
+-	$(am__append_420) $(am__append_423)
+-BUILT_SOURCES = $(am__append_273) $(dist_man_MANS)
+-CLEANFILES = $(am__append_274)
++	$(am__append_420) $(am__append_423) $(am__append_426)
++collectdmon_SOURCES = collectdmon.c
++collectdmon_CPPFLAGS = $(AM_CPPFLAGS)
++collectd_nagios_SOURCES = collectd-nagios.c
++collectd_nagios_LDADD = $(am__append_16) $(am__append_17) \
++	libcollectdclient/libcollectdclient.la
++collectd_nagios_DEPENDENCIES = libcollectdclient/libcollectdclient.la
++collectdctl_SOURCES = collectdctl.c
++collectdctl_LDADD = $(am__append_18) $(am__append_19) \
++	libcollectdclient/libcollectdclient.la
++collectdctl_DEPENDENCIES = libcollectdclient/libcollectdclient.la
++collectd_tg_SOURCES = collectd-tg.c \
++		      utils_heap.c utils_heap.h
++
++collectd_tg_LDADD = $(am__append_20) $(am__append_21) $(am__append_22) \
++	libcollectdclient/libcollectdclient.la
++collectd_tg_DEPENDENCIES = libcollectdclient/libcollectdclient.la
++pkglib_LTLIBRARIES = $(am__append_23) $(am__append_26) \
++	$(am__append_29) $(am__append_34) $(am__append_38) \
++	$(am__append_41) $(am__append_44) $(am__append_48) \
++	$(am__append_51) $(am__append_54) $(am__append_58) \
++	$(am__append_66) $(am__append_69) $(am__append_72) \
++	$(am__append_77) $(am__append_82) $(am__append_85) \
++	$(am__append_88) $(am__append_91) $(am__append_100) \
++	$(am__append_103) $(am__append_106) $(am__append_109) \
++	$(am__append_112) $(am__append_115) $(am__append_118) \
++	$(am__append_121) $(am__append_125) $(am__append_133) \
++	$(am__append_136) $(am__append_139) $(am__append_142) \
++	$(am__append_145) $(am__append_148) $(am__append_151) \
++	$(am__append_157) $(am__append_160) $(am__append_163) \
++	$(am__append_166) $(am__append_169) $(am__append_172) \
++	$(am__append_175) $(am__append_178) $(am__append_181) \
++	$(am__append_185) $(am__append_188) $(am__append_191) \
++	$(am__append_195) $(am__append_203) $(am__append_206) \
++	$(am__append_209) $(am__append_214) $(am__append_217) \
++	$(am__append_220) $(am__append_227) $(am__append_230) \
++	$(am__append_233) $(am__append_238) $(am__append_241) \
++	$(am__append_244) $(am__append_248) $(am__append_251) \
++	$(am__append_254) $(am__append_258) $(am__append_261) \
++	$(am__append_264) $(am__append_267) $(am__append_271) \
++	$(am__append_276) $(am__append_279) $(am__append_282) \
++	$(am__append_285) $(am__append_288) $(am__append_292) \
++	$(am__append_296) $(am__append_299) $(am__append_302) \
++	$(am__append_305) $(am__append_308) $(am__append_311) \
++	$(am__append_314) $(am__append_317) $(am__append_323) \
++	$(am__append_332) $(am__append_335) $(am__append_338) \
++	$(am__append_341) $(am__append_344) $(am__append_347) \
++	$(am__append_350) $(am__append_353) $(am__append_356) \
++	$(am__append_359) $(am__append_363) $(am__append_366) \
++	$(am__append_369) $(am__append_372) $(am__append_375) \
++	$(am__append_379) $(am__append_382) $(am__append_387) \
++	$(am__append_392) $(am__append_395) $(am__append_398) \
++	$(am__append_401) $(am__append_404) $(am__append_407) \
++	$(am__append_410) $(am__append_415) $(am__append_418) \
++	$(am__append_421) $(am__append_424)
++BUILT_SOURCES = $(am__append_274) $(dist_man_MANS)
++CLEANFILES = $(am__append_275)
+ @BUILD_PLUGIN_AGGREGATION_TRUE@aggregation_la_SOURCES = aggregation.c \
+ @BUILD_PLUGIN_AGGREGATION_TRUE@                         utils_vl_lookup.c utils_vl_lookup.h
+ 
+ @BUILD_PLUGIN_AGGREGATION_TRUE@aggregation_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_AGGREGATION_TRUE@aggregation_la_LIBADD = 
+ @BUILD_PLUGIN_AMQP_TRUE@amqp_la_SOURCES = amqp.c \
+@@ -2241,63 +2242,63 @@
+ @BUILD_PLUGIN_AMQP_TRUE@amqp_la_LDFLAGS = -module -avoid-version $(BUILD_WITH_LIBRABBITMQ_LDFLAGS)
+ @BUILD_PLUGIN_AMQP_TRUE@amqp_la_CPPFLAGS = $(AM_CPPFLAGS) $(BUILD_WITH_LIBRABBITMQ_CPPFLAGS)
+ @BUILD_PLUGIN_AMQP_TRUE@amqp_la_LIBADD = $(BUILD_WITH_LIBRABBITMQ_LIBS)
+ @BUILD_PLUGIN_APACHE_TRUE@apache_la_SOURCES = apache.c
+ @BUILD_PLUGIN_APACHE_TRUE@apache_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_APACHE_TRUE@apache_la_CFLAGS = $(AM_CFLAGS) \
+-@BUILD_PLUGIN_APACHE_TRUE@	$(am__append_30)
+-@BUILD_PLUGIN_APACHE_TRUE@apache_la_LIBADD = $(am__append_31)
++@BUILD_PLUGIN_APACHE_TRUE@	$(am__append_31)
++@BUILD_PLUGIN_APACHE_TRUE@apache_la_LIBADD = $(am__append_32)
+ @BUILD_PLUGIN_APCUPS_TRUE@apcups_la_SOURCES = apcups.c
+ @BUILD_PLUGIN_APCUPS_TRUE@apcups_la_LDFLAGS = -module -avoid-version
+-@BUILD_PLUGIN_APCUPS_TRUE@apcups_la_LIBADD = $(am__append_34)
++@BUILD_PLUGIN_APCUPS_TRUE@apcups_la_LIBADD = $(am__append_35)
+ @BUILD_PLUGIN_APPLE_SENSORS_TRUE@apple_sensors_la_SOURCES = apple_sensors.c
+ @BUILD_PLUGIN_APPLE_SENSORS_TRUE@apple_sensors_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_APPLE_SENSORS_TRUE@apple_sensors_la_LIBADD = -lIOKit
+ @BUILD_PLUGIN_ASCENT_TRUE@ascent_la_SOURCES = ascent.c
+ @BUILD_PLUGIN_ASCENT_TRUE@ascent_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_ASCENT_TRUE@ascent_la_CFLAGS = $(AM_CFLAGS) \
+ @BUILD_PLUGIN_ASCENT_TRUE@		$(BUILD_WITH_LIBCURL_CFLAGS) $(BUILD_WITH_LIBXML2_CFLAGS)
+ 
+ @BUILD_PLUGIN_ASCENT_TRUE@ascent_la_LIBADD = $(BUILD_WITH_LIBCURL_LIBS) $(BUILD_WITH_LIBXML2_LIBS)
+ @BUILD_PLUGIN_BATTERY_TRUE@battery_la_SOURCES = battery.c
+ @BUILD_PLUGIN_BATTERY_TRUE@battery_la_LDFLAGS = -module -avoid-version
+-@BUILD_PLUGIN_BATTERY_TRUE@battery_la_LIBADD = $(am__append_44)
++@BUILD_PLUGIN_BATTERY_TRUE@battery_la_LIBADD = $(am__append_45)
+ @BUILD_PLUGIN_BIND_TRUE@bind_la_SOURCES = bind.c
+ @BUILD_PLUGIN_BIND_TRUE@bind_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_BIND_TRUE@bind_la_CFLAGS = $(AM_CFLAGS) \
+ @BUILD_PLUGIN_BIND_TRUE@		$(BUILD_WITH_LIBCURL_CFLAGS) $(BUILD_WITH_LIBXML2_CFLAGS)
+ 
+ @BUILD_PLUGIN_BIND_TRUE@bind_la_LIBADD = $(BUILD_WITH_LIBCURL_LIBS) $(BUILD_WITH_LIBXML2_LIBS)
+ @BUILD_PLUGIN_CONNTRACK_TRUE@conntrack_la_SOURCES = conntrack.c
+ @BUILD_PLUGIN_CONNTRACK_TRUE@conntrack_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_CONTEXTSWITCH_TRUE@contextswitch_la_SOURCES = contextswitch.c
+ @BUILD_PLUGIN_CONTEXTSWITCH_TRUE@contextswitch_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_CONTEXTSWITCH_TRUE@contextswitch_la_LIBADD =  \
+-@BUILD_PLUGIN_CONTEXTSWITCH_TRUE@	$(am__append_54)
++@BUILD_PLUGIN_CONTEXTSWITCH_TRUE@	$(am__append_55)
+ @BUILD_PLUGIN_CPU_TRUE@cpu_la_SOURCES = cpu.c
+-@BUILD_PLUGIN_CPU_TRUE@cpu_la_CFLAGS = $(AM_CFLAGS) $(am__append_60)
++@BUILD_PLUGIN_CPU_TRUE@cpu_la_CFLAGS = $(AM_CFLAGS) $(am__append_61)
+ @BUILD_PLUGIN_CPU_TRUE@cpu_la_LDFLAGS = -module -avoid-version
+-@BUILD_PLUGIN_CPU_TRUE@cpu_la_LIBADD = $(am__append_58) \
+-@BUILD_PLUGIN_CPU_TRUE@	$(am__append_59) $(am__append_61) \
+-@BUILD_PLUGIN_CPU_TRUE@	$(am__append_62)
++@BUILD_PLUGIN_CPU_TRUE@cpu_la_LIBADD = $(am__append_59) \
++@BUILD_PLUGIN_CPU_TRUE@	$(am__append_60) $(am__append_62) \
++@BUILD_PLUGIN_CPU_TRUE@	$(am__append_63)
+ @BUILD_PLUGIN_CPUFREQ_TRUE@cpufreq_la_SOURCES = cpufreq.c
+ @BUILD_PLUGIN_CPUFREQ_TRUE@cpufreq_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_CSV_TRUE@csv_la_SOURCES = csv.c
+ @BUILD_PLUGIN_CSV_TRUE@csv_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_CURL_TRUE@curl_la_SOURCES = curl.c
+ @BUILD_PLUGIN_CURL_TRUE@curl_la_LDFLAGS = -module -avoid-version
+-@BUILD_PLUGIN_CURL_TRUE@curl_la_CFLAGS = $(AM_CFLAGS) $(am__append_73)
+-@BUILD_PLUGIN_CURL_TRUE@curl_la_LIBADD = $(am__append_74)
++@BUILD_PLUGIN_CURL_TRUE@curl_la_CFLAGS = $(AM_CFLAGS) $(am__append_74)
++@BUILD_PLUGIN_CURL_TRUE@curl_la_LIBADD = $(am__append_75)
+ @BUILD_PLUGIN_CURL_JSON_TRUE@curl_json_la_SOURCES = curl_json.c
+ @BUILD_PLUGIN_CURL_JSON_TRUE@curl_json_la_CFLAGS = $(AM_CFLAGS) \
+-@BUILD_PLUGIN_CURL_JSON_TRUE@	$(am__append_77)
++@BUILD_PLUGIN_CURL_JSON_TRUE@	$(am__append_78)
+ @BUILD_PLUGIN_CURL_JSON_TRUE@curl_json_la_LDFLAGS = -module -avoid-version $(BUILD_WITH_LIBYAJL_LDFLAGS)
+ @BUILD_PLUGIN_CURL_JSON_TRUE@curl_json_la_CPPFLAGS = $(BUILD_WITH_LIBYAJL_CPPFLAGS)
+ @BUILD_PLUGIN_CURL_JSON_TRUE@curl_json_la_LIBADD =  \
+ @BUILD_PLUGIN_CURL_JSON_TRUE@	$(BUILD_WITH_LIBYAJL_LIBS) \
+-@BUILD_PLUGIN_CURL_JSON_TRUE@	$(am__append_78)
++@BUILD_PLUGIN_CURL_JSON_TRUE@	$(am__append_79)
+ @BUILD_PLUGIN_CURL_XML_TRUE@curl_xml_la_SOURCES = curl_xml.c
+ @BUILD_PLUGIN_CURL_XML_TRUE@curl_xml_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_CURL_XML_TRUE@curl_xml_la_CFLAGS = $(AM_CFLAGS) \
+ @BUILD_PLUGIN_CURL_XML_TRUE@		$(BUILD_WITH_LIBCURL_CFLAGS) $(BUILD_WITH_LIBXML2_CFLAGS)
+ 
+ @BUILD_PLUGIN_CURL_XML_TRUE@curl_xml_la_LIBADD = $(BUILD_WITH_LIBCURL_LIBS) $(BUILD_WITH_LIBXML2_LIBS)
+@@ -2307,17 +2308,17 @@
+ @BUILD_PLUGIN_DBI_TRUE@dbi_la_CPPFLAGS = $(AM_CPPFLAGS) $(BUILD_WITH_LIBDBI_CPPFLAGS)
+ @BUILD_PLUGIN_DBI_TRUE@dbi_la_LDFLAGS = -module -avoid-version $(BUILD_WITH_LIBDBI_LDFLAGS)
+ @BUILD_PLUGIN_DBI_TRUE@dbi_la_LIBADD = $(BUILD_WITH_LIBDBI_LIBS)
+ @BUILD_PLUGIN_DF_TRUE@df_la_SOURCES = df.c utils_mount.c utils_mount.h
+ @BUILD_PLUGIN_DF_TRUE@df_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_DISK_TRUE@disk_la_SOURCES = disk.c
+-@BUILD_PLUGIN_DISK_TRUE@disk_la_CFLAGS = $(AM_CFLAGS) $(am__append_94)
++@BUILD_PLUGIN_DISK_TRUE@disk_la_CFLAGS = $(AM_CFLAGS) $(am__append_95)
+ @BUILD_PLUGIN_DISK_TRUE@disk_la_LDFLAGS = -module -avoid-version
+-@BUILD_PLUGIN_DISK_TRUE@disk_la_LIBADD = $(am__append_91) \
+-@BUILD_PLUGIN_DISK_TRUE@	$(am__append_92) $(am__append_93) \
+-@BUILD_PLUGIN_DISK_TRUE@	$(am__append_95) $(am__append_96)
++@BUILD_PLUGIN_DISK_TRUE@disk_la_LIBADD = $(am__append_92) \
++@BUILD_PLUGIN_DISK_TRUE@	$(am__append_93) $(am__append_94) \
++@BUILD_PLUGIN_DISK_TRUE@	$(am__append_96) $(am__append_97)
+ @BUILD_PLUGIN_DNS_TRUE@dns_la_SOURCES = dns.c utils_dns.c utils_dns.h
+ @BUILD_PLUGIN_DNS_TRUE@dns_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_DNS_TRUE@dns_la_LIBADD = -lpcap -lpthread
+ @BUILD_PLUGIN_EMAIL_TRUE@email_la_SOURCES = email.c
+ @BUILD_PLUGIN_EMAIL_TRUE@email_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_EMAIL_TRUE@email_la_LIBADD = -lpthread
+@@ -2336,21 +2337,21 @@
+ @BUILD_PLUGIN_GMOND_TRUE@gmond_la_SOURCES = gmond.c
+ @BUILD_PLUGIN_GMOND_TRUE@gmond_la_CPPFLAGS = $(AM_CPPFLAGS) $(GANGLIA_CPPFLAGS)
+ @BUILD_PLUGIN_GMOND_TRUE@gmond_la_LDFLAGS = -module -avoid-version $(GANGLIA_LDFLAGS)
+ @BUILD_PLUGIN_GMOND_TRUE@gmond_la_LIBADD = $(GANGLIA_LIBS)
+ @BUILD_PLUGIN_HDDTEMP_TRUE@hddtemp_la_SOURCES = hddtemp.c
+ @BUILD_PLUGIN_HDDTEMP_TRUE@hddtemp_la_LDFLAGS = -module -avoid-version
+-@BUILD_PLUGIN_HDDTEMP_TRUE@hddtemp_la_LIBADD = $(am__append_121)
++@BUILD_PLUGIN_HDDTEMP_TRUE@hddtemp_la_LIBADD = $(am__append_122)
+ @BUILD_PLUGIN_INTERFACE_TRUE@interface_la_SOURCES = interface.c
+ @BUILD_PLUGIN_INTERFACE_TRUE@interface_la_CFLAGS = $(AM_CFLAGS) \
+-@BUILD_PLUGIN_INTERFACE_TRUE@	$(am__append_127)
++@BUILD_PLUGIN_INTERFACE_TRUE@	$(am__append_128)
+ @BUILD_PLUGIN_INTERFACE_TRUE@interface_la_LDFLAGS = -module -avoid-version
+-@BUILD_PLUGIN_INTERFACE_TRUE@interface_la_LIBADD = $(am__append_128) \
+-@BUILD_PLUGIN_INTERFACE_TRUE@	$(am__append_129) \
++@BUILD_PLUGIN_INTERFACE_TRUE@interface_la_LIBADD = $(am__append_129) \
+ @BUILD_PLUGIN_INTERFACE_TRUE@	$(am__append_130) \
+-@BUILD_PLUGIN_INTERFACE_TRUE@	$(am__append_131)
++@BUILD_PLUGIN_INTERFACE_TRUE@	$(am__append_131) \
++@BUILD_PLUGIN_INTERFACE_TRUE@	$(am__append_132)
+ @BUILD_PLUGIN_IPTABLES_TRUE@iptables_la_SOURCES = iptables.c
+ @BUILD_PLUGIN_IPTABLES_TRUE@iptables_la_CPPFLAGS = $(AM_CPPFLAGS) $(BUILD_WITH_LIBIPTC_CPPFLAGS)
+ @BUILD_PLUGIN_IPTABLES_TRUE@iptables_la_LDFLAGS = -module -avoid-version $(BUILD_WITH_LIBIPTC_LDFLAGS)
+ @BUILD_PLUGIN_IPTABLES_TRUE@iptables_la_LIBADD = -liptc
+ @BUILD_PLUGIN_IPMI_TRUE@ipmi_la_SOURCES = ipmi.c
+ @BUILD_PLUGIN_IPMI_TRUE@ipmi_la_CFLAGS = $(AM_CFLAGS) $(BUILD_WITH_OPENIPMI_CFLAGS)
+@@ -2371,16 +2372,16 @@
+ @BUILD_PLUGIN_LIBVIRT_TRUE@		$(BUILD_WITH_LIBVIRT_CFLAGS) $(BUILD_WITH_LIBXML2_CFLAGS)
+ 
+ @BUILD_PLUGIN_LIBVIRT_TRUE@libvirt_la_LIBADD = $(BUILD_WITH_LIBVIRT_LIBS) $(BUILD_WITH_LIBXML2_LIBS)
+ @BUILD_PLUGIN_LIBVIRT_TRUE@libvirt_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_LOAD_TRUE@load_la_SOURCES = load.c
+ @BUILD_PLUGIN_LOAD_TRUE@load_la_CFLAGS = $(AM_CFLAGS) \
+-@BUILD_PLUGIN_LOAD_TRUE@	$(am__append_153)
++@BUILD_PLUGIN_LOAD_TRUE@	$(am__append_154)
+ @BUILD_PLUGIN_LOAD_TRUE@load_la_LDFLAGS = -module -avoid-version
+-@BUILD_PLUGIN_LOAD_TRUE@load_la_LIBADD = $(am__append_154) \
+-@BUILD_PLUGIN_LOAD_TRUE@	$(am__append_155)
++@BUILD_PLUGIN_LOAD_TRUE@load_la_LIBADD = $(am__append_155) \
++@BUILD_PLUGIN_LOAD_TRUE@	$(am__append_156)
+ @BUILD_PLUGIN_LOGFILE_TRUE@logfile_la_SOURCES = logfile.c
+ @BUILD_PLUGIN_LOGFILE_TRUE@logfile_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_LPAR_TRUE@lpar_la_SOURCES = lpar.c
+ @BUILD_PLUGIN_LPAR_TRUE@lpar_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_LPAR_TRUE@lpar_la_LIBADD = -lperfstat
+ @BUILD_PLUGIN_MADWIFI_TRUE@madwifi_la_SOURCES = madwifi.c madwifi.h
+@@ -2394,85 +2395,85 @@
+ @BUILD_PLUGIN_MATCH_TIMEDIFF_TRUE@match_timediff_la_SOURCES = match_timediff.c
+ @BUILD_PLUGIN_MATCH_TIMEDIFF_TRUE@match_timediff_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_MATCH_VALUE_TRUE@match_value_la_SOURCES = match_value.c
+ @BUILD_PLUGIN_MATCH_VALUE_TRUE@match_value_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_MBMON_TRUE@mbmon_la_SOURCES = mbmon.c
+ @BUILD_PLUGIN_MBMON_TRUE@mbmon_la_LDFLAGS = -module -avoid-version
+-@BUILD_PLUGIN_MBMON_TRUE@mbmon_la_LIBADD = $(am__append_181)
++@BUILD_PLUGIN_MBMON_TRUE@mbmon_la_LIBADD = $(am__append_182)
+ @BUILD_PLUGIN_MD_TRUE@md_la_SOURCES = md.c
+ @BUILD_PLUGIN_MD_TRUE@md_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_MEMCACHEC_TRUE@memcachec_la_SOURCES = memcachec.c
+ @BUILD_PLUGIN_MEMCACHEC_TRUE@memcachec_la_LDFLAGS = -module -avoid-version $(BUILD_WITH_LIBMEMCACHED_LDFLAGS)
+ @BUILD_PLUGIN_MEMCACHEC_TRUE@memcachec_la_CPPFLAGS = $(BUILD_WITH_LIBMEMCACHED_CPPFLAGS)
+ @BUILD_PLUGIN_MEMCACHEC_TRUE@memcachec_la_LIBADD = $(BUILD_WITH_LIBMEMCACHED_LIBS)
+ @BUILD_PLUGIN_MEMCACHED_TRUE@memcached_la_SOURCES = memcached.c
+ @BUILD_PLUGIN_MEMCACHED_TRUE@memcached_la_LDFLAGS = -module -avoid-version
+-@BUILD_PLUGIN_MEMCACHED_TRUE@memcached_la_LIBADD = $(am__append_191)
++@BUILD_PLUGIN_MEMCACHED_TRUE@memcached_la_LIBADD = $(am__append_192)
+ @BUILD_PLUGIN_MEMORY_TRUE@memory_la_SOURCES = memory.c
+ @BUILD_PLUGIN_MEMORY_TRUE@memory_la_CFLAGS = $(AM_CFLAGS) \
+-@BUILD_PLUGIN_MEMORY_TRUE@	$(am__append_199)
++@BUILD_PLUGIN_MEMORY_TRUE@	$(am__append_200)
+ @BUILD_PLUGIN_MEMORY_TRUE@memory_la_LDFLAGS = -module -avoid-version
+-@BUILD_PLUGIN_MEMORY_TRUE@memory_la_LIBADD = $(am__append_197) \
+-@BUILD_PLUGIN_MEMORY_TRUE@	$(am__append_198) $(am__append_200) \
+-@BUILD_PLUGIN_MEMORY_TRUE@	$(am__append_201)
++@BUILD_PLUGIN_MEMORY_TRUE@memory_la_LIBADD = $(am__append_198) \
++@BUILD_PLUGIN_MEMORY_TRUE@	$(am__append_199) $(am__append_201) \
++@BUILD_PLUGIN_MEMORY_TRUE@	$(am__append_202)
+ @BUILD_PLUGIN_MODBUS_TRUE@modbus_la_SOURCES = modbus.c
+ @BUILD_PLUGIN_MODBUS_TRUE@modbus_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_MODBUS_TRUE@modbus_la_CFLAGS = $(AM_CFLAGS) $(BUILD_WITH_LIBMODBUS_CFLAGS)
+ @BUILD_PLUGIN_MODBUS_TRUE@modbus_la_LIBADD = $(BUILD_WITH_LIBMODBUS_LIBS)
+ @BUILD_PLUGIN_MULTIMETER_TRUE@multimeter_la_SOURCES = multimeter.c
+ @BUILD_PLUGIN_MULTIMETER_TRUE@multimeter_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_MYSQL_TRUE@mysql_la_SOURCES = mysql.c
+ @BUILD_PLUGIN_MYSQL_TRUE@mysql_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_MYSQL_TRUE@mysql_la_CFLAGS = $(AM_CFLAGS) \
+-@BUILD_PLUGIN_MYSQL_TRUE@	$(am__append_210)
+-@BUILD_PLUGIN_MYSQL_TRUE@mysql_la_LIBADD = $(am__append_211)
++@BUILD_PLUGIN_MYSQL_TRUE@	$(am__append_211)
++@BUILD_PLUGIN_MYSQL_TRUE@mysql_la_LIBADD = $(am__append_212)
+ @BUILD_PLUGIN_NETAPP_TRUE@netapp_la_SOURCES = netapp.c
+ @BUILD_PLUGIN_NETAPP_TRUE@netapp_la_CPPFLAGS = $(AM_CPPFLAGS) $(LIBNETAPP_CPPFLAGS)
+ @BUILD_PLUGIN_NETAPP_TRUE@netapp_la_LDFLAGS = -module -avoid-version $(LIBNETAPP_LDFLAGS)
+ @BUILD_PLUGIN_NETAPP_TRUE@netapp_la_LIBADD = $(LIBNETAPP_LIBS)
+ @BUILD_PLUGIN_NETLINK_TRUE@netlink_la_SOURCES = netlink.c
+ @BUILD_PLUGIN_NETLINK_TRUE@netlink_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_NETLINK_TRUE@netlink_la_CFLAGS = $(AM_CFLAGS) $(BUILD_WITH_LIBNETLINK_CFLAGS)
+ @BUILD_PLUGIN_NETLINK_TRUE@netlink_la_LIBADD = $(BUILD_WITH_LIBNETLINK_LIBS)
+ @BUILD_PLUGIN_NETWORK_TRUE@network_la_SOURCES = network.c network.h \
+ @BUILD_PLUGIN_NETWORK_TRUE@		     utils_fbhash.c utils_fbhash.h
+ 
+ @BUILD_PLUGIN_NETWORK_TRUE@network_la_CPPFLAGS = $(AM_CPPFLAGS) \
+-@BUILD_PLUGIN_NETWORK_TRUE@	$(am__append_221)
+-@BUILD_PLUGIN_NETWORK_TRUE@network_la_LDFLAGS = -module -avoid-version \
+ @BUILD_PLUGIN_NETWORK_TRUE@	$(am__append_222)
++@BUILD_PLUGIN_NETWORK_TRUE@network_la_LDFLAGS = -module -avoid-version \
++@BUILD_PLUGIN_NETWORK_TRUE@	$(am__append_223)
+ @BUILD_PLUGIN_NETWORK_TRUE@network_la_LIBADD = -lpthread \
+-@BUILD_PLUGIN_NETWORK_TRUE@	$(am__append_220) $(am__append_223)
++@BUILD_PLUGIN_NETWORK_TRUE@	$(am__append_221) $(am__append_224)
+ @BUILD_PLUGIN_NFS_TRUE@nfs_la_SOURCES = nfs.c
+ @BUILD_PLUGIN_NFS_TRUE@nfs_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_FSCACHE_TRUE@fscache_la_SOURCES = fscache.c
+ @BUILD_PLUGIN_FSCACHE_TRUE@fscache_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_NGINX_TRUE@nginx_la_SOURCES = nginx.c
+ @BUILD_PLUGIN_NGINX_TRUE@nginx_la_CFLAGS = $(AM_CFLAGS) \
+-@BUILD_PLUGIN_NGINX_TRUE@	$(am__append_233)
+-@BUILD_PLUGIN_NGINX_TRUE@nginx_la_LIBADD = $(am__append_234)
++@BUILD_PLUGIN_NGINX_TRUE@	$(am__append_234)
++@BUILD_PLUGIN_NGINX_TRUE@nginx_la_LIBADD = $(am__append_235)
+ @BUILD_PLUGIN_NGINX_TRUE@nginx_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_NOTIFY_DESKTOP_TRUE@notify_desktop_la_SOURCES = notify_desktop.c
+ @BUILD_PLUGIN_NOTIFY_DESKTOP_TRUE@notify_desktop_la_CFLAGS = $(AM_CFLAGS) $(LIBNOTIFY_CFLAGS)
+ @BUILD_PLUGIN_NOTIFY_DESKTOP_TRUE@notify_desktop_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_NOTIFY_DESKTOP_TRUE@notify_desktop_la_LIBADD = $(LIBNOTIFY_LIBS)
+ @BUILD_PLUGIN_NOTIFY_EMAIL_TRUE@notify_email_la_SOURCES = notify_email.c
+ @BUILD_PLUGIN_NOTIFY_EMAIL_TRUE@notify_email_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_NOTIFY_EMAIL_TRUE@notify_email_la_LIBADD = -lesmtp -lssl -lcrypto -lpthread -ldl
+ @BUILD_PLUGIN_NTPD_TRUE@ntpd_la_SOURCES = ntpd.c
+ @BUILD_PLUGIN_NTPD_TRUE@ntpd_la_LDFLAGS = -module -avoid-version
+-@BUILD_PLUGIN_NTPD_TRUE@ntpd_la_LIBADD = $(am__append_244)
++@BUILD_PLUGIN_NTPD_TRUE@ntpd_la_LIBADD = $(am__append_245)
+ @BUILD_PLUGIN_NUMA_TRUE@numa_la_SOURCES = numa.c
+ @BUILD_PLUGIN_NUMA_TRUE@numa_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_NUT_TRUE@nut_la_SOURCES = nut.c
+ @BUILD_PLUGIN_NUT_TRUE@nut_la_CFLAGS = $(AM_CFLAGS) $(BUILD_WITH_LIBUPSCLIENT_CFLAGS)
+ @BUILD_PLUGIN_NUT_TRUE@nut_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_NUT_TRUE@nut_la_LIBADD = -lpthread $(BUILD_WITH_LIBUPSCLIENT_LIBS)
+ @BUILD_PLUGIN_OLSRD_TRUE@olsrd_la_SOURCES = olsrd.c
+ @BUILD_PLUGIN_OLSRD_TRUE@olsrd_la_LDFLAGS = -module -avoid-version
+-@BUILD_PLUGIN_OLSRD_TRUE@olsrd_la_LIBADD = $(am__append_254)
++@BUILD_PLUGIN_OLSRD_TRUE@olsrd_la_LIBADD = $(am__append_255)
+ @BUILD_PLUGIN_ONEWIRE_TRUE@onewire_la_SOURCES = onewire.c
+ @BUILD_PLUGIN_ONEWIRE_TRUE@onewire_la_CFLAGS = $(AM_CFLAGS)
+ @BUILD_PLUGIN_ONEWIRE_TRUE@onewire_la_CPPFLAGS = $(BUILD_WITH_LIBOWCAPI_CPPFLAGS)
+ @BUILD_PLUGIN_ONEWIRE_TRUE@onewire_la_LIBADD = $(BUILD_WITH_LIBOWCAPI_LIBS)
+ @BUILD_PLUGIN_ONEWIRE_TRUE@onewire_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_OPENVPN_TRUE@openvpn_la_SOURCES = openvpn.c
+@@ -2489,13 +2490,13 @@
+ # Despite C99 providing the "bool" type thru stdbool.h, Perl defines its own
+ # version of that type if HAS_BOOL is not defined... *sigh*
+ @BUILD_PLUGIN_PERL_TRUE@perl_la_CPPFLAGS = $(AM_CPPFLAGS) -DHAS_BOOL=1
+ @BUILD_PLUGIN_PERL_TRUE@perl_la_CFLAGS = $(AM_CFLAGS) $(PERL_CFLAGS) \
+ @BUILD_PLUGIN_PERL_TRUE@	-DXS_VERSION=\"$(VERSION)\" \
+ @BUILD_PLUGIN_PERL_TRUE@	-DVERSION=\"$(VERSION)\" \
+-@BUILD_PLUGIN_PERL_TRUE@	$(am__append_267)
++@BUILD_PLUGIN_PERL_TRUE@	$(am__append_268)
+ @BUILD_PLUGIN_PERL_TRUE@perl_la_LDFLAGS = -module -avoid-version \
+ @BUILD_PLUGIN_PERL_TRUE@		$(PERL_LDFLAGS)
+ 
+ @BUILD_PLUGIN_PF_TRUE@pf_la_SOURCES = pf.c
+ @BUILD_PLUGIN_PF_TRUE@pf_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_PINBA_TRUE@pinba_la_SOURCES = pinba.c
+@@ -2515,18 +2516,18 @@
+ @BUILD_PLUGIN_POSTGRESQL_TRUE@postgresql_la_LIBADD = -lpq
+ @BUILD_PLUGIN_POWERDNS_TRUE@powerdns_la_SOURCES = powerdns.c
+ @BUILD_PLUGIN_POWERDNS_TRUE@powerdns_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_PYTHON_TRUE@python_la_SOURCES = python.c pyconfig.c pyvalues.c cpython.h
+ @BUILD_PLUGIN_PYTHON_TRUE@python_la_CPPFLAGS = $(AM_CPPFLAGS) $(BUILD_WITH_PYTHON_CPPFLAGS)
+ @BUILD_PLUGIN_PYTHON_TRUE@python_la_CFLAGS = $(AM_CFLAGS) \
+-@BUILD_PLUGIN_PYTHON_TRUE@	$(am__append_288)
++@BUILD_PLUGIN_PYTHON_TRUE@	$(am__append_289)
+ @BUILD_PLUGIN_PYTHON_TRUE@python_la_LDFLAGS = -module -avoid-version $(BUILD_WITH_PYTHON_LDFLAGS)
+ @BUILD_PLUGIN_PYTHON_TRUE@python_la_LIBADD = $(BUILD_WITH_PYTHON_LIBS)
+ @BUILD_PLUGIN_PROCESSES_TRUE@processes_la_SOURCES = processes.c
+ @BUILD_PLUGIN_PROCESSES_TRUE@processes_la_LDFLAGS = -module -avoid-version
+-@BUILD_PLUGIN_PROCESSES_TRUE@processes_la_LIBADD = $(am__append_294)
++@BUILD_PLUGIN_PROCESSES_TRUE@processes_la_LIBADD = $(am__append_295)
+ @BUILD_PLUGIN_PROTOCOLS_TRUE@protocols_la_SOURCES = protocols.c
+ @BUILD_PLUGIN_PROTOCOLS_TRUE@protocols_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_REDIS_TRUE@redis_la_SOURCES = redis.c
+ @BUILD_PLUGIN_REDIS_TRUE@redis_la_LDFLAGS = -module -avoid-version $(BUILD_WITH_LIBCREDIS_LDFLAGS)
+ @BUILD_PLUGIN_REDIS_TRUE@redis_la_CFLAGS = $(AM_CFLAGS) $(BUILD_WITH_LIBCREDIS_CPPFLAGS)
+ @BUILD_PLUGIN_REDIS_TRUE@redis_la_LIBADD = -lcredis
+@@ -2548,22 +2549,22 @@
+ @BUILD_PLUGIN_SENSORS_TRUE@sensors_la_LIBADD = -lsensors
+ @BUILD_PLUGIN_SERIAL_TRUE@serial_la_SOURCES = serial.c
+ @BUILD_PLUGIN_SERIAL_TRUE@serial_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_SNMP_TRUE@snmp_la_SOURCES = snmp.c
+ @BUILD_PLUGIN_SNMP_TRUE@snmp_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_SNMP_TRUE@snmp_la_CFLAGS = $(AM_CFLAGS) \
+-@BUILD_PLUGIN_SNMP_TRUE@	$(am__append_317)
+-@BUILD_PLUGIN_SNMP_TRUE@snmp_la_LIBADD = $(am__append_318) \
+-@BUILD_PLUGIN_SNMP_TRUE@	$(am__append_319)
++@BUILD_PLUGIN_SNMP_TRUE@	$(am__append_318)
++@BUILD_PLUGIN_SNMP_TRUE@snmp_la_LIBADD = $(am__append_319) \
++@BUILD_PLUGIN_SNMP_TRUE@	$(am__append_320)
+ @BUILD_PLUGIN_SWAP_TRUE@swap_la_SOURCES = swap.c
+ @BUILD_PLUGIN_SWAP_TRUE@swap_la_CFLAGS = $(AM_CFLAGS) \
+-@BUILD_PLUGIN_SWAP_TRUE@	$(am__append_328)
++@BUILD_PLUGIN_SWAP_TRUE@	$(am__append_329)
+ @BUILD_PLUGIN_SWAP_TRUE@swap_la_LDFLAGS = -module -avoid-version
+-@BUILD_PLUGIN_SWAP_TRUE@swap_la_LIBADD = $(am__append_325) \
+-@BUILD_PLUGIN_SWAP_TRUE@	$(am__append_326) $(am__append_327) \
+-@BUILD_PLUGIN_SWAP_TRUE@	$(am__append_329) $(am__append_330)
++@BUILD_PLUGIN_SWAP_TRUE@swap_la_LIBADD = $(am__append_326) \
++@BUILD_PLUGIN_SWAP_TRUE@	$(am__append_327) $(am__append_328) \
++@BUILD_PLUGIN_SWAP_TRUE@	$(am__append_330) $(am__append_331)
+ @BUILD_PLUGIN_SYSLOG_TRUE@syslog_la_SOURCES = syslog.c
+ @BUILD_PLUGIN_SYSLOG_TRUE@syslog_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_TABLE_TRUE@table_la_SOURCES = table.c
+ @BUILD_PLUGIN_TABLE_TRUE@table_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_TAIL_TRUE@tail_la_SOURCES = tail.c
+ @BUILD_PLUGIN_TAIL_TRUE@tail_la_LDFLAGS = -module -avoid-version
+@@ -2579,45 +2580,45 @@
+ @BUILD_PLUGIN_TARGET_SET_TRUE@target_set_la_SOURCES = target_set.c
+ @BUILD_PLUGIN_TARGET_SET_TRUE@target_set_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_TARGET_V5UPGRADE_TRUE@target_v5upgrade_la_SOURCES = target_v5upgrade.c
+ @BUILD_PLUGIN_TARGET_V5UPGRADE_TRUE@target_v5upgrade_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_TCPCONNS_TRUE@tcpconns_la_SOURCES = tcpconns.c
+ @BUILD_PLUGIN_TCPCONNS_TRUE@tcpconns_la_LDFLAGS = -module -avoid-version
+-@BUILD_PLUGIN_TCPCONNS_TRUE@tcpconns_la_LIBADD = $(am__append_361)
++@BUILD_PLUGIN_TCPCONNS_TRUE@tcpconns_la_LIBADD = $(am__append_362)
+ @BUILD_PLUGIN_TEAMSPEAK2_TRUE@teamspeak2_la_SOURCES = teamspeak2.c
+ @BUILD_PLUGIN_TEAMSPEAK2_TRUE@teamspeak2_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_TED_TRUE@ted_la_SOURCES = ted.c
+ @BUILD_PLUGIN_TED_TRUE@ted_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_THERMAL_TRUE@thermal_la_SOURCES = thermal.c
+ @BUILD_PLUGIN_THERMAL_TRUE@thermal_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_THRESHOLD_TRUE@threshold_la_SOURCES = threshold.c
+ @BUILD_PLUGIN_THRESHOLD_TRUE@threshold_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_TOKYOTYRANT_TRUE@tokyotyrant_la_SOURCES = tokyotyrant.c
+ @BUILD_PLUGIN_TOKYOTYRANT_TRUE@tokyotyrant_la_CPPFLAGS = $(AM_CPPFLAGS) $(BUILD_WITH_LIBTOKYOTYRANT_CPPFLAGS)
+ @BUILD_PLUGIN_TOKYOTYRANT_TRUE@tokyotyrant_la_LDFLAGS = -module -avoid-version $(BUILD_WITH_LIBTOKYOTYRANT_LDFLAGS)
+ @BUILD_PLUGIN_TOKYOTYRANT_TRUE@tokyotyrant_la_LIBADD = $(BUILD_WITH_LIBTOKYOTYRANT_LIBS) \
+-@BUILD_PLUGIN_TOKYOTYRANT_TRUE@	$(am__append_375)
++@BUILD_PLUGIN_TOKYOTYRANT_TRUE@	$(am__append_376)
+ @BUILD_PLUGIN_UNIXSOCK_TRUE@unixsock_la_SOURCES = unixsock.c \
+ @BUILD_PLUGIN_UNIXSOCK_TRUE@		      utils_cmd_flush.h utils_cmd_flush.c \
+ @BUILD_PLUGIN_UNIXSOCK_TRUE@		      utils_cmd_getval.h utils_cmd_getval.c \
+ @BUILD_PLUGIN_UNIXSOCK_TRUE@		      utils_cmd_listval.h utils_cmd_listval.c \
+ @BUILD_PLUGIN_UNIXSOCK_TRUE@		      utils_cmd_putval.h utils_cmd_putval.c \
+ @BUILD_PLUGIN_UNIXSOCK_TRUE@		      utils_cmd_putnotif.h utils_cmd_putnotif.c
+ 
+ @BUILD_PLUGIN_UNIXSOCK_TRUE@unixsock_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_UNIXSOCK_TRUE@unixsock_la_LIBADD = -lpthread
+ @BUILD_PLUGIN_UPTIME_TRUE@uptime_la_SOURCES = uptime.c
+ @BUILD_PLUGIN_UPTIME_TRUE@uptime_la_CFLAGS = $(AM_CFLAGS)
+ @BUILD_PLUGIN_UPTIME_TRUE@uptime_la_LDFLAGS = -module -avoid-version
+-@BUILD_PLUGIN_UPTIME_TRUE@uptime_la_LIBADD = $(am__append_382) \
+-@BUILD_PLUGIN_UPTIME_TRUE@	$(am__append_383)
++@BUILD_PLUGIN_UPTIME_TRUE@uptime_la_LIBADD = $(am__append_383) \
++@BUILD_PLUGIN_UPTIME_TRUE@	$(am__append_384)
+ @BUILD_PLUGIN_USERS_TRUE@users_la_SOURCES = users.c
+ @BUILD_PLUGIN_USERS_TRUE@users_la_CFLAGS = $(AM_CFLAGS) \
+-@BUILD_PLUGIN_USERS_TRUE@	$(am__append_387)
++@BUILD_PLUGIN_USERS_TRUE@	$(am__append_388)
+ @BUILD_PLUGIN_USERS_TRUE@users_la_LDFLAGS = -module -avoid-version
+-@BUILD_PLUGIN_USERS_TRUE@users_la_LIBADD = $(am__append_388)
++@BUILD_PLUGIN_USERS_TRUE@users_la_LIBADD = $(am__append_389)
+ @BUILD_PLUGIN_UUID_TRUE@uuid_la_SOURCES = uuid.c
+ @BUILD_PLUGIN_UUID_TRUE@uuid_la_CFLAGS = $(AM_CFLAGS) $(BUILD_WITH_LIBHAL_CFLAGS)
+ @BUILD_PLUGIN_UUID_TRUE@uuid_la_LIBADD = $(BUILD_WITH_LIBHAL_LIBS)
+ @BUILD_PLUGIN_UUID_TRUE@uuid_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_VARNISH_TRUE@varnish_la_SOURCES = varnish.c
+ @BUILD_PLUGIN_VARNISH_TRUE@varnish_la_LDFLAGS = -module -avoid-version
+@@ -2636,15 +2637,15 @@
+ @BUILD_PLUGIN_WRITE_GRAPHITE_TRUE@write_graphite_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_WRITE_HTTP_TRUE@write_http_la_SOURCES = write_http.c \
+ @BUILD_PLUGIN_WRITE_HTTP_TRUE@			utils_format_json.c utils_format_json.h
+ 
+ @BUILD_PLUGIN_WRITE_HTTP_TRUE@write_http_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_WRITE_HTTP_TRUE@write_http_la_CFLAGS = $(AM_CFLAGS) \
+-@BUILD_PLUGIN_WRITE_HTTP_TRUE@	$(am__append_411)
+-@BUILD_PLUGIN_WRITE_HTTP_TRUE@write_http_la_LIBADD =  \
+ @BUILD_PLUGIN_WRITE_HTTP_TRUE@	$(am__append_412)
++@BUILD_PLUGIN_WRITE_HTTP_TRUE@write_http_la_LIBADD =  \
++@BUILD_PLUGIN_WRITE_HTTP_TRUE@	$(am__append_413)
+ @BUILD_PLUGIN_WRITE_MONGODB_TRUE@write_mongodb_la_SOURCES = write_mongodb.c
+ @BUILD_PLUGIN_WRITE_MONGODB_TRUE@write_mongodb_la_CPPFLAGS = $(AM_CPPFLAGS) $(BUILD_WITH_LIBMONGOC_CPPFLAGS)
+ @BUILD_PLUGIN_WRITE_MONGODB_TRUE@write_mongodb_la_LDFLAGS = -module -avoid-version $(BUILD_WITH_LIBMONGOC_LDFLAGS)
+ @BUILD_PLUGIN_WRITE_MONGODB_TRUE@write_mongodb_la_LIBADD = -lmongoc
+ @BUILD_PLUGIN_WRITE_REDIS_TRUE@write_redis_la_SOURCES = write_redis.c
+ @BUILD_PLUGIN_WRITE_REDIS_TRUE@write_redis_la_LDFLAGS = -module -avoid-version $(BUILD_WITH_LIBCREDIS_LDFLAGS)
+@@ -2666,23 +2667,24 @@
+ 		collectd-java.5 \
+ 		collectdmon.1 \
+ 		collectd-nagios.1 \
+ 		collectd-perl.5 \
+ 		collectd-python.5 \
+ 		collectd-snmp.5 \
++		collectd-tg.1 \
+ 		collectd-threshold.5 \
+ 		collectd-unixsock.5 \
+ 		types.db.5
+ 
+ 
+ #collectd_1_SOURCES = collectd.pod
+ EXTRA_DIST = types.db pinba.proto collectd.conf.pod collectd-email.pod \
+ 	collectd-exec.pod collectdctl.pod collectd-java.pod \
+ 	collectdmon.pod collectd-nagios.pod collectd-perl.pod \
+ 	collectd-python.pod collectd.pod collectd-snmp.pod \
+-	collectd-threshold.pod collectd-unixsock.pod \
++	collectd-tg.pod collectd-threshold.pod collectd-unixsock.pod \
+ 	postgresql_default.conf types.db.pod
+ @BUILD_FEATURE_DEBUG_TRUE@utils_vl_lookup_test_SOURCES = utils_vl_lookup_test.c \
+ @BUILD_FEATURE_DEBUG_TRUE@                               utils_vl_lookup.h utils_vl_lookup.c \
+ @BUILD_FEATURE_DEBUG_TRUE@                               utils_avltree.c utils_avltree.h \
+ @BUILD_FEATURE_DEBUG_TRUE@                               common.h
+ 
+@@ -4505,13 +4507,13 @@
+ 	@if grep '\<POD ERRORS\>' $@ >/dev/null 2>&1; \
+ 	then \
+ 		echo "$@ has some POD errors!"; false; \
+ 	fi
+ 
+ pinba.pb-c.c pinba.pb-c.h: pinba.proto
+-	protoc-c --c_out . pinba.proto
++	protoc-c -I$(srcdir) --c_out . $(srcdir)/pinba.proto
+ 
+ install-exec-hook:
+ 	$(mkinstalldirs) $(DESTDIR)$(sysconfdir)
+ 	if test -e $(DESTDIR)$(sysconfdir)/collectd.conf; \
+ 	then \
+ 		$(INSTALL) -m 0640 collectd.conf $(DESTDIR)$(sysconfdir)/collectd.conf.pkg-orig; \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/postgresql.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/postgresql.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/postgresql.c	2012-11-18 06:23:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/postgresql.c	2013-01-27 21:47:18.246255910 +0800
+@@ -167,20 +167,20 @@
+ 	"table_states",
+ 	"disk_io",
+ 	"disk_usage"
+ };
+ static int def_queries_num = STATIC_ARRAY_SIZE (def_queries);
+ 
+-static c_psql_database_t *databases     = NULL;
+-static size_t             databases_num = 0;
++static c_psql_database_t **databases     = NULL;
++static size_t              databases_num = 0;
+ 
+-static udb_query_t      **queries       = NULL;
+-static size_t             queries_num   = 0;
++static udb_query_t       **queries       = NULL;
++static size_t              queries_num   = 0;
+ 
+-static c_psql_writer_t   *writers       = NULL;
+-static size_t             writers_num   = 0;
++static c_psql_writer_t    *writers       = NULL;
++static size_t              writers_num   = 0;
+ 
+ static int c_psql_begin (c_psql_database_t *db)
+ {
+ 	PGresult *r = PQexec (db->conn, "BEGIN");
+ 
+ 	int status = 1;
+@@ -217,23 +217,31 @@
+ 	}
+ 	return status;
+ } /* c_psql_commit */
+ 
+ static c_psql_database_t *c_psql_database_new (const char *name)
+ {
+-	c_psql_database_t *db;
++	c_psql_database_t **tmp;
++	c_psql_database_t  *db;
+ 
+-	db = (c_psql_database_t *)realloc (databases,
+-			(databases_num + 1) * sizeof (*db));
++	db = (c_psql_database_t *)malloc (sizeof(*db));
+ 	if (NULL == db) {
+ 		log_err ("Out of memory.");
+ 		return NULL;
+ 	}
+ 
+-	databases = db;
+-	db = databases + databases_num;
++	tmp = (c_psql_database_t **)realloc (databases,
++			(databases_num + 1) * sizeof (*databases));
++	if (NULL == tmp) {
++		log_err ("Out of memory.");
++		sfree (db);
++		return NULL;
++	}
++
++	databases = tmp;
++	databases[databases_num] = db;
+ 	++databases_num;
+ 
+ 	db->conn = NULL;
+ 
+ 	C_COMPLAIN_INIT (&db->conn_complaint);
+ 
+@@ -321,13 +329,15 @@
+ 
+ 	sfree (db->krbsrvname);
+ 
+ 	sfree (db->service);
+ 
+ 	/* don't care about freeing or reordering the 'databases' array
+-	 * this is done in 'shutdown' */
++	 * this is done in 'shutdown'; also, don't free the database instance
++	 * object just to make sure that in case anybody accesses it before
++	 * shutdown won't segfault */
+ 	return;
+ } /* c_psql_database_delete */
+ 
+ static int c_psql_connect (c_psql_database_t *db)
+ {
+ 	char  conninfo[4096];
+@@ -897,24 +907,25 @@
+ 				STATIC_ARRAY_SIZE (params), NULL,
+ 				(const char *const *)params,
+ 				NULL, NULL, /* return text data */ 0);
+ 
+ 		if ((PGRES_COMMAND_OK != PQresultStatus (res))
+ 				&& (PGRES_TUPLES_OK != PQresultStatus (res))) {
++			PQclear (res);
++
+ 			if ((CONNECTION_OK != PQstatus (db->conn))
+ 					&& (0 == c_psql_check_connection (db))) {
+-				PQclear (res);
+-
+ 				/* try again */
+ 				res = PQexecParams (db->conn, writer->statement,
+ 						STATIC_ARRAY_SIZE (params), NULL,
+ 						(const char *const *)params,
+ 						NULL, NULL, /* return text data */ 0);
+ 
+ 				if ((PGRES_COMMAND_OK == PQresultStatus (res))
+ 						|| (PGRES_TUPLES_OK == PQresultStatus (res))) {
++					PQclear (res);
+ 					success = 1;
+ 					continue;
+ 				}
+ 			}
+ 
+ 			log_err ("Failed to execute SQL query: %s",
+@@ -929,12 +940,14 @@
+ 			if (db->next_commit > 0)
+ 				c_psql_commit (db);
+ 
+ 			pthread_mutex_unlock (&db->db_lock);
+ 			return -1;
+ 		}
++
++		PQclear (res);
+ 		success = 1;
+ 	}
+ 
+ 	if ((db->next_commit > 0)
+ 			&& (cdtime () > db->next_commit))
+ 		c_psql_commit (db);
+@@ -950,23 +963,23 @@
+  * running transaction, thus making sure that all written data is actually
+  * visible to everybody. */
+ static int c_psql_flush (cdtime_t timeout,
+ 		__attribute__((unused)) const char *ident,
+ 		user_data_t *ud)
+ {
+-	c_psql_database_t *dbs = databases;
++	c_psql_database_t **dbs = databases;
+ 	size_t dbs_num = databases_num;
+ 	size_t i;
+ 
+ 	if ((ud != NULL) && (ud->data != NULL)) {
+-		dbs = ud->data;
++		dbs = (c_psql_database_t **)&ud->data;
+ 		dbs_num = 1;
+ 	}
+ 
+ 	for (i = 0; i < dbs_num; ++i) {
+-		c_psql_database_t *db = dbs + i;
++		c_psql_database_t *db = dbs[i];
+ 
+ 		/* don't commit if the timeout is larger than the regular commit
+ 		 * interval as in that case all requested data has already been
+ 		 * committed */
+ 		if ((db->next_commit > 0) && (db->commit_interval > timeout))
+ 			c_psql_commit (db);
+@@ -980,13 +993,13 @@
+ 
+ 	_Bool had_flush = 0;
+ 
+ 	plugin_unregister_read_group ("postgresql");
+ 
+ 	for (i = 0; i < databases_num; ++i) {
+-		c_psql_database_t *db = databases + i;
++		c_psql_database_t *db = databases[i];
+ 
+ 		if (db->writers_num > 0) {
+ 			char cb_name[DATA_MAX_NAME_LEN];
+ 			ssnprintf (cb_name, sizeof (cb_name), "postgresql-%s",
+ 					db->database);
+ 
+@@ -995,12 +1008,14 @@
+ 				had_flush = 1;
+ 			}
+ 
+ 			plugin_unregister_flush (cb_name);
+ 			plugin_unregister_write (cb_name);
+ 		}
++
++		sfree (db);
+ 	}
+ 
+ 	udb_query_free (queries, queries_num);
+ 	queries = NULL;
+ 	queries_num = 0;
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/redis.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/redis.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/redis.c	2012-11-18 06:23:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/redis.c	2013-01-27 21:47:18.246255910 +0800
+@@ -30,12 +30,13 @@
+ 
+ #ifndef HOST_NAME_MAX
+ # define HOST_NAME_MAX _POSIX_HOST_NAME_MAX
+ #endif
+ 
+ #define REDIS_DEF_HOST   "localhost"
++#define REDIS_DEF_PASSWD ""
+ #define REDIS_DEF_PORT    6379
+ #define REDIS_DEF_TIMEOUT 2000
+ #define MAX_REDIS_NODE_NAME 64
+ 
+ /* Redis plugin configuration example:
+  *
+@@ -226,14 +227,14 @@
+ 
+   plugin_dispatch_values (&vl);
+ } /* }}} */
+ 
+ static int redis_init (void) /* {{{ */
+ {
+-  redis_node_t rn = { "default", REDIS_DEF_HOST, REDIS_DEF_PORT,
+-    REDIS_DEF_TIMEOUT, /* next = */ NULL };
++  redis_node_t rn = { "default", REDIS_DEF_HOST, REDIS_DEF_PASSWD,
++    REDIS_DEF_PORT, REDIS_DEF_TIMEOUT, /* next = */ NULL };
+ 
+   if (nodes_head == NULL)
+     redis_node_add (&rn);
+ 
+   return (0);
+ } /* }}} int redis_init */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/types.db /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/types.db
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/types.db	2012-11-18 06:23:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/types.db	2013-01-27 21:47:18.246255910 +0800
+@@ -155,13 +155,13 @@
+ swap_io			value:DERIVE:0:U
+ swap			value:GAUGE:0:1099511627776
+ tcp_connections		value:GAUGE:0:4294967295
+ temperature		value:GAUGE:-273.15:U
+ threads			value:GAUGE:0:U
+ time_dispersion		value:GAUGE:-1000000:1000000
+-timeleft		value:GAUGE:0:3600
++timeleft		value:GAUGE:0:U
+ time_offset		value:GAUGE:-1000000:1000000
+ total_bytes		value:DERIVE:0:U
+ total_connections	value:DERIVE:0:U
+ total_operations	value:DERIVE:0:U
+ total_requests		value:DERIVE:0:U
+ total_sessions		value:DERIVE:0:U
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/types.db.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/types.db.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/types.db.5	2012-11-18 06:24:50.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/types.db.5	2013-01-27 21:48:11.746767648 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "TYPES.DB 5"
+-.TH TYPES.DB 5 "2012-11-17" "5.2.0" "collectd"
++.TH TYPES.DB 5 "2013-01-27" "5.2.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ types.db \- Data\-set specifications for the system statistics collection daemon
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/utils_complain.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/utils_complain.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/utils_complain.c	2012-11-18 06:23:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/utils_complain.c	2013-01-27 21:47:18.246255910 +0800
+@@ -1,9 +1,9 @@
+ /**
+  * collectd - src/utils_complain.c
+- * Copyright (C) 2006-2007  Florian octo Forster
++ * Copyright (C) 2006-2013  Florian octo Forster
+  * Copyright (C) 2008  Sebastian tokkee Harl
+  *
+  * This program is free software; you can redistribute it and/or modify it
+  * under the terms of the GNU General Public License as published by the
+  * Free Software Foundation; only version 2 of the License is applicable.
+  *
+@@ -26,72 +26,70 @@
+ #include "plugin.h"
+ 
+ /* vcomplain returns 0 if it did not report, 1 else */
+ static int vcomplain (int level, c_complain_t *c,
+ 		const char *format, va_list ap)
+ {
+-	time_t now;
++	cdtime_t now;
+ 	char   message[512];
+ 
+-	now = time (NULL);
++	now = cdtime ();
+ 
+ 	if (c->last + c->interval > now)
+ 		return 0;
+ 
+ 	c->last = now;
+ 
+ 	if (c->interval < plugin_get_interval ())
+ 		c->interval = plugin_get_interval ();
+ 	else
+ 		c->interval *= 2;
+ 
+-	if (c->interval > 86400)
+-		c->interval = 86400;
++	if (c->interval > TIME_T_TO_CDTIME_T (86400))
++		c->interval = TIME_T_TO_CDTIME_T (86400);
+ 
+ 	vsnprintf (message, sizeof (message), format, ap);
+ 	message[sizeof (message) - 1] = '\0';
+ 
+ 	plugin_log (level, "%s", message);
+ 	return 1;
+ } /* vcomplain */
+ 
+ void c_complain (int level, c_complain_t *c, const char *format, ...)
+ {
+ 	va_list ap;
+ 
+-	/* reset the old interval */
+-	if (c->interval < 0)
+-		c->interval *= -1;
+-
+ 	va_start (ap, format);
+-	vcomplain (level, c, format, ap);
++	if (vcomplain (level, c, format, ap))
++		c->complained_once = 1;
+ 	va_end (ap);
+ } /* c_complain */
+ 
+ void c_complain_once (int level, c_complain_t *c, const char *format, ...)
+ {
+ 	va_list ap;
+ 
+-	if (c->interval < 0)
++	if (c->complained_once)
+ 		return;
+ 
+ 	va_start (ap, format);
+ 	if (vcomplain (level, c, format, ap))
+-		c->interval *= -1;
++		c->complained_once = 1;
+ 	va_end (ap);
+ } /* c_complain_once */
+ 
+ void c_do_release (int level, c_complain_t *c, const char *format, ...)
+ {
+ 	char message[512];
+ 	va_list ap;
+ 
+ 	if (c->interval == 0)
+ 		return;
+ 
+ 	c->interval = 0;
++	c->complained_once = 0;
+ 
+ 	va_start (ap, format);
+ 	vsnprintf (message, sizeof (message), format, ap);
+ 	message[sizeof (message) - 1] = '\0';
+ 	va_end (ap);
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/utils_complain.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/utils_complain.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/utils_complain.h	2012-11-18 06:23:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/utils_complain.h	2013-01-27 21:47:05.745518763 +0800
+@@ -1,9 +1,9 @@
+ /**
+  * collectd - src/utils_complain.h
+- * Copyright (C) 2006-2007  Florian octo Forster
++ * Copyright (C) 2006-2013  Florian octo Forster
+  * Copyright (C) 2008  Sebastian tokkee Harl
+  *
+  * This program is free software; you can redistribute it and/or modify it
+  * under the terms of the GNU General Public License as published by the
+  * Free Software Foundation; only version 2 of the License is applicable.
+  *
+@@ -21,29 +21,32 @@
+  *   Sebastian tokkee Harl <sh at tokkee.org>
+  **/
+ 
+ #ifndef UTILS_COMPLAIN_H
+ #define UTILS_COMPLAIN_H 1
+ 
+-#include <time.h>
++#include "utils_time.h"
+ 
+ typedef struct
+ {
+ 	/* time of the last report */
+-	time_t last;
++	cdtime_t last;
+ 
+-	/* how long to wait until reporting again
+-	 *   0 indicates that the complaint is no longer valid
+-	 * < 0 indicates that the complaint has been reported once
+-	 *     => c_complain_once will not report again
+-	 *     => c_complain uses the absolute value to reset the old value */
+-	int interval;
++	/* How long to wait until reporting again.
++	 * 0 indicates that the complaint is no longer valid. */
++	cdtime_t interval;
++
++	_Bool complained_once;
+ } c_complain_t;
+ 
+-#define C_COMPLAIN_INIT_STATIC { 0, 0 }
+-#define C_COMPLAIN_INIT(c) do { (c)->last = 0; (c)->interval = 0; } while (0)
++#define C_COMPLAIN_INIT_STATIC { 0, 0, 0 }
++#define C_COMPLAIN_INIT(c) do { \
++	(c)->last = 0; \
++	(c)->interval = 0; \
++	(c)->complained_once = 0; \
++} while (0)
+ 
+ /*
+  * NAME
+  *   c_complain
+  *
+  * DESCRIPTION
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/utils_dns.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/utils_dns.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/utils_dns.c	2012-11-18 06:23:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/utils_dns.c	2013-01-27 21:47:05.745518763 +0800
+@@ -36,58 +36,44 @@
+ #define _BSD_SOURCE
+ 
+ #include "collectd.h"
+ #include "plugin.h"
+ #include "common.h"
+ 
+-#if HAVE_NETINET_IN_SYSTM_H
+-# include <netinet/in_systm.h>
+-#endif
+-#if HAVE_NETINET_IN_H
+-# include <netinet/in.h>
+-#endif
+-#if HAVE_NETINET_IP6_H
+-# include <netinet/ip6.h>
+-#endif
+-#if HAVE_NETINET_IP_COMPAT_H
+-# include <netinet/ip_compat.h>
+-#endif
+-#if HAVE_ARPA_INET_H
+-# include <arpa/inet.h>
+-#endif
+ #if HAVE_SYS_SOCKET_H
+ # include <sys/socket.h>
+ #endif
+ 
+-#if HAVE_ARPA_NAMESER_H
+-# include <arpa/nameser.h>
+-#endif
+-#if HAVE_ARPA_NAMESER_COMPAT_H
+-# include <arpa/nameser_compat.h>
+-#endif
+-
+ #if HAVE_NET_IF_ARP_H
+ # include <net/if_arp.h>
+ #endif
+ #if HAVE_NET_IF_H
+ # include <net/if.h>
+ #endif
+-#if HAVE_NETINET_IF_ETHER_H
+-# include <netinet/if_ether.h>
+-#endif
+ #if HAVE_NET_PPP_DEFS_H
+ # include <net/ppp_defs.h>
+ #endif
+ #if HAVE_NET_IF_PPP_H
+ # include <net/if_ppp.h>
+ #endif
+ 
+-#if HAVE_NETDB_H
+-# include <netdb.h>
++#if HAVE_NETINET_IN_SYSTM_H
++# include <netinet/in_systm.h>
++#endif
++#if HAVE_NETINET_IN_H
++# include <netinet/in.h>
++#endif
++#if HAVE_NETINET_IP6_H
++# include <netinet/ip6.h>
++#endif
++#if HAVE_NETINET_IP_COMPAT_H
++# include <netinet/ip_compat.h>
++#endif
++#if HAVE_NETINET_IF_ETHER_H
++# include <netinet/if_ether.h>
+ #endif
+-
+ #if HAVE_NETINET_IP_H
+ # include <netinet/ip.h>
+ #endif
+ #ifdef HAVE_NETINET_IP_VAR_H
+ # include <netinet/ip_var.h>
+ #endif
+@@ -88,19 +74,30 @@
+ #if HAVE_NETINET_IP_H
+ # include <netinet/ip.h>
+ #endif
+ #ifdef HAVE_NETINET_IP_VAR_H
+ # include <netinet/ip_var.h>
+ #endif
+-#if HAVE_NETINET_IP6_H
+-# include <netinet/ip6.h>
+-#endif
+ #if HAVE_NETINET_UDP_H
+ # include <netinet/udp.h>
+ #endif
+ 
++#if HAVE_ARPA_INET_H
++# include <arpa/inet.h>
++#endif
++#if HAVE_ARPA_NAMESER_H
++# include <arpa/nameser.h>
++#endif
++#if HAVE_ARPA_NAMESER_COMPAT_H
++# include <arpa/nameser_compat.h>
++#endif
++
++#if HAVE_NETDB_H
++# include <netdb.h>
++#endif
++
+ #if HAVE_PCAP_H
+ # include <pcap.h>
+ #endif
+ 
+ #define PCAP_SNAPLEN 1460
+ #ifndef ETHER_HDR_LEN
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/utils_format_graphite.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/utils_format_graphite.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/utils_format_graphite.c	2012-11-18 06:23:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/utils_format_graphite.c	2013-01-27 21:47:18.246255910 +0800
+@@ -22,14 +22,14 @@
+  **/
+ 
+ #include "collectd.h"
+ #include "plugin.h"
+ #include "common.h"
+ 
++#include "utils_format_graphite.h"
+ #include "utils_cache.h"
+-#include "utils_format_json.h"
+ #include "utils_parse_option.h"
+ 
+ /* Utils functions to format data sets in graphite format.
+  * Largely taken from write_graphite.c as it remains the same formatting */
+ 
+ static int gr_format_values (char *ret, size_t ret_len,
+@@ -105,17 +105,18 @@
+         else
+             dst[i] = src[i];
+     }
+ }
+ 
+ static int gr_format_name (char *ret, int ret_len,
+-        const value_list_t *vl,
+-        const char *ds_name,
+-        char *prefix,
+-        char *postfix,
+-        char escape_char)
++        value_list_t const *vl,
++        char const *ds_name,
++        char const *prefix,
++        char const *postfix,
++        char const escape_char,
++        unsigned int flags)
+ {
+     char n_host[DATA_MAX_NAME_LEN];
+     char n_plugin[DATA_MAX_NAME_LEN];
+     char n_plugin_instance[DATA_MAX_NAME_LEN];
+     char n_type[DATA_MAX_NAME_LEN];
+     char n_type_instance[DATA_MAX_NAME_LEN];
+@@ -140,61 +141,65 @@
+     gr_copy_escape_part (n_type_instance, vl->type_instance,
+             sizeof (n_type_instance), escape_char);
+ 
+     if (n_plugin_instance[0] != '\0')
+         ssnprintf (tmp_plugin, sizeof (tmp_plugin), "%s%c%s",
+             n_plugin,
+-            '-',
++            (flags & GRAPHITE_SEPARATE_INSTANCES) ? '.' : '-',
+             n_plugin_instance);
+     else
+         sstrncpy (tmp_plugin, n_plugin, sizeof (tmp_plugin));
+ 
+     if (n_type_instance[0] != '\0')
+         ssnprintf (tmp_type, sizeof (tmp_type), "%s%c%s",
+             n_type,
+-            '-',
++            (flags & GRAPHITE_SEPARATE_INSTANCES) ? '.' : '-',
+             n_type_instance);
+     else
+         sstrncpy (tmp_type, n_type, sizeof (tmp_type));
+ 
++    /* Assert always_append_ds -> ds_name */
++    assert (!(flags & GRAPHITE_ALWAYS_APPEND_DS) || (ds_name != NULL));
+     if (ds_name != NULL)
+         ssnprintf (ret, ret_len, "%s%s%s.%s.%s.%s",
+             prefix, n_host, postfix, tmp_plugin, tmp_type, ds_name);
+     else
+         ssnprintf (ret, ret_len, "%s%s%s.%s.%s",
+             prefix, n_host, postfix, tmp_plugin, tmp_type);
+ 
+     return (0);
+ }
+ 
+ int format_graphite (char *buffer, size_t buffer_size,
+-    const data_set_t *ds, const value_list_t *vl, char *prefix,
+-    char *postfix, char escape_char,
+-    _Bool store_rates)
++    data_set_t const *ds, value_list_t const *vl,
++    char const *prefix, char const *postfix, char const escape_char,
++    unsigned int flags)
+ {
+     int status = 0;
+     int i;
+     int buffer_pos = 0;
+ 
+     gauge_t *rates = NULL;
+-    if (store_rates)
++    if (flags & GRAPHITE_STORE_RATES)
+       rates = uc_get_rate (ds, vl);
+ 
+     for (i = 0; i < ds->ds_num; i++)
+     {
+-        const char *ds_name = NULL;
++        char const *ds_name = NULL;
+         char        key[10*DATA_MAX_NAME_LEN];
+         char        values[512];
+         size_t      message_len;
+         char        message[1024];
+ 
+-        ds_name = ds->ds[i].name;
++        if ((flags & GRAPHITE_ALWAYS_APPEND_DS)
++            || (ds->ds_num > 1))
++          ds_name = ds->ds[i].name;
+ 
+         /* Copy the identifier to `key' and escape it. */
+         status = gr_format_name (key, sizeof (key), vl, ds_name,
+-                    prefix, postfix, escape_char);
++                    prefix, postfix, escape_char, flags);
+         if (status != 0)
+         {
+             ERROR ("format_graphite: error with gr_format_name");
+             sfree (rates);
+             return (status);
+         }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/utils_format_graphite.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/utils_format_graphite.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/utils_format_graphite.h	2012-11-18 06:23:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/utils_format_graphite.h	2013-01-27 21:47:18.246255910 +0800
+@@ -22,13 +22,17 @@
+ #ifndef UTILS_FORMAT_GRAPHITE_H
+ #define UTILS_FORMAT_GRAPHITE_H 1
+ 
+ #include "collectd.h"
+ #include "plugin.h"
+ 
++#define GRAPHITE_STORE_RATES        0x01
++#define GRAPHITE_SEPARATE_INSTANCES 0x02
++#define GRAPHITE_ALWAYS_APPEND_DS   0x04
++
+ int format_graphite (char *buffer,
+     size_t buffer_size, const data_set_t *ds,
+     const value_list_t *vl, const char *prefix,
+     const char *postfix, const char escape_char,
+-    _Bool store_rates);
++    unsigned int flags);
+ 
+ #endif /* UTILS_FORMAT_GRAPHITE_H */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/varnish.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/varnish.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/varnish.c	2012-11-18 06:23:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/varnish.c	2013-01-27 21:47:05.745518763 +0800
+@@ -1,11 +1,11 @@
+ /**
+  * collectd - src/varnish.c
+- * Copyright (C) 2010 Jérôme Renard
+- * Copyright (C) 2010 Marc Fournier
+- * Copyright (C) 2010 Florian Forster
++ * Copyright (C) 2010      Jérôme Renard
++ * Copyright (C) 2010      Marc Fournier
++ * Copyright (C) 2010-2012 Florian Forster
+  *
+  * This program is free software; you can redistribute it and/or modify it
+  * under the terms of the GNU General Public License as published by the
+  * Free Software Foundation; only version 2 of the License is applicable.
+  *
+  * This program is distributed in the hope that it will be useful, but
+@@ -17,13 +17,13 @@
+  * with this program; if not, write to the Free Software Foundation, Inc.,
+  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+  *
+  * Authors:
+  *   Jérôme Renard <jerome.renard at gmail.com>
+  *   Marc Fournier <marc.fournier at camptocamp.com>
+- *   Florian octo Forster <octo at verplant.org>
++ *   Florian octo Forster <octo at collectd.org>
+  **/
+ 
+ /**
+  * Current list of what is monitored and what is not monitored (yet)
+  * {{{
+  * Field name           Description                           Monitored
+@@ -409,17 +409,27 @@
+ 		return (EINVAL);
+ 
+ 	conf = ud->data;
+ 
+ 	vd = VSM_New();
+ 	VSC_Setup(vd);
+-	if (VSM_n_Arg(vd, conf->instance) == -1)
++
++	if (conf->instance != NULL)
+ 	{
+-		ERROR ("Varnish plugin : unable to load statistics from instance");
+-		return (-1);
++		int status;
++
++		status = VSM_n_Arg (vd, conf->instance);
++		if (status < 0)
++		{
++			ERROR ("varnish plugin: VSM_n_Arg (\"%s\") failed "
++					"with status %i.",
++					conf->instance, status);
++			return (-1);
++		}
+ 	}
++
+ 	if (VSC_Open (vd, /* diag = */ 1))
+ 	{
+ 		ERROR ("varnish plugin: Unable to load statistics.");
+ 
+ 		return (-1);
+ 	}
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/write_graphite.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/write_graphite.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/write_graphite.c	2012-11-18 06:23:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/write_graphite.c	2013-01-27 21:47:18.246255910 +0800
+@@ -1,13 +1,13 @@
+ /**
+  * collectd - src/write_graphite.c
+  * Copyright (C) 2012       Pierre-Yves Ritschard
+  * Copyright (C) 2011       Scott Sanders
+  * Copyright (C) 2009       Paul Sadauskas
+  * Copyright (C) 2009       Doug MacEachern
+- * Copyright (C) 2007-2012  Florian octo Forster
++ * Copyright (C) 2007-2013  Florian octo Forster
+  *
+  * This program is free software; you can redistribute it and/or modify it
+  * under the terms of the GNU General Public License as published by the
+  * Free Software Foundation; only version 2 of the License is applicable.
+  *
+  * This program is distributed in the hope that it will be useful, but
+@@ -43,12 +43,13 @@
+ #include "collectd.h"
+ #include "common.h"
+ #include "plugin.h"
+ #include "configfile.h"
+ 
+ #include "utils_cache.h"
++#include "utils_complain.h"
+ #include "utils_parse_option.h"
+ #include "utils_format_graphite.h"
+ 
+ /* Folks without pthread will need to disable this plugin. */
+ #include <pthread.h>
+ 
+@@ -82,22 +83,21 @@
+     char    *node;
+     char    *service;
+     char    *prefix;
+     char    *postfix;
+     char     escape_char;
+ 
+-    _Bool    store_rates;
+-    _Bool    separate_instances;
+-    _Bool    always_append_ds;
++    unsigned int format_flags;
+ 
+     char     send_buf[WG_SEND_BUF_SIZE];
+     size_t   send_buf_free;
+     size_t   send_buf_fill;
+     cdtime_t send_buf_init_time;
+ 
+     pthread_mutex_t send_lock;
++    c_complain_t init_complaint;
+ };
+ 
+ 
+ /*
+  * Functions
+  */
+@@ -213,18 +213,25 @@
+ 
+     freeaddrinfo (ai_list);
+ 
+     if (cb->sock_fd < 0)
+     {
+         char errbuf[1024];
+-        ERROR ("write_graphite plugin: Connecting to %s:%s failed. "
++        c_complain (LOG_ERR, &cb->init_complaint,
++                "write_graphite plugin: Connecting to %s:%s failed. "
+                 "The last error was: %s", node, service,
+                 sstrerror (errno, errbuf, sizeof (errbuf)));
+         close (cb->sock_fd);
+         return (-1);
+     }
++    else
++    {
++        c_release (LOG_INFO, &cb->init_complaint,
++                "write_graphite plugin: Successfully connected to %s:%s.",
++                node, service);
++    }
+ 
+     wg_reset_buffer (cb);
+ 
+     return (0);
+ }
+ 
+@@ -270,13 +277,13 @@
+ 
+     if (cb->sock_fd < 0)
+     {
+         status = wg_callback_init (cb);
+         if (status != 0)
+         {
+-            ERROR ("write_graphite plugin: wg_callback_init failed.");
++            /* An error message has already been printed. */
+             pthread_mutex_unlock (&cb->send_lock);
+             return (-1);
+         }
+     }
+ 
+     status = wg_flush_nolock (timeout, cb);
+@@ -296,13 +303,13 @@
+ 
+     if (cb->sock_fd < 0)
+     {
+         status = wg_callback_init (cb);
+         if (status != 0)
+         {
+-            ERROR ("write_graphite plugin: wg_callback_init failed.");
++            /* An error message has already been printed. */
+             pthread_mutex_unlock (&cb->send_lock);
+             return (-1);
+         }
+     }
+ 
+     if (message_len >= cb->send_buf_free)
+@@ -337,33 +344,33 @@
+     return (0);
+ }
+ 
+ static int wg_write_messages (const data_set_t *ds, const value_list_t *vl,
+         struct wg_callback *cb)
+ {
+-    char buffer[4096];
++    char buffer[WG_SEND_BUF_SIZE];
+     int status;
+ 
+     if (0 != strcmp (ds->type, vl->type))
+     {
+         ERROR ("write_graphite plugin: DS type does not match "
+                 "value list type");
+         return -1;
+     }
+ 
+     memset (buffer, 0, sizeof (buffer));
+     status = format_graphite (buffer, sizeof (buffer), ds, vl,
+-            cb->prefix, cb->postfix, cb->escape_char, cb->store_rates);
++            cb->prefix, cb->postfix, cb->escape_char, cb->format_flags);
+     if (status != 0) /* error message has been printed already. */
+         return (status);
+ 
++    /* Send the message to graphite */
+     wg_send_message (buffer, cb);
+     if (status != 0)
+     {
+-        ERROR ("write_graphite plugin: wg_send_message failed "
+-                "with status %i.", status);
++        /* An error message has already been printed. */
+         return (status);
+     }
+ 
+     return (0);
+ } /* int wg_write_messages */
+ 
+@@ -431,15 +438,16 @@
+     cb->sock_fd = -1;
+     cb->node = NULL;
+     cb->service = NULL;
+     cb->prefix = NULL;
+     cb->postfix = NULL;
+     cb->escape_char = WG_DEFAULT_ESCAPE;
+-    cb->store_rates = 1;
++    cb->format_flags = GRAPHITE_STORE_RATES;
+ 
+     pthread_mutex_init (&cb->send_lock, /* attr = */ NULL);
++    C_COMPLAIN_INIT (&cb->init_complaint);
+ 
+     for (i = 0; i < ci->children_num; i++)
+     {
+         oconfig_item_t *child = ci->children + i;
+ 
+         if (strcasecmp ("Host", child->key) == 0)
+@@ -448,17 +456,20 @@
+             cf_util_get_service (child, &cb->service);
+         else if (strcasecmp ("Prefix", child->key) == 0)
+             cf_util_get_string (child, &cb->prefix);
+         else if (strcasecmp ("Postfix", child->key) == 0)
+             cf_util_get_string (child, &cb->postfix);
+         else if (strcasecmp ("StoreRates", child->key) == 0)
+-            cf_util_get_boolean (child, &cb->store_rates);
++            cf_util_get_flag (child, &cb->format_flags,
++                    GRAPHITE_STORE_RATES);
+         else if (strcasecmp ("SeparateInstances", child->key) == 0)
+-            cf_util_get_boolean (child, &cb->separate_instances);
++            cf_util_get_flag (child, &cb->format_flags,
++                    GRAPHITE_SEPARATE_INSTANCES);
+         else if (strcasecmp ("AlwaysAppendDS", child->key) == 0)
+-            cf_util_get_boolean (child, &cb->always_append_ds);
++            cf_util_get_flag (child, &cb->format_flags,
++                    GRAPHITE_ALWAYS_APPEND_DS);
+         else if (strcasecmp ("EscapeCharacter", child->key) == 0)
+             config_set_char (&cb->escape_char, child);
+         else
+         {
+             ERROR ("write_graphite plugin: Invalid configuration "
+                         "option: %s.", child->key);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/zfs_arc.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/zfs_arc.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/src/zfs_arc.c	2012-11-18 06:23:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/src/zfs_arc.c	2013-01-27 21:47:05.745518763 +0800
+@@ -125,13 +125,13 @@
+         /* Operations */
+ 	za_read_derive (ksp, "allocated","cache_operation", "allocated");
+ 	za_read_derive (ksp, "deleted",  "cache_operation", "deleted");
+ 	za_read_derive (ksp, "stolen",   "cache_operation", "stolen");
+ 
+         /* Issue indicators */
+-        za_read_derive (ksp, "mutex_miss", "mutex_operation", "miss");
++        za_read_derive (ksp, "mutex_miss", "mutex_operations", "miss");
+ 	za_read_derive (ksp, "hash_collisions", "hash_collisions", "");
+ 	
+         /* Evictions */
+ 	za_read_derive (ksp, "evict_l2_cached",     "cache_eviction", "cached");
+ 	za_read_derive (ksp, "evict_l2_eligible",   "cache_eviction", "eligible");
+ 	za_read_derive (ksp, "evict_l2_ineligible", "cache_eviction", "ineligible");
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/version-gen.sh /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/version-gen.sh
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.0/version-gen.sh	2012-11-18 06:23:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-5.2.1/version-gen.sh	2013-01-27 21:47:18.246255910 +0800
+@@ -1,9 +1,9 @@
+ #!/usr/bin/env bash
+ 
+-DEFAULT_VERSION="5.2.0.git"
++DEFAULT_VERSION="5.2.1.git"
+ 
+ VERSION="`git describe 2> /dev/null | sed -e 's/^collectd-//'`"
+ 
+ if test -z "$VERSION"; then
+ 	VERSION="$DEFAULT_VERSION"
+ fi

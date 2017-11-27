@@ -1,1 +1,0 @@
-sqlite3MPrintf(db, "malformed database schema (%s)", zObj);

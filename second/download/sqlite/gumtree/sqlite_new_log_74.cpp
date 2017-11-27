@@ -1,1 +1,0 @@
-sqlite3Error(pErrorDb, SQLITE_ERROR, "unknown database %s", zDb);

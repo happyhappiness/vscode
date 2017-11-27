@@ -1,1 +1,0 @@
-sqlite3MPrintf(db, "subquery_%p", (void*)pTab);

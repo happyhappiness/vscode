@@ -1,1 +1,0 @@
-sqlite3_log(SQLITE_NOMEM, "failed to allocate %u bytes", nByte);

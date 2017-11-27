@@ -1,1 +1,0 @@
-serverLog(LL_WARNING,"Hash size: %d", (int) hashTypeLength(o));

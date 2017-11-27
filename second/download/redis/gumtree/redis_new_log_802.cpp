@@ -1,1 +1,0 @@
-notifyKeyspaceEvent(NOTIFY_STRING,"incrby",c->argv[1],c->db->id);

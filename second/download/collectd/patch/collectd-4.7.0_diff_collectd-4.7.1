@@ -1,0 +1,2009 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/ChangeLog /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/ChangeLog
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/ChangeLog	2009-05-12 14:58:42.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/ChangeLog	2009-06-02 17:41:03.000000000 +0800
+@@ -1,6 +1,25 @@
++2009-06-02, Version 4.7.1
++	* Build system: Detection of Java has been improved and missing
++	  details have been added to the configuration summary. Support for
++	  libtool 2.2 has been added.
++	* collectd: Two bugs with the threshold checking have been fixed. The
++	  first one prevented thresholds to be checked at all, the second one
++	  caused wrong behavior with the persistency option. Thanks to Andrés
++	  J. Díaz for fixing these problems.
++	* collectd: Handling of the `Include' configuration option has been
++	  fixed.
++	* rrdtool plugin: Make sure initialization is run only once. This
++	  resolves problems under Solaris and potentially other systems.
++	  Thanks to Amit Gupta for reporting this bug.
++	* java plugin: Make it possible to use dots ('.') instead of slashes
++	  ('/') as the class separator. Thanks to Randy Rizun for pointing
++	  this out.
++	* swap plugin: A work-around for 32-bit Solaris has been added. Thanks
++	  to Doug MacEachern for the patch.
++
+ 2009-05-11, Version 4.7.0
+ 	* apache plugin: Support to query multiple servers has been added.
+ 	  Thanks to Amit Gupta for the patch.
+ 	* apache plugin: Handling of lighttpd's scoreboard statistics has been
+ 	  improved. Thanks to Amit Gupta for the patch.
+ 	* conntrack plugin: The new conntrack plugin collects the connection
+@@ -39,32 +58,35 @@
+ 	  information from OneWire sensors at arbitrary intervals.
+ 	* ping plugin: Support for collecting the drop rate and standard
+ 	  deviation of round-trip times has been added.
+ 	* uptime plugin: The new uptime plugin can collect the server's
+ 	  uptime. Thanks to Marco Chiappero for the patch.
+ 
+-2009-05-09, Version 4.5.4
++2009-06-02, Version 4.6.3
+ 	* Build system, various plugins: Many build fixes for FreeBSD,
+ 	  OpenBSD, NetBSD, Solaris and Mac OS X. Big thanks to Doug MacEachern
+ 	  for many fixes and providing a build system for many platforms,
+ 	  Ulf Zimmermann for providing a FreeBSD system and Simon Kuhnle for
+ 	  providing an OpenBSD system.
+-	* collectd: Fix a potential race condition when creating directories.
++	* collectd: Two bugs with the threshold checking have been fixed. The
++	  first one prevented thresholds to be checked at all, the second one
++	  caused wrong behavior with the persistency option. Thanks to Andrés
++	  J. Díaz for fixing these problems.
++	* collectd: Handling of the `Include' configuration option has been
++	  fixed.
+ 	* battery plugin: Don't complain about a missing directory every
+ 	  interval.
+-	* dns plugin: Slight portability fixes.
+ 	* exec plugin: Allow executed programs to close STDERR. Thanks to
+ 	  Thorsten von Eicken for reporting this problem.
+ 	* irq plugin: Fix handling of overflowing 32-bit counters. Thanks to
+ 	  Tomasz Pala for the patch.
+ 	* perl plugin: Portability build-fixes. Thanks to Doug MacEachern for
+ 	  the patch.
+-	* rrdtool plugin: Fix a possible race condition: If the network plugin
+-	  is initialized and dispatches a value before the rrdtool plugin is
+-	  initialized, the daemon may crash.
+ 	* memory plugin: Fix a potential problem under Solaris.
++	* swap plugin: A work-around for 32-bit Solaris has been added. Thanks
++	  to Doug MacEachern for the patch.
+ 
+ 2009-03-18, Version 4.6.2
+ 	* collectd: Some Solaris utility code has been improved.
+ 	* filter subsystem: Allow `Chains' without default targets.
+ 	* liboping: A patch to comply with strict aliasing rules has been
+ 	  added.
+@@ -159,12 +181,33 @@
+ 	  RRD accelerator daemon, rrdcached. This daemon works very similar to
+ 	  the original rrdtool plugin of collectd, but adds some more nice
+ 	  features.
+ 	* swap plugin: Code for OpenBSD (and possibly other *BSDs) has been
+ 	  added.
+ 
++2009-05-09, Version 4.5.4
++	* Build system, various plugins: Many build fixes for FreeBSD,
++	  OpenBSD, NetBSD, Solaris and Mac OS X. Big thanks to Doug MacEachern
++	  for many fixes and providing a build system for many platforms,
++	  Ulf Zimmermann for providing a FreeBSD system and Simon Kuhnle for
++	  providing an OpenBSD system.
++	* collectd: Fix a potential race condition when creating directories.
++	* battery plugin: Don't complain about a missing directory every
++	  interval.
++	* dns plugin: Slight portability fixes.
++	* exec plugin: Allow executed programs to close STDERR. Thanks to
++	  Thorsten von Eicken for reporting this problem.
++	* irq plugin: Fix handling of overflowing 32-bit counters. Thanks to
++	  Tomasz Pala for the patch.
++	* perl plugin: Portability build-fixes. Thanks to Doug MacEachern for
++	  the patch.
++	* rrdtool plugin: Fix a possible race condition: If the network plugin
++	  is initialized and dispatches a value before the rrdtool plugin is
++	  initialized, the daemon may crash.
++	* memory plugin: Fix a potential problem under Solaris.
++
+ 2009-02-22, Version 4.5.3
+ 	* build system: The check for libupsclient even when `pkg-config' is
+ 	  not available.
+ 	* collectd: Fix error handling in the global cache.
+ 	* Collectd::Unixsock: Error handling has been improved.
+ 	* ascent plugin: Fix a memory leak. Thanks to Bruno Prémont for his
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/config.guess /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/config.guess
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/config.guess	2008-07-08 07:41:25.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/config.guess	2009-05-04 07:55:47.000000000 +0800
+@@ -1,13 +1,13 @@
+ #! /bin/sh
+ # Attempt to guess a canonical system name.
+ #   Copyright (C) 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
+ #   2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008
+ #   Free Software Foundation, Inc.
+ 
+-timestamp='2008-01-23'
++timestamp='2009-04-27'
+ 
+ # This file is free software; you can redistribute it and/or modify it
+ # under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 2 of the License, or
+ # (at your option) any later version.
+ #
+@@ -321,20 +321,36 @@
+ 	echo sparc-icl-nx6
+ 	exit ;;
+     DRS?6000:UNIX_SV:4.2*:7* | DRS?6000:isis:4.2*:7*)
+ 	case `/usr/bin/uname -p` in
+ 	    sparc) echo sparc-icl-nx7; exit ;;
+ 	esac ;;
++    s390x:SunOS:*:*)
++	echo ${UNAME_MACHINE}-ibm-solaris2`echo ${UNAME_RELEASE}|sed -e 's/[^.]*//'`
++	exit ;;
+     sun4H:SunOS:5.*:*)
+ 	echo sparc-hal-solaris2`echo ${UNAME_RELEASE}|sed -e 's/[^.]*//'`
+ 	exit ;;
+     sun4*:SunOS:5.*:* | tadpole*:SunOS:5.*:*)
+ 	echo sparc-sun-solaris2`echo ${UNAME_RELEASE}|sed -e 's/[^.]*//'`
+ 	exit ;;
+     i86pc:SunOS:5.*:* | i86xen:SunOS:5.*:*)
+-	echo i386-pc-solaris2`echo ${UNAME_RELEASE}|sed -e 's/[^.]*//'`
++	eval $set_cc_for_build
++	SUN_ARCH="i386"
++	# If there is a compiler, see if it is configured for 64-bit objects.
++	# Note that the Sun cc does not turn __LP64__ into 1 like gcc does.
++	# This test works for both compilers.
++	if [ "$CC_FOR_BUILD" != 'no_compiler_found' ]; then
++	    if (echo '#ifdef __amd64'; echo IS_64BIT_ARCH; echo '#endif') | \
++		(CCOPTS= $CC_FOR_BUILD -E - 2>/dev/null) | \
++		grep IS_64BIT_ARCH >/dev/null
++	    then
++		SUN_ARCH="x86_64"
++	    fi
++	fi
++	echo ${SUN_ARCH}-pc-solaris2`echo ${UNAME_RELEASE}|sed -e 's/[^.]*//'`
+ 	exit ;;
+     sun4*:SunOS:6*:*)
+ 	# According to config.sub, this is the proper way to canonicalize
+ 	# SunOS6.  Hard to guess exactly what SunOS6 will be like, but
+ 	# it's likely to be more like Solaris than SunOS4.
+ 	echo sparc-sun-solaris3`echo ${UNAME_RELEASE}|sed -e 's/[^.]*//'`
+@@ -793,13 +809,13 @@
+ 	exit ;;
+     *:Interix*:[3456]*)
+     	case ${UNAME_MACHINE} in
+ 	    x86)
+ 		echo i586-pc-interix${UNAME_RELEASE}
+ 		exit ;;
+-	    EM64T | authenticamd)
++	    EM64T | authenticamd | genuineintel)
+ 		echo x86_64-unknown-interix${UNAME_RELEASE}
+ 		exit ;;
+ 	    IA64)
+ 		echo ia64-unknown-interix${UNAME_RELEASE}
+ 		exit ;;
+ 	esac ;;
+@@ -932,12 +948,15 @@
+ 	  EV68*) UNAME_MACHINE=alphaev68 ;;
+         esac
+ 	objdump --private-headers /bin/sh | grep ld.so.1 >/dev/null
+ 	if test "$?" = 0 ; then LIBC="libc1" ; else LIBC="" ; fi
+ 	echo ${UNAME_MACHINE}-unknown-linux-gnu${LIBC}
+ 	exit ;;
++    padre:Linux:*:*)
++	echo sparc-unknown-linux-gnu
++	exit ;;
+     parisc:Linux:*:* | hppa:Linux:*:*)
+ 	# Look for CPU level
+ 	case `grep '^cpu[^a-z]*:' /proc/cpuinfo 2>/dev/null | cut -d' ' -f2` in
+ 	  PA7*) echo hppa1.1-unknown-linux-gnu ;;
+ 	  PA8*) echo hppa2.0-unknown-linux-gnu ;;
+ 	  *)    echo hppa-unknown-linux-gnu ;;
+@@ -982,15 +1001,12 @@
+ 	  elf32-i386)
+ 		TENTATIVE="${UNAME_MACHINE}-pc-linux-gnu"
+ 		;;
+ 	  a.out-i386-linux)
+ 		echo "${UNAME_MACHINE}-pc-linux-gnuaout"
+ 		exit ;;
+-	  coff-i386)
+-		echo "${UNAME_MACHINE}-pc-linux-gnucoff"
+-		exit ;;
+ 	  "")
+ 		# Either a pre-BFD a.out linker (linux-gnuoldld) or
+ 		# one that does not give us useful --help.
+ 		echo "${UNAME_MACHINE}-pc-linux-gnuoldld"
+ 		exit ;;
+ 	esac
+@@ -1099,14 +1115,17 @@
+ 		echo ${UNAME_MACHINE}-pc-sysv32
+ 	fi
+ 	exit ;;
+     pc:*:*:*)
+ 	# Left here for compatibility:
+         # uname -m prints for DJGPP always 'pc', but it prints nothing about
+-        # the processor, so we play safe by assuming i386.
+-	echo i386-pc-msdosdjgpp
++        # the processor, so we play safe by assuming i586.
++	# Note: whatever this is, it MUST be the same as what config.sub
++	# prints for the "djgpp" host, or else GDB configury will decide that
++	# this is a cross-build.
++	echo i586-pc-msdosdjgpp
+         exit ;;
+     Intel:Mach:3*:*)
+ 	echo i386-pc-mach3
+ 	exit ;;
+     paragon:*:*:*)
+ 	echo i860-intel-osf1
+@@ -1138,12 +1157,22 @@
+ 	  && { echo i486-ncr-sysv4.3${OS_REL}; exit; }
+ 	/bin/uname -p 2>/dev/null | /bin/grep entium >/dev/null \
+ 	  && { echo i586-ncr-sysv4.3${OS_REL}; exit; } ;;
+     3[34]??:*:4.0:* | 3[34]??,*:*:4.0:*)
+         /bin/uname -p 2>/dev/null | grep 86 >/dev/null \
+           && { echo i486-ncr-sysv4; exit; } ;;
++    NCR*:*:4.2:* | MPRAS*:*:4.2:*)
++	OS_REL='.3'
++	test -r /etc/.relid \
++	    && OS_REL=.`sed -n 's/[^ ]* [^ ]* \([0-9][0-9]\).*/\1/p' < /etc/.relid`
++	/bin/uname -p 2>/dev/null | grep 86 >/dev/null \
++	    && { echo i486-ncr-sysv4.3${OS_REL}; exit; }
++	/bin/uname -p 2>/dev/null | /bin/grep entium >/dev/null \
++	    && { echo i586-ncr-sysv4.3${OS_REL}; exit; }
++	/bin/uname -p 2>/dev/null | /bin/grep pteron >/dev/null \
++	    && { echo i586-ncr-sysv4.3${OS_REL}; exit; } ;;
+     m68*:LynxOS:2.*:* | m68*:LynxOS:3.0*:*)
+ 	echo m68k-unknown-lynxos${UNAME_RELEASE}
+ 	exit ;;
+     mc68030:UNIX_System_V:4.*:*)
+ 	echo m68k-atari-sysv4
+ 	exit ;;
+@@ -1213,12 +1242,15 @@
+     BeMac:BeOS:*:*)	# BeOS running on Mac or Mac clone, PPC only.
+ 	echo powerpc-apple-beos
+ 	exit ;;
+     BePC:BeOS:*:*)	# BeOS running on Intel PC compatible.
+ 	echo i586-pc-beos
+ 	exit ;;
++    BePC:Haiku:*:*)	# Haiku running on Intel PC compatible.
++	echo i586-pc-haiku
++	exit ;;
+     SX-4:SUPER-UX:*:*)
+ 	echo sx4-nec-superux${UNAME_RELEASE}
+ 	exit ;;
+     SX-5:SUPER-UX:*:*)
+ 	echo sx5-nec-superux${UNAME_RELEASE}
+ 	exit ;;
+@@ -1321,12 +1353,15 @@
+     i*86:skyos:*:*)
+ 	echo ${UNAME_MACHINE}-pc-skyos`echo ${UNAME_RELEASE}` | sed -e 's/ .*$//'
+ 	exit ;;
+     i*86:rdos:*:*)
+ 	echo ${UNAME_MACHINE}-pc-rdos
+ 	exit ;;
++    i*86:AROS:*:*)
++	echo ${UNAME_MACHINE}-pc-aros
++	exit ;;
+ esac
+ 
+ #echo '(No uname command or uname output not recognized.)' 1>&2
+ #echo "${UNAME_MACHINE}:${UNAME_SYSTEM}:${UNAME_RELEASE}:${UNAME_VERSION}" 1>&2
+ 
+ eval $set_cc_for_build
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/config.sub /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/config.sub
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/config.sub	2008-07-08 07:41:25.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/config.sub	2009-05-04 07:55:47.000000000 +0800
+@@ -1,13 +1,13 @@
+ #! /bin/sh
+ # Configuration validation subroutine script.
+ #   Copyright (C) 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
+ #   2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008
+ #   Free Software Foundation, Inc.
+ 
+-timestamp='2008-01-16'
++timestamp='2009-04-17'
+ 
+ # This file is (in principle) common to ALL GNU software.
+ # The presence of a machine in this file suggests that SOME GNU software
+ # can handle that machine.  It does not imply ALL GNU software can.
+ #
+ # This file is free software; you can redistribute it and/or modify
+@@ -119,12 +119,13 @@
+ # Separate what the user gave into CPU-COMPANY and OS or KERNEL-OS (if any).
+ # Here we must recognize all the valid KERNEL-OS combinations.
+ maybe_os=`echo $1 | sed 's/^\(.*\)-\([^-]*-[^-]*\)$/\2/'`
+ case $maybe_os in
+   nto-qnx* | linux-gnu* | linux-dietlibc | linux-newlib* | linux-uclibc* | \
+   uclinux-uclibc* | uclinux-gnu* | kfreebsd*-gnu* | knetbsd*-gnu* | netbsd*-gnu* | \
++  kopensolaris*-gnu* | \
+   storm-chaos* | os2-emx* | rtmk-nova*)
+     os=-$maybe_os
+     basic_machine=`echo $1 | sed 's/^\(.*\)-\([^-]*-[^-]*\)$/\1/'`
+     ;;
+   *)
+     basic_machine=`echo $1 | sed 's/-[^-]*$//'`
+@@ -246,50 +247,54 @@
+ 	| c4x | clipper \
+ 	| d10v | d30v | dlx | dsp16xx \
+ 	| fido | fr30 | frv \
+ 	| h8300 | h8500 | hppa | hppa1.[01] | hppa2.0 | hppa2.0[nw] | hppa64 \
+ 	| i370 | i860 | i960 | ia64 \
+ 	| ip2k | iq2000 \
++	| lm32 \
+ 	| m32c | m32r | m32rle | m68000 | m68k | m88k \
+-	| maxq | mb | microblaze | mcore | mep \
++	| maxq | mb | microblaze | mcore | mep | metag \
+ 	| mips | mipsbe | mipseb | mipsel | mipsle \
+ 	| mips16 \
+ 	| mips64 | mips64el \
+-	| mips64vr | mips64vrel \
++	| mips64octeon | mips64octeonel \
+ 	| mips64orion | mips64orionel \
++	| mips64r5900 | mips64r5900el \
++	| mips64vr | mips64vrel \
+ 	| mips64vr4100 | mips64vr4100el \
+ 	| mips64vr4300 | mips64vr4300el \
+ 	| mips64vr5000 | mips64vr5000el \
+ 	| mips64vr5900 | mips64vr5900el \
+ 	| mipsisa32 | mipsisa32el \
+ 	| mipsisa32r2 | mipsisa32r2el \
+ 	| mipsisa64 | mipsisa64el \
+ 	| mipsisa64r2 | mipsisa64r2el \
+ 	| mipsisa64sb1 | mipsisa64sb1el \
+ 	| mipsisa64sr71k | mipsisa64sr71kel \
+ 	| mipstx39 | mipstx39el \
+ 	| mn10200 | mn10300 \
++	| moxie \
+ 	| mt \
+ 	| msp430 \
+ 	| nios | nios2 \
+ 	| ns16k | ns32k \
+ 	| or32 \
+ 	| pdp10 | pdp11 | pj | pjl \
+ 	| powerpc | powerpc64 | powerpc64le | powerpcle | ppcbe \
+ 	| pyramid \
+ 	| score \
+-	| sh | sh[1234] | sh[24]a | sh[23]e | sh[34]eb | sheb | shbe | shle | sh[1234]le | sh3ele \
++	| sh | sh[1234] | sh[24]a | sh[24]aeb | sh[23]e | sh[34]eb | sheb | shbe | shle | sh[1234]le | sh3ele \
+ 	| sh64 | sh64le \
+ 	| sparc | sparc64 | sparc64b | sparc64v | sparc86x | sparclet | sparclite \
+ 	| sparcv8 | sparcv9 | sparcv9b | sparcv9v \
+ 	| spu | strongarm \
+ 	| tahoe | thumb | tic4x | tic80 | tron \
+ 	| v850 | v850e \
+ 	| we32k \
+ 	| x86 | xc16x | xscale | xscalee[bl] | xstormy16 | xtensa \
+-	| z8k)
++	| z8k | z80)
+ 		basic_machine=$basic_machine-unknown
+ 		;;
+ 	m6811 | m68hc11 | m6812 | m68hc12)
+ 		# Motorola 68HC11/12.
+ 		basic_machine=$basic_machine-unknown
+ 		os=-none
+@@ -326,20 +331,23 @@
+ 	| elxsi-* \
+ 	| f30[01]-* | f700-* | fido-* | fr30-* | frv-* | fx80-* \
+ 	| h8300-* | h8500-* \
+ 	| hppa-* | hppa1.[01]-* | hppa2.0-* | hppa2.0[nw]-* | hppa64-* \
+ 	| i*86-* | i860-* | i960-* | ia64-* \
+ 	| ip2k-* | iq2000-* \
++	| lm32-* \
+ 	| m32c-* | m32r-* | m32rle-* \
+ 	| m68000-* | m680[012346]0-* | m68360-* | m683?2-* | m68k-* \
+-	| m88110-* | m88k-* | maxq-* | mcore-* \
++	| m88110-* | m88k-* | maxq-* | mcore-* | metag-* \
+ 	| mips-* | mipsbe-* | mipseb-* | mipsel-* | mipsle-* \
+ 	| mips16-* \
+ 	| mips64-* | mips64el-* \
+-	| mips64vr-* | mips64vrel-* \
++	| mips64octeon-* | mips64octeonel-* \
+ 	| mips64orion-* | mips64orionel-* \
++	| mips64r5900-* | mips64r5900el-* \
++	| mips64vr-* | mips64vrel-* \
+ 	| mips64vr4100-* | mips64vr4100el-* \
+ 	| mips64vr4300-* | mips64vr4300el-* \
+ 	| mips64vr5000-* | mips64vr5000el-* \
+ 	| mips64vr5900-* | mips64vr5900el-* \
+ 	| mipsisa32-* | mipsisa32el-* \
+ 	| mipsisa32r2-* | mipsisa32r2el-* \
+@@ -355,26 +363,26 @@
+ 	| none-* | np1-* | ns16k-* | ns32k-* \
+ 	| orion-* \
+ 	| pdp10-* | pdp11-* | pj-* | pjl-* | pn-* | power-* \
+ 	| powerpc-* | powerpc64-* | powerpc64le-* | powerpcle-* | ppcbe-* \
+ 	| pyramid-* \
+ 	| romp-* | rs6000-* \
+-	| sh-* | sh[1234]-* | sh[24]a-* | sh[23]e-* | sh[34]eb-* | sheb-* | shbe-* \
++	| sh-* | sh[1234]-* | sh[24]a-* | sh[24]aeb-* | sh[23]e-* | sh[34]eb-* | sheb-* | shbe-* \
+ 	| shle-* | sh[1234]le-* | sh3ele-* | sh64-* | sh64le-* \
+ 	| sparc-* | sparc64-* | sparc64b-* | sparc64v-* | sparc86x-* | sparclet-* \
+ 	| sparclite-* \
+ 	| sparcv8-* | sparcv9-* | sparcv9b-* | sparcv9v-* | strongarm-* | sv1-* | sx?-* \
+ 	| tahoe-* | thumb-* \
+-	| tic30-* | tic4x-* | tic54x-* | tic55x-* | tic6x-* | tic80-* \
++	| tic30-* | tic4x-* | tic54x-* | tic55x-* | tic6x-* | tic80-* | tile-* \
+ 	| tron-* \
+ 	| v850-* | v850e-* | vax-* \
+ 	| we32k-* \
+ 	| x86-* | x86_64-* | xc16x-* | xps100-* | xscale-* | xscalee[bl]-* \
+ 	| xstormy16-* | xtensa*-* \
+ 	| ymp-* \
+-	| z8k-*)
++	| z8k-* | z80-*)
+ 		;;
+ 	# Recognize the basic CPU types without company name, with glob match.
+ 	xtensa*)
+ 		basic_machine=$basic_machine-unknown
+ 		;;
+ 	# Recognize the various machine names and aliases which stand
+@@ -436,12 +444,16 @@
+ 		os=-sysv
+ 		;;
+ 	apollo68bsd)
+ 		basic_machine=m68k-apollo
+ 		os=-bsd
+ 		;;
++	aros)
++		basic_machine=i386-pc
++		os=-aros
++		;;
+ 	aux)
+ 		basic_machine=m68k-apple
+ 		os=-aux
+ 		;;
+ 	balance)
+ 		basic_machine=ns32k-sequent
+@@ -456,12 +468,16 @@
+ 		os=-linux
+ 		;;
+ 	c90)
+ 		basic_machine=c90-cray
+ 		os=-unicos
+ 		;;
++        cegcc)
++		basic_machine=arm-unknown
++		os=-cegcc
++		;;
+ 	convex-c1)
+ 		basic_machine=c1-convex
+ 		os=-bsd
+ 		;;
+ 	convex-c2)
+ 		basic_machine=c2-convex
+@@ -523,12 +539,16 @@
+ 		basic_machine=m68k-motorola
+ 		;;
+ 	delta88)
+ 		basic_machine=m88k-motorola
+ 		os=-sysv3
+ 		;;
++	dicos)
++		basic_machine=i686-pc
++		os=-dicos
++		;;
+ 	djgpp)
+ 		basic_machine=i586-pc
+ 		os=-msdosdjgpp
+ 		;;
+ 	dpx20 | dpx20-*)
+ 		basic_machine=rs6000-bull
+@@ -1125,12 +1145,16 @@
+ 		os=-unicos
+ 		;;
+ 	z8k-*-coff)
+ 		basic_machine=z8k-unknown
+ 		os=-sim
+ 		;;
++	z80-*-coff)
++		basic_machine=z80-unknown
++		os=-sim
++		;;
+ 	none)
+ 		basic_machine=none-none
+ 		os=-none
+ 		;;
+ 
+ # Here we handle the default manufacturer of certain CPU types.  It is in
+@@ -1163,13 +1187,13 @@
+ 	pdp11)
+ 		basic_machine=pdp11-dec
+ 		;;
+ 	we32k)
+ 		basic_machine=we32k-att
+ 		;;
+-	sh[1234] | sh[24]a | sh[34]eb | sh[1234]le | sh[23]ele)
++	sh[1234] | sh[24]a | sh[24]aeb | sh[34]eb | sh[1234]le | sh[23]ele)
+ 		basic_machine=sh-unknown
+ 		;;
+ 	sparc | sparcv8 | sparcv9 | sparcv9b | sparcv9v)
+ 		basic_machine=sparc-sun
+ 		;;
+ 	cydra)
+@@ -1235,23 +1259,24 @@
+ 	# The portable systems comes first.
+ 	# Each alternative MUST END IN A *, to match a version number.
+ 	# -sysv* is not here because it comes later, after sysvr4.
+ 	-gnu* | -bsd* | -mach* | -minix* | -genix* | -ultrix* | -irix* \
+ 	      | -*vms* | -sco* | -esix* | -isc* | -aix* | -sunos | -sunos[34]*\
+ 	      | -hpux* | -unos* | -osf* | -luna* | -dgux* | -solaris* | -sym* \
++	      | -kopensolaris* \
+ 	      | -amigaos* | -amigados* | -msdos* | -newsos* | -unicos* | -aof* \
+-	      | -aos* \
++	      | -aos* | -aros* \
+ 	      | -nindy* | -vxsim* | -vxworks* | -ebmon* | -hms* | -mvs* \
+ 	      | -clix* | -riscos* | -uniplus* | -iris* | -rtu* | -xenix* \
+ 	      | -hiux* | -386bsd* | -knetbsd* | -mirbsd* | -netbsd* \
+ 	      | -openbsd* | -solidbsd* \
+ 	      | -ekkobsd* | -kfreebsd* | -freebsd* | -riscix* | -lynxos* \
+ 	      | -bosx* | -nextstep* | -cxux* | -aout* | -elf* | -oabi* \
+ 	      | -ptx* | -coff* | -ecoff* | -winnt* | -domain* | -vsta* \
+ 	      | -udi* | -eabi* | -lites* | -ieee* | -go32* | -aux* \
+-	      | -chorusos* | -chorusrdb* \
++	      | -chorusos* | -chorusrdb* | -cegcc* \
+ 	      | -cygwin* | -pe* | -psos* | -moss* | -proelf* | -rtems* \
+ 	      | -mingw32* | -linux-gnu* | -linux-newlib* | -linux-uclibc* \
+ 	      | -uxpv* | -beos* | -mpeix* | -udk* \
+ 	      | -interix* | -uwin* | -mks* | -rhapsody* | -darwin* | -opened* \
+ 	      | -openstep* | -oskit* | -conix* | -pw32* | -nonstopux* \
+ 	      | -storm-chaos* | -tops10* | -tenex* | -tops20* | -its* \
+@@ -1385,12 +1410,15 @@
+ 	-kaos*)
+ 		os=-kaos
+ 		;;
+ 	-zvmoe)
+ 		os=-zvmoe
+ 		;;
++	-dicos*)
++		os=-dicos
++		;;
+ 	-none)
+ 		;;
+ 	*)
+ 		# Get rid of the `-' at the beginning of $os.
+ 		os=`echo $os | sed 's/[^-]*-//'`
+ 		echo Invalid configuration \`$1\': system \`$os\' not recognized 1>&2
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/configure	2009-05-12 14:59:36.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/configure	2009-06-02 17:41:21.000000000 +0800
+@@ -1,9 +1,9 @@
+ #! /bin/sh
+ # Guess values for system-dependent variables and create Makefiles.
+-# Generated by GNU Autoconf 2.63 for collectd 4.7.0.
++# Generated by GNU Autoconf 2.63 for collectd 4.7.1.
+ #
+ # Copyright (C) 1992, 1993, 1994, 1995, 1996, 1998, 1999, 2000, 2001,
+ # 2002, 2003, 2004, 2005, 2006, 2007, 2008 Free Software Foundation, Inc.
+ # This configure script is free software; the Free Software Foundation
+ # gives unlimited permission to copy, distribute and modify it.
+ ## --------------------- ##
+@@ -745,17 +745,18 @@
+ MAKEFLAGS=
+ SHELL=${CONFIG_SHELL-/bin/sh}
+ 
+ # Identity of this package.
+ PACKAGE_NAME='collectd'
+ PACKAGE_TARNAME='collectd'
+-PACKAGE_VERSION='4.7.0'
+-PACKAGE_STRING='collectd 4.7.0'
++PACKAGE_VERSION='4.7.1'
++PACKAGE_STRING='collectd 4.7.1'
+ PACKAGE_BUGREPORT=''
+ 
+ ac_unique_file="src/collectd.c"
++enable_option_checking=no
+ ac_default_prefix="/opt/collectd"
+ # Factoring default headers for most tests.
+ ac_includes_default="\
+ #include <stdio.h>
+ #ifdef HAVE_SYS_TYPES_H
+ # include <sys/types.h>
+@@ -787,13 +788,12 @@
+ # include <stdint.h>
+ #endif
+ #ifdef HAVE_UNISTD_H
+ # include <unistd.h>
+ #endif"
+ 
+-enable_option_checking=no
+ ac_subst_vars='LTLIBOBJS
+ LIBOBJS
+ LCC_VERSION_STRING
+ LCC_VERSION_EXTRA
+ LCC_VERSION_PATCH
+ LCC_VERSION_MINOR
+@@ -1101,13 +1101,12 @@
+ BUILD_WITH_LIBSOCKET_TRUE
+ BUILD_FEATURE_STANDARDS_FALSE
+ BUILD_FEATURE_STANDARDS_TRUE
+ pkgconfigdir
+ KERNEL_CFLAGS
+ KERNEL_DIR
+-subdirs
+ PKG_CONFIG
+ YFLAGS
+ YACC
+ LEXLIB
+ LEX_OUTPUT_ROOT
+ LEX
+@@ -1135,14 +1134,12 @@
+ host_cpu
+ host
+ build_os
+ build_vendor
+ build_cpu
+ build
+-LIBLTDL
+-LTDLINCL
+ COMPILER_IS_GCC_FALSE
+ COMPILER_IS_GCC_TRUE
+ LN_S
+ CPP
+ am__fastdepCC_FALSE
+ am__fastdepCC_TRUE
+@@ -1180,12 +1177,15 @@
+ PACKAGE
+ CYGPATH_W
+ am__isrc
+ INSTALL_DATA
+ INSTALL_SCRIPT
+ INSTALL_PROGRAM
++subdirs
++LIBLTDL
++LTDLINCL
+ target_alias
+ host_alias
+ build_alias
+ LIBS
+ ECHO_T
+ ECHO_N
+@@ -1918,13 +1918,13 @@
+ # Report the --help message.
+ #
+ if test "$ac_init_help" = "long"; then
+   # Omit some internal or obsolete options to make the list less imposing.
+   # This message is too long to be a string in the A/UX 3.1 sh.
+   cat <<_ACEOF
+-\`configure' configures collectd 4.7.0 to adapt to many kinds of systems.
++\`configure' configures collectd 4.7.1 to adapt to many kinds of systems.
+ 
+ Usage: $0 [OPTION]... [VAR=VALUE]...
+ 
+ To assign environment variables (e.g., CC, CFLAGS...), specify them as
+ VAR=VALUE.  See below for descriptions of some of the useful variables.
+ 
+@@ -1988,13 +1988,13 @@
+   --host=HOST       cross-compile to build programs to run on HOST [BUILD]
+ _ACEOF
+ fi
+ 
+ if test -n "$ac_init_help"; then
+   case $ac_init_help in
+-     short | recursive ) echo "Configuration of collectd 4.7.0:";;
++     short | recursive ) echo "Configuration of collectd 4.7.1:";;
+    esac
+   cat <<\_ACEOF
+ 
+ Optional Features:
+   --disable-option-checking  ignore unrecognized --enable/--with options
+   --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
+@@ -2245,13 +2245,13 @@
+   done
+ fi
+ 
+ test -n "$ac_init_help" && exit $ac_status
+ if $ac_init_version; then
+   cat <<\_ACEOF
+-collectd configure 4.7.0
++collectd configure 4.7.1
+ generated by GNU Autoconf 2.63
+ 
+ Copyright (C) 1992, 1993, 1994, 1995, 1996, 1998, 1999, 2000, 2001,
+ 2002, 2003, 2004, 2005, 2006, 2007, 2008 Free Software Foundation, Inc.
+ This configure script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it.
+@@ -2259,13 +2259,13 @@
+   exit
+ fi
+ cat >config.log <<_ACEOF
+ This file contains any messages produced by compilers while
+ running configure, to aid debugging if configure makes a mistake.
+ 
+-It was created by collectd $as_me 4.7.0, which was
++It was created by collectd $as_me 4.7.1, which was
+ generated by GNU Autoconf 2.63.  Invocation command line was
+ 
+   $ $0 $@
+ 
+ _ACEOF
+ exec 5>>config.log
+@@ -2630,15 +2630,32 @@
+ ac_compiler_gnu=$ac_cv_c_compiler_gnu
+ 
+ 
+ 
+ ac_config_headers="$ac_config_headers src/config.h"
+ 
+-am__api_version='1.10'
+ 
+-ac_aux_dir=
++# libtool <= 1.5
++
++	   case $enable_ltdl_convenience in
++  no) { { $as_echo "$as_me:$LINENO: error: this package needs a convenience libltdl" >&5
++$as_echo "$as_me: error: this package needs a convenience libltdl" >&2;}
++   { (exit 1); exit 1; }; } ;;
++  "") enable_ltdl_convenience=yes
++      ac_configure_args="$ac_configure_args --enable-ltdl-convenience" ;;
++  esac
++  LIBLTDL='${top_builddir}/''libltdl'/libltdlc.la
++  LTDLINCL='-I${top_srcdir}/''libltdl'
++  # For backwards non-gettext consistent compatibility...
++  INCLTDL="$LTDLINCL"
++
++
++
++
++
++	 ac_aux_dir=
+ for ac_dir in "$srcdir" "$srcdir/.." "$srcdir/../.."; do
+   if test -f "$ac_dir/install-sh"; then
+     ac_aux_dir=$ac_dir
+     ac_install_sh="$ac_aux_dir/install-sh -c"
+     break
+   elif test -f "$ac_dir/install.sh"; then
+@@ -2663,12 +2680,21 @@
+ # whose full name contains unusual characters.
+ ac_config_guess="$SHELL $ac_aux_dir/config.guess"  # Please don't use this var.
+ ac_config_sub="$SHELL $ac_aux_dir/config.sub"  # Please don't use this var.
+ ac_configure="$SHELL $ac_aux_dir/configure"  # Please don't use this var.
+ 
+ 
++
++
++subdirs="$subdirs libltdl"
++
++
++
++
++am__api_version='1.10'
++
+ # Find a good install program.  We prefer a C program (faster),
+ # so one script is as good as another.  But avoid the broken or
+ # incompatible versions:
+ # SysV /etc/install, /usr/sbin/install
+ # SunOS /usr/etc/install
+ # IRIX /sbin/install
+@@ -2978,13 +3004,13 @@
+   fi
+ fi
+ 
+ 
+ # Define the identity of the package.
+  PACKAGE='collectd'
+- VERSION='4.7.0'
++ VERSION='4.7.1'
+ 
+ 
+ cat >>confdefs.h <<_ACEOF
+ #define PACKAGE "$PACKAGE"
+ _ACEOF
+ 
+@@ -5921,28 +5947,12 @@
+ else
+   enable_static=no
+ fi
+ 
+ 
+ 
+-  case $enable_ltdl_convenience in
+-  no) { { $as_echo "$as_me:$LINENO: error: this package needs a convenience libltdl" >&5
+-$as_echo "$as_me: error: this package needs a convenience libltdl" >&2;}
+-   { (exit 1); exit 1; }; } ;;
+-  "") enable_ltdl_convenience=yes
+-      ac_configure_args="$ac_configure_args --enable-ltdl-convenience" ;;
+-  esac
+-  LIBLTDL='${top_builddir}/''libltdl'/libltdlc.la
+-  LTDLINCL='-I${top_srcdir}/''libltdl'
+-  # For backwards non-gettext consistent compatibility...
+-  INCLTDL="$LTDLINCL"
+-
+-
+-
+-
+-
+ # Check whether --enable-shared was given.
+ if test "${enable_shared+set}" = set; then
+   enableval=$enable_shared; p=${PACKAGE-default}
+     case $enableval in
+     yes) enable_shared=yes ;;
+     no) enable_shared=no ;;
+@@ -6681,13 +6691,13 @@
+     esac
+   fi
+   rm -rf conftest*
+   ;;
+ *-*-irix6*)
+   # Find out which ABI we are using.
+-  echo '#line 6687 "configure"' > conftest.$ac_ext
++  echo '#line 6697 "configure"' > conftest.$ac_ext
+   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+   (eval $ac_compile) 2>&5
+   ac_status=$?
+   $as_echo "$as_me:$LINENO: \$? = $ac_status" >&5
+   (exit $ac_status); }; then
+    if test "$lt_cv_prog_gnu_ld" = yes; then
+@@ -9525,17 +9535,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:9531: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:9541: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:9535: \$? = $ac_status" >&5
++   echo "$as_me:9545: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -9815,17 +9825,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:9821: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:9831: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:9825: \$? = $ac_status" >&5
++   echo "$as_me:9835: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -9919,17 +9929,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:9925: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:9935: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:9929: \$? = $ac_status" >&5
++   echo "$as_me:9939: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -12332,13 +12342,13 @@
+   	  if test "$cross_compiling" = yes; then :
+   lt_cv_dlopen_self=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 12338 "configure"
++#line 12348 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -12432,13 +12442,13 @@
+   	  if test "$cross_compiling" = yes; then :
+   lt_cv_dlopen_self_static=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 12438 "configure"
++#line 12448 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -14841,17 +14851,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:14847: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:14857: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:14851: \$? = $ac_status" >&5
++   echo "$as_me:14861: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -14945,17 +14955,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:14951: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:14961: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:14955: \$? = $ac_status" >&5
++   echo "$as_me:14965: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -16543,17 +16553,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:16549: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:16559: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:16553: \$? = $ac_status" >&5
++   echo "$as_me:16563: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -16647,17 +16657,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:16653: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:16663: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:16657: \$? = $ac_status" >&5
++   echo "$as_me:16667: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -18875,17 +18885,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:18881: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:18891: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:18885: \$? = $ac_status" >&5
++   echo "$as_me:18895: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -19165,17 +19175,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:19171: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:19181: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:19175: \$? = $ac_status" >&5
++   echo "$as_me:19185: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -19269,17 +19279,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:19275: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:19285: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:19279: \$? = $ac_status" >&5
++   echo "$as_me:19289: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -22340,16 +22350,12 @@
+ $as_echo "no" >&6; }
+ 		PKG_CONFIG=""
+ 	fi
+ 
+ fi
+ 
+-
+-subdirs="$subdirs libltdl"
+-
+-
+ { $as_echo "$as_me:$LINENO: checking for kernel type ($host_os)" >&5
+ $as_echo_n "checking for kernel type ($host_os)... " >&6; }
+ case $host_os in
+ 	*linux*)
+ 
+ cat >>confdefs.h <<\_ACEOF
+@@ -24787,12 +24793,14 @@
+ /* confdefs.h.  */
+ _ACEOF
+ cat confdefs.h >>conftest.$ac_ext
+ cat >>conftest.$ac_ext <<_ACEOF
+ /* end confdefs.h.  */
+ 
++#undef _FILE_OFFSET_BITS
++#undef _LARGEFILE64_SOURCE
+ #if HAVE_SYS_TYPES_H
+ #  include <sys/types.h>
+ #endif
+ #if HAVE_SYS_PARAM_H
+ # include <sys/param.h>
+ #endif
+@@ -36405,39 +36413,39 @@
+ if test "x$with_java" = "xyes"
+ then
+ 	if test -d "$with_java_home"
+ 	then
+ 		{ $as_echo "$as_me:$LINENO: checking for jni.h" >&5
+ $as_echo_n "checking for jni.h... " >&6; }
+-		TMPDIR=`find -L "$with_java_home" -name jni.h -exec 'dirname' '{}' ';' | head -n 1`
++		TMPDIR=`find -L "$with_java_home" -name jni.h -type f -exec 'dirname' '{}' ';' | head -n 1`
+ 		if test "x$TMPDIR" != "x"
+ 		then
+ 			{ $as_echo "$as_me:$LINENO: result: found in $TMPDIR" >&5
+ $as_echo "found in $TMPDIR" >&6; }
+ 			JAVA_CPPFLAGS="$JAVA_CPPFLAGS -I$TMPDIR"
+ 		else
+ 			{ $as_echo "$as_me:$LINENO: result: not found" >&5
+ $as_echo "not found" >&6; }
+ 		fi
+ 
+ 		{ $as_echo "$as_me:$LINENO: checking for jni_md.h" >&5
+ $as_echo_n "checking for jni_md.h... " >&6; }
+-		TMPDIR=`find -L "$with_java_home" -name jni_md.h -exec 'dirname' '{}' ';' | head -n 1`
++		TMPDIR=`find -L "$with_java_home" -name jni_md.h -type f -exec 'dirname' '{}' ';' | head -n 1`
+ 		if test "x$TMPDIR" != "x"
+ 		then
+ 			{ $as_echo "$as_me:$LINENO: result: found in $TMPDIR" >&5
+ $as_echo "found in $TMPDIR" >&6; }
+ 			JAVA_CPPFLAGS="$JAVA_CPPFLAGS -I$TMPDIR"
+ 		else
+ 			{ $as_echo "$as_me:$LINENO: result: not found" >&5
+ $as_echo "not found" >&6; }
+ 		fi
+ 
+ 		{ $as_echo "$as_me:$LINENO: checking for libjvm.so" >&5
+ $as_echo_n "checking for libjvm.so... " >&6; }
+-		TMPDIR=`find -L "$with_java_home" -name libjvm.so -exec 'dirname' '{}' ';' | head -n 1`
++		TMPDIR=`find -L "$with_java_home" -name libjvm.so -type f -exec 'dirname' '{}' ';' | head -n 1`
+ 		if test "x$TMPDIR" != "x"
+ 		then
+ 			{ $as_echo "$as_me:$LINENO: result: found in $TMPDIR" >&5
+ $as_echo "found in $TMPDIR" >&6; }
+ 			JAVA_LDFLAGS="$JAVA_LDFLAGS -L$TMPDIR"
+ 		else
+@@ -36446,13 +36454,13 @@
+ 		fi
+ 
+ 		if test "x$JAVAC" = "x"
+ 		then
+ 			{ $as_echo "$as_me:$LINENO: checking for javac" >&5
+ $as_echo_n "checking for javac... " >&6; }
+-			TMPDIR=`find -L "$with_java_home" -name javac | head -n 1`
++			TMPDIR=`find -L "$with_java_home" -name javac -type f | head -n 1`
+ 			if test "x$TMPDIR" != "x"
+ 			then
+ 				JAVAC="$TMPDIR"
+ 				{ $as_echo "$as_me:$LINENO: result: $JAVAC" >&5
+ $as_echo "$JAVAC" >&6; }
+ 			else
+@@ -50179,13 +50187,13 @@
+ exec 6>&1
+ 
+ # Save the log message, to keep $[0] and so on meaningful, and to
+ # report actual input values of CONFIG_FILES etc. instead of their
+ # values after options handling.
+ ac_log="
+-This file was extended by collectd $as_me 4.7.0, which was
++This file was extended by collectd $as_me 4.7.1, which was
+ generated by GNU Autoconf 2.63.  Invocation command line was
+ 
+   CONFIG_FILES    = $CONFIG_FILES
+   CONFIG_HEADERS  = $CONFIG_HEADERS
+   CONFIG_LINKS    = $CONFIG_LINKS
+   CONFIG_COMMANDS = $CONFIG_COMMANDS
+@@ -50242,13 +50250,13 @@
+ 
+ Report bugs to <bug-autoconf@gnu.org>."
+ 
+ _ACEOF
+ cat >>$CONFIG_STATUS <<_ACEOF || ac_write_fail=1
+ ac_cs_version="\\
+-collectd config.status 4.7.0
++collectd config.status 4.7.1
+ configured by $0, generated by GNU Autoconf 2.63,
+   with options \\"`$as_echo "$ac_configure_args" | sed 's/^ //; s/[\\""\`\$]/\\\\&/g'`\\"
+ 
+ Copyright (C) 2008 Free Software Foundation, Inc.
+ This config.status script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it."
+@@ -51411,12 +51419,17 @@
+ then
+ 	with_libperl="yes (version `$perl_interpreter -MConfig -e 'print $Config{version};'`)"
+ else
+ 	enable_perl="no (needs libperl)"
+ fi
+ 
++if test "x$enable_perl" = "xno" && test "x$c_cv_have_perl_ithreads" = "xno"
++then
++	enable_perl="no (libperl doesn't support ithreads)"
++fi
++
+ if test "x$with_perl_bindings" = "xyes" \
+ 	&& test "x$PERL_BINDINGS_OPTIONS" != "x"
+ then
+ 	with_perl_bindings="yes ($PERL_BINDINGS_OPTIONS)"
+ fi
+ 
+@@ -51424,18 +51437,20 @@
+ 
+ Configuration:
+   Libraries:
+     libcurl . . . . . . . $with_libcurl
+     libdbi  . . . . . . . $with_libdbi
+     libesmtp  . . . . . . $with_libesmtp
++    libganglia  . . . . . $with_libganglia
+     libgcrypt . . . . . . $with_libgcrypt
+     libiokit  . . . . . . $with_libiokit
+     libiptc . . . . . . . $with_libiptc
+     libjvm  . . . . . . . $with_java
+     libkstat  . . . . . . $with_kstat
+     libkvm  . . . . . . . $with_libkvm
++    libmemcached  . . . . $with_libmemcached
+     libmysql  . . . . . . $with_libmysql
+     libnetlink  . . . . . $with_libnetlink
+     libnetsnmp  . . . . . $with_libnetsnmp
+     libnotify . . . . . . $with_libnotify
+     liboconfig  . . . . . $with_liboconfig
+     libopenipmi . . . . . $with_libopenipmipthread
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/configure.in	2009-05-12 14:59:15.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/configure.in	2009-06-02 17:41:03.000000000 +0800
+@@ -1,10 +1,29 @@
+ dnl Process this file with autoconf to produce a configure script.
+ AC_INIT(collectd, m4_esyscmd(./version-gen.sh))
+ AC_CONFIG_SRCDIR(src/collectd.c)
+ AC_CONFIG_HEADERS(src/config.h)
++
++m4_ifdef([LT_PACKAGE_VERSION],
++	# libtool >= 2.2
++	[
++	 LT_CONFIG_LTDL_DIR([libltdl])
++	 LT_INIT([dlopen])
++	 LTDL_INIT([convenience])
++	]
++,
++	# libtool <= 1.5
++	[
++	 AC_LIBLTDL_CONVENIENCE
++	 AC_SUBST(LTDLINCL)
++	 AC_SUBST(LIBLTDL)
++	 AC_LIBTOOL_DLOPEN
++	 AC_CONFIG_SUBDIRS(libltdl)
++	]
++)
++
+ AM_INIT_AUTOMAKE(dist-bzip2)
+ AC_LANG(C)
+ 
+ AC_PREFIX_DEFAULT("/opt/collectd")
+ 
+ AC_SYS_LARGEFILE
+@@ -17,23 +36,17 @@
+ AC_PROG_INSTALL
+ AC_PROG_LN_S
+ AC_PROG_MAKE_SET
+ AM_PROG_CC_C_O
+ AM_CONDITIONAL(COMPILER_IS_GCC, test "x$GCC" = "xyes")
+ 
+-dnl configure libtool
+ AC_DISABLE_STATIC
+-AC_LIBLTDL_CONVENIENCE
+-AC_SUBST(LTDLINCL)
+-AC_SUBST(LIBLTDL)
+-AC_LIBTOOL_DLOPEN
+ AC_PROG_LIBTOOL
+ AC_PROG_LEX
+ AC_PROG_YACC
+ PKG_PROG_PKG_CONFIG
+-AC_CONFIG_SUBDIRS(libltdl)
+ 
+ AC_MSG_CHECKING([for kernel type ($host_os)])
+ case $host_os in
+ 	*linux*)
+ 	AC_DEFINE([KERNEL_LINUX], 1, [True if program is to be compiled for a Linux kernel])
+ 	ac_system="Linux"
+@@ -264,12 +277,14 @@
+ ])
+ 
+ # For the swap module
+ have_sys_swap_h="yes"
+ AC_CHECK_HEADERS(sys/swap.h vm/anon.h, [], [have_sys_swap_h="no"],
+ [
++#undef _FILE_OFFSET_BITS
++#undef _LARGEFILE64_SOURCE
+ #if HAVE_SYS_TYPES_H
+ #  include <sys/types.h>
+ #endif
+ #if HAVE_SYS_PARAM_H
+ # include <sys/param.h>
+ #endif
+@@ -1498,45 +1513,45 @@
+ [with_java="yes"])
+ if test "x$with_java" = "xyes"
+ then
+ 	if test -d "$with_java_home"
+ 	then
+ 		AC_MSG_CHECKING([for jni.h])
+-		TMPDIR=`find -L "$with_java_home" -name jni.h -exec 'dirname' '{}' ';' | head -n 1`
++		TMPDIR=`find -L "$with_java_home" -name jni.h -type f -exec 'dirname' '{}' ';' | head -n 1`
+ 		if test "x$TMPDIR" != "x"
+ 		then
+ 			AC_MSG_RESULT([found in $TMPDIR])
+ 			JAVA_CPPFLAGS="$JAVA_CPPFLAGS -I$TMPDIR"
+ 		else
+ 			AC_MSG_RESULT([not found])
+ 		fi
+ 
+ 		AC_MSG_CHECKING([for jni_md.h])
+-		TMPDIR=`find -L "$with_java_home" -name jni_md.h -exec 'dirname' '{}' ';' | head -n 1`
++		TMPDIR=`find -L "$with_java_home" -name jni_md.h -type f -exec 'dirname' '{}' ';' | head -n 1`
+ 		if test "x$TMPDIR" != "x"
+ 		then
+ 			AC_MSG_RESULT([found in $TMPDIR])
+ 			JAVA_CPPFLAGS="$JAVA_CPPFLAGS -I$TMPDIR"
+ 		else
+ 			AC_MSG_RESULT([not found])
+ 		fi
+ 
+ 		AC_MSG_CHECKING([for libjvm.so])
+-		TMPDIR=`find -L "$with_java_home" -name libjvm.so -exec 'dirname' '{}' ';' | head -n 1`
++		TMPDIR=`find -L "$with_java_home" -name libjvm.so -type f -exec 'dirname' '{}' ';' | head -n 1`
+ 		if test "x$TMPDIR" != "x"
+ 		then
+ 			AC_MSG_RESULT([found in $TMPDIR])
+ 			JAVA_LDFLAGS="$JAVA_LDFLAGS -L$TMPDIR"
+ 		else
+ 			AC_MSG_RESULT([not found])
+ 		fi
+ 
+ 		if test "x$JAVAC" = "x"
+ 		then
+ 			AC_MSG_CHECKING([for javac])
+-			TMPDIR=`find -L "$with_java_home" -name javac | head -n 1`
++			TMPDIR=`find -L "$with_java_home" -name javac -type f | head -n 1`
+ 			if test "x$TMPDIR" != "x"
+ 			then
+ 				JAVAC="$TMPDIR"
+ 				AC_MSG_RESULT([$JAVAC])
+ 			else
+ 				AC_MSG_RESULT([not found])
+@@ -3774,12 +3789,17 @@
+ then
+ 	with_libperl="yes (version `$perl_interpreter -MConfig -e 'print $Config{version};'`)"
+ else
+ 	enable_perl="no (needs libperl)"
+ fi
+ 
++if test "x$enable_perl" = "xno" && test "x$c_cv_have_perl_ithreads" = "xno"
++then
++	enable_perl="no (libperl doesn't support ithreads)"
++fi
++
+ if test "x$with_perl_bindings" = "xyes" \
+ 	&& test "x$PERL_BINDINGS_OPTIONS" != "x"
+ then
+ 	with_perl_bindings="yes ($PERL_BINDINGS_OPTIONS)"
+ fi
+ 
+@@ -3787,18 +3807,20 @@
+ 
+ Configuration:
+   Libraries:
+     libcurl . . . . . . . $with_libcurl
+     libdbi  . . . . . . . $with_libdbi
+     libesmtp  . . . . . . $with_libesmtp
++    libganglia  . . . . . $with_libganglia
+     libgcrypt . . . . . . $with_libgcrypt
+     libiokit  . . . . . . $with_libiokit
+     libiptc . . . . . . . $with_libiptc
+     libjvm  . . . . . . . $with_java
+     libkstat  . . . . . . $with_kstat
+     libkvm  . . . . . . . $with_libkvm
++    libmemcached  . . . . $with_libmemcached
+     libmysql  . . . . . . $with_libmysql
+     libnetlink  . . . . . $with_libnetlink
+     libnetsnmp  . . . . . $with_libnetsnmp
+     libnotify . . . . . . $with_libnotify
+     liboconfig  . . . . . $with_liboconfig
+     libopenipmi . . . . . $with_libopenipmipthread
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/Makefile.am /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/Makefile.am
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/Makefile.am	2009-05-12 14:58:42.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/Makefile.am	2009-06-02 17:40:48.000000000 +0800
+@@ -1,6 +1,8 @@
++ACLOCAL_AMFLAGS = -I libltdl/m4
++
+ SUBDIRS = libltdl src bindings
+ 
+ INCLUDES = $(LTDLINCL)
+ 
+ EXTRA_DIST = contrib version-gen.sh
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/Makefile.in	2009-05-12 14:59:34.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/Makefile.in	2009-06-02 17:41:20.000000000 +0800
+@@ -260,12 +260,13 @@
+ subdirs = @subdirs@
+ sysconfdir = @sysconfdir@
+ target_alias = @target_alias@
+ top_build_prefix = @top_build_prefix@
+ top_builddir = @top_builddir@
+ top_srcdir = @top_srcdir@
++ACLOCAL_AMFLAGS = -I libltdl/m4
+ SUBDIRS = libltdl src bindings
+ INCLUDES = $(LTDLINCL)
+ EXTRA_DIST = contrib version-gen.sh
+ all: all-recursive
+ 
+ .SUFFIXES:
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/collectd.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/collectd.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/collectd.1	2009-05-12 15:00:37.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/collectd.1	2009-06-02 17:42:56.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD 1"
+-.TH COLLECTD 1 "2009-05-12" "4.7.0" "collectd"
++.TH COLLECTD 1 "2009-06-02" "4.7.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd \- System statistics collection daemon
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/collectd.conf.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/collectd.conf.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/collectd.conf.5	2009-05-12 15:00:37.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/collectd.conf.5	2009-06-02 17:42:56.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD.CONF 5"
+-.TH COLLECTD.CONF 5 "2009-05-12" "4.7.0" "collectd"
++.TH COLLECTD.CONF 5 "2009-06-02" "4.7.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd.conf \- Configuration for the system statistics collection daemon \fBcollectd\fR
+@@ -2049,13 +2049,13 @@
+ \&  </Plugin>
+ .Ve
+ .PP
+ The \fBQuery\fR block defines one database query which may later be used by a
+ database definition. It accepts a single mandatory argument which specifies
+ the name of the query. The names of all queries have to be unique (see the
+-\&\fBMinPGVersion\fR and \fBMaxPGVersion\fR options below for an exception to this
++\&\fBMinVersion\fR and \fBMaxVersion\fR options below for an exception to this
+ rule). The following configuration options are available to define the query:
+ .PP
+ In each \fBQuery\fR block, there is one or more \fBResult\fR blocks. \fBResult\fR
+ blocks define how to handle the values returned from the query. They define
+ which column holds which value and how to dispatch that value to the daemon.
+ Multiple \fBResult\fR blocks may be used to extract multiple values from a single
+@@ -2158,27 +2158,35 @@
+ \&  </Result>
+ .Ve
+ .Sp
+ The order of the \fBColumn\fR options defines which columns of the query result
+ should be used. The first option specifies the data found in the first column,
+ the second option that of the second column, and so on.
+-.IP "\fBMinPGVersion\fR \fIversion\fR" 4
+-.IX Item "MinPGVersion version"
++.IP "\fBMinVersion\fR \fIversion\fR" 4
++.IX Item "MinVersion version"
+ .PD 0
+-.IP "\fBMaxPGVersion\fR \fIversion\fR" 4
+-.IX Item "MaxPGVersion version"
++.IP "\fBMaxVersion\fR \fIversion\fR" 4
++.IX Item "MaxVersion version"
+ .PD
+ Specify the minimum or maximum version of PostgreSQL that this query should be
+ used with. Some statistics might only be available with certain versions of
+ PostgreSQL. This allows you to specify multiple queries with the same name but
+ which apply to different versions, thus allowing you to use the same
+ configuration in a heterogeneous environment.
+ .Sp
+ The \fIversion\fR has to be specified as the concatenation of the major, minor
+ and patch-level versions, each represented as two-decimal-digit numbers. For
+ example, version 8.2.3 will become 80203.
++.IP "\fBMinPGVersion\fR \fIversion\fR" 4
++.IX Item "MinPGVersion version"
++.PD 0
++.IP "\fBMaxPGVersion\fR \fIversion\fR" 4
++.IX Item "MaxPGVersion version"
++.PD
++These are deprecated synonyms for \fBMinVersion\fR and \fBMaxVersion\fR
++respectively. They will be removed in version 5 of collectd.
+ .PP
+ The following predefined queries are available (the definitions can be found
+ in the \fIpostgresql_default.conf\fR file which, by default, is available at
+ \&\f(CW\*(C`\f(CIprefix\f(CW/share/collectd/\*(C'\fR):
+ .IP "\fBbackends\fR" 4
+ .IX Item "backends"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/collectd.conf.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/collectd.conf.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/collectd.conf.in	2009-05-12 14:59:15.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/collectd.conf.in	2009-06-02 17:41:03.000000000 +0800
+@@ -278,12 +278,21 @@
+ 
+ #<Plugin interface>
+ #	Interface "eth0"
+ #	IgnoreSelected false
+ #</Plugin>
+ 
++#<Plugin ipmi>
++#	Sensor "some_sensor"
++#	Sensor "another_one"
++#	IgnoreSelected false
++#	NotifySensorAdd false
++#	NotifySensorRemove true
++#	NotifySensorNotPresent false
++#</Plugin>
++
+ #<Plugin iptables>
+ #	Chain table chain
+ #</Plugin>
+ 
+ #<Plugin irq>
+ #	Irq 7
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/collectd.conf.pod /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/collectd.conf.pod
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/collectd.conf.pod	2009-05-12 14:59:15.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/collectd.conf.pod	2009-06-02 17:41:03.000000000 +0800
+@@ -2168,13 +2168,13 @@
+     </Database>
+   </Plugin>
+ 
+ The B<Query> block defines one database query which may later be used by a
+ database definition. It accepts a single mandatory argument which specifies
+ the name of the query. The names of all queries have to be unique (see the
+-B<MinPGVersion> and B<MaxPGVersion> options below for an exception to this
++B<MinVersion> and B<MaxVersion> options below for an exception to this
+ rule). The following configuration options are available to define the query:
+ 
+ In each B<Query> block, there is one or more B<Result> blocks. B<Result>
+ blocks define how to handle the values returned from the query. They define
+ which column holds which value and how to dispatch that value to the daemon.
+ Multiple B<Result> blocks may be used to extract multiple values from a single
+@@ -2287,26 +2287,33 @@
+   </Result>
+ 
+ The order of the B<Column> options defines which columns of the query result
+ should be used. The first option specifies the data found in the first column,
+ the second option that of the second column, and so on.
+ 
+-=item B<MinPGVersion> I<version>
++=item B<MinVersion> I<version>
+ 
+-=item B<MaxPGVersion> I<version>
++=item B<MaxVersion> I<version>
+ 
+ Specify the minimum or maximum version of PostgreSQL that this query should be
+ used with. Some statistics might only be available with certain versions of
+ PostgreSQL. This allows you to specify multiple queries with the same name but
+ which apply to different versions, thus allowing you to use the same
+ configuration in a heterogeneous environment.
+ 
+ The I<version> has to be specified as the concatenation of the major, minor
+ and patch-level versions, each represented as two-decimal-digit numbers. For
+ example, version 8.2.3 will become 80203.
+ 
++=item B<MinPGVersion> I<version>
++
++=item B<MaxPGVersion> I<version>
++
++These are deprecated synonyms for B<MinVersion> and B<MaxVersion>
++respectively. They will be removed in version 5 of collectd.
++
+ =back
+ 
+ The following predefined queries are available (the definitions can be found
+ in the F<postgresql_default.conf> file which, by default, is available at
+ C<I<prefix>/share/collectd/>):
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/collectd-email.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/collectd-email.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/collectd-email.5	2009-05-12 15:00:37.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/collectd-email.5	2009-06-02 17:42:56.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-EMAIL 5"
+-.TH COLLECTD-EMAIL 5 "2009-05-12" "4.7.0" "collectd"
++.TH COLLECTD-EMAIL 5 "2009-06-02" "4.7.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-email \- Documentation of collectd's \f(CW\*(C`email plugin\*(C'\fR
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/collectd-exec.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/collectd-exec.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/collectd-exec.5	2009-05-12 15:00:37.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/collectd-exec.5	2009-06-02 17:42:57.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-EXEC 5"
+-.TH COLLECTD-EXEC 5 "2009-05-12" "4.7.0" "collectd"
++.TH COLLECTD-EXEC 5 "2009-06-02" "4.7.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-exec \- Documentation of collectd's \f(CW\*(C`exec plugin\*(C'\fR
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/collectd-java.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/collectd-java.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/collectd-java.5	2009-05-12 15:00:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/collectd-java.5	2009-06-02 17:42:57.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-JAVA 5"
+-.TH COLLECTD-JAVA 5 "2009-05-12" "4.7.0" "collectd"
++.TH COLLECTD-JAVA 5 "2009-06-02" "4.7.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-java \- Documentation of collectd's "java plugin"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/collectdmon.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/collectdmon.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/collectdmon.1	2009-05-12 15:00:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/collectdmon.1	2009-06-02 17:42:57.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTDMON 1"
+-.TH COLLECTDMON 1 "2009-05-12" "4.7.0" "collectd"
++.TH COLLECTDMON 1 "2009-06-02" "4.7.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectdmon \- Monitoring daemon for collectd
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/collectd-nagios.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/collectd-nagios.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/collectd-nagios.1	2009-05-12 15:00:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/collectd-nagios.1	2009-06-02 17:42:57.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-NAGIOS 1"
+-.TH COLLECTD-NAGIOS 1 "2009-05-12" "4.7.0" "collectd"
++.TH COLLECTD-NAGIOS 1 "2009-06-02" "4.7.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-nagios \- Nagios plugin for querying collectd
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/collectd-perl.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/collectd-perl.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/collectd-perl.5	2009-05-12 15:00:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/collectd-perl.5	2009-06-02 17:42:57.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-PERL 5"
+-.TH COLLECTD-PERL 5 "2009-05-12" "4.7.0" "collectd"
++.TH COLLECTD-PERL 5 "2009-06-02" "4.7.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-perl \- Documentation of collectd's \f(CW\*(C`perl plugin\*(C'\fR
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/collectd-snmp.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/collectd-snmp.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/collectd-snmp.5	2009-05-12 15:00:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/collectd-snmp.5	2009-06-02 17:42:57.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-SNMP 5"
+-.TH COLLECTD-SNMP 5 "2009-05-12" "4.7.0" "collectd"
++.TH COLLECTD-SNMP 5 "2009-06-02" "4.7.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-snmp \- Documentation of collectd's \f(CW\*(C`snmp plugin\*(C'\fR
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/collectd-unixsock.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/collectd-unixsock.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/collectd-unixsock.5	2009-05-12 15:00:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/collectd-unixsock.5	2009-06-02 17:42:57.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-UNIXSOCK 5"
+-.TH COLLECTD-UNIXSOCK 5 "2009-05-12" "4.7.0" "collectd"
++.TH COLLECTD-UNIXSOCK 5 "2009-06-02" "4.7.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-unixsock \- Documentation of collectd's \f(CW\*(C`unixsock plugin\*(C'\fR
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/configfile.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/configfile.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/configfile.c	2009-05-12 14:58:42.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/configfile.c	2009-06-02 17:41:03.000000000 +0800
+@@ -375,18 +375,18 @@
+ 		}
+ 	}
+ 	sfree (temp->values);
+ 	temp = NULL;
+ 
+ 	/* If (src->children_num == 0) the array size is decreased. If offset
+-	 * is _not_ the last element, (offset < (src->children_num - 1)), then
++	 * is _not_ the last element, (offset < (dst->children_num - 1)), then
+ 	 * we need to move the trailing elements before resizing the array. */
+-	if ((src->children_num == 0) && (offset < (src->children_num - 1)))
++	if ((src->children_num == 0) && (offset < (dst->children_num - 1)))
+ 	{
+-		int nmemb = src->children_num - (offset + 1);
+-		memmove (src->children + offset, src->children + offset + 1,
++		int nmemb = dst->children_num - (offset + 1);
++		memmove (dst->children + offset, dst->children + offset + 1,
+ 				sizeof (oconfig_item_t) * nmemb);
+ 	}
+ 
+ 	/* Resize the memory containing the children to be big enough to hold
+ 	 * all children. */
+ 	temp = (oconfig_item_t *) realloc (dst->children,
+@@ -412,13 +412,13 @@
+ 
+ 		memmove (dst->children + new_offset,
+ 				dst->children + old_offset,
+ 				sizeof (oconfig_item_t) * nmemb);
+ 	}
+ 
+-	/* Last but not least: If there are new childrem, copy them to the
++	/* Last but not least: If there are new children, copy them to the
+ 	 * memory reserved for them. */
+ 	if (src->children_num > 0)
+ 	{
+ 		memcpy (dst->children + offset,
+ 				src->children,
+ 				sizeof (oconfig_item_t) * src->children_num);
+@@ -488,12 +488,15 @@
+ 		if (new == NULL)
+ 			continue;
+ 
+ 		/* Now replace the i'th child in `root' with `new'. */
+ 		cf_ci_replace_child (root, new, i);
+ 
++		/* ... and go back to the new i'th child. */
++		--i;
++
+ 		sfree (new->values);
+ 		sfree (new);
+ 	} /* for (i = 0; i < root->children_num; i++) */
+ 
+ 	return (0);
+ } /* int cf_include_all */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/java.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/java.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/java.c	2009-05-12 14:58:42.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/java.c	2009-06-02 17:41:03.000000000 +0800
+@@ -224,13 +224,13 @@
+ static jobject ctoj_jlong_to_number (JNIEnv *jvm_env, jlong value) /* {{{ */
+ {
+   jclass c_long;
+   jmethodID m_long_constructor;
+ 
+   /* Look up the java.lang.Long class */
+-  c_long = (*jvm_env)->FindClass (jvm_env, "java.lang.Long");
++  c_long = (*jvm_env)->FindClass (jvm_env, "java/lang/Long");
+   if (c_long == NULL)
+   {
+     ERROR ("java plugin: ctoj_jlong_to_number: Looking up the "
+         "java.lang.Long class failed.");
+     return (NULL);
+   }
+@@ -252,13 +252,13 @@
+ static jobject ctoj_jdouble_to_number (JNIEnv *jvm_env, jdouble value) /* {{{ */
+ {
+   jclass c_double;
+   jmethodID m_double_constructor;
+ 
+   /* Look up the java.lang.Long class */
+-  c_double = (*jvm_env)->FindClass (jvm_env, "java.lang.Double");
++  c_double = (*jvm_env)->FindClass (jvm_env, "java/lang/Double");
+   if (c_double == NULL)
+   {
+     ERROR ("java plugin: ctoj_jdouble_to_number: Looking up the "
+         "java.lang.Double class failed.");
+     return (NULL);
+   }
+@@ -605,13 +605,13 @@
+         "org/collectd/api/DataSet class failed.");
+     return (NULL);
+   }
+ 
+   /* Search for the `DataSet (String type)' constructor. */
+   m_constructor = (*jvm_env)->GetMethodID (jvm_env,
+-      c_dataset, "<init>", "(Ljava.lang.String;)V");
++      c_dataset, "<init>", "(Ljava/lang/String;)V");
+   if (m_constructor == NULL)
+   {
+     ERROR ("java plugin: ctoj_data_set: Looking up the "
+         "`DataSet (String)' constructor failed.");
+     return (NULL);
+   }
+@@ -2176,12 +2176,21 @@
+     cjni_thread_detach ();
+     return (-1);
+   }
+   class->class = NULL;
+   class->object = NULL;
+ 
++  { /* Replace all dots ('.') with slashes ('/'). Dots are usually used
++       thorough the Java community, but (Sun's) `FindClass' and friends need
++       slashes. */
++    size_t i;
++    for (i = 0; class->name[i] != 0; i++)
++      if (class->name[i] == '.')
++        class->name[i] = '/';
++  }
++
+   DEBUG ("java plugin: Loading class %s", class->name);
+ 
+   class->class = (*jvm_env)->FindClass (jvm_env, class->name);
+   if (class->class == NULL)
+   {
+     ERROR ("java plugin: cjni_config_load_plugin: FindClass (%s) failed.",
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/libcollectdclient/lcc_features.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/libcollectdclient/lcc_features.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/libcollectdclient/lcc_features.h	2009-05-12 14:59:55.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/libcollectdclient/lcc_features.h	2009-06-02 17:42:16.000000000 +0800
+@@ -31,17 +31,17 @@
+ #endif
+ 
+ #define LCC_API_VERSION 0
+ 
+ #define LCC_VERSION_MAJOR 4
+ #define LCC_VERSION_MINOR 7
+-#define LCC_VERSION_PATCH 0
++#define LCC_VERSION_PATCH 1
+ 
+ #define LCC_VERSION_EXTRA ""
+ 
+-#define LCC_VERSION_STRING "4.7.0"
++#define LCC_VERSION_STRING "4.7.1"
+ 
+ #define LCC_VERSION_ENCODE(major, minor, patch) \
+ 	((major) * 10000 + (minor) * 100 + (patch))
+ 
+ #define LCC_VERSION \
+ 	LCC_VERSION_ENCODE(LCC_VERSION_MAJOR, LCC_VERSION_MINOR, LCC_VERSION_PATCH)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/plugin.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/plugin.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/plugin.c	2009-05-12 14:58:42.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/plugin.c	2009-06-02 17:40:48.000000000 +0800
+@@ -1254,12 +1254,15 @@
+ 		}
+ 	}
+ 
+ 	/* Update the value cache */
+ 	uc_update (ds, vl);
+ 
++	/* Initiate threshold checking */
++	ut_check_threshold (ds, vl);
++
+ 	if (post_cache_chain != NULL)
+ 	{
+ 		status = fc_process_chain (ds, vl, post_cache_chain);
+ 		if (status < 0)
+ 		{
+ 			WARNING ("plugin_dispatch_values: Running the "
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/rrdtool.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/rrdtool.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/rrdtool.c	2009-05-12 14:58:42.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/rrdtool.c	2009-06-02 17:40:48.000000000 +0800
+@@ -598,13 +598,13 @@
+         datadir, identifier);
+   key[sizeof (key) - 1] = 0;
+ 
+   status = c_avl_get (cache, key, (void *) &rc);
+   if (status != 0)
+   {
+-    WARNING ("rrdtool plugin: rrd_cache_flush_identifier: "
++    INFO ("rrdtool plugin: rrd_cache_flush_identifier: "
+         "c_avl_get (%s) failed. Does that file really exist?",
+         key);
+     return (status);
+   }
+ 
+   if (rc->flags == FLAG_FLUSHQ)
+@@ -1022,14 +1022,19 @@
+ 
+ 	return (0);
+ } /* int rrd_shutdown */
+ 
+ static int rrd_init (void)
+ {
++	static int init_once = 0;
+ 	int status;
+ 
++	if (init_once != 0)
++		return (0);
++	init_once = 1;
++
+ 	if (rrdcreate_config.stepsize < 0)
+ 		rrdcreate_config.stepsize = 0;
+ 	if (rrdcreate_config.heartbeat <= 0)
+ 		rrdcreate_config.heartbeat = 2 * rrdcreate_config.stepsize;
+ 
+ 	if ((rrdcreate_config.heartbeat > 0)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/swap.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/swap.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/swap.c	2009-05-12 14:58:42.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/swap.c	2009-06-02 17:40:48.000000000 +0800
+@@ -16,12 +16,22 @@
+  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+  *
+  * Authors:
+  *   Florian octo Forster <octo at verplant.org>
+  **/
+ 
++#if HAVE_CONFIG_H
++# include "config.h"
++# undef HAVE_CONFIG_H
++#endif
++/* avoid swap.h error "Cannot use swapctl in the large files compilation environment" */
++#if HAVE_SYS_SWAP_H && !defined(_LP64) && _FILE_OFFSET_BITS == 64
++#  undef _FILE_OFFSET_BITS
++#  undef _LARGEFILE64_SOURCE
++#endif
++
+ #include "collectd.h"
+ #include "common.h"
+ #include "plugin.h"
+ 
+ #if HAVE_SYS_SWAP_H
+ # include <sys/swap.h>
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/types.db.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/types.db.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/types.db.5	2009-05-12 15:00:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/types.db.5	2009-06-02 17:42:57.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "TYPES.DB 5"
+-.TH TYPES.DB 5 "2009-05-12" "4.7.0" "collectd"
++.TH TYPES.DB 5 "2009-06-02" "4.7.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ types.db \- Data\-set specifications for the system statistics collection daemon
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/utils_cache.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/utils_cache.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/src/utils_cache.c	2009-05-12 14:58:42.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/src/utils_cache.c	2009-06-02 17:40:48.000000000 +0800
+@@ -300,19 +300,19 @@
+ 	ERROR ("uc_check_timeout: c_avl_remove (%s) failed.", keys[i]);
+       }
+       sfree (keys[i]);
+       sfree (key);
+       cache_free (ce);
+     }
+-    else if (status == 1) /* persist */
++    else if (status == 2) /* persist */
+     {
+       DEBUG ("uc_check_timeout: %s is missing, sending notification.",
+ 	  keys[i]);
+       ce->state = STATE_MISSING;
+     }
+-    else if (status == 2) /* do not persist */
++    else if (status == 1) /* do not persist */
+     {
+       if (ce->state == STATE_MISSING)
+       {
+ 	DEBUG ("uc_check_timeout: %s is missing but "
+ 	    "notification has already been sent.",
+ 	    keys[i]);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/version-gen.sh /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/version-gen.sh
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.0/version-gen.sh	2009-05-12 14:58:42.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.7.1/version-gen.sh	2009-06-02 17:41:03.000000000 +0800
+@@ -1,9 +1,9 @@
+ #!/bin/sh
+ 
+-DEFAULT_VERSION="4.7.0.git"
++DEFAULT_VERSION="4.7.1.git"
+ 
+ VERSION="$( git describe 2> /dev/null | sed -e 's/^collectd-//' )"
+ 
+ if test -z "$VERSION"; then
+ 	VERSION="$DEFAULT_VERSION"
+ fi

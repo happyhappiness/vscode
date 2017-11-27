@@ -1,0 +1,1 @@
+fprintf (stderr, "strdup failed.\n");

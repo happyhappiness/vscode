@@ -1,1 +1,0 @@
-lua_pushnumber(L, floor(r*u)+1);

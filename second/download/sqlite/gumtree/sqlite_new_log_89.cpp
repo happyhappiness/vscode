@@ -1,1 +1,0 @@
-memset(hit, 1, contentOffset);

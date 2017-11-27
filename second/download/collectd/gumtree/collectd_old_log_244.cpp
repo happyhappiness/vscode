@@ -1,0 +1,1 @@
+fprintf (stderr, "ipmi plugin: thread_init failed.\n");

@@ -1,0 +1,1 @@
+fprintf (stderr, "Error in line %i near `%s': %s\n", yylineno, yytext, s);

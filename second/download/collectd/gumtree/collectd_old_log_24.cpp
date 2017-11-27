@@ -1,0 +1,1 @@
+fprintf (stderr, "Option `%s' is not valid in this mode!\n", shortvar);

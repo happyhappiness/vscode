@@ -1,0 +1,1 @@
+fprintf (fh, "%i", vc->values_num);

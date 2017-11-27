@@ -1,0 +1,1 @@
+fprintf (fh, "Host: %s\n", n->host);

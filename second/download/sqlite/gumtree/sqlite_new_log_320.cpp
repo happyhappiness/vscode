@@ -1,1 +1,0 @@
-sqlite3MPrintf(db, zSql2, zDb);

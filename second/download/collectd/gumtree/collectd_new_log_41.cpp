@@ -1,0 +1,1 @@
+syslog (LOG_ERR, "opendir (%s): %s", dir, strerror (errno));

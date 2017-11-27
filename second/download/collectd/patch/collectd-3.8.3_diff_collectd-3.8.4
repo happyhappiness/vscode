@@ -1,0 +1,3593 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/aclocal.m4 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/aclocal.m4
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/aclocal.m4	2006-04-02 16:43:24.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/aclocal.m4	2006-04-09 22:07:15.000000000 +0800
+@@ -10,13 +10,13 @@
+ # but WITHOUT ANY WARRANTY, to the extent permitted by law; without
+ # even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+ # PARTICULAR PURPOSE.
+ 
+ # libtool.m4 - Configure libtool for the host system. -*-Autoconf-*-
+ 
+-# serial 48 Debian 1.5.22-2 AC_PROG_LIBTOOL
++# serial 48 Debian 1.5.22-4 AC_PROG_LIBTOOL
+ 
+ 
+ # AC_PROVIDE_IFELSE(MACRO-NAME, IF-PROVIDED, IF-NOT-PROVIDED)
+ # -----------------------------------------------------------
+ # If this macro is not defined by Autoconf, define it here.
+ m4_ifdef([AC_PROVIDE_IFELSE],
+@@ -1394,24 +1394,12 @@
+   ;;
+ 
+ freebsd1*)
+   dynamic_linker=no
+   ;;
+ 
+-kfreebsd*-gnu)
+-  version_type=linux
+-  need_lib_prefix=no
+-  need_version=no
+-  library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major ${libname}${shared_ext}'
+-  soname_spec='${libname}${release}${shared_ext}$major'
+-  shlibpath_var=LD_LIBRARY_PATH
+-  shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
+-  dynamic_linker='GNU ld.so'
+-  ;;
+-
+ freebsd* | dragonfly*)
+   # DragonFly does not have aout.  When/if they implement a new
+   # versioning mechanism, adjust this.
+   if test -x /usr/bin/objformat; then
+     objformat=`/usr/bin/objformat`
+   else
+@@ -1561,13 +1549,13 @@
+ # No shared lib support for Linux oldld, aout, or coff.
+ linux*oldld* | linux*aout* | linux*coff*)
+   dynamic_linker=no
+   ;;
+ 
+ # This must be Linux ELF.
+-linux*)
++linux* | k*bsd*-gnu)
+   version_type=linux
+   need_lib_prefix=no
+   need_version=no
+   library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major $libname${shared_ext}'
+   soname_spec='${libname}${release}${shared_ext}$major'
+   finish_cmds='PATH="\$PATH:/sbin" ldconfig -n $libdir'
+@@ -1602,24 +1590,12 @@
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=no
+   hardcode_into_libs=yes
+   dynamic_linker='NetBSD ld.elf_so'
+   ;;
+ 
+-knetbsd*-gnu)
+-  version_type=linux
+-  need_lib_prefix=no
+-  need_version=no
+-  library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major ${libname}${shared_ext}'
+-  soname_spec='${libname}${release}${shared_ext}$major'
+-  shlibpath_var=LD_LIBRARY_PATH
+-  shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
+-  dynamic_linker='GNU ld.so'
+-  ;;
+-
+ netbsd*)
+   version_type=sunos
+   need_lib_prefix=no
+   need_version=no
+   if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+     library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${shared_ext}$versuffix'
+@@ -2319,13 +2295,13 @@
+   ;;
+ 
+ darwin* | rhapsody*)
+   lt_cv_deplibs_check_method=pass_all
+   ;;
+ 
+-freebsd* | kfreebsd*-gnu | dragonfly*)
++freebsd* | dragonfly*)
+   if echo __ELF__ | $CC -E - | grep __ELF__ > /dev/null; then
+     case $host_cpu in
+     i*86 )
+       # Not sure whether the presence of OpenBSD here was a mistake.
+       # Let's accept both of them until this is cleared up.
+       lt_cv_deplibs_check_method='file_magic (FreeBSD|OpenBSD|DragonFly)/i[[3-9]]86 (compact )?demand paged shared library'
+@@ -2373,17 +2349,17 @@
+   *) libmagic=never-match;;
+   esac
+   lt_cv_deplibs_check_method=pass_all
+   ;;
+ 
+ # This must be Linux ELF.
+-linux*)
++linux* | k*bsd*-gnu)
+   lt_cv_deplibs_check_method=pass_all
+   ;;
+ 
+-netbsd* | netbsdelf*-gnu | knetbsd*-gnu)
++netbsd* | netbsdelf*-gnu)
+   if echo __ELF__ | $CC -E - | grep __ELF__ > /dev/null; then
+     lt_cv_deplibs_check_method='match_pattern /lib[[^/]]+(\.so\.[[0-9]]+\.[[0-9]]+|_pic\.a)$'
+   else
+     lt_cv_deplibs_check_method='match_pattern /lib[[^/]]+(\.so|_pic\.a)$'
+   fi
+   ;;
+@@ -3125,13 +3101,13 @@
+     # C++ shared libraries reported to be fairly broken before switch to ELF
+     _LT_AC_TAGVAR(ld_shlibs, $1)=no
+     ;;
+   freebsd-elf*)
+     _LT_AC_TAGVAR(archive_cmds_need_lc, $1)=no
+     ;;
+-  freebsd* | kfreebsd*-gnu | dragonfly*)
++  freebsd* | dragonfly*)
+     # FreeBSD 3 and later use GNU C++ and GNU ld with standard ELF
+     # conventions
+     _LT_AC_TAGVAR(ld_shlibs, $1)=yes
+     ;;
+   gnu*)
+     ;;
+@@ -3284,13 +3260,13 @@
+ 	_LT_AC_TAGVAR(link_all_deplibs, $1)=yes
+ 	;;
+     esac
+     _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-rpath ${wl}$libdir'
+     _LT_AC_TAGVAR(hardcode_libdir_separator, $1)=:
+     ;;
+-  linux*)
++  linux* | k*bsd*-gnu)
+     case $cc_basename in
+       KCC*)
+ 	# Kuck and Associates, Inc. (KAI) C++ Compiler
+ 
+ 	# KCC will only create a shared library if the output file
+ 	# ends with ".so" (or ".sl" for HP-UX), so rename the library
+@@ -3386,13 +3362,13 @@
+       *)
+ 	# FIXME: insert proper C++ library support
+ 	_LT_AC_TAGVAR(ld_shlibs, $1)=no
+ 	;;
+     esac
+     ;;
+-  netbsd* | netbsdelf*-gnu | knetbsd*-gnu)
++  netbsd* | netbsdelf*-gnu)
+     if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+       _LT_AC_TAGVAR(archive_cmds, $1)='$LD -Bshareable  -o $lib $predep_objects $libobjs $deplibs $postdep_objects $linker_flags'
+       wlarc=
+       _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-R$libdir'
+       _LT_AC_TAGVAR(hardcode_direct, $1)=yes
+       _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
+@@ -4651,13 +4627,13 @@
+   if test "$host_cpu" = ia64; then
+     symcode='[[ABCDEGRST]]'
+   fi
+   lt_cv_sys_global_symbol_to_cdecl="sed -n -e 's/^T .* \(.*\)$/extern int \1();/p' -e 's/^$symcode* .* \(.*\)$/extern char \1;/p'"
+   lt_cv_sys_global_symbol_to_c_name_address="sed -n -e 's/^: \([[^ ]]*\) $/  {\\\"\1\\\", (lt_ptr) 0},/p' -e 's/^$symcode* \([[^ ]]*\) \([[^ ]]*\)$/  {\"\2\", (lt_ptr) \&\2},/p'"
+   ;;
+-linux*)
++linux* | k*bsd*-gnu)
+   if test "$host_cpu" = ia64; then
+     symcode='[[ABCDGIRSTW]]'
+     lt_cv_sys_global_symbol_to_cdecl="sed -n -e 's/^T .* \(.*\)$/extern int \1();/p' -e 's/^$symcode* .* \(.*\)$/extern char \1;/p'"
+     lt_cv_sys_global_symbol_to_c_name_address="sed -n -e 's/^: \([[^ ]]*\) $/  {\\\"\1\\\", (lt_ptr) 0},/p' -e 's/^$symcode* \([[^ ]]*\) \([[^ ]]*\)$/  {\"\2\", (lt_ptr) \&\2},/p'"
+   fi
+   ;;
+@@ -4924,13 +4900,13 @@
+ 	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-pic'
+ 	    ;;
+ 	  *)
+ 	    ;;
+ 	esac
+ 	;;
+-      freebsd* | kfreebsd*-gnu | dragonfly*)
++      freebsd* | dragonfly*)
+ 	# FreeBSD uses GNU C++
+ 	;;
+       hpux9* | hpux10* | hpux11*)
+ 	case $cc_basename in
+ 	  CC*)
+ 	    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
+@@ -4967,13 +4943,13 @@
+ 	    # CC pic flag -KPIC is the default.
+ 	    ;;
+ 	  *)
+ 	    ;;
+ 	esac
+ 	;;
+-      linux*)
++      linux* | k*bsd*-gnu)
+ 	case $cc_basename in
+ 	  KCC*)
+ 	    # KAI C++ Compiler
+ 	    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='--backend -Wl,'
+ 	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-fPIC'
+ 	    ;;
+@@ -5010,13 +4986,13 @@
+ 	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-W c,exportall'
+ 	    ;;
+ 	  *)
+ 	    ;;
+ 	esac
+ 	;;
+-      netbsd* | netbsdelf*-gnu | knetbsd*-gnu)
++      netbsd* | netbsdelf*-gnu)
+ 	;;
+       osf3* | osf4* | osf5*)
+ 	case $cc_basename in
+ 	  KCC*)
+ 	    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='--backend -Wl,'
+ 	    ;;
+@@ -5221,13 +5197,13 @@
+ 
+     newsos6)
+       _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-KPIC'
+       _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
+       ;;
+ 
+-    linux*)
++    linux* | k*bsd*-gnu)
+       case $cc_basename in
+       icc* | ecc*)
+ 	_LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
+ 	_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-KPIC'
+ 	_LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-static'
+         ;;
+@@ -5362,16 +5338,13 @@
+   pw32*)
+     _LT_AC_TAGVAR(export_symbols_cmds, $1)="$ltdll_cmds"
+   ;;
+   cygwin* | mingw*)
+     _LT_AC_TAGVAR(export_symbols_cmds, $1)='$NM $libobjs $convenience | $global_symbol_pipe | $SED -e '\''/^[[BCDGRS]] /s/.* \([[^ ]]*\)/\1 DATA/;/^.* __nm__/s/^.* __nm__\([[^ ]]*\) [[^ ]]*/\1 DATA/;/^I /d;/^[[AITW]] /s/.* //'\'' | sort | uniq > $export_symbols'
+   ;;
+-  kfreebsd*-gnu)
+-    _LT_AC_TAGVAR(link_all_deplibs, $1)=no
+-  ;;
+-  linux*)
++  linux* | k*bsd*-gnu)
+     _LT_AC_TAGVAR(link_all_deplibs, $1)=no
+   ;;
+   *)
+     _LT_AC_TAGVAR(export_symbols_cmds, $1)='$NM $libobjs $convenience | $global_symbol_pipe | $SED '\''s/.* //'\'' | sort | uniq > $export_symbols'
+   ;;
+   esac
+@@ -5538,13 +5511,13 @@
+       # 256 KiB-aligned image base between 0x50000000 and 0x6FFC0000 at link
+       # time.  Moving up from 0x10000000 also allows more sbrk(2) space.
+       _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared $pic_flag $libobjs $deplibs $compiler_flags ${wl}-h,$soname ${wl}--image-base,`expr ${RANDOM-$$} % 4096 / 2 \* 262144 + 1342177280` -o $lib'
+       _LT_AC_TAGVAR(archive_expsym_cmds, $1)='sed "s,^,_," $export_symbols >$output_objdir/$soname.expsym~$CC -shared $pic_flag $libobjs $deplibs $compiler_flags ${wl}-h,$soname ${wl}--retain-symbols-file,$output_objdir/$soname.expsym ${wl}--image-base,`expr ${RANDOM-$$} % 4096 / 2 \* 262144 + 1342177280` -o $lib'
+       ;;
+ 
+-    linux*)
++    linux* | k*bsd*-gnu)
+       if $LD --help 2>&1 | grep ': supported targets:.* elf' > /dev/null; then
+ 	tmp_addflag=
+ 	case $cc_basename,$host_cpu in
+ 	pgcc*)				# Portland Group C compiler
+ 	  _LT_AC_TAGVAR(whole_archive_flag_spec, $1)='${wl}--whole-archive`for conv in $convenience\"\"; do test  -n \"$conv\" && new_convenience=\"$new_convenience,$conv\"; done; $echo \"$new_convenience\"` ${wl}--no-whole-archive'
+ 	  tmp_addflag=' $pic_flag'
+@@ -5570,13 +5543,13 @@
+ 	_LT_AC_TAGVAR(link_all_deplibs, $1)=no
+       else
+ 	_LT_AC_TAGVAR(ld_shlibs, $1)=no
+       fi
+       ;;
+ 
+-    netbsd* | netbsdelf*-gnu | knetbsd*-gnu)
++    netbsd* | netbsdelf*-gnu)
+       if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+ 	_LT_AC_TAGVAR(archive_cmds, $1)='$LD -Bshareable $libobjs $deplibs $linker_flags -o $lib'
+ 	wlarc=
+       else
+ 	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
+ 	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname ${wl}-retain-symbols-file $wl$export_symbols -o $lib'
+@@ -5906,21 +5879,12 @@
+     freebsd* | dragonfly*)
+       _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared -o $lib $libobjs $deplibs $compiler_flags'
+       _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-R$libdir'
+       _LT_AC_TAGVAR(hardcode_direct, $1)=yes
+       _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
+       ;;
+-      
+-    # GNU/kFreeBSD uses gcc -shared to do shared libraries.
+-    kfreebsd*-gnu)
+-      _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared -o $lib $libobjs $deplibs $compiler_flags'
+-      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-R$libdir'
+-      _LT_AC_TAGVAR(hardcode_direct, $1)=yes
+-      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
+-      _LT_AC_TAGVAR(link_all_deplibs, $1)=no
+-      ;;
+ 
+     hpux9*)
+       if test "$GCC" = yes; then
+ 	_LT_AC_TAGVAR(archive_cmds, $1)='$rm $output_objdir/$soname~$CC -shared -fPIC ${wl}+b ${wl}$install_libdir -o $output_objdir/$soname $libobjs $deplibs $compiler_flags~test $output_objdir/$soname = $lib || mv $output_objdir/$soname $lib'
+       else
+ 	_LT_AC_TAGVAR(archive_cmds, $1)='$rm $output_objdir/$soname~$LD -b +b $install_libdir -o $output_objdir/$soname $libobjs $deplibs $linker_flags~test $output_objdir/$soname = $lib || mv $output_objdir/$soname $lib'
+@@ -6011,13 +5975,13 @@
+       fi
+       _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-rpath ${wl}$libdir'
+       _LT_AC_TAGVAR(hardcode_libdir_separator, $1)=:
+       _LT_AC_TAGVAR(link_all_deplibs, $1)=yes
+       ;;
+ 
+-    netbsd* | netbsdelf*-gnu | knetbsd*-gnu)
++    netbsd* | netbsdelf*-gnu)
+       if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+ 	_LT_AC_TAGVAR(archive_cmds, $1)='$LD -Bshareable -o $lib $libobjs $deplibs $linker_flags'  # a.out
+       else
+ 	_LT_AC_TAGVAR(archive_cmds, $1)='$LD -shared -o $lib $libobjs $deplibs $linker_flags'      # ELF
+       fi
+       _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-R$libdir'
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/ChangeLog /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/ChangeLog
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/ChangeLog	2006-04-02 16:43:24.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/ChangeLog	2006-04-09 22:07:16.000000000 +0800
+@@ -1,9 +1,13 @@
++2006-04-09, Version 3.8.4
++	* Applied patch by Vincent Stehlé which improves the disk-name
++	  resolution in the `hddtemp' plugin for Linux systems.
++
+ 2006-04-02, Version 3.8.3
+-	* Applied a patch by XXX: The MySQL plugin was not working with MySQL
+-	  5.0.2 or later.
++	* Applied a patch by James Byers: The MySQL plugin was not working
++	  with MySQL 5.0.2 or later.
+ 
+ 2006-03-14, Version 3.8.2
+ 	* `utils_mount.c' has been changed to not use the `MNTTAB' defined by
+ 	  the GNU libc, because it points to `/etc/fstab' rather than
+ 	  `/etc/mtab'.
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/collectd.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/collectd.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/collectd.spec	2006-04-02 16:43:24.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/collectd.spec	2006-04-09 22:07:16.000000000 +0800
+@@ -1,9 +1,9 @@
+ Summary:	Statistics collection daemon for filling RRD files.
+ Name:           collectd
+-Version:	3.8.3
++Version:	3.8.4
+ Release:	1
+ Source:		http://verplant.org/collectd/%{name}-%{version}.tar.gz
+ License:	GPL
+ Group:		System Environment/Daemons
+ BuildRoot:	%{_tmppath}/%{name}-%{version}-root
+ BuildPrereq:	lm_sensors-devel, mysqlclient10-devel | mysql-devel, rrdtool-devel
+@@ -85,12 +85,15 @@
+ %attr(0444,root,root) %{_libdir}/%{name}/mysql.so*
+ 
+ %files sensors
+ %attr(0444,root,root) %{_libdir}/%{name}/sensors.so*
+ 
+ %changelog
++* Sun Apr 09 2006 Florian octo Forster <octo@verplant.org> 3.8.4-1
++- New upstream version
++
+ * Sun Apr 02 2006 Florian octo Forster <octo@verplant.org> 3.8.3-1
+ - New upstream version
+ 
+ * Thu Mar 14 2006 Florian octo Forster <octo@verplant.org> 3.8.2-1
+ - New upstream version
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/configure	2006-04-02 16:43:24.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/configure	2006-04-09 22:07:16.000000000 +0800
+@@ -1,9 +1,9 @@
+ #! /bin/sh
+ # Guess values for system-dependent variables and create Makefiles.
+-# Generated by GNU Autoconf 2.59 for collectd 3.8.3.
++# Generated by GNU Autoconf 2.59 for collectd 3.8.4.
+ #
+ # Copyright (C) 2003 Free Software Foundation, Inc.
+ # This configure script is free software; the Free Software Foundation
+ # gives unlimited permission to copy, distribute and modify it.
+ ## --------------------- ##
+ ## M4sh Initialization.  ##
+@@ -418,14 +418,14 @@
+ # only ac_max_sed_lines should be used.
+ : ${ac_max_here_lines=38}
+ 
+ # Identity of this package.
+ PACKAGE_NAME='collectd'
+ PACKAGE_TARNAME='collectd'
+-PACKAGE_VERSION='3.8.3'
+-PACKAGE_STRING='collectd 3.8.3'
++PACKAGE_VERSION='3.8.4'
++PACKAGE_STRING='collectd 3.8.4'
+ PACKAGE_BUGREPORT=''
+ 
+ ac_unique_file="src/collectd.c"
+ ac_default_prefix="/opt/collectd"
+ # Factoring default headers for most tests.
+ ac_includes_default="\
+@@ -951,13 +951,13 @@
+ # Report the --help message.
+ #
+ if test "$ac_init_help" = "long"; then
+   # Omit some internal or obsolete options to make the list less imposing.
+   # This message is too long to be a string in the A/UX 3.1 sh.
+   cat <<_ACEOF
+-\`configure' configures collectd 3.8.3 to adapt to many kinds of systems.
++\`configure' configures collectd 3.8.4 to adapt to many kinds of systems.
+ 
+ Usage: $0 [OPTION]... [VAR=VALUE]...
+ 
+ To assign environment variables (e.g., CC, CFLAGS...), specify them as
+ VAR=VALUE.  See below for descriptions of some of the useful variables.
+ 
+@@ -1017,13 +1017,13 @@
+   --host=HOST       cross-compile to build programs to run on HOST [BUILD]
+ _ACEOF
+ fi
+ 
+ if test -n "$ac_init_help"; then
+   case $ac_init_help in
+-     short | recursive ) echo "Configuration of collectd 3.8.3:";;
++     short | recursive ) echo "Configuration of collectd 3.8.4:";;
+    esac
+   cat <<\_ACEOF
+ 
+ Optional Features:
+   --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
+   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
+@@ -1193,13 +1193,13 @@
+   done
+ fi
+ 
+ test -n "$ac_init_help" && exit 0
+ if $ac_init_version; then
+   cat <<\_ACEOF
+-collectd configure 3.8.3
++collectd configure 3.8.4
+ generated by GNU Autoconf 2.59
+ 
+ Copyright (C) 2003 Free Software Foundation, Inc.
+ This configure script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it.
+ _ACEOF
+@@ -1207,13 +1207,13 @@
+ fi
+ exec 5>config.log
+ cat >&5 <<_ACEOF
+ This file contains any messages produced by compilers while
+ running configure, to aid debugging if configure makes a mistake.
+ 
+-It was created by collectd $as_me 3.8.3, which was
++It was created by collectd $as_me 3.8.4, which was
+ generated by GNU Autoconf 2.59.  Invocation command line was
+ 
+   $ $0 $@
+ 
+ _ACEOF
+ {
+@@ -1853,13 +1853,13 @@
+   fi
+ fi
+ 
+ 
+ # Define the identity of the package.
+  PACKAGE='collectd'
+- VERSION='3.8.3'
++ VERSION='3.8.4'
+ 
+ 
+ cat >>confdefs.h <<_ACEOF
+ #define PACKAGE "$PACKAGE"
+ _ACEOF
+ 
+@@ -3908,13 +3908,13 @@
+   ;;
+ 
+ darwin* | rhapsody*)
+   lt_cv_deplibs_check_method=pass_all
+   ;;
+ 
+-freebsd* | kfreebsd*-gnu | dragonfly*)
++freebsd* | dragonfly*)
+   if echo __ELF__ | $CC -E - | grep __ELF__ > /dev/null; then
+     case $host_cpu in
+     i*86 )
+       # Not sure whether the presence of OpenBSD here was a mistake.
+       # Let's accept both of them until this is cleared up.
+       lt_cv_deplibs_check_method='file_magic (FreeBSD|OpenBSD|DragonFly)/i[3-9]86 (compact )?demand paged shared library'
+@@ -3962,17 +3962,17 @@
+   *) libmagic=never-match;;
+   esac
+   lt_cv_deplibs_check_method=pass_all
+   ;;
+ 
+ # This must be Linux ELF.
+-linux*)
++linux* | k*bsd*-gnu)
+   lt_cv_deplibs_check_method=pass_all
+   ;;
+ 
+-netbsd* | netbsdelf*-gnu | knetbsd*-gnu)
++netbsd* | netbsdelf*-gnu)
+   if echo __ELF__ | $CC -E - | grep __ELF__ > /dev/null; then
+     lt_cv_deplibs_check_method='match_pattern /lib[^/]+(\.so\.[0-9]+\.[0-9]+|_pic\.a)$'
+   else
+     lt_cv_deplibs_check_method='match_pattern /lib[^/]+(\.so|_pic\.a)$'
+   fi
+   ;;
+@@ -5743,13 +5743,13 @@
+   if test "$host_cpu" = ia64; then
+     symcode='[ABCDEGRST]'
+   fi
+   lt_cv_sys_global_symbol_to_cdecl="sed -n -e 's/^T .* \(.*\)$/extern int \1();/p' -e 's/^$symcode* .* \(.*\)$/extern char \1;/p'"
+   lt_cv_sys_global_symbol_to_c_name_address="sed -n -e 's/^: \([^ ]*\) $/  {\\\"\1\\\", (lt_ptr) 0},/p' -e 's/^$symcode* \([^ ]*\) \([^ ]*\)$/  {\"\2\", (lt_ptr) \&\2},/p'"
+   ;;
+-linux*)
++linux* | k*bsd*-gnu)
+   if test "$host_cpu" = ia64; then
+     symcode='[ABCDGIRSTW]'
+     lt_cv_sys_global_symbol_to_cdecl="sed -n -e 's/^T .* \(.*\)$/extern int \1();/p' -e 's/^$symcode* .* \(.*\)$/extern char \1;/p'"
+     lt_cv_sys_global_symbol_to_c_name_address="sed -n -e 's/^: \([^ ]*\) $/  {\\\"\1\\\", (lt_ptr) 0},/p' -e 's/^$symcode* \([^ ]*\) \([^ ]*\)$/  {\"\2\", (lt_ptr) \&\2},/p'"
+   fi
+   ;;
+@@ -6663,13 +6663,13 @@
+ 
+     newsos6)
+       lt_prog_compiler_pic='-KPIC'
+       lt_prog_compiler_static='-Bstatic'
+       ;;
+ 
+-    linux*)
++    linux* | k*bsd*-gnu)
+       case $cc_basename in
+       icc* | ecc*)
+ 	lt_prog_compiler_wl='-Wl,'
+ 	lt_prog_compiler_pic='-KPIC'
+ 	lt_prog_compiler_static='-static'
+         ;;
+@@ -7102,13 +7102,13 @@
+       # 256 KiB-aligned image base between 0x50000000 and 0x6FFC0000 at link
+       # time.  Moving up from 0x10000000 also allows more sbrk(2) space.
+       archive_cmds='$CC -shared $pic_flag $libobjs $deplibs $compiler_flags ${wl}-h,$soname ${wl}--image-base,`expr ${RANDOM-$$} % 4096 / 2 \* 262144 + 1342177280` -o $lib'
+       archive_expsym_cmds='sed "s,^,_," $export_symbols >$output_objdir/$soname.expsym~$CC -shared $pic_flag $libobjs $deplibs $compiler_flags ${wl}-h,$soname ${wl}--retain-symbols-file,$output_objdir/$soname.expsym ${wl}--image-base,`expr ${RANDOM-$$} % 4096 / 2 \* 262144 + 1342177280` -o $lib'
+       ;;
+ 
+-    linux*)
++    linux* | k*bsd*-gnu)
+       if $LD --help 2>&1 | grep ': supported targets:.* elf' > /dev/null; then
+ 	tmp_addflag=
+ 	case $cc_basename,$host_cpu in
+ 	pgcc*)				# Portland Group C compiler
+ 	  whole_archive_flag_spec='${wl}--whole-archive`for conv in $convenience\"\"; do test  -n \"$conv\" && new_convenience=\"$new_convenience,$conv\"; done; $echo \"$new_convenience\"` ${wl}--no-whole-archive'
+ 	  tmp_addflag=' $pic_flag'
+@@ -7134,13 +7134,13 @@
+ 	link_all_deplibs=no
+       else
+ 	ld_shlibs=no
+       fi
+       ;;
+ 
+-    netbsd* | netbsdelf*-gnu | knetbsd*-gnu)
++    netbsd* | netbsdelf*-gnu)
+       if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+ 	archive_cmds='$LD -Bshareable $libobjs $deplibs $linker_flags -o $lib'
+ 	wlarc=
+       else
+ 	archive_cmds='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
+ 	archive_expsym_cmds='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname ${wl}-retain-symbols-file $wl$export_symbols -o $lib'
+@@ -7571,21 +7571,12 @@
+       archive_cmds='$CC -shared -o $lib $libobjs $deplibs $compiler_flags'
+       hardcode_libdir_flag_spec='-R$libdir'
+       hardcode_direct=yes
+       hardcode_shlibpath_var=no
+       ;;
+ 
+-    # GNU/kFreeBSD uses gcc -shared to do shared libraries.
+-    kfreebsd*-gnu)
+-      archive_cmds='$CC -shared -o $lib $libobjs $deplibs $compiler_flags'
+-      hardcode_libdir_flag_spec='-R$libdir'
+-      hardcode_direct=yes
+-      hardcode_shlibpath_var=no
+-      link_all_deplibs=no
+-      ;;
+-
+     hpux9*)
+       if test "$GCC" = yes; then
+ 	archive_cmds='$rm $output_objdir/$soname~$CC -shared -fPIC ${wl}+b ${wl}$install_libdir -o $output_objdir/$soname $libobjs $deplibs $compiler_flags~test $output_objdir/$soname = $lib || mv $output_objdir/$soname $lib'
+       else
+ 	archive_cmds='$rm $output_objdir/$soname~$LD -b +b $install_libdir -o $output_objdir/$soname $libobjs $deplibs $linker_flags~test $output_objdir/$soname = $lib || mv $output_objdir/$soname $lib'
+       fi
+@@ -7675,13 +7666,13 @@
+       fi
+       hardcode_libdir_flag_spec='${wl}-rpath ${wl}$libdir'
+       hardcode_libdir_separator=:
+       link_all_deplibs=yes
+       ;;
+ 
+-    netbsd* | netbsdelf*-gnu | knetbsd*-gnu)
++    netbsd* | netbsdelf*-gnu)
+       if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+ 	archive_cmds='$LD -Bshareable -o $lib $libobjs $deplibs $linker_flags'  # a.out
+       else
+ 	archive_cmds='$LD -shared -o $lib $libobjs $deplibs $linker_flags'      # ELF
+       fi
+       hardcode_libdir_flag_spec='-R$libdir'
+@@ -8165,24 +8156,12 @@
+   ;;
+ 
+ freebsd1*)
+   dynamic_linker=no
+   ;;
+ 
+-kfreebsd*-gnu)
+-  version_type=linux
+-  need_lib_prefix=no
+-  need_version=no
+-  library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major ${libname}${shared_ext}'
+-  soname_spec='${libname}${release}${shared_ext}$major'
+-  shlibpath_var=LD_LIBRARY_PATH
+-  shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
+-  dynamic_linker='GNU ld.so'
+-  ;;
+-
+ freebsd* | dragonfly*)
+   # DragonFly does not have aout.  When/if they implement a new
+   # versioning mechanism, adjust this.
+   if test -x /usr/bin/objformat; then
+     objformat=`/usr/bin/objformat`
+   else
+@@ -8332,13 +8311,13 @@
+ # No shared lib support for Linux oldld, aout, or coff.
+ linux*oldld* | linux*aout* | linux*coff*)
+   dynamic_linker=no
+   ;;
+ 
+ # This must be Linux ELF.
+-linux*)
++linux* | k*bsd*-gnu)
+   version_type=linux
+   need_lib_prefix=no
+   need_version=no
+   library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major $libname${shared_ext}'
+   soname_spec='${libname}${release}${shared_ext}$major'
+   finish_cmds='PATH="\$PATH:/sbin" ldconfig -n $libdir'
+@@ -8373,24 +8352,12 @@
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=no
+   hardcode_into_libs=yes
+   dynamic_linker='NetBSD ld.elf_so'
+   ;;
+ 
+-knetbsd*-gnu)
+-  version_type=linux
+-  need_lib_prefix=no
+-  need_version=no
+-  library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major ${libname}${shared_ext}'
+-  soname_spec='${libname}${release}${shared_ext}$major'
+-  shlibpath_var=LD_LIBRARY_PATH
+-  shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
+-  dynamic_linker='GNU ld.so'
+-  ;;
+-
+ netbsd*)
+   version_type=sunos
+   need_lib_prefix=no
+   need_version=no
+   if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+     library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${shared_ext}$versuffix'
+@@ -9231,13 +9198,13 @@
+   	  if test "$cross_compiling" = yes; then :
+   lt_cv_dlopen_self=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 9237 "configure"
++#line 9204 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -9331,13 +9298,13 @@
+   	  if test "$cross_compiling" = yes; then :
+   lt_cv_dlopen_self_static=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 9337 "configure"
++#line 9304 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -10646,13 +10613,13 @@
+     # C++ shared libraries reported to be fairly broken before switch to ELF
+     ld_shlibs_CXX=no
+     ;;
+   freebsd-elf*)
+     archive_cmds_need_lc_CXX=no
+     ;;
+-  freebsd* | kfreebsd*-gnu | dragonfly*)
++  freebsd* | dragonfly*)
+     # FreeBSD 3 and later use GNU C++ and GNU ld with standard ELF
+     # conventions
+     ld_shlibs_CXX=yes
+     ;;
+   gnu*)
+     ;;
+@@ -10805,13 +10772,13 @@
+ 	link_all_deplibs_CXX=yes
+ 	;;
+     esac
+     hardcode_libdir_flag_spec_CXX='${wl}-rpath ${wl}$libdir'
+     hardcode_libdir_separator_CXX=:
+     ;;
+-  linux*)
++  linux* | k*bsd*-gnu)
+     case $cc_basename in
+       KCC*)
+ 	# Kuck and Associates, Inc. (KAI) C++ Compiler
+ 
+ 	# KCC will only create a shared library if the output file
+ 	# ends with ".so" (or ".sl" for HP-UX), so rename the library
+@@ -10907,13 +10874,13 @@
+       *)
+ 	# FIXME: insert proper C++ library support
+ 	ld_shlibs_CXX=no
+ 	;;
+     esac
+     ;;
+-  netbsd* | netbsdelf*-gnu | knetbsd*-gnu)
++  netbsd* | netbsdelf*-gnu)
+     if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+       archive_cmds_CXX='$LD -Bshareable  -o $lib $predep_objects $libobjs $deplibs $postdep_objects $linker_flags'
+       wlarc=
+       hardcode_libdir_flag_spec_CXX='-R$libdir'
+       hardcode_direct_CXX=yes
+       hardcode_shlibpath_var_CXX=no
+@@ -11474,13 +11441,13 @@
+ 	    lt_prog_compiler_pic_CXX='-pic'
+ 	    ;;
+ 	  *)
+ 	    ;;
+ 	esac
+ 	;;
+-      freebsd* | kfreebsd*-gnu | dragonfly*)
++      freebsd* | dragonfly*)
+ 	# FreeBSD uses GNU C++
+ 	;;
+       hpux9* | hpux10* | hpux11*)
+ 	case $cc_basename in
+ 	  CC*)
+ 	    lt_prog_compiler_wl_CXX='-Wl,'
+@@ -11517,13 +11484,13 @@
+ 	    # CC pic flag -KPIC is the default.
+ 	    ;;
+ 	  *)
+ 	    ;;
+ 	esac
+ 	;;
+-      linux*)
++      linux* | k*bsd*-gnu)
+ 	case $cc_basename in
+ 	  KCC*)
+ 	    # KAI C++ Compiler
+ 	    lt_prog_compiler_wl_CXX='--backend -Wl,'
+ 	    lt_prog_compiler_pic_CXX='-fPIC'
+ 	    ;;
+@@ -11560,13 +11527,13 @@
+ 	    lt_prog_compiler_pic_CXX='-W c,exportall'
+ 	    ;;
+ 	  *)
+ 	    ;;
+ 	esac
+ 	;;
+-      netbsd* | netbsdelf*-gnu | knetbsd*-gnu)
++      netbsd* | netbsdelf*-gnu)
+ 	;;
+       osf3* | osf4* | osf5*)
+ 	case $cc_basename in
+ 	  KCC*)
+ 	    lt_prog_compiler_wl_CXX='--backend -Wl,'
+ 	    ;;
+@@ -11669,17 +11636,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:11675: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:11642: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:11679: \$? = $ac_status" >&5
++   echo "$as_me:11646: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -11773,17 +11740,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:11779: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:11746: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:11783: \$? = $ac_status" >&5
++   echo "$as_me:11750: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -11845,16 +11812,13 @@
+   pw32*)
+     export_symbols_cmds_CXX="$ltdll_cmds"
+   ;;
+   cygwin* | mingw*)
+     export_symbols_cmds_CXX='$NM $libobjs $convenience | $global_symbol_pipe | $SED -e '\''/^[BCDGRS] /s/.* \([^ ]*\)/\1 DATA/;/^.* __nm__/s/^.* __nm__\([^ ]*\) [^ ]*/\1 DATA/;/^I /d;/^[AITW] /s/.* //'\'' | sort | uniq > $export_symbols'
+   ;;
+-  kfreebsd*-gnu)
+-    link_all_deplibs_CXX=no
+-  ;;
+-  linux*)
++  linux* | k*bsd*-gnu)
+     link_all_deplibs_CXX=no
+   ;;
+   *)
+     export_symbols_cmds_CXX='$NM $libobjs $convenience | $global_symbol_pipe | $SED '\''s/.* //'\'' | sort | uniq > $export_symbols'
+   ;;
+   esac
+@@ -12130,24 +12094,12 @@
+   ;;
+ 
+ freebsd1*)
+   dynamic_linker=no
+   ;;
+ 
+-kfreebsd*-gnu)
+-  version_type=linux
+-  need_lib_prefix=no
+-  need_version=no
+-  library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major ${libname}${shared_ext}'
+-  soname_spec='${libname}${release}${shared_ext}$major'
+-  shlibpath_var=LD_LIBRARY_PATH
+-  shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
+-  dynamic_linker='GNU ld.so'
+-  ;;
+-
+ freebsd* | dragonfly*)
+   # DragonFly does not have aout.  When/if they implement a new
+   # versioning mechanism, adjust this.
+   if test -x /usr/bin/objformat; then
+     objformat=`/usr/bin/objformat`
+   else
+@@ -12297,13 +12249,13 @@
+ # No shared lib support for Linux oldld, aout, or coff.
+ linux*oldld* | linux*aout* | linux*coff*)
+   dynamic_linker=no
+   ;;
+ 
+ # This must be Linux ELF.
+-linux*)
++linux* | k*bsd*-gnu)
+   version_type=linux
+   need_lib_prefix=no
+   need_version=no
+   library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major $libname${shared_ext}'
+   soname_spec='${libname}${release}${shared_ext}$major'
+   finish_cmds='PATH="\$PATH:/sbin" ldconfig -n $libdir'
+@@ -12338,24 +12290,12 @@
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=no
+   hardcode_into_libs=yes
+   dynamic_linker='NetBSD ld.elf_so'
+   ;;
+ 
+-knetbsd*-gnu)
+-  version_type=linux
+-  need_lib_prefix=no
+-  need_version=no
+-  library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major ${libname}${shared_ext}'
+-  soname_spec='${libname}${release}${shared_ext}$major'
+-  shlibpath_var=LD_LIBRARY_PATH
+-  shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
+-  dynamic_linker='GNU ld.so'
+-  ;;
+-
+ netbsd*)
+   version_type=sunos
+   need_lib_prefix=no
+   need_version=no
+   if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+     library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${shared_ext}$versuffix'
+@@ -13255,13 +13195,13 @@
+ 
+     newsos6)
+       lt_prog_compiler_pic_F77='-KPIC'
+       lt_prog_compiler_static_F77='-Bstatic'
+       ;;
+ 
+-    linux*)
++    linux* | k*bsd*-gnu)
+       case $cc_basename in
+       icc* | ecc*)
+ 	lt_prog_compiler_wl_F77='-Wl,'
+ 	lt_prog_compiler_pic_F77='-KPIC'
+ 	lt_prog_compiler_static_F77='-static'
+         ;;
+@@ -13361,17 +13301,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:13367: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:13307: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:13371: \$? = $ac_status" >&5
++   echo "$as_me:13311: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -13465,17 +13405,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:13471: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:13411: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:13475: \$? = $ac_status" >&5
++   echo "$as_me:13415: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -13694,13 +13634,13 @@
+       # 256 KiB-aligned image base between 0x50000000 and 0x6FFC0000 at link
+       # time.  Moving up from 0x10000000 also allows more sbrk(2) space.
+       archive_cmds_F77='$CC -shared $pic_flag $libobjs $deplibs $compiler_flags ${wl}-h,$soname ${wl}--image-base,`expr ${RANDOM-$$} % 4096 / 2 \* 262144 + 1342177280` -o $lib'
+       archive_expsym_cmds_F77='sed "s,^,_," $export_symbols >$output_objdir/$soname.expsym~$CC -shared $pic_flag $libobjs $deplibs $compiler_flags ${wl}-h,$soname ${wl}--retain-symbols-file,$output_objdir/$soname.expsym ${wl}--image-base,`expr ${RANDOM-$$} % 4096 / 2 \* 262144 + 1342177280` -o $lib'
+       ;;
+ 
+-    linux*)
++    linux* | k*bsd*-gnu)
+       if $LD --help 2>&1 | grep ': supported targets:.* elf' > /dev/null; then
+ 	tmp_addflag=
+ 	case $cc_basename,$host_cpu in
+ 	pgcc*)				# Portland Group C compiler
+ 	  whole_archive_flag_spec_F77='${wl}--whole-archive`for conv in $convenience\"\"; do test  -n \"$conv\" && new_convenience=\"$new_convenience,$conv\"; done; $echo \"$new_convenience\"` ${wl}--no-whole-archive'
+ 	  tmp_addflag=' $pic_flag'
+@@ -13726,13 +13666,13 @@
+ 	link_all_deplibs_F77=no
+       else
+ 	ld_shlibs_F77=no
+       fi
+       ;;
+ 
+-    netbsd* | netbsdelf*-gnu | knetbsd*-gnu)
++    netbsd* | netbsdelf*-gnu)
+       if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+ 	archive_cmds_F77='$LD -Bshareable $libobjs $deplibs $linker_flags -o $lib'
+ 	wlarc=
+       else
+ 	archive_cmds_F77='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
+ 	archive_expsym_cmds_F77='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname ${wl}-retain-symbols-file $wl$export_symbols -o $lib'
+@@ -14143,21 +14083,12 @@
+       archive_cmds_F77='$CC -shared -o $lib $libobjs $deplibs $compiler_flags'
+       hardcode_libdir_flag_spec_F77='-R$libdir'
+       hardcode_direct_F77=yes
+       hardcode_shlibpath_var_F77=no
+       ;;
+ 
+-    # GNU/kFreeBSD uses gcc -shared to do shared libraries.
+-    kfreebsd*-gnu)
+-      archive_cmds_F77='$CC -shared -o $lib $libobjs $deplibs $compiler_flags'
+-      hardcode_libdir_flag_spec_F77='-R$libdir'
+-      hardcode_direct_F77=yes
+-      hardcode_shlibpath_var_F77=no
+-      link_all_deplibs_F77=no
+-      ;;
+-
+     hpux9*)
+       if test "$GCC" = yes; then
+ 	archive_cmds_F77='$rm $output_objdir/$soname~$CC -shared -fPIC ${wl}+b ${wl}$install_libdir -o $output_objdir/$soname $libobjs $deplibs $compiler_flags~test $output_objdir/$soname = $lib || mv $output_objdir/$soname $lib'
+       else
+ 	archive_cmds_F77='$rm $output_objdir/$soname~$LD -b +b $install_libdir -o $output_objdir/$soname $libobjs $deplibs $linker_flags~test $output_objdir/$soname = $lib || mv $output_objdir/$soname $lib'
+       fi
+@@ -14247,13 +14178,13 @@
+       fi
+       hardcode_libdir_flag_spec_F77='${wl}-rpath ${wl}$libdir'
+       hardcode_libdir_separator_F77=:
+       link_all_deplibs_F77=yes
+       ;;
+ 
+-    netbsd* | netbsdelf*-gnu | knetbsd*-gnu)
++    netbsd* | netbsdelf*-gnu)
+       if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+ 	archive_cmds_F77='$LD -Bshareable -o $lib $libobjs $deplibs $linker_flags'  # a.out
+       else
+ 	archive_cmds_F77='$LD -shared -o $lib $libobjs $deplibs $linker_flags'      # ELF
+       fi
+       hardcode_libdir_flag_spec_F77='-R$libdir'
+@@ -14737,24 +14668,12 @@
+   ;;
+ 
+ freebsd1*)
+   dynamic_linker=no
+   ;;
+ 
+-kfreebsd*-gnu)
+-  version_type=linux
+-  need_lib_prefix=no
+-  need_version=no
+-  library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major ${libname}${shared_ext}'
+-  soname_spec='${libname}${release}${shared_ext}$major'
+-  shlibpath_var=LD_LIBRARY_PATH
+-  shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
+-  dynamic_linker='GNU ld.so'
+-  ;;
+-
+ freebsd* | dragonfly*)
+   # DragonFly does not have aout.  When/if they implement a new
+   # versioning mechanism, adjust this.
+   if test -x /usr/bin/objformat; then
+     objformat=`/usr/bin/objformat`
+   else
+@@ -14904,13 +14823,13 @@
+ # No shared lib support for Linux oldld, aout, or coff.
+ linux*oldld* | linux*aout* | linux*coff*)
+   dynamic_linker=no
+   ;;
+ 
+ # This must be Linux ELF.
+-linux*)
++linux* | k*bsd*-gnu)
+   version_type=linux
+   need_lib_prefix=no
+   need_version=no
+   library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major $libname${shared_ext}'
+   soname_spec='${libname}${release}${shared_ext}$major'
+   finish_cmds='PATH="\$PATH:/sbin" ldconfig -n $libdir'
+@@ -14945,24 +14864,12 @@
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=no
+   hardcode_into_libs=yes
+   dynamic_linker='NetBSD ld.elf_so'
+   ;;
+ 
+-knetbsd*-gnu)
+-  version_type=linux
+-  need_lib_prefix=no
+-  need_version=no
+-  library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major ${libname}${shared_ext}'
+-  soname_spec='${libname}${release}${shared_ext}$major'
+-  shlibpath_var=LD_LIBRARY_PATH
+-  shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
+-  dynamic_linker='GNU ld.so'
+-  ;;
+-
+ netbsd*)
+   version_type=sunos
+   need_lib_prefix=no
+   need_version=no
+   if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+     library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${shared_ext}$versuffix'
+@@ -15688,17 +15595,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:15694: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:15601: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:15698: \$? = $ac_status" >&5
++   echo "$as_me:15605: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -15850,13 +15757,13 @@
+ 
+     newsos6)
+       lt_prog_compiler_pic_GCJ='-KPIC'
+       lt_prog_compiler_static_GCJ='-Bstatic'
+       ;;
+ 
+-    linux*)
++    linux* | k*bsd*-gnu)
+       case $cc_basename in
+       icc* | ecc*)
+ 	lt_prog_compiler_wl_GCJ='-Wl,'
+ 	lt_prog_compiler_pic_GCJ='-KPIC'
+ 	lt_prog_compiler_static_GCJ='-static'
+         ;;
+@@ -15956,17 +15863,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:15962: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:15869: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:15966: \$? = $ac_status" >&5
++   echo "$as_me:15873: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -16060,17 +15967,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:16066: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:15973: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:16070: \$? = $ac_status" >&5
++   echo "$as_me:15977: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -16289,13 +16196,13 @@
+       # 256 KiB-aligned image base between 0x50000000 and 0x6FFC0000 at link
+       # time.  Moving up from 0x10000000 also allows more sbrk(2) space.
+       archive_cmds_GCJ='$CC -shared $pic_flag $libobjs $deplibs $compiler_flags ${wl}-h,$soname ${wl}--image-base,`expr ${RANDOM-$$} % 4096 / 2 \* 262144 + 1342177280` -o $lib'
+       archive_expsym_cmds_GCJ='sed "s,^,_," $export_symbols >$output_objdir/$soname.expsym~$CC -shared $pic_flag $libobjs $deplibs $compiler_flags ${wl}-h,$soname ${wl}--retain-symbols-file,$output_objdir/$soname.expsym ${wl}--image-base,`expr ${RANDOM-$$} % 4096 / 2 \* 262144 + 1342177280` -o $lib'
+       ;;
+ 
+-    linux*)
++    linux* | k*bsd*-gnu)
+       if $LD --help 2>&1 | grep ': supported targets:.* elf' > /dev/null; then
+ 	tmp_addflag=
+ 	case $cc_basename,$host_cpu in
+ 	pgcc*)				# Portland Group C compiler
+ 	  whole_archive_flag_spec_GCJ='${wl}--whole-archive`for conv in $convenience\"\"; do test  -n \"$conv\" && new_convenience=\"$new_convenience,$conv\"; done; $echo \"$new_convenience\"` ${wl}--no-whole-archive'
+ 	  tmp_addflag=' $pic_flag'
+@@ -16321,13 +16228,13 @@
+ 	link_all_deplibs_GCJ=no
+       else
+ 	ld_shlibs_GCJ=no
+       fi
+       ;;
+ 
+-    netbsd* | netbsdelf*-gnu | knetbsd*-gnu)
++    netbsd* | netbsdelf*-gnu)
+       if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+ 	archive_cmds_GCJ='$LD -Bshareable $libobjs $deplibs $linker_flags -o $lib'
+ 	wlarc=
+       else
+ 	archive_cmds_GCJ='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
+ 	archive_expsym_cmds_GCJ='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname ${wl}-retain-symbols-file $wl$export_symbols -o $lib'
+@@ -16758,21 +16665,12 @@
+       archive_cmds_GCJ='$CC -shared -o $lib $libobjs $deplibs $compiler_flags'
+       hardcode_libdir_flag_spec_GCJ='-R$libdir'
+       hardcode_direct_GCJ=yes
+       hardcode_shlibpath_var_GCJ=no
+       ;;
+ 
+-    # GNU/kFreeBSD uses gcc -shared to do shared libraries.
+-    kfreebsd*-gnu)
+-      archive_cmds_GCJ='$CC -shared -o $lib $libobjs $deplibs $compiler_flags'
+-      hardcode_libdir_flag_spec_GCJ='-R$libdir'
+-      hardcode_direct_GCJ=yes
+-      hardcode_shlibpath_var_GCJ=no
+-      link_all_deplibs_GCJ=no
+-      ;;
+-
+     hpux9*)
+       if test "$GCC" = yes; then
+ 	archive_cmds_GCJ='$rm $output_objdir/$soname~$CC -shared -fPIC ${wl}+b ${wl}$install_libdir -o $output_objdir/$soname $libobjs $deplibs $compiler_flags~test $output_objdir/$soname = $lib || mv $output_objdir/$soname $lib'
+       else
+ 	archive_cmds_GCJ='$rm $output_objdir/$soname~$LD -b +b $install_libdir -o $output_objdir/$soname $libobjs $deplibs $linker_flags~test $output_objdir/$soname = $lib || mv $output_objdir/$soname $lib'
+       fi
+@@ -16862,13 +16760,13 @@
+       fi
+       hardcode_libdir_flag_spec_GCJ='${wl}-rpath ${wl}$libdir'
+       hardcode_libdir_separator_GCJ=:
+       link_all_deplibs_GCJ=yes
+       ;;
+ 
+-    netbsd* | netbsdelf*-gnu | knetbsd*-gnu)
++    netbsd* | netbsdelf*-gnu)
+       if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+ 	archive_cmds_GCJ='$LD -Bshareable -o $lib $libobjs $deplibs $linker_flags'  # a.out
+       else
+ 	archive_cmds_GCJ='$LD -shared -o $lib $libobjs $deplibs $linker_flags'      # ELF
+       fi
+       hardcode_libdir_flag_spec_GCJ='-R$libdir'
+@@ -17352,24 +17250,12 @@
+   ;;
+ 
+ freebsd1*)
+   dynamic_linker=no
+   ;;
+ 
+-kfreebsd*-gnu)
+-  version_type=linux
+-  need_lib_prefix=no
+-  need_version=no
+-  library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major ${libname}${shared_ext}'
+-  soname_spec='${libname}${release}${shared_ext}$major'
+-  shlibpath_var=LD_LIBRARY_PATH
+-  shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
+-  dynamic_linker='GNU ld.so'
+-  ;;
+-
+ freebsd* | dragonfly*)
+   # DragonFly does not have aout.  When/if they implement a new
+   # versioning mechanism, adjust this.
+   if test -x /usr/bin/objformat; then
+     objformat=`/usr/bin/objformat`
+   else
+@@ -17519,13 +17405,13 @@
+ # No shared lib support for Linux oldld, aout, or coff.
+ linux*oldld* | linux*aout* | linux*coff*)
+   dynamic_linker=no
+   ;;
+ 
+ # This must be Linux ELF.
+-linux*)
++linux* | k*bsd*-gnu)
+   version_type=linux
+   need_lib_prefix=no
+   need_version=no
+   library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major $libname${shared_ext}'
+   soname_spec='${libname}${release}${shared_ext}$major'
+   finish_cmds='PATH="\$PATH:/sbin" ldconfig -n $libdir'
+@@ -17560,24 +17446,12 @@
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=no
+   hardcode_into_libs=yes
+   dynamic_linker='NetBSD ld.elf_so'
+   ;;
+ 
+-knetbsd*-gnu)
+-  version_type=linux
+-  need_lib_prefix=no
+-  need_version=no
+-  library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major ${libname}${shared_ext}'
+-  soname_spec='${libname}${release}${shared_ext}$major'
+-  shlibpath_var=LD_LIBRARY_PATH
+-  shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
+-  dynamic_linker='GNU ld.so'
+-  ;;
+-
+ netbsd*)
+   version_type=sunos
+   need_lib_prefix=no
+   need_version=no
+   if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+     library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${shared_ext}$versuffix'
+@@ -21897,12 +21771,163 @@
+ 
+ fi
+ 
+ done
+ 
+ 
++# For hddtemp module
++
++for ac_header in linux/major.h
++do
++as_ac_Header=`echo "ac_cv_header_$ac_header" | $as_tr_sh`
++if eval "test \"\${$as_ac_Header+set}\" = set"; then
++  echo "$as_me:$LINENO: checking for $ac_header" >&5
++echo $ECHO_N "checking for $ac_header... $ECHO_C" >&6
++if eval "test \"\${$as_ac_Header+set}\" = set"; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++fi
++echo "$as_me:$LINENO: result: `eval echo '${'$as_ac_Header'}'`" >&5
++echo "${ECHO_T}`eval echo '${'$as_ac_Header'}'`" >&6
++else
++  # Is the header compilable?
++echo "$as_me:$LINENO: checking $ac_header usability" >&5
++echo $ECHO_N "checking $ac_header usability... $ECHO_C" >&6
++cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++$ac_includes_default
++#include <$ac_header>
++_ACEOF
++rm -f conftest.$ac_objext
++if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
++  (eval $ac_compile) 2>conftest.er1
++  ac_status=$?
++  grep -v '^ *+' conftest.er1 >conftest.err
++  rm -f conftest.er1
++  cat conftest.err >&5
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } &&
++	 { ac_try='test -z "$ac_c_werror_flag"			 || test ! -s conftest.err'
++  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
++  (eval $ac_try) 2>&5
++  ac_status=$?
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); }; } &&
++	 { ac_try='test -s conftest.$ac_objext'
++  { (eval echo "$as_me:$LINENO: \"$ac_try\"") >&5
++  (eval $ac_try) 2>&5
++  ac_status=$?
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); }; }; then
++  ac_header_compiler=yes
++else
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++ac_header_compiler=no
++fi
++rm -f conftest.err conftest.$ac_objext conftest.$ac_ext
++echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
++echo "${ECHO_T}$ac_header_compiler" >&6
++
++# Is the header present?
++echo "$as_me:$LINENO: checking $ac_header presence" >&5
++echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6
++cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++#include <$ac_header>
++_ACEOF
++if { (eval echo "$as_me:$LINENO: \"$ac_cpp conftest.$ac_ext\"") >&5
++  (eval $ac_cpp conftest.$ac_ext) 2>conftest.er1
++  ac_status=$?
++  grep -v '^ *+' conftest.er1 >conftest.err
++  rm -f conftest.er1
++  cat conftest.err >&5
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } >/dev/null; then
++  if test -s conftest.err; then
++    ac_cpp_err=$ac_c_preproc_warn_flag
++    ac_cpp_err=$ac_cpp_err$ac_c_werror_flag
++  else
++    ac_cpp_err=
++  fi
++else
++  ac_cpp_err=yes
++fi
++if test -z "$ac_cpp_err"; then
++  ac_header_preproc=yes
++else
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++  ac_header_preproc=no
++fi
++rm -f conftest.err conftest.$ac_ext
++echo "$as_me:$LINENO: result: $ac_header_preproc" >&5
++echo "${ECHO_T}$ac_header_preproc" >&6
++
++# So?  What about this header?
++case $ac_header_compiler:$ac_header_preproc:$ac_c_preproc_warn_flag in
++  yes:no: )
++    { echo "$as_me:$LINENO: WARNING: $ac_header: accepted by the compiler, rejected by the preprocessor!" >&5
++echo "$as_me: WARNING: $ac_header: accepted by the compiler, rejected by the preprocessor!" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header: proceeding with the compiler's result" >&5
++echo "$as_me: WARNING: $ac_header: proceeding with the compiler's result" >&2;}
++    ac_header_preproc=yes
++    ;;
++  no:yes:* )
++    { echo "$as_me:$LINENO: WARNING: $ac_header: present but cannot be compiled" >&5
++echo "$as_me: WARNING: $ac_header: present but cannot be compiled" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header:     check for missing prerequisite headers?" >&5
++echo "$as_me: WARNING: $ac_header:     check for missing prerequisite headers?" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header: see the Autoconf documentation" >&5
++echo "$as_me: WARNING: $ac_header: see the Autoconf documentation" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header:     section \"Present But Cannot Be Compiled\"" >&5
++echo "$as_me: WARNING: $ac_header:     section \"Present But Cannot Be Compiled\"" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header: proceeding with the preprocessor's result" >&5
++echo "$as_me: WARNING: $ac_header: proceeding with the preprocessor's result" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header: in the future, the compiler will take precedence" >&5
++echo "$as_me: WARNING: $ac_header: in the future, the compiler will take precedence" >&2;}
++    (
++      cat <<\_ASBOX
++## ----------------------------------- ##
++## Report this to the collectd lists.  ##
++## ----------------------------------- ##
++_ASBOX
++    ) |
++      sed "s/^/$as_me: WARNING:     /" >&2
++    ;;
++esac
++echo "$as_me:$LINENO: checking for $ac_header" >&5
++echo $ECHO_N "checking for $ac_header... $ECHO_C" >&6
++if eval "test \"\${$as_ac_Header+set}\" = set"; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++else
++  eval "$as_ac_Header=\$ac_header_preproc"
++fi
++echo "$as_me:$LINENO: result: `eval echo '${'$as_ac_Header'}'`" >&5
++echo "${ECHO_T}`eval echo '${'$as_ac_Header'}'`" >&6
++
++fi
++if test `eval echo '${'$as_ac_Header'}'` = yes; then
++  cat >>confdefs.h <<_ACEOF
++#define `echo "HAVE_$ac_header" | $as_tr_cpp` 1
++_ACEOF
++
++fi
++
++done
++
++
+ # For load module
+ 
+ for ac_header in sys/loadavg.h
+ do
+ as_ac_Header=`echo "ac_cv_header_$ac_header" | $as_tr_sh`
+ if eval "test \"\${$as_ac_Header+set}\" = set"; then
+@@ -31242,13 +31267,13 @@
+   sed 'h;s/./-/g;s/^.../## /;s/...$/ ##/;p;x;p;x' <<_ASBOX
+ ## Running $as_me. ##
+ _ASBOX
+ } >&5
+ cat >&5 <<_CSEOF
+ 
+-This file was extended by collectd $as_me 3.8.3, which was
++This file was extended by collectd $as_me 3.8.4, which was
+ generated by GNU Autoconf 2.59.  Invocation command line was
+ 
+   CONFIG_FILES    = $CONFIG_FILES
+   CONFIG_HEADERS  = $CONFIG_HEADERS
+   CONFIG_LINKS    = $CONFIG_LINKS
+   CONFIG_COMMANDS = $CONFIG_COMMANDS
+@@ -31305,13 +31330,13 @@
+ 
+ Report bugs to <bug-autoconf@gnu.org>."
+ _ACEOF
+ 
+ cat >>$CONFIG_STATUS <<_ACEOF
+ ac_cs_version="\\
+-collectd config.status 3.8.3
++collectd config.status 3.8.4
+ configured by $0, generated by GNU Autoconf 2.59,
+   with options \\"`echo "$ac_configure_args" | sed 's/[\\""\`\$]/\\\\&/g'`\\"
+ 
+ Copyright (C) 2003 Free Software Foundation, Inc.
+ This config.status script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it."
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/configure.in	2006-04-02 16:43:24.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/configure.in	2006-04-09 22:07:15.000000000 +0800
+@@ -1,8 +1,8 @@
+ dnl Process this file with autoconf to produce a configure script.
+-AC_INIT(collectd, 3.8.3)
++AC_INIT(collectd, 3.8.4)
+ AC_CONFIG_SRCDIR(src/collectd.c)
+ AC_CONFIG_HEADERS(src/config.h)
+ AM_INIT_AUTOMAKE(dist-bzip2)
+ AC_LANG(C)
+ 
+ AC_PREFIX_DEFAULT("/opt/collectd")
+@@ -132,12 +132,15 @@
+ #endif
+ ])
+ 
+ # For cpu modules
+ AC_CHECK_HEADERS(sys/sysctl.h sys/dkstat.h)
+ 
++# For hddtemp module
++AC_CHECK_HEADERS(linux/major.h)
++
+ # For load module
+ AC_CHECK_HEADERS(sys/loadavg.h)
+ 
+ # For users module
+ AC_CHECK_HEADERS(utmp.h)
+ AC_CHECK_HEADERS(utmpx.h)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/debian/changelog /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/debian/changelog
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/debian/changelog	2006-04-02 16:43:25.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/debian/changelog	2006-04-09 22:07:16.000000000 +0800
+@@ -1,6 +1,12 @@
++collectd (3.8.4-1) unstable; urgency=low
++
++  * New upstream version
++
++ -- Florian Forster <octo@verplant.org>  Sun,  9 Apr 2006 16:01:11 +0200
++
+ collectd (3.8.3-1) unstable; urgency=low
+ 
+   * New upstream version
+ 
+  -- Florian Forster <octo@verplant.org>  Sun,  2 Apr 2006 10:34:05 +0200
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/libltdl/acinclude.m4 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/libltdl/acinclude.m4
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/libltdl/acinclude.m4	2006-04-02 16:43:25.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/libltdl/acinclude.m4	2006-04-09 22:07:16.000000000 +0800
+@@ -4,13 +4,13 @@
+ ## Originally by Gordon Matzigkeit <gord@gnu.ai.mit.edu>, 1996
+ ##
+ ## This file is free software; the Free Software Foundation gives
+ ## unlimited permission to copy and/or distribute it, with or without
+ ## modifications, as long as this notice is preserved.
+ 
+-# serial 48 Debian 1.5.22-2 AC_PROG_LIBTOOL
++# serial 48 Debian 1.5.22-4 AC_PROG_LIBTOOL
+ 
+ 
+ # AC_PROVIDE_IFELSE(MACRO-NAME, IF-PROVIDED, IF-NOT-PROVIDED)
+ # -----------------------------------------------------------
+ # If this macro is not defined by Autoconf, define it here.
+ m4_ifdef([AC_PROVIDE_IFELSE],
+@@ -1388,24 +1388,12 @@
+   ;;
+ 
+ freebsd1*)
+   dynamic_linker=no
+   ;;
+ 
+-kfreebsd*-gnu)
+-  version_type=linux
+-  need_lib_prefix=no
+-  need_version=no
+-  library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major ${libname}${shared_ext}'
+-  soname_spec='${libname}${release}${shared_ext}$major'
+-  shlibpath_var=LD_LIBRARY_PATH
+-  shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
+-  dynamic_linker='GNU ld.so'
+-  ;;
+-
+ freebsd* | dragonfly*)
+   # DragonFly does not have aout.  When/if they implement a new
+   # versioning mechanism, adjust this.
+   if test -x /usr/bin/objformat; then
+     objformat=`/usr/bin/objformat`
+   else
+@@ -1555,13 +1543,13 @@
+ # No shared lib support for Linux oldld, aout, or coff.
+ linux*oldld* | linux*aout* | linux*coff*)
+   dynamic_linker=no
+   ;;
+ 
+ # This must be Linux ELF.
+-linux*)
++linux* | k*bsd*-gnu)
+   version_type=linux
+   need_lib_prefix=no
+   need_version=no
+   library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major $libname${shared_ext}'
+   soname_spec='${libname}${release}${shared_ext}$major'
+   finish_cmds='PATH="\$PATH:/sbin" ldconfig -n $libdir'
+@@ -1596,24 +1584,12 @@
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=no
+   hardcode_into_libs=yes
+   dynamic_linker='NetBSD ld.elf_so'
+   ;;
+ 
+-knetbsd*-gnu)
+-  version_type=linux
+-  need_lib_prefix=no
+-  need_version=no
+-  library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major ${libname}${shared_ext}'
+-  soname_spec='${libname}${release}${shared_ext}$major'
+-  shlibpath_var=LD_LIBRARY_PATH
+-  shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
+-  dynamic_linker='GNU ld.so'
+-  ;;
+-
+ netbsd*)
+   version_type=sunos
+   need_lib_prefix=no
+   need_version=no
+   if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+     library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${shared_ext}$versuffix'
+@@ -2313,13 +2289,13 @@
+   ;;
+ 
+ darwin* | rhapsody*)
+   lt_cv_deplibs_check_method=pass_all
+   ;;
+ 
+-freebsd* | kfreebsd*-gnu | dragonfly*)
++freebsd* | dragonfly*)
+   if echo __ELF__ | $CC -E - | grep __ELF__ > /dev/null; then
+     case $host_cpu in
+     i*86 )
+       # Not sure whether the presence of OpenBSD here was a mistake.
+       # Let's accept both of them until this is cleared up.
+       lt_cv_deplibs_check_method='file_magic (FreeBSD|OpenBSD|DragonFly)/i[[3-9]]86 (compact )?demand paged shared library'
+@@ -2367,17 +2343,17 @@
+   *) libmagic=never-match;;
+   esac
+   lt_cv_deplibs_check_method=pass_all
+   ;;
+ 
+ # This must be Linux ELF.
+-linux*)
++linux* | k*bsd*-gnu)
+   lt_cv_deplibs_check_method=pass_all
+   ;;
+ 
+-netbsd* | netbsdelf*-gnu | knetbsd*-gnu)
++netbsd* | netbsdelf*-gnu)
+   if echo __ELF__ | $CC -E - | grep __ELF__ > /dev/null; then
+     lt_cv_deplibs_check_method='match_pattern /lib[[^/]]+(\.so\.[[0-9]]+\.[[0-9]]+|_pic\.a)$'
+   else
+     lt_cv_deplibs_check_method='match_pattern /lib[[^/]]+(\.so|_pic\.a)$'
+   fi
+   ;;
+@@ -3123,13 +3099,13 @@
+     # C++ shared libraries reported to be fairly broken before switch to ELF
+     _LT_AC_TAGVAR(ld_shlibs, $1)=no
+     ;;
+   freebsd-elf*)
+     _LT_AC_TAGVAR(archive_cmds_need_lc, $1)=no
+     ;;
+-  freebsd* | kfreebsd*-gnu | dragonfly*)
++  freebsd* | dragonfly*)
+     # FreeBSD 3 and later use GNU C++ and GNU ld with standard ELF
+     # conventions
+     _LT_AC_TAGVAR(ld_shlibs, $1)=yes
+     ;;
+   gnu*)
+     ;;
+@@ -3282,13 +3258,13 @@
+ 	_LT_AC_TAGVAR(link_all_deplibs, $1)=yes
+ 	;;
+     esac
+     _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-rpath ${wl}$libdir'
+     _LT_AC_TAGVAR(hardcode_libdir_separator, $1)=:
+     ;;
+-  linux*)
++  linux* | k*bsd*-gnu)
+     case $cc_basename in
+       KCC*)
+ 	# Kuck and Associates, Inc. (KAI) C++ Compiler
+ 
+ 	# KCC will only create a shared library if the output file
+ 	# ends with ".so" (or ".sl" for HP-UX), so rename the library
+@@ -3384,13 +3360,13 @@
+       *)
+ 	# FIXME: insert proper C++ library support
+ 	_LT_AC_TAGVAR(ld_shlibs, $1)=no
+ 	;;
+     esac
+     ;;
+-  netbsd* | netbsdelf*-gnu | knetbsd*-gnu)
++  netbsd* | netbsdelf*-gnu)
+     if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+       _LT_AC_TAGVAR(archive_cmds, $1)='$LD -Bshareable  -o $lib $predep_objects $libobjs $deplibs $postdep_objects $linker_flags'
+       wlarc=
+       _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-R$libdir'
+       _LT_AC_TAGVAR(hardcode_direct, $1)=yes
+       _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
+@@ -4657,13 +4633,13 @@
+   if test "$host_cpu" = ia64; then
+     symcode='[[ABCDEGRST]]'
+   fi
+   lt_cv_sys_global_symbol_to_cdecl="sed -n -e 's/^T .* \(.*\)$/extern int \1();/p' -e 's/^$symcode* .* \(.*\)$/extern char \1;/p'"
+   lt_cv_sys_global_symbol_to_c_name_address="sed -n -e 's/^: \([[^ ]]*\) $/  {\\\"\1\\\", (lt_ptr) 0},/p' -e 's/^$symcode* \([[^ ]]*\) \([[^ ]]*\)$/  {\"\2\", (lt_ptr) \&\2},/p'"
+   ;;
+-linux*)
++linux* | k*bsd*-gnu)
+   if test "$host_cpu" = ia64; then
+     symcode='[[ABCDGIRSTW]]'
+     lt_cv_sys_global_symbol_to_cdecl="sed -n -e 's/^T .* \(.*\)$/extern int \1();/p' -e 's/^$symcode* .* \(.*\)$/extern char \1;/p'"
+     lt_cv_sys_global_symbol_to_c_name_address="sed -n -e 's/^: \([[^ ]]*\) $/  {\\\"\1\\\", (lt_ptr) 0},/p' -e 's/^$symcode* \([[^ ]]*\) \([[^ ]]*\)$/  {\"\2\", (lt_ptr) \&\2},/p'"
+   fi
+   ;;
+@@ -4930,13 +4906,13 @@
+ 	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-pic'
+ 	    ;;
+ 	  *)
+ 	    ;;
+ 	esac
+ 	;;
+-      freebsd* | kfreebsd*-gnu | dragonfly*)
++      freebsd* | dragonfly*)
+ 	# FreeBSD uses GNU C++
+ 	;;
+       hpux9* | hpux10* | hpux11*)
+ 	case $cc_basename in
+ 	  CC*)
+ 	    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
+@@ -4973,13 +4949,13 @@
+ 	    # CC pic flag -KPIC is the default.
+ 	    ;;
+ 	  *)
+ 	    ;;
+ 	esac
+ 	;;
+-      linux*)
++      linux* | k*bsd*-gnu)
+ 	case $cc_basename in
+ 	  KCC*)
+ 	    # KAI C++ Compiler
+ 	    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='--backend -Wl,'
+ 	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-fPIC'
+ 	    ;;
+@@ -5016,13 +4992,13 @@
+ 	    _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-W c,exportall'
+ 	    ;;
+ 	  *)
+ 	    ;;
+ 	esac
+ 	;;
+-      netbsd* | netbsdelf*-gnu | knetbsd*-gnu)
++      netbsd* | netbsdelf*-gnu)
+ 	;;
+       osf3* | osf4* | osf5*)
+ 	case $cc_basename in
+ 	  KCC*)
+ 	    _LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='--backend -Wl,'
+ 	    ;;
+@@ -5227,13 +5203,13 @@
+ 
+     newsos6)
+       _LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-KPIC'
+       _LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-Bstatic'
+       ;;
+ 
+-    linux*)
++    linux* | k*bsd*-gnu)
+       case $cc_basename in
+       icc* | ecc*)
+ 	_LT_AC_TAGVAR(lt_prog_compiler_wl, $1)='-Wl,'
+ 	_LT_AC_TAGVAR(lt_prog_compiler_pic, $1)='-KPIC'
+ 	_LT_AC_TAGVAR(lt_prog_compiler_static, $1)='-static'
+         ;;
+@@ -5368,16 +5344,13 @@
+   pw32*)
+     _LT_AC_TAGVAR(export_symbols_cmds, $1)="$ltdll_cmds"
+   ;;
+   cygwin* | mingw*)
+     _LT_AC_TAGVAR(export_symbols_cmds, $1)='$NM $libobjs $convenience | $global_symbol_pipe | $SED -e '\''/^[[BCDGRS]] /s/.* \([[^ ]]*\)/\1 DATA/;/^.* __nm__/s/^.* __nm__\([[^ ]]*\) [[^ ]]*/\1 DATA/;/^I /d;/^[[AITW]] /s/.* //'\'' | sort | uniq > $export_symbols'
+   ;;
+-  kfreebsd*-gnu)
+-    _LT_AC_TAGVAR(link_all_deplibs, $1)=no
+-  ;;
+-  linux*)
++  linux* | k*bsd*-gnu)
+     _LT_AC_TAGVAR(link_all_deplibs, $1)=no
+   ;;
+   *)
+     _LT_AC_TAGVAR(export_symbols_cmds, $1)='$NM $libobjs $convenience | $global_symbol_pipe | $SED '\''s/.* //'\'' | sort | uniq > $export_symbols'
+   ;;
+   esac
+@@ -5544,13 +5517,13 @@
+       # 256 KiB-aligned image base between 0x50000000 and 0x6FFC0000 at link
+       # time.  Moving up from 0x10000000 also allows more sbrk(2) space.
+       _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared $pic_flag $libobjs $deplibs $compiler_flags ${wl}-h,$soname ${wl}--image-base,`expr ${RANDOM-$$} % 4096 / 2 \* 262144 + 1342177280` -o $lib'
+       _LT_AC_TAGVAR(archive_expsym_cmds, $1)='sed "s,^,_," $export_symbols >$output_objdir/$soname.expsym~$CC -shared $pic_flag $libobjs $deplibs $compiler_flags ${wl}-h,$soname ${wl}--retain-symbols-file,$output_objdir/$soname.expsym ${wl}--image-base,`expr ${RANDOM-$$} % 4096 / 2 \* 262144 + 1342177280` -o $lib'
+       ;;
+ 
+-    linux*)
++    linux* | k*bsd*-gnu)
+       if $LD --help 2>&1 | grep ': supported targets:.* elf' > /dev/null; then
+ 	tmp_addflag=
+ 	case $cc_basename,$host_cpu in
+ 	pgcc*)				# Portland Group C compiler
+ 	  _LT_AC_TAGVAR(whole_archive_flag_spec, $1)='${wl}--whole-archive`for conv in $convenience\"\"; do test  -n \"$conv\" && new_convenience=\"$new_convenience,$conv\"; done; $echo \"$new_convenience\"` ${wl}--no-whole-archive'
+ 	  tmp_addflag=' $pic_flag'
+@@ -5576,13 +5549,13 @@
+ 	_LT_AC_TAGVAR(link_all_deplibs, $1)=no
+       else
+ 	_LT_AC_TAGVAR(ld_shlibs, $1)=no
+       fi
+       ;;
+ 
+-    netbsd* | netbsdelf*-gnu | knetbsd*-gnu)
++    netbsd* | netbsdelf*-gnu)
+       if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+ 	_LT_AC_TAGVAR(archive_cmds, $1)='$LD -Bshareable $libobjs $deplibs $linker_flags -o $lib'
+ 	wlarc=
+       else
+ 	_LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
+ 	_LT_AC_TAGVAR(archive_expsym_cmds, $1)='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname ${wl}-retain-symbols-file $wl$export_symbols -o $lib'
+@@ -5912,21 +5885,12 @@
+     freebsd* | dragonfly*)
+       _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared -o $lib $libobjs $deplibs $compiler_flags'
+       _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-R$libdir'
+       _LT_AC_TAGVAR(hardcode_direct, $1)=yes
+       _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
+       ;;
+-      
+-    # GNU/kFreeBSD uses gcc -shared to do shared libraries.
+-    kfreebsd*-gnu)
+-      _LT_AC_TAGVAR(archive_cmds, $1)='$CC -shared -o $lib $libobjs $deplibs $compiler_flags'
+-      _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-R$libdir'
+-      _LT_AC_TAGVAR(hardcode_direct, $1)=yes
+-      _LT_AC_TAGVAR(hardcode_shlibpath_var, $1)=no
+-      _LT_AC_TAGVAR(link_all_deplibs, $1)=no
+-      ;;
+ 
+     hpux9*)
+       if test "$GCC" = yes; then
+ 	_LT_AC_TAGVAR(archive_cmds, $1)='$rm $output_objdir/$soname~$CC -shared -fPIC ${wl}+b ${wl}$install_libdir -o $output_objdir/$soname $libobjs $deplibs $compiler_flags~test $output_objdir/$soname = $lib || mv $output_objdir/$soname $lib'
+       else
+ 	_LT_AC_TAGVAR(archive_cmds, $1)='$rm $output_objdir/$soname~$LD -b +b $install_libdir -o $output_objdir/$soname $libobjs $deplibs $linker_flags~test $output_objdir/$soname = $lib || mv $output_objdir/$soname $lib'
+@@ -6017,13 +5981,13 @@
+       fi
+       _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='${wl}-rpath ${wl}$libdir'
+       _LT_AC_TAGVAR(hardcode_libdir_separator, $1)=:
+       _LT_AC_TAGVAR(link_all_deplibs, $1)=yes
+       ;;
+ 
+-    netbsd* | netbsdelf*-gnu | knetbsd*-gnu)
++    netbsd* | netbsdelf*-gnu)
+       if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+ 	_LT_AC_TAGVAR(archive_cmds, $1)='$LD -Bshareable -o $lib $libobjs $deplibs $linker_flags'  # a.out
+       else
+ 	_LT_AC_TAGVAR(archive_cmds, $1)='$LD -shared -o $lib $libobjs $deplibs $linker_flags'      # ELF
+       fi
+       _LT_AC_TAGVAR(hardcode_libdir_flag_spec, $1)='-R$libdir'
+@@ -6549,13 +6513,13 @@
+     ;;
+   darwin*)
+     # Assuming the user has installed a libdl from somewhere, this is true
+     # If you are looking for one http://www.opendarwin.org/projects/dlcompat
+     libltdl_cv_sys_dlopen_deplibs=yes
+     ;;
+-  gnu* | linux* | kfreebsd*-gnu | knetbsd*-gnu)
++  gnu* | linux* | k*bsd*-gnu)
+     # GNU and its variants, using gnu ld.so (Glibc)
+     libltdl_cv_sys_dlopen_deplibs=yes
+     ;;
+   hpux10*|hpux11*)
+     libltdl_cv_sys_dlopen_deplibs=yes
+     ;;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/libltdl/config.guess /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/libltdl/config.guess
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/libltdl/config.guess	2006-04-02 16:43:25.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/libltdl/config.guess	2006-04-09 22:07:17.000000000 +0800
+@@ -1,12 +1,12 @@
+ #! /bin/sh
+ # Attempt to guess a canonical system name.
+ #   Copyright (C) 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
+ #   2000, 2001, 2002, 2003, 2004, 2005 Free Software Foundation, Inc.
+ 
+-timestamp='2005-08-03'
++timestamp='2006-02-23'
+ 
+ # This file is free software; you can redistribute it and/or modify it
+ # under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 2 of the License, or
+ # (at your option) any later version.
+ #
+@@ -103,13 +103,13 @@
+ # Portable tmp directory creation inspired by the Autoconf team.
+ 
+ set_cc_for_build='
+ trap "exitcode=\$?; (rm -f \$tmpfiles 2>/dev/null; rmdir \$tmp 2>/dev/null) && exit \$exitcode" 0 ;
+ trap "rm -f \$tmpfiles 2>/dev/null; rmdir \$tmp 2>/dev/null; exit 1" 1 2 13 15 ;
+ : ${TMPDIR=/tmp} ;
+- { tmp=`(umask 077 && mktemp -d -q "$TMPDIR/cgXXXXXX") 2>/dev/null` && test -n "$tmp" && test -d "$tmp" ; } ||
++ { tmp=`(umask 077 && mktemp -d "$TMPDIR/cgXXXXXX") 2>/dev/null` && test -n "$tmp" && test -d "$tmp" ; } ||
+  { test -n "$RANDOM" && tmp=$TMPDIR/cg$$-$RANDOM && (umask 077 && mkdir $tmp) ; } ||
+  { tmp=$TMPDIR/cg-$$ && (umask 077 && mkdir $tmp) && echo "Warning: creating insecure temp directory" >&2 ; } ||
+  { echo "$me: cannot create a temporary directory in $TMPDIR" >&2 ; exit 1 ; } ;
+ dummy=$tmp/dummy ;
+ tmpfiles="$dummy.c $dummy.o $dummy.rel $dummy" ;
+ case $CC_FOR_BUILD,$HOST_CC,$CC in
+@@ -203,12 +203,15 @@
+ 	UNAME_MACHINE_ARCH=`arch | sed 's/OpenBSD.//'`
+ 	echo ${UNAME_MACHINE_ARCH}-unknown-openbsd${UNAME_RELEASE}
+ 	exit ;;
+     *:ekkoBSD:*:*)
+ 	echo ${UNAME_MACHINE}-unknown-ekkobsd${UNAME_RELEASE}
+ 	exit ;;
++    *:SolidBSD:*:*)
++	echo ${UNAME_MACHINE}-unknown-solidbsd${UNAME_RELEASE}
++	exit ;;
+     macppc:MirBSD:*:*)
+ 	echo powerppc-unknown-mirbsd${UNAME_RELEASE}
+ 	exit ;;
+     *:MirBSD:*:*)
+ 	echo ${UNAME_MACHINE}-unknown-mirbsd${UNAME_RELEASE}
+ 	exit ;;
+@@ -761,29 +764,40 @@
+ 	echo sparc-unknown-bsdi${UNAME_RELEASE}
+ 	exit ;;
+     *:BSD/OS:*:*)
+ 	echo ${UNAME_MACHINE}-unknown-bsdi${UNAME_RELEASE}
+ 	exit ;;
+     *:FreeBSD:*:*)
+-	echo ${UNAME_MACHINE}-unknown-freebsd`echo ${UNAME_RELEASE}|sed -e 's/[-(].*//'`
++	case ${UNAME_MACHINE} in
++	    pc98)
++		echo i386-unknown-freebsd`echo ${UNAME_RELEASE}|sed -e 's/[-(].*//'` ;;
++	    *)
++		echo ${UNAME_MACHINE}-unknown-freebsd`echo ${UNAME_RELEASE}|sed -e 's/[-(].*//'` ;;
++	esac
+ 	exit ;;
+     i*:CYGWIN*:*)
+ 	echo ${UNAME_MACHINE}-pc-cygwin
+ 	exit ;;
+     i*:MINGW*:*)
+ 	echo ${UNAME_MACHINE}-pc-mingw32
+ 	exit ;;
++    i*:MSYS_NT-*:*:*)
++	echo ${UNAME_MACHINE}-pc-mingw32
++	exit ;;
+     i*:windows32*:*)
+     	# uname -m includes "-pc" on this system.
+     	echo ${UNAME_MACHINE}-mingw32
+ 	exit ;;
+     i*:PW*:*)
+ 	echo ${UNAME_MACHINE}-pc-pw32
+ 	exit ;;
+-    x86:Interix*:[34]*)
+-	echo i586-pc-interix${UNAME_RELEASE}|sed -e 's/\..*//'
++    x86:Interix*:[345]*)
++	echo i586-pc-interix${UNAME_RELEASE}
++	exit ;;
++    EM64T:Interix*:[345]*)
++	echo x86_64-unknown-interix${UNAME_RELEASE}
+ 	exit ;;
+     [345]86:Windows_95:* | [345]86:Windows_98:* | [345]86:Windows_NT:*)
+ 	echo i${UNAME_MACHINE}-pc-mks
+ 	exit ;;
+     i*:Windows_NT*:* | Pentium*:Windows_NT*:*)
+ 	# How do we know it's Interix rather than the generic POSIX subsystem?
+@@ -848,13 +862,17 @@
+ 	CPU=mips
+ 	#else
+ 	CPU=
+ 	#endif
+ 	#endif
+ EOF
+-	eval `$CC_FOR_BUILD -E $dummy.c 2>/dev/null | grep ^CPU=`
++	eval "`$CC_FOR_BUILD -E $dummy.c 2>/dev/null | sed -n '
++	    /^CPU/{
++		s: ::g
++		p
++	    }'`"
+ 	test x"${CPU}" != x && { echo "${CPU}-unknown-linux-gnu"; exit; }
+ 	;;
+     mips64:Linux:*:*)
+ 	eval $set_cc_for_build
+ 	sed 's/^	//' << EOF >$dummy.c
+ 	#undef CPU
+@@ -867,13 +885,17 @@
+ 	CPU=mips64
+ 	#else
+ 	CPU=
+ 	#endif
+ 	#endif
+ EOF
+-	eval `$CC_FOR_BUILD -E $dummy.c 2>/dev/null | grep ^CPU=`
++	eval "`$CC_FOR_BUILD -E $dummy.c 2>/dev/null | sed -n '
++	    /^CPU/{
++		s: ::g
++		p
++	    }'`"
+ 	test x"${CPU}" != x && { echo "${CPU}-unknown-linux-gnu"; exit; }
+ 	;;
+     or32:Linux:*:*)
+ 	echo or32-unknown-linux-gnu
+ 	exit ;;
+     ppc:Linux:*:*)
+@@ -916,12 +938,15 @@
+     sh*:Linux:*:*)
+ 	echo ${UNAME_MACHINE}-unknown-linux-gnu
+ 	exit ;;
+     sparc:Linux:*:* | sparc64:Linux:*:*)
+ 	echo ${UNAME_MACHINE}-unknown-linux-gnu
+ 	exit ;;
++    vax:Linux:*:*)
++	echo ${UNAME_MACHINE}-dec-linux-gnu
++	exit ;;
+     x86_64:Linux:*:*)
+ 	echo x86_64-unknown-linux-gnu
+ 	exit ;;
+     i*86:Linux:*:*)
+ 	# The BFD linker knows what the default object file format is, so
+ 	# first see if it will tell us. cd to the root directory to prevent
+@@ -961,23 +986,27 @@
+ 	LIBC=gnulibc1
+ 	#  endif
+ 	# else
+ 	LIBC=gnulibc1
+ 	# endif
+ 	#else
+-	#ifdef __INTEL_COMPILER
++	#if defined(__INTEL_COMPILER) || defined(__PGI) || defined(__sun)
+ 	LIBC=gnu
+ 	#else
+ 	LIBC=gnuaout
+ 	#endif
+ 	#endif
+ 	#ifdef __dietlibc__
+ 	LIBC=dietlibc
+ 	#endif
+ EOF
+-	eval `$CC_FOR_BUILD -E $dummy.c 2>/dev/null | grep ^LIBC=`
++	eval "`$CC_FOR_BUILD -E $dummy.c 2>/dev/null | sed -n '
++	    /^LIBC/{
++		s: ::g
++		p
++	    }'`"
+ 	test x"${LIBC}" != x && {
+ 		echo "${UNAME_MACHINE}-pc-linux-${LIBC}"
+ 		exit
+ 	}
+ 	test x"${TENTATIVE}" != x && { echo "${TENTATIVE}"; exit; }
+ 	;;
+@@ -1182,13 +1211,12 @@
+     *:Rhapsody:*:*)
+ 	echo ${UNAME_MACHINE}-apple-rhapsody${UNAME_RELEASE}
+ 	exit ;;
+     *:Darwin:*:*)
+ 	UNAME_PROCESSOR=`uname -p` || UNAME_PROCESSOR=unknown
+ 	case $UNAME_PROCESSOR in
+-	    *86) UNAME_PROCESSOR=i686 ;;
+ 	    unknown) UNAME_PROCESSOR=powerpc ;;
+ 	esac
+ 	echo ${UNAME_PROCESSOR}-apple-darwin${UNAME_RELEASE}
+ 	exit ;;
+     *:procnto*:*:* | *:QNX:[0123456789]*:*)
+ 	UNAME_PROCESSOR=`uname -p`
+@@ -1261,12 +1289,15 @@
+     *:XENIX:*:SysV)
+ 	echo i386-pc-xenix
+ 	exit ;;
+     i*86:skyos:*:*)
+ 	echo ${UNAME_MACHINE}-pc-skyos`echo ${UNAME_RELEASE}` | sed -e 's/ .*$//'
+ 	exit ;;
++    i*86:rdos:*:*)
++	echo ${UNAME_MACHINE}-pc-rdos
++	exit ;;
+ esac
+ 
+ #echo '(No uname command or uname output not recognized.)' 1>&2
+ #echo "${UNAME_MACHINE}:${UNAME_SYSTEM}:${UNAME_RELEASE}:${UNAME_VERSION}" 1>&2
+ 
+ eval $set_cc_for_build
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/libltdl/config.sub /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/libltdl/config.sub
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/libltdl/config.sub	2006-04-02 16:43:25.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/libltdl/config.sub	2006-04-09 22:07:17.000000000 +0800
+@@ -1,12 +1,12 @@
+ #! /bin/sh
+ # Configuration validation subroutine script.
+ #   Copyright (C) 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
+ #   2000, 2001, 2002, 2003, 2004, 2005 Free Software Foundation, Inc.
+ 
+-timestamp='2005-07-08'
++timestamp='2006-02-23'
+ 
+ # This file is (in principle) common to ALL GNU software.
+ # The presence of a machine in this file suggests that SOME GNU software
+ # can handle that machine.  It does not imply ALL GNU software can.
+ #
+ # This file is free software; you can redistribute it and/or modify
+@@ -116,14 +116,15 @@
+ esac
+ 
+ # Separate what the user gave into CPU-COMPANY and OS or KERNEL-OS (if any).
+ # Here we must recognize all the valid KERNEL-OS combinations.
+ maybe_os=`echo $1 | sed 's/^\(.*\)-\([^-]*-[^-]*\)$/\2/'`
+ case $maybe_os in
+-  nto-qnx* | linux-gnu* | linux-dietlibc | linux-uclibc* | uclinux-uclibc* | uclinux-gnu* | \
+-  kfreebsd*-gnu* | knetbsd*-gnu* | netbsd*-gnu* | storm-chaos* | os2-emx* | rtmk-nova*)
++  nto-qnx* | linux-gnu* | linux-dietlibc | linux-newlib* | linux-uclibc* | \
++  uclinux-uclibc* | uclinux-gnu* | kfreebsd*-gnu* | knetbsd*-gnu* | netbsd*-gnu* | \
++  storm-chaos* | os2-emx* | rtmk-nova*)
+     os=-$maybe_os
+     basic_machine=`echo $1 | sed 's/^\(.*\)-\([^-]*-[^-]*\)$/\1/'`
+     ;;
+   *)
+     basic_machine=`echo $1 | sed 's/-[^-]*$//'`
+     if [ $basic_machine != $1 ]
+@@ -168,12 +169,16 @@
+  		os=-chorusrdb
+ 		basic_machine=$1
+  		;;
+ 	-hiux*)
+ 		os=-hiuxwe2
+ 		;;
++	-sco6)
++		os=-sco5v6
++		basic_machine=`echo $1 | sed -e 's/86-.*/86-pc/'`
++		;;
+ 	-sco5)
+ 		os=-sco3.2v5
+ 		basic_machine=`echo $1 | sed -e 's/86-.*/86-pc/'`
+ 		;;
+ 	-sco4)
+ 		os=-sco3.2v4
+@@ -184,12 +189,16 @@
+ 		basic_machine=`echo $1 | sed -e 's/86-.*/86-pc/'`
+ 		;;
+ 	-sco3.2v[4-9]*)
+ 		# Don't forget version if it is 3.2v4 or newer.
+ 		basic_machine=`echo $1 | sed -e 's/86-.*/86-pc/'`
+ 		;;
++	-sco5v6*)
++		# Don't forget version if it is 3.2v4 or newer.
++		basic_machine=`echo $1 | sed -e 's/86-.*/86-pc/'`
++		;;
+ 	-sco*)
+ 		os=-sco3.2v2
+ 		basic_machine=`echo $1 | sed -e 's/86-.*/86-pc/'`
+ 		;;
+ 	-udk*)
+ 		basic_machine=`echo $1 | sed -e 's/86-.*/86-pc/'`
+@@ -236,13 +245,13 @@
+ 	| c4x | clipper \
+ 	| d10v | d30v | dlx | dsp16xx \
+ 	| fr30 | frv \
+ 	| h8300 | h8500 | hppa | hppa1.[01] | hppa2.0 | hppa2.0[nw] | hppa64 \
+ 	| i370 | i860 | i960 | ia64 \
+ 	| ip2k | iq2000 \
+-	| m32r | m32rle | m68000 | m68k | m88k | maxq | mcore \
++	| m32r | m32rle | m68000 | m68k | m88k | maxq | mb | microblaze | mcore \
+ 	| mips | mipsbe | mipseb | mipsel | mipsle \
+ 	| mips16 \
+ 	| mips64 | mips64el \
+ 	| mips64vr | mips64vrel \
+ 	| mips64orion | mips64orionel \
+ 	| mips64vr4100 | mips64vr4100el \
+@@ -254,14 +263,15 @@
+ 	| mipsisa64 | mipsisa64el \
+ 	| mipsisa64r2 | mipsisa64r2el \
+ 	| mipsisa64sb1 | mipsisa64sb1el \
+ 	| mipsisa64sr71k | mipsisa64sr71kel \
+ 	| mipstx39 | mipstx39el \
+ 	| mn10200 | mn10300 \
+-	| ms1 \
++	| mt \
+ 	| msp430 \
++	| nios | nios2 \
+ 	| ns16k | ns32k \
+ 	| or32 \
+ 	| pdp10 | pdp11 | pj | pjl \
+ 	| powerpc | powerpc64 | powerpc64le | powerpcle | ppcbe \
+ 	| pyramid \
+ 	| sh | sh[1234] | sh[24]a | sh[23]e | sh[34]eb | shbe | shle | sh[1234]le | sh3ele \
+@@ -283,12 +293,15 @@
+ 		# Motorola 68HC11/12.
+ 		basic_machine=$basic_machine-unknown
+ 		os=-none
+ 		;;
+ 	m88110 | m680[12346]0 | m683?2 | m68360 | m5200 | v70 | w65 | z8k)
+ 		;;
++	ms1)
++		basic_machine=mt-unknown
++		;;
+ 
+ 	# We use `pc' rather than `unknown'
+ 	# because (1) that's what they normally are, and
+ 	# (2) the word "unknown" tends to confuse beginning users.
+ 	i*86 | x86_64)
+ 	  basic_machine=$basic_machine-pc
+@@ -333,14 +346,15 @@
+ 	| mipsisa64-* | mipsisa64el-* \
+ 	| mipsisa64r2-* | mipsisa64r2el-* \
+ 	| mipsisa64sb1-* | mipsisa64sb1el-* \
+ 	| mipsisa64sr71k-* | mipsisa64sr71kel-* \
+ 	| mipstx39-* | mipstx39el-* \
+ 	| mmix-* \
+-	| ms1-* \
++	| mt-* \
+ 	| msp430-* \
++	| nios-* | nios2-* \
+ 	| none-* | np1-* | ns16k-* | ns32k-* \
+ 	| orion-* \
+ 	| pdp10-* | pdp11-* | pj-* | pjl-* | pn-* | power-* \
+ 	| powerpc-* | powerpc64-* | powerpc64le-* | powerpcle-* | ppcbe-* \
+ 	| pyramid-* \
+ 	| romp-* | rs6000-* \
+@@ -693,12 +707,15 @@
+ 		os=-morphos
+ 		;;
+ 	msdos)
+ 		basic_machine=i386-pc
+ 		os=-msdos
+ 		;;
++	ms1-*)
++		basic_machine=`echo $basic_machine | sed -e 's/ms1-/mt-/'`
++		;;
+ 	mvs)
+ 		basic_machine=i370-ibm
+ 		os=-mvs
+ 		;;
+ 	ncr3000)
+ 		basic_machine=i486-ncr
+@@ -800,12 +817,18 @@
+ 	pbb)
+ 		basic_machine=m68k-tti
+ 		;;
+ 	pc532 | pc532-*)
+ 		basic_machine=ns32k-pc532
+ 		;;
++	pc98)
++		basic_machine=i386-pc
++		;;
++	pc98-*)
++		basic_machine=i386-`echo $basic_machine | sed 's/^[^-]*-//'`
++		;;
+ 	pentium | p5 | k5 | k6 | nexgen | viac3)
+ 		basic_machine=i586-pc
+ 		;;
+ 	pentiumpro | p6 | 6x86 | athlon | athlon_*)
+ 		basic_machine=i686-pc
+ 		;;
+@@ -856,12 +879,16 @@
+ 		basic_machine=i386-ibm
+ 		;;
+ 	pw32)
+ 		basic_machine=i586-unknown
+ 		os=-pw32
+ 		;;
++	rdos)
++		basic_machine=i386-pc
++		os=-rdos
++		;;
+ 	rom68k)
+ 		basic_machine=m68k-rom68k
+ 		os=-coff
+ 		;;
+ 	rm[46]00)
+ 		basic_machine=mips-siemens
+@@ -1171,27 +1198,29 @@
+ 	      | -*vms* | -sco* | -esix* | -isc* | -aix* | -sunos | -sunos[34]*\
+ 	      | -hpux* | -unos* | -osf* | -luna* | -dgux* | -solaris* | -sym* \
+ 	      | -amigaos* | -amigados* | -msdos* | -newsos* | -unicos* | -aof* \
+ 	      | -aos* \
+ 	      | -nindy* | -vxsim* | -vxworks* | -ebmon* | -hms* | -mvs* \
+ 	      | -clix* | -riscos* | -uniplus* | -iris* | -rtu* | -xenix* \
+-	      | -hiux* | -386bsd* | -knetbsd* | -mirbsd* | -netbsd* | -openbsd* \
++	      | -hiux* | -386bsd* | -knetbsd* | -mirbsd* | -netbsd* \
++	      | -openbsd* | -solidbsd* \
+ 	      | -ekkobsd* | -kfreebsd* | -freebsd* | -riscix* | -lynxos* \
+ 	      | -bosx* | -nextstep* | -cxux* | -aout* | -elf* | -oabi* \
+ 	      | -ptx* | -coff* | -ecoff* | -winnt* | -domain* | -vsta* \
+ 	      | -udi* | -eabi* | -lites* | -ieee* | -go32* | -aux* \
+ 	      | -chorusos* | -chorusrdb* \
+ 	      | -cygwin* | -pe* | -psos* | -moss* | -proelf* | -rtems* \
+-	      | -mingw32* | -linux-gnu* | -linux-uclibc* | -uxpv* | -beos* | -mpeix* | -udk* \
++	      | -mingw32* | -linux-gnu* | -linux-newlib* | -linux-uclibc* \
++	      | -uxpv* | -beos* | -mpeix* | -udk* \
+ 	      | -interix* | -uwin* | -mks* | -rhapsody* | -darwin* | -opened* \
+ 	      | -openstep* | -oskit* | -conix* | -pw32* | -nonstopux* \
+ 	      | -storm-chaos* | -tops10* | -tenex* | -tops20* | -its* \
+ 	      | -os2* | -vos* | -palmos* | -uclinux* | -nucleus* \
+ 	      | -morphos* | -superux* | -rtmk* | -rtmk-nova* | -windiss* \
+ 	      | -powermax* | -dnix* | -nx6 | -nx7 | -sei* | -dragonfly* \
+-	      | -skyos* | -haiku*)
++	      | -skyos* | -haiku* | -rdos*)
+ 	# Remember, each alternative MUST END IN *, to match a version number.
+ 		;;
+ 	-qnx*)
+ 		case $basic_machine in
+ 		    x86-* | i*86-*)
+ 			;;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/libltdl/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/libltdl/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/libltdl/configure	2006-04-02 16:43:25.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/libltdl/configure	2006-04-09 22:07:17.000000000 +0800
+@@ -3697,13 +3697,13 @@
+   ;;
+ 
+ darwin* | rhapsody*)
+   lt_cv_deplibs_check_method=pass_all
+   ;;
+ 
+-freebsd* | kfreebsd*-gnu | dragonfly*)
++freebsd* | dragonfly*)
+   if echo __ELF__ | $CC -E - | grep __ELF__ > /dev/null; then
+     case $host_cpu in
+     i*86 )
+       # Not sure whether the presence of OpenBSD here was a mistake.
+       # Let's accept both of them until this is cleared up.
+       lt_cv_deplibs_check_method='file_magic (FreeBSD|OpenBSD|DragonFly)/i[3-9]86 (compact )?demand paged shared library'
+@@ -3751,17 +3751,17 @@
+   *) libmagic=never-match;;
+   esac
+   lt_cv_deplibs_check_method=pass_all
+   ;;
+ 
+ # This must be Linux ELF.
+-linux*)
++linux* | k*bsd*-gnu)
+   lt_cv_deplibs_check_method=pass_all
+   ;;
+ 
+-netbsd* | netbsdelf*-gnu | knetbsd*-gnu)
++netbsd* | netbsdelf*-gnu)
+   if echo __ELF__ | $CC -E - | grep __ELF__ > /dev/null; then
+     lt_cv_deplibs_check_method='match_pattern /lib[^/]+(\.so\.[0-9]+\.[0-9]+|_pic\.a)$'
+   else
+     lt_cv_deplibs_check_method='match_pattern /lib[^/]+(\.so|_pic\.a)$'
+   fi
+   ;;
+@@ -6007,13 +6007,13 @@
+   if test "$host_cpu" = ia64; then
+     symcode='[ABCDEGRST]'
+   fi
+   lt_cv_sys_global_symbol_to_cdecl="sed -n -e 's/^T .* \(.*\)$/extern int \1();/p' -e 's/^$symcode* .* \(.*\)$/extern char \1;/p'"
+   lt_cv_sys_global_symbol_to_c_name_address="sed -n -e 's/^: \([^ ]*\) $/  {\\\"\1\\\", (lt_ptr) 0},/p' -e 's/^$symcode* \([^ ]*\) \([^ ]*\)$/  {\"\2\", (lt_ptr) \&\2},/p'"
+   ;;
+-linux*)
++linux* | k*bsd*-gnu)
+   if test "$host_cpu" = ia64; then
+     symcode='[ABCDGIRSTW]'
+     lt_cv_sys_global_symbol_to_cdecl="sed -n -e 's/^T .* \(.*\)$/extern int \1();/p' -e 's/^$symcode* .* \(.*\)$/extern char \1;/p'"
+     lt_cv_sys_global_symbol_to_c_name_address="sed -n -e 's/^: \([^ ]*\) $/  {\\\"\1\\\", (lt_ptr) 0},/p' -e 's/^$symcode* \([^ ]*\) \([^ ]*\)$/  {\"\2\", (lt_ptr) \&\2},/p'"
+   fi
+   ;;
+@@ -6931,13 +6931,13 @@
+ 
+     newsos6)
+       lt_prog_compiler_pic='-KPIC'
+       lt_prog_compiler_static='-Bstatic'
+       ;;
+ 
+-    linux*)
++    linux* | k*bsd*-gnu)
+       case $cc_basename in
+       icc* | ecc*)
+ 	lt_prog_compiler_wl='-Wl,'
+ 	lt_prog_compiler_pic='-KPIC'
+ 	lt_prog_compiler_static='-static'
+         ;;
+@@ -7370,13 +7370,13 @@
+       # 256 KiB-aligned image base between 0x50000000 and 0x6FFC0000 at link
+       # time.  Moving up from 0x10000000 also allows more sbrk(2) space.
+       archive_cmds='$CC -shared $pic_flag $libobjs $deplibs $compiler_flags ${wl}-h,$soname ${wl}--image-base,`expr ${RANDOM-$$} % 4096 / 2 \* 262144 + 1342177280` -o $lib'
+       archive_expsym_cmds='sed "s,^,_," $export_symbols >$output_objdir/$soname.expsym~$CC -shared $pic_flag $libobjs $deplibs $compiler_flags ${wl}-h,$soname ${wl}--retain-symbols-file,$output_objdir/$soname.expsym ${wl}--image-base,`expr ${RANDOM-$$} % 4096 / 2 \* 262144 + 1342177280` -o $lib'
+       ;;
+ 
+-    linux*)
++    linux* | k*bsd*-gnu)
+       if $LD --help 2>&1 | grep ': supported targets:.* elf' > /dev/null; then
+ 	tmp_addflag=
+ 	case $cc_basename,$host_cpu in
+ 	pgcc*)				# Portland Group C compiler
+ 	  whole_archive_flag_spec='${wl}--whole-archive`for conv in $convenience\"\"; do test  -n \"$conv\" && new_convenience=\"$new_convenience,$conv\"; done; $echo \"$new_convenience\"` ${wl}--no-whole-archive'
+ 	  tmp_addflag=' $pic_flag'
+@@ -7402,13 +7402,13 @@
+ 	link_all_deplibs=no
+       else
+ 	ld_shlibs=no
+       fi
+       ;;
+ 
+-    netbsd* | netbsdelf*-gnu | knetbsd*-gnu)
++    netbsd* | netbsdelf*-gnu)
+       if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+ 	archive_cmds='$LD -Bshareable $libobjs $deplibs $linker_flags -o $lib'
+ 	wlarc=
+       else
+ 	archive_cmds='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
+ 	archive_expsym_cmds='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname ${wl}-retain-symbols-file $wl$export_symbols -o $lib'
+@@ -7839,21 +7839,12 @@
+       archive_cmds='$CC -shared -o $lib $libobjs $deplibs $compiler_flags'
+       hardcode_libdir_flag_spec='-R$libdir'
+       hardcode_direct=yes
+       hardcode_shlibpath_var=no
+       ;;
+ 
+-    # GNU/kFreeBSD uses gcc -shared to do shared libraries.
+-    kfreebsd*-gnu)
+-      archive_cmds='$CC -shared -o $lib $libobjs $deplibs $compiler_flags'
+-      hardcode_libdir_flag_spec='-R$libdir'
+-      hardcode_direct=yes
+-      hardcode_shlibpath_var=no
+-      link_all_deplibs=no
+-      ;;
+-
+     hpux9*)
+       if test "$GCC" = yes; then
+ 	archive_cmds='$rm $output_objdir/$soname~$CC -shared -fPIC ${wl}+b ${wl}$install_libdir -o $output_objdir/$soname $libobjs $deplibs $compiler_flags~test $output_objdir/$soname = $lib || mv $output_objdir/$soname $lib'
+       else
+ 	archive_cmds='$rm $output_objdir/$soname~$LD -b +b $install_libdir -o $output_objdir/$soname $libobjs $deplibs $linker_flags~test $output_objdir/$soname = $lib || mv $output_objdir/$soname $lib'
+       fi
+@@ -7943,13 +7934,13 @@
+       fi
+       hardcode_libdir_flag_spec='${wl}-rpath ${wl}$libdir'
+       hardcode_libdir_separator=:
+       link_all_deplibs=yes
+       ;;
+ 
+-    netbsd* | netbsdelf*-gnu | knetbsd*-gnu)
++    netbsd* | netbsdelf*-gnu)
+       if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+ 	archive_cmds='$LD -Bshareable -o $lib $libobjs $deplibs $linker_flags'  # a.out
+       else
+ 	archive_cmds='$LD -shared -o $lib $libobjs $deplibs $linker_flags'      # ELF
+       fi
+       hardcode_libdir_flag_spec='-R$libdir'
+@@ -8433,24 +8424,12 @@
+   ;;
+ 
+ freebsd1*)
+   dynamic_linker=no
+   ;;
+ 
+-kfreebsd*-gnu)
+-  version_type=linux
+-  need_lib_prefix=no
+-  need_version=no
+-  library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major ${libname}${shared_ext}'
+-  soname_spec='${libname}${release}${shared_ext}$major'
+-  shlibpath_var=LD_LIBRARY_PATH
+-  shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
+-  dynamic_linker='GNU ld.so'
+-  ;;
+-
+ freebsd* | dragonfly*)
+   # DragonFly does not have aout.  When/if they implement a new
+   # versioning mechanism, adjust this.
+   if test -x /usr/bin/objformat; then
+     objformat=`/usr/bin/objformat`
+   else
+@@ -8600,13 +8579,13 @@
+ # No shared lib support for Linux oldld, aout, or coff.
+ linux*oldld* | linux*aout* | linux*coff*)
+   dynamic_linker=no
+   ;;
+ 
+ # This must be Linux ELF.
+-linux*)
++linux* | k*bsd*-gnu)
+   version_type=linux
+   need_lib_prefix=no
+   need_version=no
+   library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major $libname${shared_ext}'
+   soname_spec='${libname}${release}${shared_ext}$major'
+   finish_cmds='PATH="\$PATH:/sbin" ldconfig -n $libdir'
+@@ -8641,24 +8620,12 @@
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=no
+   hardcode_into_libs=yes
+   dynamic_linker='NetBSD ld.elf_so'
+   ;;
+ 
+-knetbsd*-gnu)
+-  version_type=linux
+-  need_lib_prefix=no
+-  need_version=no
+-  library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major ${libname}${shared_ext}'
+-  soname_spec='${libname}${release}${shared_ext}$major'
+-  shlibpath_var=LD_LIBRARY_PATH
+-  shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
+-  dynamic_linker='GNU ld.so'
+-  ;;
+-
+ netbsd*)
+   version_type=sunos
+   need_lib_prefix=no
+   need_version=no
+   if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+     library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${shared_ext}$versuffix'
+@@ -9499,13 +9466,13 @@
+   	  if test "$cross_compiling" = yes; then :
+   lt_cv_dlopen_self=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 9505 "configure"
++#line 9472 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -9599,13 +9566,13 @@
+   	  if test "$cross_compiling" = yes; then :
+   lt_cv_dlopen_self_static=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 9605 "configure"
++#line 9572 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -10914,13 +10881,13 @@
+     # C++ shared libraries reported to be fairly broken before switch to ELF
+     ld_shlibs_CXX=no
+     ;;
+   freebsd-elf*)
+     archive_cmds_need_lc_CXX=no
+     ;;
+-  freebsd* | kfreebsd*-gnu | dragonfly*)
++  freebsd* | dragonfly*)
+     # FreeBSD 3 and later use GNU C++ and GNU ld with standard ELF
+     # conventions
+     ld_shlibs_CXX=yes
+     ;;
+   gnu*)
+     ;;
+@@ -11073,13 +11040,13 @@
+ 	link_all_deplibs_CXX=yes
+ 	;;
+     esac
+     hardcode_libdir_flag_spec_CXX='${wl}-rpath ${wl}$libdir'
+     hardcode_libdir_separator_CXX=:
+     ;;
+-  linux*)
++  linux* | k*bsd*-gnu)
+     case $cc_basename in
+       KCC*)
+ 	# Kuck and Associates, Inc. (KAI) C++ Compiler
+ 
+ 	# KCC will only create a shared library if the output file
+ 	# ends with ".so" (or ".sl" for HP-UX), so rename the library
+@@ -11175,13 +11142,13 @@
+       *)
+ 	# FIXME: insert proper C++ library support
+ 	ld_shlibs_CXX=no
+ 	;;
+     esac
+     ;;
+-  netbsd* | netbsdelf*-gnu | knetbsd*-gnu)
++  netbsd* | netbsdelf*-gnu)
+     if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+       archive_cmds_CXX='$LD -Bshareable  -o $lib $predep_objects $libobjs $deplibs $postdep_objects $linker_flags'
+       wlarc=
+       hardcode_libdir_flag_spec_CXX='-R$libdir'
+       hardcode_direct_CXX=yes
+       hardcode_shlibpath_var_CXX=no
+@@ -11746,13 +11713,13 @@
+ 	    lt_prog_compiler_pic_CXX='-pic'
+ 	    ;;
+ 	  *)
+ 	    ;;
+ 	esac
+ 	;;
+-      freebsd* | kfreebsd*-gnu | dragonfly*)
++      freebsd* | dragonfly*)
+ 	# FreeBSD uses GNU C++
+ 	;;
+       hpux9* | hpux10* | hpux11*)
+ 	case $cc_basename in
+ 	  CC*)
+ 	    lt_prog_compiler_wl_CXX='-Wl,'
+@@ -11789,13 +11756,13 @@
+ 	    # CC pic flag -KPIC is the default.
+ 	    ;;
+ 	  *)
+ 	    ;;
+ 	esac
+ 	;;
+-      linux*)
++      linux* | k*bsd*-gnu)
+ 	case $cc_basename in
+ 	  KCC*)
+ 	    # KAI C++ Compiler
+ 	    lt_prog_compiler_wl_CXX='--backend -Wl,'
+ 	    lt_prog_compiler_pic_CXX='-fPIC'
+ 	    ;;
+@@ -11832,13 +11799,13 @@
+ 	    lt_prog_compiler_pic_CXX='-W c,exportall'
+ 	    ;;
+ 	  *)
+ 	    ;;
+ 	esac
+ 	;;
+-      netbsd* | netbsdelf*-gnu | knetbsd*-gnu)
++      netbsd* | netbsdelf*-gnu)
+ 	;;
+       osf3* | osf4* | osf5*)
+ 	case $cc_basename in
+ 	  KCC*)
+ 	    lt_prog_compiler_wl_CXX='--backend -Wl,'
+ 	    ;;
+@@ -11941,17 +11908,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:11947: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:11914: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:11951: \$? = $ac_status" >&5
++   echo "$as_me:11918: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -12045,17 +12012,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:12051: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:12018: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:12055: \$? = $ac_status" >&5
++   echo "$as_me:12022: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -12117,16 +12084,13 @@
+   pw32*)
+     export_symbols_cmds_CXX="$ltdll_cmds"
+   ;;
+   cygwin* | mingw*)
+     export_symbols_cmds_CXX='$NM $libobjs $convenience | $global_symbol_pipe | $SED -e '\''/^[BCDGRS] /s/.* \([^ ]*\)/\1 DATA/;/^.* __nm__/s/^.* __nm__\([^ ]*\) [^ ]*/\1 DATA/;/^I /d;/^[AITW] /s/.* //'\'' | sort | uniq > $export_symbols'
+   ;;
+-  kfreebsd*-gnu)
+-    link_all_deplibs_CXX=no
+-  ;;
+-  linux*)
++  linux* | k*bsd*-gnu)
+     link_all_deplibs_CXX=no
+   ;;
+   *)
+     export_symbols_cmds_CXX='$NM $libobjs $convenience | $global_symbol_pipe | $SED '\''s/.* //'\'' | sort | uniq > $export_symbols'
+   ;;
+   esac
+@@ -12402,24 +12366,12 @@
+   ;;
+ 
+ freebsd1*)
+   dynamic_linker=no
+   ;;
+ 
+-kfreebsd*-gnu)
+-  version_type=linux
+-  need_lib_prefix=no
+-  need_version=no
+-  library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major ${libname}${shared_ext}'
+-  soname_spec='${libname}${release}${shared_ext}$major'
+-  shlibpath_var=LD_LIBRARY_PATH
+-  shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
+-  dynamic_linker='GNU ld.so'
+-  ;;
+-
+ freebsd* | dragonfly*)
+   # DragonFly does not have aout.  When/if they implement a new
+   # versioning mechanism, adjust this.
+   if test -x /usr/bin/objformat; then
+     objformat=`/usr/bin/objformat`
+   else
+@@ -12569,13 +12521,13 @@
+ # No shared lib support for Linux oldld, aout, or coff.
+ linux*oldld* | linux*aout* | linux*coff*)
+   dynamic_linker=no
+   ;;
+ 
+ # This must be Linux ELF.
+-linux*)
++linux* | k*bsd*-gnu)
+   version_type=linux
+   need_lib_prefix=no
+   need_version=no
+   library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major $libname${shared_ext}'
+   soname_spec='${libname}${release}${shared_ext}$major'
+   finish_cmds='PATH="\$PATH:/sbin" ldconfig -n $libdir'
+@@ -12610,24 +12562,12 @@
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=no
+   hardcode_into_libs=yes
+   dynamic_linker='NetBSD ld.elf_so'
+   ;;
+ 
+-knetbsd*-gnu)
+-  version_type=linux
+-  need_lib_prefix=no
+-  need_version=no
+-  library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major ${libname}${shared_ext}'
+-  soname_spec='${libname}${release}${shared_ext}$major'
+-  shlibpath_var=LD_LIBRARY_PATH
+-  shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
+-  dynamic_linker='GNU ld.so'
+-  ;;
+-
+ netbsd*)
+   version_type=sunos
+   need_lib_prefix=no
+   need_version=no
+   if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+     library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${shared_ext}$versuffix'
+@@ -13527,13 +13467,13 @@
+ 
+     newsos6)
+       lt_prog_compiler_pic_F77='-KPIC'
+       lt_prog_compiler_static_F77='-Bstatic'
+       ;;
+ 
+-    linux*)
++    linux* | k*bsd*-gnu)
+       case $cc_basename in
+       icc* | ecc*)
+ 	lt_prog_compiler_wl_F77='-Wl,'
+ 	lt_prog_compiler_pic_F77='-KPIC'
+ 	lt_prog_compiler_static_F77='-static'
+         ;;
+@@ -13633,17 +13573,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:13639: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:13579: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:13643: \$? = $ac_status" >&5
++   echo "$as_me:13583: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -13737,17 +13677,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:13743: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:13683: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:13747: \$? = $ac_status" >&5
++   echo "$as_me:13687: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -13966,13 +13906,13 @@
+       # 256 KiB-aligned image base between 0x50000000 and 0x6FFC0000 at link
+       # time.  Moving up from 0x10000000 also allows more sbrk(2) space.
+       archive_cmds_F77='$CC -shared $pic_flag $libobjs $deplibs $compiler_flags ${wl}-h,$soname ${wl}--image-base,`expr ${RANDOM-$$} % 4096 / 2 \* 262144 + 1342177280` -o $lib'
+       archive_expsym_cmds_F77='sed "s,^,_," $export_symbols >$output_objdir/$soname.expsym~$CC -shared $pic_flag $libobjs $deplibs $compiler_flags ${wl}-h,$soname ${wl}--retain-symbols-file,$output_objdir/$soname.expsym ${wl}--image-base,`expr ${RANDOM-$$} % 4096 / 2 \* 262144 + 1342177280` -o $lib'
+       ;;
+ 
+-    linux*)
++    linux* | k*bsd*-gnu)
+       if $LD --help 2>&1 | grep ': supported targets:.* elf' > /dev/null; then
+ 	tmp_addflag=
+ 	case $cc_basename,$host_cpu in
+ 	pgcc*)				# Portland Group C compiler
+ 	  whole_archive_flag_spec_F77='${wl}--whole-archive`for conv in $convenience\"\"; do test  -n \"$conv\" && new_convenience=\"$new_convenience,$conv\"; done; $echo \"$new_convenience\"` ${wl}--no-whole-archive'
+ 	  tmp_addflag=' $pic_flag'
+@@ -13998,13 +13938,13 @@
+ 	link_all_deplibs_F77=no
+       else
+ 	ld_shlibs_F77=no
+       fi
+       ;;
+ 
+-    netbsd* | netbsdelf*-gnu | knetbsd*-gnu)
++    netbsd* | netbsdelf*-gnu)
+       if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+ 	archive_cmds_F77='$LD -Bshareable $libobjs $deplibs $linker_flags -o $lib'
+ 	wlarc=
+       else
+ 	archive_cmds_F77='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
+ 	archive_expsym_cmds_F77='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname ${wl}-retain-symbols-file $wl$export_symbols -o $lib'
+@@ -14415,21 +14355,12 @@
+       archive_cmds_F77='$CC -shared -o $lib $libobjs $deplibs $compiler_flags'
+       hardcode_libdir_flag_spec_F77='-R$libdir'
+       hardcode_direct_F77=yes
+       hardcode_shlibpath_var_F77=no
+       ;;
+ 
+-    # GNU/kFreeBSD uses gcc -shared to do shared libraries.
+-    kfreebsd*-gnu)
+-      archive_cmds_F77='$CC -shared -o $lib $libobjs $deplibs $compiler_flags'
+-      hardcode_libdir_flag_spec_F77='-R$libdir'
+-      hardcode_direct_F77=yes
+-      hardcode_shlibpath_var_F77=no
+-      link_all_deplibs_F77=no
+-      ;;
+-
+     hpux9*)
+       if test "$GCC" = yes; then
+ 	archive_cmds_F77='$rm $output_objdir/$soname~$CC -shared -fPIC ${wl}+b ${wl}$install_libdir -o $output_objdir/$soname $libobjs $deplibs $compiler_flags~test $output_objdir/$soname = $lib || mv $output_objdir/$soname $lib'
+       else
+ 	archive_cmds_F77='$rm $output_objdir/$soname~$LD -b +b $install_libdir -o $output_objdir/$soname $libobjs $deplibs $linker_flags~test $output_objdir/$soname = $lib || mv $output_objdir/$soname $lib'
+       fi
+@@ -14519,13 +14450,13 @@
+       fi
+       hardcode_libdir_flag_spec_F77='${wl}-rpath ${wl}$libdir'
+       hardcode_libdir_separator_F77=:
+       link_all_deplibs_F77=yes
+       ;;
+ 
+-    netbsd* | netbsdelf*-gnu | knetbsd*-gnu)
++    netbsd* | netbsdelf*-gnu)
+       if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+ 	archive_cmds_F77='$LD -Bshareable -o $lib $libobjs $deplibs $linker_flags'  # a.out
+       else
+ 	archive_cmds_F77='$LD -shared -o $lib $libobjs $deplibs $linker_flags'      # ELF
+       fi
+       hardcode_libdir_flag_spec_F77='-R$libdir'
+@@ -15009,24 +14940,12 @@
+   ;;
+ 
+ freebsd1*)
+   dynamic_linker=no
+   ;;
+ 
+-kfreebsd*-gnu)
+-  version_type=linux
+-  need_lib_prefix=no
+-  need_version=no
+-  library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major ${libname}${shared_ext}'
+-  soname_spec='${libname}${release}${shared_ext}$major'
+-  shlibpath_var=LD_LIBRARY_PATH
+-  shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
+-  dynamic_linker='GNU ld.so'
+-  ;;
+-
+ freebsd* | dragonfly*)
+   # DragonFly does not have aout.  When/if they implement a new
+   # versioning mechanism, adjust this.
+   if test -x /usr/bin/objformat; then
+     objformat=`/usr/bin/objformat`
+   else
+@@ -15176,13 +15095,13 @@
+ # No shared lib support for Linux oldld, aout, or coff.
+ linux*oldld* | linux*aout* | linux*coff*)
+   dynamic_linker=no
+   ;;
+ 
+ # This must be Linux ELF.
+-linux*)
++linux* | k*bsd*-gnu)
+   version_type=linux
+   need_lib_prefix=no
+   need_version=no
+   library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major $libname${shared_ext}'
+   soname_spec='${libname}${release}${shared_ext}$major'
+   finish_cmds='PATH="\$PATH:/sbin" ldconfig -n $libdir'
+@@ -15217,24 +15136,12 @@
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=no
+   hardcode_into_libs=yes
+   dynamic_linker='NetBSD ld.elf_so'
+   ;;
+ 
+-knetbsd*-gnu)
+-  version_type=linux
+-  need_lib_prefix=no
+-  need_version=no
+-  library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major ${libname}${shared_ext}'
+-  soname_spec='${libname}${release}${shared_ext}$major'
+-  shlibpath_var=LD_LIBRARY_PATH
+-  shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
+-  dynamic_linker='GNU ld.so'
+-  ;;
+-
+ netbsd*)
+   version_type=sunos
+   need_lib_prefix=no
+   need_version=no
+   if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+     library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${shared_ext}$versuffix'
+@@ -15964,17 +15871,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:15970: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:15877: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:15974: \$? = $ac_status" >&5
++   echo "$as_me:15881: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -16126,13 +16033,13 @@
+ 
+     newsos6)
+       lt_prog_compiler_pic_GCJ='-KPIC'
+       lt_prog_compiler_static_GCJ='-Bstatic'
+       ;;
+ 
+-    linux*)
++    linux* | k*bsd*-gnu)
+       case $cc_basename in
+       icc* | ecc*)
+ 	lt_prog_compiler_wl_GCJ='-Wl,'
+ 	lt_prog_compiler_pic_GCJ='-KPIC'
+ 	lt_prog_compiler_static_GCJ='-static'
+         ;;
+@@ -16232,17 +16139,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:16238: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:16145: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:16242: \$? = $ac_status" >&5
++   echo "$as_me:16149: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -16336,17 +16243,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:16342: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:16249: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:16346: \$? = $ac_status" >&5
++   echo "$as_me:16253: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -16565,13 +16472,13 @@
+       # 256 KiB-aligned image base between 0x50000000 and 0x6FFC0000 at link
+       # time.  Moving up from 0x10000000 also allows more sbrk(2) space.
+       archive_cmds_GCJ='$CC -shared $pic_flag $libobjs $deplibs $compiler_flags ${wl}-h,$soname ${wl}--image-base,`expr ${RANDOM-$$} % 4096 / 2 \* 262144 + 1342177280` -o $lib'
+       archive_expsym_cmds_GCJ='sed "s,^,_," $export_symbols >$output_objdir/$soname.expsym~$CC -shared $pic_flag $libobjs $deplibs $compiler_flags ${wl}-h,$soname ${wl}--retain-symbols-file,$output_objdir/$soname.expsym ${wl}--image-base,`expr ${RANDOM-$$} % 4096 / 2 \* 262144 + 1342177280` -o $lib'
+       ;;
+ 
+-    linux*)
++    linux* | k*bsd*-gnu)
+       if $LD --help 2>&1 | grep ': supported targets:.* elf' > /dev/null; then
+ 	tmp_addflag=
+ 	case $cc_basename,$host_cpu in
+ 	pgcc*)				# Portland Group C compiler
+ 	  whole_archive_flag_spec_GCJ='${wl}--whole-archive`for conv in $convenience\"\"; do test  -n \"$conv\" && new_convenience=\"$new_convenience,$conv\"; done; $echo \"$new_convenience\"` ${wl}--no-whole-archive'
+ 	  tmp_addflag=' $pic_flag'
+@@ -16597,13 +16504,13 @@
+ 	link_all_deplibs_GCJ=no
+       else
+ 	ld_shlibs_GCJ=no
+       fi
+       ;;
+ 
+-    netbsd* | netbsdelf*-gnu | knetbsd*-gnu)
++    netbsd* | netbsdelf*-gnu)
+       if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+ 	archive_cmds_GCJ='$LD -Bshareable $libobjs $deplibs $linker_flags -o $lib'
+ 	wlarc=
+       else
+ 	archive_cmds_GCJ='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname -o $lib'
+ 	archive_expsym_cmds_GCJ='$CC -shared $libobjs $deplibs $compiler_flags ${wl}-soname $wl$soname ${wl}-retain-symbols-file $wl$export_symbols -o $lib'
+@@ -17034,21 +16941,12 @@
+       archive_cmds_GCJ='$CC -shared -o $lib $libobjs $deplibs $compiler_flags'
+       hardcode_libdir_flag_spec_GCJ='-R$libdir'
+       hardcode_direct_GCJ=yes
+       hardcode_shlibpath_var_GCJ=no
+       ;;
+ 
+-    # GNU/kFreeBSD uses gcc -shared to do shared libraries.
+-    kfreebsd*-gnu)
+-      archive_cmds_GCJ='$CC -shared -o $lib $libobjs $deplibs $compiler_flags'
+-      hardcode_libdir_flag_spec_GCJ='-R$libdir'
+-      hardcode_direct_GCJ=yes
+-      hardcode_shlibpath_var_GCJ=no
+-      link_all_deplibs_GCJ=no
+-      ;;
+-
+     hpux9*)
+       if test "$GCC" = yes; then
+ 	archive_cmds_GCJ='$rm $output_objdir/$soname~$CC -shared -fPIC ${wl}+b ${wl}$install_libdir -o $output_objdir/$soname $libobjs $deplibs $compiler_flags~test $output_objdir/$soname = $lib || mv $output_objdir/$soname $lib'
+       else
+ 	archive_cmds_GCJ='$rm $output_objdir/$soname~$LD -b +b $install_libdir -o $output_objdir/$soname $libobjs $deplibs $linker_flags~test $output_objdir/$soname = $lib || mv $output_objdir/$soname $lib'
+       fi
+@@ -17138,13 +17036,13 @@
+       fi
+       hardcode_libdir_flag_spec_GCJ='${wl}-rpath ${wl}$libdir'
+       hardcode_libdir_separator_GCJ=:
+       link_all_deplibs_GCJ=yes
+       ;;
+ 
+-    netbsd* | netbsdelf*-gnu | knetbsd*-gnu)
++    netbsd* | netbsdelf*-gnu)
+       if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+ 	archive_cmds_GCJ='$LD -Bshareable -o $lib $libobjs $deplibs $linker_flags'  # a.out
+       else
+ 	archive_cmds_GCJ='$LD -shared -o $lib $libobjs $deplibs $linker_flags'      # ELF
+       fi
+       hardcode_libdir_flag_spec_GCJ='-R$libdir'
+@@ -17628,24 +17526,12 @@
+   ;;
+ 
+ freebsd1*)
+   dynamic_linker=no
+   ;;
+ 
+-kfreebsd*-gnu)
+-  version_type=linux
+-  need_lib_prefix=no
+-  need_version=no
+-  library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major ${libname}${shared_ext}'
+-  soname_spec='${libname}${release}${shared_ext}$major'
+-  shlibpath_var=LD_LIBRARY_PATH
+-  shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
+-  dynamic_linker='GNU ld.so'
+-  ;;
+-
+ freebsd* | dragonfly*)
+   # DragonFly does not have aout.  When/if they implement a new
+   # versioning mechanism, adjust this.
+   if test -x /usr/bin/objformat; then
+     objformat=`/usr/bin/objformat`
+   else
+@@ -17795,13 +17681,13 @@
+ # No shared lib support for Linux oldld, aout, or coff.
+ linux*oldld* | linux*aout* | linux*coff*)
+   dynamic_linker=no
+   ;;
+ 
+ # This must be Linux ELF.
+-linux*)
++linux* | k*bsd*-gnu)
+   version_type=linux
+   need_lib_prefix=no
+   need_version=no
+   library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major $libname${shared_ext}'
+   soname_spec='${libname}${release}${shared_ext}$major'
+   finish_cmds='PATH="\$PATH:/sbin" ldconfig -n $libdir'
+@@ -17836,24 +17722,12 @@
+   shlibpath_var=LD_LIBRARY_PATH
+   shlibpath_overrides_runpath=no
+   hardcode_into_libs=yes
+   dynamic_linker='NetBSD ld.elf_so'
+   ;;
+ 
+-knetbsd*-gnu)
+-  version_type=linux
+-  need_lib_prefix=no
+-  need_version=no
+-  library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${release}${shared_ext}$major ${libname}${shared_ext}'
+-  soname_spec='${libname}${release}${shared_ext}$major'
+-  shlibpath_var=LD_LIBRARY_PATH
+-  shlibpath_overrides_runpath=no
+-  hardcode_into_libs=yes
+-  dynamic_linker='GNU ld.so'
+-  ;;
+-
+ netbsd*)
+   version_type=sunos
+   need_lib_prefix=no
+   need_version=no
+   if echo __ELF__ | $CC -E - | grep __ELF__ >/dev/null; then
+     library_names_spec='${libname}${release}${shared_ext}$versuffix ${libname}${shared_ext}$versuffix'
+@@ -20226,13 +20100,13 @@
+ 	  if test "$cross_compiling" = yes; then :
+   libltdl_cv_need_uscore=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 20232 "configure"
++#line 20106 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -20349,13 +20223,13 @@
+     ;;
+   darwin*)
+     # Assuming the user has installed a libdl from somewhere, this is true
+     # If you are looking for one http://www.opendarwin.org/projects/dlcompat
+     libltdl_cv_sys_dlopen_deplibs=yes
+     ;;
+-  gnu* | linux* | kfreebsd*-gnu | knetbsd*-gnu)
++  gnu* | linux* | k*bsd*-gnu)
+     # GNU and its variants, using gnu ld.so (Glibc)
+     libltdl_cv_sys_dlopen_deplibs=yes
+     ;;
+   hpux10*|hpux11*)
+     libltdl_cv_sys_dlopen_deplibs=yes
+     ;;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/libltdl/ltmain.sh /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/libltdl/ltmain.sh
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/libltdl/ltmain.sh	2006-04-02 16:43:25.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/libltdl/ltmain.sh	2006-04-09 22:07:17.000000000 +0800
+@@ -40,13 +40,13 @@
+ # Global variables:
+ EXIT_SUCCESS=0
+ EXIT_FAILURE=1
+ 
+ PROGRAM=ltmain.sh
+ PACKAGE=libtool
+-VERSION="1.5.22 Debian 1.5.22-2"
++VERSION="1.5.22 Debian 1.5.22-4"
+ TIMESTAMP=" (1.1220.2.365 2005/12/18 22:14:06)"
+ 
+ # See if we are running on zsh, and set the options which allow our
+ # commands through without removal of \ escapes.
+ if test -n "${ZSH_VERSION+set}" ; then
+   setopt NO_GLOB_SUBST
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/ltmain.sh /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/ltmain.sh
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/ltmain.sh	2006-04-02 16:43:24.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/ltmain.sh	2006-04-09 22:07:16.000000000 +0800
+@@ -40,13 +40,13 @@
+ # Global variables:
+ EXIT_SUCCESS=0
+ EXIT_FAILURE=1
+ 
+ PROGRAM=ltmain.sh
+ PACKAGE=libtool
+-VERSION="1.5.22 Debian 1.5.22-2"
++VERSION="1.5.22 Debian 1.5.22-4"
+ TIMESTAMP=" (1.1220.2.365 2005/12/18 22:14:06)"
+ 
+ # See if we are running on zsh, and set the options which allow our
+ # commands through without removal of \ escapes.
+ if test -n "${ZSH_VERSION+set}" ; then
+   setopt NO_GLOB_SUBST
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/src/collectd.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/src/collectd.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/src/collectd.1	2006-04-02 16:43:26.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/src/collectd.1	2006-04-09 22:07:18.000000000 +0800
+@@ -126,13 +126,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD 1"
+-.TH COLLECTD 1 "2006-04-02" "3.8.3" "collectd"
++.TH COLLECTD 1 "2006-04-09" "3.8.4" "collectd"
+ .SH "NAME"
+ collectd \- System statistics collection daemon
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ collectd \fI[options]\fR
+ .SH "DESCRIPTION"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/src/collectd.conf.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/src/collectd.conf.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/src/collectd.conf.5	2006-04-02 16:43:26.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/src/collectd.conf.5	2006-04-09 22:07:18.000000000 +0800
+@@ -126,13 +126,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD.CONF 5"
+-.TH COLLECTD.CONF 5 "2006-04-02" "3.8.3" "collectd"
++.TH COLLECTD.CONF 5 "2006-04-09" "3.8.4" "collectd"
+ .SH "NAME"
+ collectd.conf \- Configuration for the system statistics collection daemon \fBcollectd\fR
+ .SH "SYNOPSIS"
+ .IX Header "SYNOPSIS"
+ .Vb 6
+ \&  Mode    Client
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/src/config.h.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/src/config.h.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/src/config.h.in	2006-04-02 16:43:25.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/src/config.h.in	2006-04-09 22:07:17.000000000 +0800
+@@ -202,12 +202,15 @@
+ /* Define to 1 if you have the `statgrab' library (-lstatgrab). */
+ #undef HAVE_LIBSTATGRAB
+ 
+ /* Define to 1 if you have the <limits.h> header file. */
+ #undef HAVE_LIMITS_H
+ 
++/* Define to 1 if you have the <linux/major.h> header file. */
++#undef HAVE_LINUX_MAJOR_H
++
+ /* Define to 1 if you have the `listmntent' function. */
+ #undef HAVE_LISTMNTENT
+ 
+ /* Define to 1 if you have the `memcpy' function. */
+ #undef HAVE_MEMCPY
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/src/hddtemp.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/src/hddtemp.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.3/src/hddtemp.c	2006-04-02 16:43:26.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-3.8.4/src/hddtemp.c	2006-04-09 22:07:17.000000000 +0800
+@@ -1,9 +1,9 @@
+ /**
+  * collectd - src/hddtemp.c
+- * Copyright (C) 2005  Vincent Stehlé
++ * Copyright (C) 2005-2006  Vincent Stehlé
+  *
+  * This program is free software; you can redistribute it and/or modify it
+  * under the terms of the GNU General Public License as published by the
+  * Free Software Foundation; either version 2 of the License, or (at your
+  * option) any later version.
+  *
+@@ -16,27 +16,37 @@
+  * with this program; if not, write to the Free Software Foundation, Inc.,
+  * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+  *
+  * Authors:
+  *   Vincent Stehlé <vincent.stehle at free.fr>
+  *   Florian octo Forster <octo at verplant.org>
++ *
++ * TODO:
++ *   Do a pass, some day, and spare some memory. We consume too much for now
++ *   in string buffers and the like.
++ *
+  **/
+ 
+ #include "collectd.h"
+ #include "common.h"
+ #include "plugin.h"
+ #include "configfile.h"
++#include "utils_debug.h"
+ 
+ #define MODULE_NAME "hddtemp"
+ 
+ #include <netdb.h>
+ #include <sys/socket.h>
+ #include <netinet/in.h>
+ #include <netinet/tcp.h>
+ #include <libgen.h> /* for basename */
+ 
++#if HAVE_LINUX_MAJOR_H
++# include <linux/major.h>
++#endif
++
+ #define HDDTEMP_DEF_HOST "127.0.0.1"
+ #define HDDTEMP_DEF_PORT "7634"
+ 
+ /* BUFFER_SIZE
+    Size of the buffer we use to receive from the hddtemp daemon. */
+ #define BUFFER_SIZE 1024
+@@ -96,14 +106,14 @@
+ static int hddtemp_query_daemon (char *buffer, int buffer_size)
+ {
+ 	int fd;
+ 	ssize_t status;
+ 	int buffer_fill;
+ 
+-	char *host;
+-	char *port;
++	const char *host;
++	const char *port;
+ 
+ 	struct addrinfo  ai_hints;
+ 	struct addrinfo *ai_list, *ai_ptr;
+ 	int              ai_return;
+ 
+ 	memset (&ai_hints, '\0', sizeof (ai_hints));
+@@ -139,24 +149,27 @@
+ 			continue;
+ 		}
+ 
+ 		/* connect to the hddtemp daemon */
+ 		if (connect (fd, (struct sockaddr *) ai_ptr->ai_addr, ai_ptr->ai_addrlen))
+ 		{
+-			syslog (LOG_ERR, "hddtemp: connect (%s, %s): %s",
+-					host, port, strerror (errno));
++			DBG ("hddtemp: connect (%s, %s): %s", host, port,
++					strerror (errno));
+ 			close (fd);
+ 			fd = -1;
+ 			continue;
+ 		}
+ 	}
+ 
+ 	freeaddrinfo (ai_list);
+ 
+ 	if (fd < 0)
++	{
++		syslog (LOG_ERR, "hddtemp: Could not connect to daemon.");
+ 		return (-1);
++	}
+ 
+ 	/* receive data from the hddtemp daemon */
+ 	memset (buffer, '\0', buffer_size);
+ 
+ 	buffer_fill = 0;
+ 	while ((status = read (fd, buffer + buffer_fill, buffer_size - buffer_fill)) != 0)
+@@ -212,14 +225,18 @@
+ 		return (-1);
+ 	}
+ 
+ 	return (0);
+ }
+ 
++/* In the init-function we initialize the `hddname_t' list used to translate
++ * disk-names. Under Linux that's done using `/proc/partitions'. Under other
++ * operating-systems, it's not done at all. */
+ static void hddtemp_init (void)
+ {
++#if defined(KERNEL_LINUX)
+ 	FILE *fh;
+ 	char buf[BUFFER_SIZE];
+ 	int buflen;
+ 
+ 	char *fields[16];
+ 	int num_fields;
+@@ -240,46 +257,105 @@
+ 		free (entry);
+ 	}
+ 	first_hddname = NULL;
+ 
+ 	if ((fh = fopen ("/proc/partitions", "r")) != NULL)
+ 	{
++		DBG ("Looking at /proc/partitions...");
++
+ 		while (fgets (buf, BUFFER_SIZE, fh) != NULL)
+ 		{
+ 			/* Delete trailing newlines */
+ 			buflen = strlen (buf);
++
+ 			while ((buflen > 0) && ((buf[buflen-1] == '\n') || (buf[buflen-1] == '\r')))
+ 				buf[--buflen] = '\0';
++
++			/* We want lines of the form:
++			 *
++			 *     3     1   77842926 hda1
++			 *
++			 * ...so, skip everything else. */
+ 			if (buflen == 0)
+ 				continue;
+ 			
+ 			num_fields = strsplit (buf, fields, 16);
+ 
+ 			if (num_fields != 4)
+ 				continue;
+ 
+ 			major = atoi (fields[0]);
+ 			minor = atoi (fields[1]);
+ 
+-			/* I know that this makes `minor' redundant, but I want
+-			 * to be able to change this beavior in the future..
+-			 * And 4 or 8 bytes won't hurt anybody.. -octo */
+-			if (major == 0)
+-				continue;
+-			if (minor != 0)
+-				continue;
++			/* We try to keep only entries, which may correspond to
++			 * physical disks and that may have a corresponding
++			 * entry in the hddtemp daemon. Basically, this means
++			 * IDE and SCSI. */
++			switch (major)
++			{
++				/* SCSI. */
++				case SCSI_DISK0_MAJOR:
++				case SCSI_DISK1_MAJOR:
++				case SCSI_DISK2_MAJOR:
++				case SCSI_DISK3_MAJOR:
++				case SCSI_DISK4_MAJOR:
++				case SCSI_DISK5_MAJOR:
++				case SCSI_DISK6_MAJOR:
++				case SCSI_DISK7_MAJOR:
++				case SCSI_DISK8_MAJOR:
++				case SCSI_DISK9_MAJOR:
++				case SCSI_DISK10_MAJOR:
++				case SCSI_DISK11_MAJOR:
++				case SCSI_DISK12_MAJOR:
++				case SCSI_DISK13_MAJOR:
++				case SCSI_DISK14_MAJOR:
++				case SCSI_DISK15_MAJOR:
++					/* SCSI disks minors are multiples of 16.
++					 * Keep only those. */
++					if (minor % 16)
++						continue;
++					break;
++
++				/* IDE. */
++				case IDE0_MAJOR:
++				case IDE1_MAJOR:
++				case IDE2_MAJOR:
++				case IDE3_MAJOR:
++				case IDE4_MAJOR:
++				case IDE5_MAJOR:
++				case IDE6_MAJOR:
++				case IDE7_MAJOR:
++				case IDE8_MAJOR:
++				case IDE9_MAJOR:
++					/* IDE disks minors can only be 0 or 64.
++					 * Keep only those. */
++					if(minor != 0 && minor != 64)
++						continue;
++					break;
++
++				/* Skip all other majors. */
++				default:
++					DBG ("Skipping unknown major %i", major);
++					continue;
++			} /* switch (major) */
+ 
+ 			if ((name = strdup (fields[3])) == NULL)
++			{
++				syslog (LOG_ERR, "hddtemp: strdup(%s) == NULL", fields[3]);
+ 				continue;
++			}
+ 
+ 			if ((entry = (hddname_t *) malloc (sizeof (hddname_t))) == NULL)
+ 			{
++				syslog (LOG_ERR, "hddtemp: malloc (%u) == NULL", sizeof (hddname_t));
+ 				free (name);
+ 				continue;
+ 			}
+ 
++			DBG ("Found disk: %s (%u:%u).", name, major, minor);
++
+ 			entry->major = major;
+ 			entry->minor = minor;
+ 			entry->name  = name;
+ 			entry->next  = NULL;
+ 
+ 			if (first_hddname == NULL)
+@@ -290,14 +366,16 @@
+ 			{
+ 				entry->next = first_hddname;
+ 				first_hddname = entry;
+ 			}
+ 		}
+ 	}
+-
+-	return;
++	else
++		DBG ("Could not open /proc/partitions: %s",
++				strerror (errno));
++#endif /* KERNEL_LINUX */
+ }
+ 
+ static void hddtemp_write (char *host, char *inst, char *val)
+ {
+ 	char filename[BUFFER_SIZE];
+ 	int status;
+@@ -309,23 +387,34 @@
+ 	else if (status >= BUFFER_SIZE)
+ 		return;
+ 
+ 	rrd_update_file (host, filename, val, ds_def, ds_num);
+ }
+ 
++/*
++ * hddtemp_get_name
++ *
++ * Description:
++ *   Try to "cook" a bit the drive name as returned
++ *   by the hddtemp daemon. The intend is to transform disk
++ *   names into <major>-<minor> when possible.
++ */
+ static char *hddtemp_get_name (char *drive)
+ {
+ 	hddname_t *list;
+ 	char *ret;
+ 
+ 	for (list = first_hddname; list != NULL; list = list->next)
+ 		if (strcmp (drive, list->name) == 0)
+ 			break;
+ 
+ 	if (list == NULL)
++	{
++		DBG ("Don't know %s, keeping name as-is.", drive);
+ 		return (strdup (drive));
++	}
+ 
+ 	if ((ret = (char *) malloc (128 * sizeof (char))) == NULL)
+ 		return (NULL);
+ 
+ 	if (snprintf (ret, 128, "%i-%i", list->major, list->minor) >= 128)
+ 	{
+@@ -337,13 +426,14 @@
+ }
+ 
+ static void hddtemp_submit (char *inst, double temperature)
+ {
+ 	char buf[BUFFER_SIZE];
+ 
+-	if (snprintf (buf, BUFFER_SIZE, "%u:%.3f", (unsigned int) curtime, temperature) >= BUFFER_SIZE)
++	if (snprintf (buf, BUFFER_SIZE, "%u:%.3f", (unsigned int) curtime, temperature)
++            >= BUFFER_SIZE)
+ 		return;
+ 
+ 	plugin_submit (MODULE_NAME, inst, buf);
+ }
+ 
+ static void hddtemp_read (void)
+@@ -403,18 +493,18 @@
+ 	{
+ 		char *name, *submit_name;
+ 		double temperature;
+ 		char *mode;
+ 
+ 		mode = fields[4*i + 3];
++		name = basename (fields[4*i + 0]);
+ 
+ 		/* Skip non-temperature information */
+ 		if (mode[0] != 'C' && mode[0] != 'F')
+ 			continue;
+ 
+-		name = basename (fields[4*i + 0]);
+ 		temperature = atof (fields[4*i + 2]);
+ 
+ 		/* Convert farenheit to celsius */
+ 		if (mode[0] == 'F')
+ 			temperature = (temperature - 32.0) * 5.0 / 9.0;
+ 

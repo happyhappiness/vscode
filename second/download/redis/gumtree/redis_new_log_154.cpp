@@ -1,1 +1,0 @@
-addReplyError(c, "Unknown subcommand or wrong number of arguments.");

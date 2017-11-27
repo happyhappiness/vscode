@@ -1,1 +1,0 @@
-sqlite3BtreeMutexArrayLeave(&p->aMutex);

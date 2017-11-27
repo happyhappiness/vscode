@@ -1,0 +1,1 @@
+fprintf (stderr, "Cannot obtain pidfile. This shoud not happen. Ever.");

@@ -1,0 +1,1 @@
+printf ("%s: %g sum |", status_str, total);

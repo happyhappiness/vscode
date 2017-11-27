@@ -1,0 +1,1 @@
+plugin_log(LOG_DEBUG, "%s", text);

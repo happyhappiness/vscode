@@ -1,1 +1,0 @@
-sqlite3_result_error(pContext, "excess arguments to optimize()",-1);

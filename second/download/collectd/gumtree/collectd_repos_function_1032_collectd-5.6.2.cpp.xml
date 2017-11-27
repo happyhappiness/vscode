@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/gumtree/collectd_repos_function_1032_collectd-5.6.2.cpp" pos:tabs="8"><function><specifier pos:line="1" pos:column="1">static<pos:position pos:line="1" pos:column="7"/></specifier> <type><name pos:line="1" pos:column="8">void<pos:position pos:line="1" pos:column="12"/></name></type> <name pos:line="1" pos:column="13">usage<pos:position pos:line="1" pos:column="18"/></name><parameter_list pos:line="1" pos:column="18">(<parameter><decl><type><specifier pos:line="1" pos:column="19">const<pos:position pos:line="1" pos:column="24"/></specifier> <name pos:line="1" pos:column="25">char<pos:position pos:line="1" pos:column="29"/></name> <modifier pos:line="1" pos:column="30">*<pos:position pos:line="1" pos:column="31"/></modifier></type><name pos:line="1" pos:column="31">name<pos:position pos:line="1" pos:column="35"/></name></decl></parameter>)<pos:position pos:line="1" pos:column="36"/></parameter_list> <block pos:line="1" pos:column="37">{
+  <expr_stmt><expr><call><name pos:line="2" pos:column="3">fprintf<pos:position pos:line="2" pos:column="10"/></name><argument_list pos:line="2" pos:column="10">(<argument><expr><name pos:line="2" pos:column="11">stderr<pos:position pos:line="2" pos:column="17"/></name></expr></argument>,
+          <argument><expr><literal type="string" pos:line="3" pos:column="11">"Usage: %s &lt;-s socket&gt; &lt;-n value_spec&gt; &lt;-H hostname&gt; [options]\n"<pos:position pos:line="3" pos:column="94"/></literal>
+          <literal type="string" pos:line="4" pos:column="11">"\n"<pos:position pos:line="4" pos:column="15"/></literal>
+          <literal type="string" pos:line="5" pos:column="11">"Valid options are:\n"<pos:position pos:line="5" pos:column="33"/></literal>
+          <literal type="string" pos:line="6" pos:column="11">"  -s &lt;socket&gt;    Path to collectd's UNIX-socket.\n"<pos:position pos:line="6" pos:column="69"/></literal>
+          <literal type="string" pos:line="7" pos:column="11">"  -n &lt;v_spec&gt;    Value specification to get from collectd.\n"<pos:position pos:line="7" pos:column="79"/></literal>
+          <literal type="string" pos:line="8" pos:column="11">"                 Format: `plugin-instance/type-instance'\n"<pos:position pos:line="8" pos:column="71"/></literal>
+          <literal type="string" pos:line="9" pos:column="11">"  -d &lt;ds&gt;        Select the DS to examine. May be repeated to "<pos:position pos:line="9" pos:column="81"/></literal>
+          <literal type="string" pos:line="10" pos:column="11">"examine multiple\n"<pos:position pos:line="10" pos:column="31"/></literal>
+          <literal type="string" pos:line="11" pos:column="11">"                 DSes. By default all DSes are used.\n"<pos:position pos:line="11" pos:column="67"/></literal>
+          <literal type="string" pos:line="12" pos:column="11">"  -g &lt;consol&gt;    Method to use to consolidate several DSes.\n"<pos:position pos:line="12" pos:column="80"/></literal>
+          <literal type="string" pos:line="13" pos:column="11">"                 See below for a list of valid arguments.\n"<pos:position pos:line="13" pos:column="72"/></literal>
+          <literal type="string" pos:line="14" pos:column="11">"  -H &lt;host&gt;      Hostname to query the values for.\n"<pos:position pos:line="14" pos:column="71"/></literal>
+          <literal type="string" pos:line="15" pos:column="11">"  -c &lt;range&gt;     Critical range\n"<pos:position pos:line="15" pos:column="52"/></literal>
+          <literal type="string" pos:line="16" pos:column="11">"  -w &lt;range&gt;     Warning range\n"<pos:position pos:line="16" pos:column="51"/></literal>
+          <literal type="string" pos:line="17" pos:column="11">"  -m             Treat \"Not a Number\" (NaN) as critical (default: "<pos:position pos:line="17" pos:column="81"/></literal>
+          <literal type="string" pos:line="18" pos:column="11">"warning)\n"<pos:position pos:line="18" pos:column="23"/></literal>
+          <literal type="string" pos:line="19" pos:column="11">"\n"<pos:position pos:line="19" pos:column="15"/></literal>
+          <literal type="string" pos:line="20" pos:column="11">"Consolidation functions:\n"<pos:position pos:line="20" pos:column="39"/></literal>
+          <literal type="string" pos:line="21" pos:column="11">"  none:          Apply the warning- and critical-ranges to each "<pos:position pos:line="21" pos:column="77"/></literal>
+          <literal type="string" pos:line="22" pos:column="11">"data-source\n"<pos:position pos:line="22" pos:column="26"/></literal>
+          <literal type="string" pos:line="23" pos:column="11">"                 individually.\n"<pos:position pos:line="23" pos:column="45"/></literal>
+          <literal type="string" pos:line="24" pos:column="11">"  average:       Calculate the average of all matching DSes and "<pos:position pos:line="24" pos:column="77"/></literal>
+          <literal type="string" pos:line="25" pos:column="11">"apply the\n"<pos:position pos:line="25" pos:column="24"/></literal>
+          <literal type="string" pos:line="26" pos:column="11">"                 warning- and critical-ranges to the calculated "<pos:position pos:line="26" pos:column="77"/></literal>
+          <literal type="string" pos:line="27" pos:column="11">"average.\n"<pos:position pos:line="27" pos:column="23"/></literal>
+          <literal type="string" pos:line="28" pos:column="11">"  sum:           Apply the ranges to the sum of all DSes.\n"<pos:position pos:line="28" pos:column="72"/></literal>
+          <literal type="string" pos:line="29" pos:column="11">"  percentage:    Apply the ranges to the ratio (in percent) of the "<pos:position pos:line="29" pos:column="80"/></literal>
+          <literal type="string" pos:line="30" pos:column="11">"first value\n"<pos:position pos:line="30" pos:column="26"/></literal>
+          <literal type="string" pos:line="31" pos:column="11">"                 and the sum of all values."<pos:position pos:line="31" pos:column="56"/></literal>
+          <literal type="string" pos:line="32" pos:column="11">"\n"<pos:position pos:line="32" pos:column="15"/></literal></expr></argument>,
+          <argument><expr><name pos:line="33" pos:column="11">name<pos:position pos:line="33" pos:column="15"/></name></expr></argument>)<pos:position pos:line="33" pos:column="16"/></argument_list></call></expr>;<pos:position pos:line="33" pos:column="17"/></expr_stmt>
+  <expr_stmt><expr><call><name pos:line="34" pos:column="3">exit<pos:position pos:line="34" pos:column="7"/></name><argument_list pos:line="34" pos:column="7">(<argument><expr><literal type="number" pos:line="34" pos:column="8">1<pos:position pos:line="34" pos:column="9"/></literal></expr></argument>)<pos:position pos:line="34" pos:column="10"/></argument_list></call></expr>;<pos:position pos:line="34" pos:column="11"/></expr_stmt>
+}<pos:position pos:line="35" pos:column="2"/></block></function></unit>

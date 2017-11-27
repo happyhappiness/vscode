@@ -1,0 +1,13 @@
+
+#now analyzing repos:collectd
+#edition cluster info
+addLog:35, removeLog:9, updateLog:23, addVariable:43, removeVariable:51, updateVariable:5, moveVariable:8, addContent:1, removeContent:0, updateContent:25, moveContent:0, 
+cluster is:110, repeted cluster is:35, repeted log is:135
+#edition and feature cluster info
+addLog:33, removeLog:9, updateLog:10, addVariable:39, removeVariable:49, updateVariable:2, moveVariable:6, addContent:0, removeContent:0, updateContent:10, moveContent:0, 
+cluster is:146, repeted cluster is:37, repeted log is:101
+#log info
+number of log is:213
+addLog:64, removeLog:21, updateLog:31, addVariable:61, removeVariable:60, updateVariable:24, moveVariable:11, addContent:8, removeContent:6, updateContent:48, moveContent:0, 
+#rule info
+insert rule:12, modify rule:26

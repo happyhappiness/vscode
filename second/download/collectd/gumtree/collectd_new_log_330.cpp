@@ -1,0 +1,1 @@
+printf (" %s=%f;;;;", values_names[i], values[i]);

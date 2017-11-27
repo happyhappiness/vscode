@@ -1,0 +1,1510 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/bindings/Makefile.am /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/bindings/Makefile.am
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/bindings/Makefile.am	2009-12-20 23:36:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/bindings/Makefile.am	2010-01-14 22:20:15.000000000 +0800
+@@ -4,12 +4,13 @@
+ SUBDIRS += java
+ endif
+ 
+ EXTRA_DIST = perl/Makefile.PL \
+ 	     perl/lib/Collectd.pm \
+ 	     perl/lib/Collectd/Unixsock.pm \
++	     perl/lib/Collectd/Plugins/Monitorus.pm \
+ 	     perl/lib/Collectd/Plugins/OpenVZ.pm
+ 
+ all-local: @PERL_BINDINGS@
+ 
+ install-exec-local:
+ 	[ ! -f perl/Makefile ] || ( cd perl && $(MAKE) install )
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/bindings/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/bindings/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/bindings/Makefile.in	2009-12-20 23:37:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/bindings/Makefile.in	2010-01-14 22:20:45.000000000 +0800
+@@ -313,12 +313,13 @@
+ top_builddir = @top_builddir@
+ top_srcdir = @top_srcdir@
+ SUBDIRS = $(am__append_1)
+ EXTRA_DIST = perl/Makefile.PL \
+ 	     perl/lib/Collectd.pm \
+ 	     perl/lib/Collectd/Unixsock.pm \
++	     perl/lib/Collectd/Plugins/Monitorus.pm \
+ 	     perl/lib/Collectd/Plugins/OpenVZ.pm
+ 
+ all: all-recursive
+ 
+ .SUFFIXES:
+ $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/bindings/perl/lib/Collectd/Plugins: Monitorus.pm
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/bindings/perl/lib/Collectd.pm /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/bindings/perl/lib/Collectd.pm
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/bindings/perl/lib/Collectd.pm	2009-12-20 23:36:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/bindings/perl/lib/Collectd.pm	2010-01-14 22:20:15.000000000 +0800
+@@ -113,12 +113,13 @@
+ 
+ my @plugins : shared = ();
+ my @fc_plugins : shared = ();
+ my %cf_callbacks : shared = ();
+ 
+ my %types = (
++	TYPE_CONFIG,   "config",
+ 	TYPE_INIT,     "init",
+ 	TYPE_READ,     "read",
+ 	TYPE_WRITE,    "write",
+ 	TYPE_SHUTDOWN, "shutdown",
+ 	TYPE_LOG,      "log",
+ 	TYPE_NOTIF,    "notify",
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/ChangeLog /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/ChangeLog
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/ChangeLog	2009-12-20 23:36:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/ChangeLog	2010-01-14 22:20:15.000000000 +0800
+@@ -1,6 +1,21 @@
++2010-01-14, Version 4.9.1
++	* Documentation: Some manpage fixes.
++	* Default config: Added sample configuration for missing plugins.
++	* apache plugin: Fix a segmentation fault in the config handling of
++	  VerifyPeer / VerifyHost. Thanks to "plazmus" for his or her patch.
++	* processes plugin: Fix handling of derive data sources.
++	* rrdtool plugin: Fix a bug with random write timeouts. Due to an
++	  incorrect initialization some files may be suspended basically
++	  indefinitely. After flushing the files they were written regularly
++	  again.
++	* routeros plugin: Use the node name for the "host" field.
++	* Monitorus.pm: Put the plugin into the "Collectd::Plugins" namespace.
++	* Perl bindings: Fix a warning that was printed when building
++	  debugging output.
++
+ 2009-12-21, Version 4.9.0
+ 	* contextswitch plugin: The new ContextSwitch plugin gathers the
+ 	  number of context switches done by the CPU. Thanks to Patrik
+ 	  Weiskircher for the patch.
+ 	* cpu plugin: Support for SMP (multiple processors) under FreeBSD has
+ 	  been added. Thanks to Doug MacEachern for the patch.
+@@ -34,12 +49,19 @@
+ 	  Manuel Sanmartin for his patches.
+ 	* hashed match: This match for simple load balancing and redundant
+ 	  storage has been added.
+ 	* scale target: This target to scale (multiply) values by an arbitrary
+ 	  value has been added.
+ 
++2010-01-14, Version 4.8.3
++	* Documentation: Some manpage fixes.
++	* rrdtool plugin: Fix a bug with random write timeouts. Due to an
++	  incorrect initialization some files may be suspended basically
++	  indefinitely. After flushing the files they were written regularly
++	  again.
++
+ 2009-12-18, Version 4.8.2
+ 	* Build system, java plugin: Don't use “find -L” to search for Java
+ 	  headers, because it's a GNU extension.
+ 	* Build system: Support for parallel builds has been improved. Thanks
+ 	  Sebastian Harl and Stefan Völkel for looking into this.
+ 	* collectd: Print error messages to STDERR if no log plugin has been
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/configure	2009-12-20 23:37:23.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/configure	2010-01-14 22:20:48.000000000 +0800
+@@ -1,9 +1,9 @@
+ #! /bin/sh
+ # Guess values for system-dependent variables and create Makefiles.
+-# Generated by GNU Autoconf 2.65 for collectd 4.9.0.
++# Generated by GNU Autoconf 2.65 for collectd 4.9.1.
+ #
+ #
+ # Copyright (C) 1992, 1993, 1994, 1995, 1996, 1998, 1999, 2000, 2001,
+ # 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009 Free Software Foundation,
+ # Inc.
+ #
+@@ -699,14 +699,14 @@
+ MFLAGS=
+ MAKEFLAGS=
+ 
+ # Identity of this package.
+ PACKAGE_NAME='collectd'
+ PACKAGE_TARNAME='collectd'
+-PACKAGE_VERSION='4.9.0'
+-PACKAGE_STRING='collectd 4.9.0'
++PACKAGE_VERSION='4.9.1'
++PACKAGE_STRING='collectd 4.9.1'
+ PACKAGE_BUGREPORT=''
+ PACKAGE_URL=''
+ 
+ ac_unique_file="src/collectd.c"
+ # Factoring default headers for most tests.
+ ac_includes_default="\
+@@ -1954,13 +1954,13 @@
+ # Report the --help message.
+ #
+ if test "$ac_init_help" = "long"; then
+   # Omit some internal or obsolete options to make the list less imposing.
+   # This message is too long to be a string in the A/UX 3.1 sh.
+   cat <<_ACEOF
+-\`configure' configures collectd 4.9.0 to adapt to many kinds of systems.
++\`configure' configures collectd 4.9.1 to adapt to many kinds of systems.
+ 
+ Usage: $0 [OPTION]... [VAR=VALUE]...
+ 
+ To assign environment variables (e.g., CC, CFLAGS...), specify them as
+ VAR=VALUE.  See below for descriptions of some of the useful variables.
+ 
+@@ -2024,13 +2024,13 @@
+   --host=HOST       cross-compile to build programs to run on HOST [BUILD]
+ _ACEOF
+ fi
+ 
+ if test -n "$ac_init_help"; then
+   case $ac_init_help in
+-     short | recursive ) echo "Configuration of collectd 4.9.0:";;
++     short | recursive ) echo "Configuration of collectd 4.9.1:";;
+    esac
+   cat <<\_ACEOF
+ 
+ Optional Features:
+   --disable-option-checking  ignore unrecognized --enable/--with options
+   --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
+@@ -2308,13 +2308,13 @@
+   done
+ fi
+ 
+ test -n "$ac_init_help" && exit $ac_status
+ if $ac_init_version; then
+   cat <<\_ACEOF
+-collectd configure 4.9.0
++collectd configure 4.9.1
+ generated by GNU Autoconf 2.65
+ 
+ Copyright (C) 2009 Free Software Foundation, Inc.
+ This configure script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it.
+ _ACEOF
+@@ -2823,13 +2823,13 @@
+ 
+ } # ac_fn_c_check_member
+ cat >config.log <<_ACEOF
+ This file contains any messages produced by compilers while
+ running configure, to aid debugging if configure makes a mistake.
+ 
+-It was created by collectd $as_me 4.9.0, which was
++It was created by collectd $as_me 4.9.1, which was
+ generated by GNU Autoconf 2.65.  Invocation command line was
+ 
+   $ $0 $@
+ 
+ _ACEOF
+ exec 5>>config.log
+@@ -12180,13 +12180,13 @@
+   fi
+ fi
+ 
+ 
+ # Define the identity of the package.
+  PACKAGE='collectd'
+- VERSION='4.9.0'
++ VERSION='4.9.1'
+ 
+ 
+ cat >>confdefs.h <<_ACEOF
+ #define PACKAGE "$PACKAGE"
+ _ACEOF
+ 
+@@ -29884,13 +29884,13 @@
+ 
+ cat >>$CONFIG_STATUS <<\_ACEOF || ac_write_fail=1
+ # Save the log message, to keep $0 and so on meaningful, and to
+ # report actual input values of CONFIG_FILES etc. instead of their
+ # values after options handling.
+ ac_log="
+-This file was extended by collectd $as_me 4.9.0, which was
++This file was extended by collectd $as_me 4.9.1, which was
+ generated by GNU Autoconf 2.65.  Invocation command line was
+ 
+   CONFIG_FILES    = $CONFIG_FILES
+   CONFIG_HEADERS  = $CONFIG_HEADERS
+   CONFIG_LINKS    = $CONFIG_LINKS
+   CONFIG_COMMANDS = $CONFIG_COMMANDS
+@@ -29950,13 +29950,13 @@
+ Report bugs to the package provider."
+ 
+ _ACEOF
+ cat >>$CONFIG_STATUS <<_ACEOF || ac_write_fail=1
+ ac_cs_config="`$as_echo "$ac_configure_args" | sed 's/^ //; s/[\\""\`\$]/\\\\&/g'`"
+ ac_cs_version="\\
+-collectd config.status 4.9.0
++collectd config.status 4.9.1
+ configured by $0, generated by GNU Autoconf 2.65,
+   with options \\"\$ac_cs_config\\"
+ 
+ Copyright (C) 2009 Free Software Foundation, Inc.
+ This config.status script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it."
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/contrib/snmp-probe-host.px /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/contrib/snmp-probe-host.px
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/contrib/snmp-probe-host.px	2009-12-20 23:36:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/contrib/snmp-probe-host.px	2010-01-14 22:20:15.000000000 +0800
+@@ -1,10 +1,11 @@
+ #!/usr/bin/perl
+ #
+ # collectd - snmp-probe-host.px
+-# Copyright (C) 2008  Florian octo Forster
++# Copyright (C) 2008,2009  Florian octo Forster
++# Copyright (C) 2009       noris network AG
+ #
+ # This program is free software; you can redistribute it and/or modify it
+ # under the terms of the GNU General Public License as published by the
+ # Free Software Foundation; only version 2 of the License is applicable.
+ #
+ # This program is distributed in the hope that it will be useful, but
+@@ -24,12 +25,18 @@
+ use warnings;
+ use SNMP;
+ use Config::General ('ParseConfig');
+ use Getopt::Long ('GetOptions');
+ use Socket6;
+ 
++our %ExcludeOptions =
++(
++  'IF-MIB64' => qr/^\.?1\.3\.6\.1\.2\.1\.31/,
++  'IF-MIB32' => qr/^\.?1\.3\.6\.1\.2\.1\.2/
++);
++
+ sub get_config
+ {
+   my %conf;
+   my $file = shift;
+ 
+   %conf = ParseConfig (-ConfigFile => $file,
+@@ -47,12 +54,13 @@
+ } # get_config
+ 
+ sub probe_one
+ {
+   my $sess = shift;
+   my $conf = shift;
++  my $excludes = @_ ? shift : [];
+   my @oids;
+   my $cmd = 'GET';
+   my $vl;
+ 
+   if (!$conf->{'table'} || !$conf->{'values'})
+   {
+@@ -87,12 +95,20 @@
+         warn ("Cannot translate OID $oid_orig");
+         return;
+       }
+       $oid_orig = $tmp;
+     }
+ 
++    for (@$excludes)
++    {
++      if ($oid_orig =~ $_)
++      {
++        return;
++      }
++    }
++
+     $vb = SNMP::Varbind->new ([$oid_orig]);
+ 
+     if ($cmd eq 'GET')
+     {
+       $status = $sess->get ($vb);
+       if ($sess->{'ErrorNum'} != 0)
+@@ -145,12 +161,13 @@
+ 
+ sub probe_all
+ {
+   my $host = shift;
+   my $community = shift;
+   my $data = shift;
++  my $excludes = @_ ? shift : [];
+   my $version = 2;
+   my @valid_data = ();
+   my $begin;
+   my $address;
+ 
+   {
+@@ -200,13 +217,13 @@
+ 
+     $begin = time ();
+ 
+     for (keys %$data)
+     {
+       my $name = $_;
+-      if (probe_one ($sess, $data->{$name}))
++      if (probe_one ($sess, $data->{$name}, $excludes))
+       {
+         push (@valid_data, $name);
+       }
+ 
+       if ((@valid_data == 0) && ((time () - $begin) > 10))
+       {
+@@ -255,17 +272,30 @@
+ 
+ Options are:
+   -H | --host          Hostname of the device to probe.
+   -C | --config        Path to config file holding the SNMP data blocks.
+   -c | --community     SNMP community to use. Default: `public'.
+   -h | --help          Print this information and exit.
++  -x | --exclude       Exclude a specific MIB. Call with "help" for more
++                       information.
+ 
+ USAGE
+   exit (1);
+ }
+ 
++sub exit_usage_exclude
++{
++  print "Available exclude MIBs:\n\n";
++  for (sort (keys %ExcludeOptions))
++  {
++    print "  $_\n";
++  }
++  print "\n";
++  exit (1);
++}
++
+ =head1 NAME
+ 
+ snmp-probe-host.px - Find out what information an SNMP device provides.
+ 
+ =head1 SYNOPSIS
+ 
+@@ -291,12 +321,13 @@
+ 
+ my $host;
+ my $file = '/etc/collectd/collectd.conf';
+ my $community = 'public';
+ my $conf;
+ my $working_data;
++my @excludes = ();
+ 
+ =head1 OPTIONS
+ 
+ The following command line options are accepted:
+ 
+ =over 4
+@@ -315,38 +346,74 @@
+ Defaults to F</etc/collectd/collectd.conf>.
+ 
+ =item B<--community> I<community>
+ 
+ SNMP community to use. Should be pretty straight forward.
+ 
++=item B<--exclude> I<MIB>
++
++This option can be used to exclude specific data from being enabled in the
++generated config. Currently the following MIBs are understood:
++
++=over 4
++
++=item B<IF-MIB>
++
++Exclude interface information, such as I<ifOctets> and I<ifPackets>.
++
++=back
++
+ =back
+ 
+ =cut
+ 
+ GetOptions ('H|host|hostname=s' => \$host,
+   'C|conf|config=s' => \$file,
+   'c|community=s' => \$community,
++  'x|exclude=s' => \@excludes,
+   'h|help' => \&exit_usage) or die;
+ 
+ if (!$host)
+ {
+   print STDERR "No hostname given. Please use `--host'.\n";
+   exit (1);
+ }
+ 
++if (@excludes)
++{
++  my $tmp = join (',', @excludes);
++  my @tmp = split (/\s*,\s*/, $tmp);
++
++  @excludes = ();
++  for (@tmp)
++  {
++    my $mib = uc ($_);
++    if ($mib eq 'HELP')
++    {
++      exit_usage_exclude ();
++    }
++    elsif (!exists ($ExcludeOptions{$mib}))
++    {
++      print STDERR "No such MIB: $mib\n";
++      exit_usage_exclude ();
++    }
++    push (@excludes, $ExcludeOptions{$mib});
++  }
++}
++
+ $conf = get_config ($file) or die ("Cannot read config");
+ 
+ if (!defined ($conf->{'plugin'})
+   || !defined ($conf->{'plugin'}{'snmp'})
+   || !defined ($conf->{'plugin'}{'snmp'}{'data'}))
+ {
+   print STDERR "Error: No <plugin>, <snmp>, or <data> block found.\n";
+   exit (1);
+ }
+ 
+-probe_all ($host, $community, $conf->{'plugin'}{'snmp'}{'data'});
++probe_all ($host, $community, $conf->{'plugin'}{'snmp'}{'data'}, \@excludes);
+ 
+ exit (0);
+ 
+ =head1 BUGS
+ 
+ =over 4
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/README /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/README
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/README	2009-12-20 23:36:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/README	2010-01-14 22:20:15.000000000 +0800
+@@ -220,12 +220,15 @@
+     - python
+       The python plugin implements a Python interpreter into collectd. This
+       makes it possible to write plugins in Python which are executed by
+       collectd without the need to start a heavy interpreter every interval.
+       See collectd-python(5) for details.
+ 
++    - routeros
++      Query interface and wireless registration statistics from RouterOS.
++
+     - rrdcached
+       RRDtool caching daemon (RRDcacheD) statistics.
+ 
+     - sensors
+       System sensors, accessed using lm_sensors: Voltages, temperatures and
+       fan rotation speeds.
+@@ -383,12 +386,15 @@
+   * Value processing can be controlled using the "filter chain" infrastructure
+     and "matches" and "targets". The following plugins are available:
+ 
+     - match_empty_counter
+       Match counter values which are currently zero.
+ 
++    - match_hashed
++      Match values using a hash function of the hostname.
++
+     - match_regex
+       Match values by their identifier based on regular expressions.
+ 
+     - match_timediff
+       Match values with an invalid timestamp.
+ 
+@@ -398,12 +404,15 @@
+     - target_notification
+       Create and dispatch a notification.
+ 
+     - target_replace
+       Replace parts of an identifier using regular expressions.
+ 
++    - target_scale
++      Scale (multiply) values by an arbitrary value.
++
+     - target_set
+       Set (overwrite) entire parts of an identifier.
+ 
+   * Miscellaneous plugins:
+ 
+     - uuid
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/apache.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/apache.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/apache.c	2009-12-20 23:36:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/apache.c	2010-01-14 22:20:15.000000000 +0800
+@@ -199,13 +199,13 @@
+ 	{
+ 		WARNING ("apache plugin: The `%s' config option "
+ 				"needs exactly one boolean argument.", ci->key);
+ 		return (-1);
+ 	}
+ 
+-	if (ci->values[0].type != OCONFIG_TYPE_BOOLEAN)
++	if (ci->values[0].type == OCONFIG_TYPE_BOOLEAN)
+ 	{
+ 		if (ci->values[0].value.boolean)
+ 			*ret_boolean = 1;
+ 		else
+ 			*ret_boolean = 0;
+ 	}
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/collectd.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/collectd.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/collectd.1	2009-12-20 23:38:52.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/collectd.1	2010-01-14 22:22:04.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD 1"
+-.TH COLLECTD 1 "2009-12-20" "4.9.0" "collectd"
++.TH COLLECTD 1 "2010-01-14" "4.9.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd \- System statistics collection daemon
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/collectd.conf.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/collectd.conf.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/collectd.conf.5	2009-12-20 23:38:53.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/collectd.conf.5	2010-01-14 22:22:04.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD.CONF 5"
+-.TH COLLECTD.CONF 5 "2009-12-20" "4.9.0" "collectd"
++.TH COLLECTD.CONF 5 "2010-01-14" "4.9.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd.conf \- Configuration for the system statistics collection daemon \fBcollectd\fR
+@@ -631,15 +631,15 @@
+ \&    </Key>
+ \&  </URL>
+ .Ve
+ .PP
+ In the \fBPlugin\fR block, there may be one or more \fB\s-1URL\s0\fR blocks, each defining
+ a \s-1URL\s0 to be fetched via \s-1HTTP\s0 (using libcurl) and one or more \fBKey\fR blocks.
+-The \fBKey\fR string argument must be in a path format, of which is used to collect
+-a value from a \s-1JSON\s0 map object.  If a \fBKey\fR path element is that of a \fI*\fR wildcard,
+-the values for all keys will be collectd.
++The \fBKey\fR string argument must be in a path format, which is used to collect a
++value from a \s-1JSON\s0 map object. If a path element of \fBKey\fR is the
++\&\fI*\fR\ wildcard, the values for all keys will be collectd.
+ .PP
+ The following options are valid within \fB\s-1URL\s0\fR blocks:
+ .IP "\fBInstance\fR \fIInstance\fR" 4
+ .IX Item "Instance Instance"
+ Sets the plugin instance to \fIInstance\fR.
+ .IP "\fBUser\fR \fIName\fR" 4
+@@ -785,13 +785,13 @@
+ .PD
+ Only use this query for the specified database version. You can use these
+ options to provide multiple queries with the same name but with a slightly
+ different syntax. The plugin will use only those queries, where the specified
+ minimum and maximum versions fit the version of the database in use.
+ .Sp
+-The database version is determined by \f(CW\*(C`dbi_conn_get_engine_version\*(C'\fR, see the 
++The database version is determined by \f(CW\*(C`dbi_conn_get_engine_version\*(C'\fR, see the
+ <libdbi documentation>
+ for details. Basically, each part of the version is assumed to be in the range
+ from \fB00\fR to \fB99\fR and all dots are removed. So version \*(L"4.1.2\*(R" becomes
+ \&\*(L"40102\*(R", version \*(L"5.0.42\*(R" becomes \*(L"50042\*(R".
+ .Sp
+ \&\fBWarning:\fR The plugin will use \fBall\fR matching queries, so if you specify
+@@ -3606,13 +3606,13 @@
+ match the device names specified by the \fBDevice\fR option are collected. By
+ default only selected devices are collected if a selection is made. If no
+ selection is configured at all, \fBall\fR devices are selected.
+ .ie n .SS "Plugin ""tokyotyrant"""
+ .el .SS "Plugin \f(CWtokyotyrant\fP"
+ .IX Subsection "Plugin tokyotyrant"
+-The \f(CW\*(C`tokyotyrant plugin\*(C'\fR connects to a TokyoTyrant server and collects a 
++The \f(CW\*(C`tokyotyrant plugin\*(C'\fR connects to a TokyoTyrant server and collects a
+ couple metrics: number of records, and database size on disk.
+ .IP "\fBHost\fR \fIHostname/IP\fR" 4
+ .IX Item "Host Hostname/IP"
+ The hostname or ip which identifies the server.
+ Default: \fB127.0.0.1\fR
+ .IP "\fBPort\fR \fIService/Port\fR" 4
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/collectd.conf.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/collectd.conf.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/collectd.conf.in	2009-12-20 23:36:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/collectd.conf.in	2010-01-14 22:20:15.000000000 +0800
+@@ -86,12 +86,13 @@
+ #@BUILD_PLUGIN_MBMON_TRUE@LoadPlugin mbmon
+ #@BUILD_PLUGIN_MEMCACHEC_TRUE@LoadPlugin memcachec
+ #@BUILD_PLUGIN_MEMCACHED_TRUE@LoadPlugin memcached
+ @BUILD_PLUGIN_MEMORY_TRUE@@BUILD_PLUGIN_MEMORY_TRUE@LoadPlugin memory
+ #@BUILD_PLUGIN_MULTIMETER_TRUE@LoadPlugin multimeter
+ #@BUILD_PLUGIN_MYSQL_TRUE@LoadPlugin mysql
++#@BUILD_PLUGIN_NETAPP_TRUE@LoadPlugin netapp
+ #@BUILD_PLUGIN_NETLINK_TRUE@LoadPlugin netlink
+ @LOAD_PLUGIN_NETWORK@LoadPlugin network
+ #@BUILD_PLUGIN_NFS_TRUE@LoadPlugin nfs
+ #@BUILD_PLUGIN_NGINX_TRUE@LoadPlugin nginx
+ #@BUILD_PLUGIN_NOTIFY_DESKTOP_TRUE@LoadPlugin notify_desktop
+ #@BUILD_PLUGIN_NOTIFY_EMAIL_TRUE@LoadPlugin notify_email
+@@ -104,12 +105,14 @@
+ #@BUILD_PLUGIN_PERL_TRUE@LoadPlugin perl
+ #@BUILD_PLUGIN_PING_TRUE@LoadPlugin ping
+ #@BUILD_PLUGIN_POSTGRESQL_TRUE@LoadPlugin postgresql
+ #@BUILD_PLUGIN_POWERDNS_TRUE@LoadPlugin powerdns
+ #@BUILD_PLUGIN_PROCESSES_TRUE@LoadPlugin processes
+ #@BUILD_PLUGIN_PROTOCOLS_TRUE@LoadPlugin protocols
++#@BUILD_PLUGIN_PYTHON_TRUE@LoadPlugin python
++#@BUILD_PLUGIN_ROUTEROS_TRUE@LoadPlugin routeros
+ #@BUILD_PLUGIN_RRDCACHED_TRUE@LoadPlugin rrdcached
+ @LOAD_PLUGIN_RRDTOOL@LoadPlugin rrdtool
+ #@BUILD_PLUGIN_SENSORS_TRUE@LoadPlugin sensors
+ #@BUILD_PLUGIN_SERIAL_TRUE@LoadPlugin serial
+ #@BUILD_PLUGIN_SNMP_TRUE@LoadPlugin snmp
+ #@BUILD_PLUGIN_SWAP_TRUE@LoadPlugin swap
+@@ -184,12 +187,13 @@
+ 
+ #<Plugin curl>
+ #  <Page "stock_quotes">
+ #    URL "http://finance.google.com/finance?q=NYSE%3AAMD"
+ #    User "foo"
+ #    Password "bar"
++#    MeasureResponseTime false
+ #    <Match>
+ #      Regex "<span +class=\"pr\"[^>]*> *([0-9]*\\.[0-9]+) *</span>"
+ #      DSType "GaugeAverage"
+ #      Type "stock_value"
+ #      Instance "AMD"
+ #    </Match>
+@@ -411,12 +415,64 @@
+ #		Socket "/var/run/mysql/mysqld.sock"
+ #		SlaveStats true
+ #		SlaveNotifications true
+ #	</Database>
+ #</Plugin>
+ 
++#<Plugin netapp>
++#	<Host "netapp1.example.com">
++#		Protocol      "https"
++#		Address       "10.0.0.1"
++#		Port          443
++#		User          "username"
++#		Password      "aef4Aebe"
++#		Interval      30
++#
++#		<WAFL>
++#			Interval 30
++#			GetNameCache   true
++#			GetDirCache    true
++#			GetBufferCache true
++#			GetInodeCache  true
++#		</WAFL>
++#
++#		<Disks>
++#			Interval 30
++#			GetBusy true
++#		</Disks>
++#
++#		<VolumePerf>
++#			Interval 30
++#			GetIO      "volume0"
++#			IgnoreSelectedIO      false
++#			GetOps     "volume0"
++#			IgnoreSelectedOps     false
++#			GetLatency "volume0"
++#			IgnoreSelectedLatency false
++#		</VolumePerf>
++#
++#		<VolumeUsage>
++#			Interval 30
++#			GetCapacity "vol0"
++#			GetCapacity "vol1"
++#			IgnoreSelectedCapacity false
++#			GetSnapshot "vol1"
++#			GetSnapshot "vol3"
++#			IgnoreSelectedSnapshot false
++#		</VolumeUsage>
++#
++#		<System>
++#			Interval 30
++#			GetCPULoad     true
++#			GetInterfaces  true
++#			GetDiskOps     true
++#			GetDiskIO      true
++#		</System>
++#	</Host>
++#</Plugin>
++
+ #<Plugin netlink>
+ #	Interface "All"
+ #	VerboseInterface "All"
+ #	QDisc "eth0" "pfifo_fast-1:0"
+ #	Class "ppp0" "htb-1:10"
+ #	Filter "ppp0" "u32-1:0"
+@@ -505,23 +561,29 @@
+ #</Plugin>
+ 
+ #<Plugin perl>
+ #	IncludeDir "/my/include/path"
+ #	BaseName "Collectd::Plugin"
+ #	EnableDebugger ""
+-#	LoadPlugin foo
++#	LoadPlugin Monitorus
++#	LoadPlugin OpenVZ
+ #
+ #	<Plugin foo>
+ #		Foo "Bar"
+ #		Qux "Baz"
+ #	</Plugin>
+ #</Plugin>
+ 
+ #<Plugin ping>
+ #	Host "host.foo.bar"
++#	Interval 1.0
++#	Timeout 0.9
+ #	TTL 255
++#	SourceAddress "1.2.3.4"
++#	Device "eth0"
++#	MaxMissed -1
+ #</Plugin>
+ 
+ #<Plugin postgresql>
+ #	<Query magic>
+ #		Statement "SELECT magic FROM wizard WHERE host = $1;"
+ #		Param hostname
+@@ -581,12 +643,34 @@
+ 
+ #<Plugin protocols>
+ #	Value "/^Tcp:/"
+ #	IgnoreSelected false
+ #</Plugin>
+ 
++#<Plugin python>
++#	ModulePath "/path/to/your/python/modules"
++#	LogTraces true
++#	Interactive true
++#	Import "spam"
++#
++#	<Module spam>
++#		spam "wonderful" "lovely"
++#	</Module>
++#</Plugin>
++
++#<Plugin routeros>
++#	<Router>
++#		Host "router.example.com"
++#		Port "8728"
++#		User "admin"
++#		Password "dozaiTh4"
++#		CollectInterface true
++#		CollectRegistrationTable true
++#	</Router>
++#</Plugin>
++
+ #<Plugin rrdcached>
+ #	DaemonAddress "unix:/tmp/rrdcached.sock"
+ #	DataDir "@prefix@/var/lib/@PACKAGE_NAME@/rrd"
+ #	CreateFiles true
+ #	CollectStatistics true
+ #</Plugin>
+@@ -739,19 +823,21 @@
+ # anything in this section, please read the `FILTER CONFIGURATION' section   #
+ # in the collectd.conf(5) manual page.                                       #
+ ##############################################################################
+ 
+ # Load required matches:
+ #@BUILD_PLUGIN_MATCH_EMPTY_COUNTER_TRUE@LoadPlugin match_empty_counter
++#@BUILD_PLUGIN_MATCH_HASHED_TRUE@LoadPlugin match_hashed
+ #@BUILD_PLUGIN_MATCH_REGEX_TRUE@LoadPlugin match_regex
+ #@BUILD_PLUGIN_MATCH_VALUE_TRUE@LoadPlugin match_value
+ #@BUILD_PLUGIN_MATCH_TIMEDIFF_TRUE@LoadPlugin match_timediff
+ 
+ # Load required targets:
+ #@BUILD_PLUGIN_TARGET_NOTIFICATION_TRUE@LoadPlugin target_notification
+ #@BUILD_PLUGIN_TARGET_REPLACE_TRUE@LoadPlugin target_replace
++#@BUILD_PLUGIN_TARGET_SCALE_TRUE@LoadPlugin target_scale
+ #@BUILD_PLUGIN_TARGET_SET_TRUE@LoadPlugin target_set
+ 
+ #----------------------------------------------------------------------------#
+ # The following block demonstrates the default behavior if no filtering is   #
+ # configured at all: All values will be sent to all available write plugins. #
+ #----------------------------------------------------------------------------#
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/collectd.conf.pod /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/collectd.conf.pod
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/collectd.conf.pod	2009-12-20 23:36:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/collectd.conf.pod	2010-01-14 22:20:15.000000000 +0800
+@@ -559,15 +559,15 @@
+       Type "bytes"
+     </Key>
+   </URL>
+ 
+ In the B<Plugin> block, there may be one or more B<URL> blocks, each defining
+ a URL to be fetched via HTTP (using libcurl) and one or more B<Key> blocks.
+-The B<Key> string argument must be in a path format, of which is used to collect
+-a value from a JSON map object.  If a B<Key> path element is that of a I<*> wildcard,
+-the values for all keys will be collectd.
++The B<Key> string argument must be in a path format, which is used to collect a
++value from a JSON map object. If a path element of B<Key> is the
++I<*>E<nbsp>wildcard, the values for all keys will be collectd.
+ 
+ The following options are valid within B<URL> blocks:
+ 
+ =over 4
+ 
+ =item B<Instance> I<Instance>
+@@ -666,13 +666,13 @@
+ 
+ =head3 B<Query> blocks
+ 
+ Query blocks define I<SQL> statements and how the returned data should be
+ interpreted. They are identified by the name that is given in the opening line
+ of the block. Thus the name needs to be unique. Other than that, the name is
+-not used in collectd. 
++not used in collectd.
+ 
+ In each B<Query> block, there is one or more B<Result> blocks. B<Result> blocks
+ define which column holds which value or instance information. You can use
+ multiple B<Result> blocks to create multiple values from one returned row. This
+ is especially useful, when queries take a long time and sending almost the same
+ query again and again is not desirable.
+@@ -724,13 +724,13 @@
+ 
+ Only use this query for the specified database version. You can use these
+ options to provide multiple queries with the same name but with a slightly
+ different syntax. The plugin will use only those queries, where the specified
+ minimum and maximum versions fit the version of the database in use.
+ 
+-The database version is determined by C<dbi_conn_get_engine_version>, see the 
++The database version is determined by C<dbi_conn_get_engine_version>, see the
+ L<libdbi documentation|http://libdbi.sourceforge.net/docs/programmers-guide/reference-conn.html#DBI-CONN-GET-ENGINE-VERSION>
+ for details. Basically, each part of the version is assumed to be in the range
+ from B<00> to B<99> and all dots are removed. So version "4.1.2" becomes
+ "40102", version "5.0.42" becomes "50042".
+ 
+ B<Warning:> The plugin will use B<all> matching queries, so if you specify
+@@ -3927,13 +3927,13 @@
+ selection is configured at all, B<all> devices are selected.
+ 
+ =back
+ 
+ =head2 Plugin C<tokyotyrant>
+ 
+-The C<tokyotyrant plugin> connects to a TokyoTyrant server and collects a 
++The C<tokyotyrant plugin> connects to a TokyoTyrant server and collects a
+ couple metrics: number of records, and database size on disk.
+ 
+ =over 4
+ 
+ =item B<Host> I<Hostname/IP>
+ 
+@@ -4495,13 +4495,13 @@
+ 
+  <Target "stop">
+  </Target>
+ 
+ =back
+ 
+-=head2 Built-in targets 
++=head2 Built-in targets
+ 
+ The following targets are built into the core daemon and therefore need no
+ plugins to be loaded:
+ 
+ =over 4
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/collectd-email.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/collectd-email.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/collectd-email.5	2009-12-20 23:38:53.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/collectd-email.5	2010-01-14 22:22:04.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-EMAIL 5"
+-.TH COLLECTD-EMAIL 5 "2009-12-20" "4.9.0" "collectd"
++.TH COLLECTD-EMAIL 5 "2010-01-14" "4.9.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-email \- Documentation of collectd's \f(CW\*(C`email plugin\*(C'\fR
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/collectd-exec.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/collectd-exec.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/collectd-exec.5	2009-12-20 23:38:53.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/collectd-exec.5	2010-01-14 22:22:05.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-EXEC 5"
+-.TH COLLECTD-EXEC 5 "2009-12-20" "4.9.0" "collectd"
++.TH COLLECTD-EXEC 5 "2010-01-14" "4.9.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-exec \- Documentation of collectd's \f(CW\*(C`exec plugin\*(C'\fR
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/collectd-java.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/collectd-java.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/collectd-java.5	2009-12-20 23:38:53.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/collectd-java.5	2010-01-14 22:22:05.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-JAVA 5"
+-.TH COLLECTD-JAVA 5 "2009-12-20" "4.9.0" "collectd"
++.TH COLLECTD-JAVA 5 "2010-01-14" "4.9.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-java \- Documentation of collectd's "java plugin"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/collectdmon.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/collectdmon.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/collectdmon.1	2009-12-20 23:38:53.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/collectdmon.1	2010-01-14 22:22:05.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTDMON 1"
+-.TH COLLECTDMON 1 "2009-12-20" "4.9.0" "collectd"
++.TH COLLECTDMON 1 "2010-01-14" "4.9.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectdmon \- Monitoring daemon for collectd
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/collectd-nagios.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/collectd-nagios.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/collectd-nagios.1	2009-12-20 23:38:53.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/collectd-nagios.1	2010-01-14 22:22:05.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-NAGIOS 1"
+-.TH COLLECTD-NAGIOS 1 "2009-12-20" "4.9.0" "collectd"
++.TH COLLECTD-NAGIOS 1 "2010-01-14" "4.9.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-nagios \- Nagios plugin for querying collectd
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/collectd-perl.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/collectd-perl.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/collectd-perl.5	2009-12-20 23:38:53.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/collectd-perl.5	2010-01-14 22:22:05.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-PERL 5"
+-.TH COLLECTD-PERL 5 "2009-12-20" "4.9.0" "collectd"
++.TH COLLECTD-PERL 5 "2010-01-14" "4.9.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-perl \- Documentation of collectd's \f(CW\*(C`perl plugin\*(C'\fR
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/collectd-python.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/collectd-python.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/collectd-python.5	2009-12-20 23:38:53.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/collectd-python.5	2010-01-14 22:22:05.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-PYTHON 5"
+-.TH COLLECTD-PYTHON 5 "2009-12-20" "4.9.0" "collectd"
++.TH COLLECTD-PYTHON 5 "2010-01-14" "4.9.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-python \- Documentation of collectd's \f(CW\*(C`python plugin\*(C'\fR
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/collectd-snmp.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/collectd-snmp.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/collectd-snmp.5	2009-12-20 23:38:53.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/collectd-snmp.5	2010-01-14 22:22:05.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-SNMP 5"
+-.TH COLLECTD-SNMP 5 "2009-12-20" "4.9.0" "collectd"
++.TH COLLECTD-SNMP 5 "2010-01-14" "4.9.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-snmp \- Documentation of collectd's \f(CW\*(C`snmp plugin\*(C'\fR
+@@ -292,21 +292,22 @@
+ traffic.
+ .IP "\fBScale\fR \fIValue\fR" 4
+ .IX Item "Scale Value"
+ The gauge-values returned by the SNMP-agent are multiplied by \fIValue\fR.  This
+ is useful when values are transfered as a fixed point real number. For example,
+ thermometers may transfer \fB243\fR but actually mean \fB24.3\fR, so you can specify
+-a scale value of \fB0.1\fR to correct this. The default value is of course \fB1.0\fR.
++a scale value of \fB0.1\fR to correct this. The default value is, of course,
++\&\fB1.0\fR.
+ .Sp
+ This value is not applied to counter-values.
+ .IP "\fBShift\fR \fIValue\fR" 4
+ .IX Item "Shift Value"
+ \&\fIValue\fR is added to gauge-values returned by the SNMP-agent after they have
+ been multiplied by any \fBScale\fR value. If, for example, a thermometer returns
+ degrees Kelvin you could specify a shift of \fB273.15\fR here to store values in
+-degrees Celsius. The default value is of course \fB0.0\fR.
++degrees Celsius. The default value is, of course, \fB0.0\fR.
+ .Sp
+ This value is not applied to counter-values.
+ .SS "The Host block"
+ .IX Subsection "The Host block"
+ The \fBHost\fR block defines which hosts to query, which \s-1SNMP\s0 community and
+ version to use and which of the defined \fBData\fR to query.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/collectd-snmp.pod /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/collectd-snmp.pod
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/collectd-snmp.pod	2009-12-20 23:36:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/collectd-snmp.pod	2010-01-14 22:20:15.000000000 +0800
+@@ -172,22 +172,23 @@
+ 
+ =item B<Scale> I<Value>
+ 
+ The gauge-values returned by the SNMP-agent are multiplied by I<Value>.  This
+ is useful when values are transfered as a fixed point real number. For example,
+ thermometers may transfer B<243> but actually mean B<24.3>, so you can specify
+-a scale value of B<0.1> to correct this. The default value is of course B<1.0>.
++a scale value of B<0.1> to correct this. The default value is, of course,
++B<1.0>.
+ 
+ This value is not applied to counter-values.
+ 
+ =item B<Shift> I<Value>
+ 
+ I<Value> is added to gauge-values returned by the SNMP-agent after they have
+ been multiplied by any B<Scale> value. If, for example, a thermometer returns
+ degrees Kelvin you could specify a shift of B<273.15> here to store values in
+-degrees Celsius. The default value is of course B<0.0>.
++degrees Celsius. The default value is, of course, B<0.0>.
+ 
+ This value is not applied to counter-values.
+ 
+ =back
+ 
+ =head2 The Host block
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/collectd-unixsock.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/collectd-unixsock.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/collectd-unixsock.5	2009-12-20 23:38:54.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/collectd-unixsock.5	2010-01-14 22:22:05.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-UNIXSOCK 5"
+-.TH COLLECTD-UNIXSOCK 5 "2009-12-20" "4.9.0" "collectd"
++.TH COLLECTD-UNIXSOCK 5 "2010-01-14" "4.9.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-unixsock \- Documentation of collectd's \f(CW\*(C`unixsock plugin\*(C'\fR
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/libcollectdclient/lcc_features.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/libcollectdclient/lcc_features.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/libcollectdclient/lcc_features.h	2009-12-20 23:37:50.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/libcollectdclient/lcc_features.h	2010-01-14 22:21:09.000000000 +0800
+@@ -31,17 +31,17 @@
+ #endif
+ 
+ #define LCC_API_VERSION 0
+ 
+ #define LCC_VERSION_MAJOR 4
+ #define LCC_VERSION_MINOR 9
+-#define LCC_VERSION_PATCH 0
++#define LCC_VERSION_PATCH 1
+ 
+ #define LCC_VERSION_EXTRA ""
+ 
+-#define LCC_VERSION_STRING "4.9.0"
++#define LCC_VERSION_STRING "4.9.1"
+ 
+ #define LCC_VERSION_ENCODE(major, minor, patch) \
+ 	((major) * 10000 + (minor) * 100 + (patch))
+ 
+ #define LCC_VERSION \
+ 	LCC_VERSION_ENCODE(LCC_VERSION_MAJOR, LCC_VERSION_MINOR, LCC_VERSION_PATCH)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/processes.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/processes.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/processes.c	2009-12-20 23:36:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/processes.c	2010-01-14 22:20:15.000000000 +0800
+@@ -147,16 +147,16 @@
+ 	unsigned long cpu_user;
+ 	unsigned long cpu_system;
+ 	unsigned long cpu_user_counter;
+ 	unsigned long cpu_system_counter;
+ 
+ 	/* io data */
+-	long io_rchar;
+-	long io_wchar;
+-	long io_syscr;
+-	long io_syscw;
++	derive_t io_rchar;
++	derive_t io_wchar;
++	derive_t io_syscr;
++	derive_t io_syscw;
+ 
+ 	struct procstat_entry_s *next;
+ } procstat_entry_t;
+ 
+ #define PROCSTAT_NAME_LEN 256
+ typedef struct procstat
+@@ -176,16 +176,16 @@
+ 	unsigned long vmem_majflt_counter;
+ 
+ 	unsigned long cpu_user_counter;
+ 	unsigned long cpu_system_counter;
+ 
+ 	/* io data */
+-	long io_rchar;
+-	long io_wchar;
+-	long io_syscr;
+-	long io_syscw;
++	derive_t io_rchar;
++	derive_t io_wchar;
++	derive_t io_syscr;
++	derive_t io_syscw;
+ 
+ 	struct procstat   *next;
+ 	struct procstat_entry_s *instances;
+ } procstat_t;
+ 
+ static procstat_t *list_head_g = NULL;
+@@ -661,32 +661,32 @@
+ 	vl.values_len = 2;
+ 	plugin_dispatch_values (&vl);
+ 
+ 	if ( (ps->io_rchar != -1) && (ps->io_wchar != -1) )
+ 	{
+ 		sstrncpy (vl.type, "ps_disk_octets", sizeof (vl.type));
+-		vl.values[0].counter = ps->io_rchar;
+-		vl.values[1].counter = ps->io_wchar;
++		vl.values[0].derive = ps->io_rchar;
++		vl.values[1].derive = ps->io_wchar;
+ 		vl.values_len = 2;
+ 		plugin_dispatch_values (&vl);
+ 	}
+ 
+ 	if ( (ps->io_syscr != -1) && (ps->io_syscw != -1) )
+ 	{
+ 		sstrncpy (vl.type, "ps_disk_ops", sizeof (vl.type));
+-		vl.values[0].counter = ps->io_syscr;
+-		vl.values[1].counter = ps->io_syscw;
++		vl.values[0].derive = ps->io_syscr;
++		vl.values[1].derive = ps->io_syscw;
+ 		vl.values_len = 2;
+ 		plugin_dispatch_values (&vl);
+ 	}
+ 
+ 	DEBUG ("name = %s; num_proc = %lu; num_lwp = %lu; vmem_rss = %lu; "
+ 			"vmem_minflt_counter = %lu; vmem_majflt_counter = %lu; "
+ 			"cpu_user_counter = %lu; cpu_system_counter = %lu; "
+-			"io_rchar = %ld; io_wchar = %ld; "
+-			"io_syscr = %ld; io_syscw = %ld;",
++			"io_rchar = %"PRIi64"; io_wchar = %"PRIi64"; "
++			"io_syscr = %"PRIi64"; io_syscw = %"PRIi64";",
+ 			ps->name, ps->num_proc, ps->num_lwp, ps->vmem_rss,
+ 			ps->vmem_minflt_counter, ps->vmem_majflt_counter,
+ 			ps->cpu_user_counter, ps->cpu_system_counter,
+ 			ps->io_rchar, ps->io_wchar, ps->io_syscr, ps->io_syscw);
+ } /* void ps_submit_proc_list */
+ 
+@@ -731,13 +731,15 @@
+ 	ssnprintf (filename, sizeof (filename), "/proc/%i/io", pid);
+ 	if ((fh = fopen (filename, "r")) == NULL)
+ 		return (NULL);
+ 
+ 	while (fgets (buffer, 1024, fh) != NULL)
+ 	{
+-		long *val = NULL;
++		derive_t *val = NULL;
++		long long tmp;
++		char *endptr;
+ 
+ 		if (strncasecmp (buffer, "rchar:", 6) == 0)
+ 			val = &(ps->io_rchar);
+ 		else if (strncasecmp (buffer, "wchar:", 6) == 0)
+ 			val = &(ps->io_wchar);
+ 		else if (strncasecmp (buffer, "syscr:", 6) == 0)
+@@ -749,14 +751,20 @@
+ 
+ 		numfields = strsplit (buffer, fields, 8);
+ 
+ 		if (numfields < 2)
+ 			continue;
+ 
+-		*val = atol (fields[1]);
+-	}
++		errno = 0;
++		endptr = NULL;
++		tmp = strtoll (fields[1], &endptr, /* base = */ 10);
++		if ((errno != 0) || (endptr == fields[1]))
++			*val = -1;
++		else
++			*val = (derive_t) tmp;
++	} /* while (fgets) */
+ 
+ 	if (fclose (fh))
+ 	{
+ 		char errbuf[1024];
+ 		WARNING ("processes: fclose: %s",
+ 				sstrerror (errno, errbuf, sizeof (errbuf)));
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/routeros.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/routeros.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/routeros.c	2009-12-20 23:36:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/routeros.c	2010-01-14 22:20:15.000000000 +0800
+@@ -36,121 +36,128 @@
+ 
+   _Bool collect_interface;
+   _Bool collect_regtable;
+ };
+ typedef struct cr_data_s cr_data_t;
+ 
+-static void cr_submit_io (const char *type, const char *type_instance, /* {{{ */
+-    counter_t rx, counter_t tx)
++static void cr_submit_io (cr_data_t *rd, const char *type, /* {{{ */
++    const char *type_instance, counter_t rx, counter_t tx)
+ {
+ 	value_t values[2];
+ 	value_list_t vl = VALUE_LIST_INIT;
+ 
+ 	values[0].counter = rx;
+ 	values[1].counter = tx;
+ 
+ 	vl.values = values;
+ 	vl.values_len = STATIC_ARRAY_SIZE (values);
+-	sstrncpy (vl.host, hostname_g, sizeof (vl.host));
++	sstrncpy (vl.host, rd->node, sizeof (vl.host));
+ 	sstrncpy (vl.plugin, "routeros", sizeof (vl.plugin));
+ 	sstrncpy (vl.type, type, sizeof (vl.type));
+ 	sstrncpy (vl.type_instance, type_instance, sizeof (vl.type_instance));
+ 
+ 	plugin_dispatch_values (&vl);
+ } /* }}} void cr_submit_io */
+ 
+-static void submit_interface (const ros_interface_t *i) /* {{{ */
++static void submit_interface (cr_data_t *rd, /* {{{ */
++    const ros_interface_t *i)
+ {
+   if (i == NULL)
+     return;
+ 
+   if (!i->running)
+   {
+-    submit_interface (i->next);
++    submit_interface (rd, i->next);
+     return;
+   }
+ 
+-  cr_submit_io ("if_packets", i->name,
++  cr_submit_io (rd, "if_packets", i->name,
+       (counter_t) i->rx_packets, (counter_t) i->tx_packets);
+-  cr_submit_io ("if_octets", i->name,
++  cr_submit_io (rd, "if_octets", i->name,
+       (counter_t) i->rx_bytes, (counter_t) i->tx_bytes);
+-  cr_submit_io ("if_errors", i->name,
++  cr_submit_io (rd, "if_errors", i->name,
+       (counter_t) i->rx_errors, (counter_t) i->tx_errors);
+-  cr_submit_io ("if_dropped", i->name,
++  cr_submit_io (rd, "if_dropped", i->name,
+       (counter_t) i->rx_drops, (counter_t) i->tx_drops);
+ 
+-  submit_interface (i->next);
++  submit_interface (rd, i->next);
+ } /* }}} void submit_interface */
+ 
+ static int handle_interface (__attribute__((unused)) ros_connection_t *c, /* {{{ */
+-    const ros_interface_t *i, __attribute__((unused)) void *user_data)
++    const ros_interface_t *i, void *user_data)
+ {
+-  submit_interface (i);
++  if ((i == NULL) || (user_data == NULL))
++    return (EINVAL);
++
++  submit_interface (user_data, i);
+   return (0);
+ } /* }}} int handle_interface */
+ 
+-static void cr_submit_gauge (const char *type, /* {{{ */
++static void cr_submit_gauge (cr_data_t *rd, const char *type, /* {{{ */
+     const char *type_instance, gauge_t value)
+ {
+ 	value_t values[1];
+ 	value_list_t vl = VALUE_LIST_INIT;
+ 
+ 	values[0].gauge = value;
+ 
+ 	vl.values = values;
+ 	vl.values_len = STATIC_ARRAY_SIZE (values);
+-	sstrncpy (vl.host, hostname_g, sizeof (vl.host));
++	sstrncpy (vl.host, rd->node, sizeof (vl.host));
+ 	sstrncpy (vl.plugin, "routeros", sizeof (vl.plugin));
+ 	sstrncpy (vl.type, type, sizeof (vl.type));
+ 	sstrncpy (vl.type_instance, type_instance, sizeof (vl.type_instance));
+ 
+ 	plugin_dispatch_values (&vl);
+ } /* }}} void cr_submit_gauge */
+ 
+-static void submit_regtable (const ros_registration_table_t *r) /* {{{ */
++static void submit_regtable (cr_data_t *rd, /* {{{ */
++    const ros_registration_table_t *r)
+ {
+   char type_instance[DATA_MAX_NAME_LEN];
+ 
+   if (r == NULL)
+     return;
+ 
+   /*** RX ***/
+   ssnprintf (type_instance, sizeof (type_instance), "%s-%s-rx",
+       r->interface, r->radio_name);
+-  cr_submit_gauge ("bitrate", type_instance,
++  cr_submit_gauge (rd, "bitrate", type_instance,
+       (gauge_t) (1000000.0 * r->rx_rate));
+-  cr_submit_gauge ("signal_power", type_instance,
++  cr_submit_gauge (rd, "signal_power", type_instance,
+       (gauge_t) r->rx_signal_strength);
+-  cr_submit_gauge ("signal_quality", type_instance,
++  cr_submit_gauge (rd, "signal_quality", type_instance,
+       (gauge_t) r->rx_ccq);
+ 
+   /*** TX ***/
+   ssnprintf (type_instance, sizeof (type_instance), "%s-%s-tx",
+       r->interface, r->radio_name);
+-  cr_submit_gauge ("bitrate", type_instance,
++  cr_submit_gauge (rd, "bitrate", type_instance,
+       (gauge_t) (1000000.0 * r->tx_rate));
+-  cr_submit_gauge ("signal_power", type_instance,
++  cr_submit_gauge (rd, "signal_power", type_instance,
+       (gauge_t) r->tx_signal_strength);
+-  cr_submit_gauge ("signal_quality", type_instance,
++  cr_submit_gauge (rd, "signal_quality", type_instance,
+       (gauge_t) r->tx_ccq);
+ 
+   /*** RX / TX ***/
+   ssnprintf (type_instance, sizeof (type_instance), "%s-%s",
+       r->interface, r->radio_name);
+-  cr_submit_io ("if_octets", type_instance,
++  cr_submit_io (rd, "if_octets", type_instance,
+       (counter_t) r->rx_bytes, (counter_t) r->tx_bytes);
+-  cr_submit_gauge ("snr", type_instance, (gauge_t) r->signal_to_noise);
++  cr_submit_gauge (rd, "snr", type_instance, (gauge_t) r->signal_to_noise);
+ 
+-  submit_regtable (r->next);
++  submit_regtable (rd, r->next);
+ } /* }}} void submit_regtable */
+ 
+ static int handle_regtable (__attribute__((unused)) ros_connection_t *c, /* {{{ */
+-    const ros_registration_table_t *r,
+-    __attribute__((unused)) void *user_data)
++    const ros_registration_table_t *r, void *user_data)
+ {
+-  submit_regtable (r);
++  if ((r == NULL) || (user_data == NULL))
++    return (EINVAL);
++
++  submit_regtable (user_data, r);
+   return (0);
+ } /* }}} int handle_regtable */
+ 
+ static int cr_read (user_data_t *user_data) /* {{{ */
+ {
+   int status;
+@@ -177,13 +184,13 @@
+   }
+   assert (rd->connection != NULL);
+ 
+   if (rd->collect_interface)
+   {
+     status = ros_interface (rd->connection, handle_interface,
+-	/* user data = */ NULL);
++	/* user data = */ rd);
+     if (status != 0)
+     {
+       char errbuf[128];
+       ERROR ("routeros plugin: ros_interface failed: %s",
+ 	  sstrerror (status, errbuf, sizeof (errbuf)));
+       ros_disconnect (rd->connection);
+@@ -192,13 +199,13 @@
+     }
+   }
+ 
+   if (rd->collect_regtable)
+   {
+     status = ros_registration_table (rd->connection, handle_regtable,
+-	/* user data = */ NULL);
++	/* user data = */ rd);
+     if (status != 0)
+     {
+       char errbuf[128];
+       ERROR ("routeros plugin: ros_registration_table failed: %s",
+ 	  sstrerror (status, errbuf, sizeof (errbuf)));
+       ros_disconnect (rd->connection);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/rrdtool.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/rrdtool.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/rrdtool.c	2009-12-20 23:36:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/rrdtool.c	2010-01-14 22:20:15.000000000 +0800
+@@ -673,12 +673,13 @@
+ 		if (rc == NULL)
+ 			return (-1);
+ 		rc->values_num = 0;
+ 		rc->values = NULL;
+ 		rc->first_value = 0;
+ 		rc->last_value = 0;
++		rc->random_variation = 0;
+ 		rc->flags = FLAG_NONE;
+ 		new_rc = 1;
+ 	}
+ 
+ 	if (rc->last_value >= value_time)
+ 	{
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/types.db.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/types.db.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/types.db.5	2009-12-20 23:38:54.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/types.db.5	2010-01-14 22:22:05.000000000 +0800
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "TYPES.DB 5"
+-.TH TYPES.DB 5 "2009-12-20" "4.9.0" "collectd"
++.TH TYPES.DB 5 "2010-01-14" "4.9.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ types.db \- Data\-set specifications for the system statistics collection daemon
+@@ -148,13 +148,14 @@
+ (\*(L",\*(R") right after each list-entry.
+ .PP
+ The format of the data-source specification has been inspired by RRDtool's
+ data-source specification. Each data-source is defined by a quadruple made up
+ of the data-source name, type, minimal and maximal values, delimited by colons
+ (\*(L":\*(R"): \fIds-name\fR:\fIds-type\fR:\fImin\fR:\fImax\fR. \fIds-type\fR may be either
+-\&\fB\s-1COUNTER\s0\fR or \fB\s-1GAUGE\s0\fR. \fImin\fR and \fImax\fR define the range of valid values for
++\&\fB\s-1ABSOLUTE\s0\fR, \fB\s-1COUNTER\s0\fR, \fB\s-1DERIVE\s0\fR, or \fB\s-1GAUGE\s0\fR. \fImin\fR and \fImax\fR define the
++range of valid values for
+ data stored for this data-source. If \fBU\fR is specified for either the min or
+ max value, it will be set to unknown, meaning that no range checks will
+ happen. See \fIrrdcreate\fR\|(1) for more details.
+ .SH "FILES"
+ .IX Header "FILES"
+ The location of the types.db file is defined by the \fBTypesDB\fR configuration
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/types.db.pod /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/types.db.pod
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.0/src/types.db.pod	2009-12-20 23:36:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.9.1/src/types.db.pod	2010-01-14 22:20:15.000000000 +0800
+@@ -18,13 +18,14 @@
+ (",") right after each list-entry.
+ 
+ The format of the data-source specification has been inspired by RRDtool's
+ data-source specification. Each data-source is defined by a quadruple made up
+ of the data-source name, type, minimal and maximal values, delimited by colons
+ (":"): I<ds-name>:I<ds-type>:I<min>:I<max>. I<ds-type> may be either
+-B<COUNTER> or B<GAUGE>. I<min> and I<max> define the range of valid values for
++B<ABSOLUTE>, B<COUNTER>, B<DERIVE>, or B<GAUGE>. I<min> and I<max> define the
++range of valid values for
+ data stored for this data-source. If B<U> is specified for either the min or
+ max value, it will be set to unknown, meaning that no range checks will
+ happen. See L<rrdcreate(1)> for more details.
+ 
+ =head1 FILES
+ 

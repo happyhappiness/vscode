@@ -1,0 +1,1 @@
+printf ("WARNING: Sum = %lf\n", total);

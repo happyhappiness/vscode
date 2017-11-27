@@ -1,0 +1,1 @@
+int plugin_load(const char *name, _Bool global) { return ENOTSUP; }

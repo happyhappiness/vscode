@@ -1,0 +1,4 @@
+static int cj_cb_end_map (void *ctx)
+{
+  return cj_cb_end (ctx);
+}

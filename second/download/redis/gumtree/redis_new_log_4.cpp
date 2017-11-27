@@ -1,1 +1,0 @@
-inet_ntop(AF_INET, &(sa->sin_addr), ipbuf, ipbuf_len);

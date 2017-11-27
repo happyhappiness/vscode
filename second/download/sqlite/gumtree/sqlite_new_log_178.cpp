@@ -1,1 +1,0 @@
-sqlite3Error(db, SQLITE_TOOBIG, "statement too long");

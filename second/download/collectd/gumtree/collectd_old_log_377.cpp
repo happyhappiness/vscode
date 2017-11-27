@@ -1,0 +1,1 @@
+fprintf (stderr, "irq plugin: Cannot allocate more memory.\n");

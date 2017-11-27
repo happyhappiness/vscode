@@ -1,0 +1,1 @@
+print_to_socket (fh, "-1 malloc failed.\n");

@@ -1,1 +1,0 @@
-sqlite3_mprintf("%s_stat", p->zName);

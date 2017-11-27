@@ -1,0 +1,1 @@
+plugin_log (SvIV (ST (0)), "%s", SvPV_nolen (ST (1)));

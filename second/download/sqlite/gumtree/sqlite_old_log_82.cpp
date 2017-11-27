@@ -1,1 +1,0 @@
-checkAppendMsg(pCheck, "failed to get page %d", iPage);

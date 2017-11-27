@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/gumtree/collectd_repos_function_882_collectd-5.7.1.cpp" pos:tabs="8"><function><specifier pos:line="1" pos:column="1">static<pos:position pos:line="1" pos:column="7"/></specifier> <type><name pos:line="1" pos:column="8">void<pos:position pos:line="1" pos:column="12"/></name></type> <name pos:line="1" pos:column="13">bind_xml_stats_v1_v2<pos:position pos:line="1" pos:column="33"/></name><parameter_list pos:line="1" pos:column="33">(<parameter><decl><type><name pos:line="1" pos:column="34">int<pos:position pos:line="1" pos:column="37"/></name></type> <name pos:line="1" pos:column="38">version<pos:position pos:line="1" pos:column="45"/></name></decl></parameter>, <parameter><decl><type><name pos:line="1" pos:column="47">xmlDoc<pos:position pos:line="1" pos:column="53"/></name> <modifier pos:line="1" pos:column="54">*<pos:position pos:line="1" pos:column="55"/></modifier></type><name pos:line="1" pos:column="55">doc<pos:position pos:line="1" pos:column="58"/></name></decl></parameter>, <comment type="block" pos:line="1" pos:column="60">/* {{{ */</comment>
+                                 <parameter><decl><type><name pos:line="2" pos:column="34">xmlXPathContext<pos:position pos:line="2" pos:column="49"/></name> <modifier pos:line="2" pos:column="50">*<pos:position pos:line="2" pos:column="51"/></modifier></type><name pos:line="2" pos:column="51">xpathCtx<pos:position pos:line="2" pos:column="59"/></name></decl></parameter>, <parameter><decl><type><name pos:line="2" pos:column="61">xmlNode<pos:position pos:line="2" pos:column="68"/></name> <modifier pos:line="2" pos:column="69">*<pos:position pos:line="2" pos:column="70"/></modifier></type><name pos:line="2" pos:column="70">statsnode<pos:position pos:line="2" pos:column="79"/></name></decl></parameter>,
+                                 <parameter><decl><type><name pos:line="3" pos:column="34">time_t<pos:position pos:line="3" pos:column="40"/></name></type> <name pos:line="3" pos:column="41">current_time<pos:position pos:line="3" pos:column="53"/></name></decl></parameter>)<pos:position pos:line="3" pos:column="54"/></parameter_list> <block pos:line="3" pos:column="55">{
+  <comment type="block" pos:line="4" pos:column="3">/* XPath:     server/requests/opcode, server/counters[@type='opcode']
+   * Variables: QUERY, IQUERY, NOTIFY, UPDATE, ...
+   * Layout V1 and V2:
+   *   &lt;opcode&gt;
+   *     &lt;name&gt;A&lt;/name&gt;
+   *     &lt;counter&gt;1&lt;/counter&gt;
+   *   &lt;/opcode&gt;
+   *   :
+   */</comment>
+  <if pos:line="13" pos:column="3">if <condition pos:line="13" pos:column="6">(<expr><name pos:line="13" pos:column="7">global_opcodes<pos:position pos:line="13" pos:column="21"/></name> <operator pos:line="13" pos:column="22">!=<pos:position pos:line="13" pos:column="24"/></operator> <literal type="number" pos:line="13" pos:column="25">0<pos:position pos:line="13" pos:column="26"/></literal></expr>)<pos:position pos:line="13" pos:column="27"/></condition><then pos:line="13" pos:column="27"> <block pos:line="13" pos:column="28">{
+    <decl_stmt><decl><type><name pos:line="14" pos:column="5">list_info_ptr_t<pos:position pos:line="14" pos:column="20"/></name></type> <name pos:line="14" pos:column="21">list_info<pos:position pos:line="14" pos:column="30"/></name> <init pos:line="14" pos:column="31">= <expr><block pos:line="14" pos:column="33">{<comment type="block" pos:line="14" pos:column="34">/* plugin instance = */</comment> <expr><literal type="string" pos:line="14" pos:column="58">"global-opcodes"<pos:position pos:line="14" pos:column="74"/></literal></expr>,
+                                 <comment type="block" pos:line="15" pos:column="34">/* type = */</comment> <expr><literal type="string" pos:line="15" pos:column="47">"dns_opcode"<pos:position pos:line="15" pos:column="59"/></literal></expr>}<pos:position pos:line="15" pos:column="60"/></block></expr></init></decl>;<pos:position pos:line="15" pos:column="61"/></decl_stmt>
+
+    <expr_stmt><expr><call><name pos:line="17" pos:column="5">bind_parse_generic_name_value<pos:position pos:line="17" pos:column="34"/></name><argument_list pos:line="17" pos:column="34">(<comment type="block" pos:line="17" pos:column="35">/* xpath = */</comment> <argument><expr><literal type="string" pos:line="17" pos:column="49">"server/requests/opcode"<pos:position pos:line="17" pos:column="73"/></literal></expr></argument>,
+                                  <comment type="block" pos:line="18" pos:column="35">/* callback = */</comment> <argument><expr><name pos:line="18" pos:column="52">bind_xml_list_callback<pos:position pos:line="18" pos:column="74"/></name></expr></argument>,
+                                  <comment type="block" pos:line="19" pos:column="35">/* user_data = */</comment> <argument><expr><operator pos:line="19" pos:column="53">&amp;<pos:position pos:line="19" pos:column="58"/></operator><name pos:line="19" pos:column="54">list_info<pos:position pos:line="19" pos:column="63"/></name></expr></argument>, <argument><expr><name pos:line="19" pos:column="65">doc<pos:position pos:line="19" pos:column="68"/></name></expr></argument>, <argument><expr><name pos:line="19" pos:column="70">xpathCtx<pos:position pos:line="19" pos:column="78"/></name></expr></argument>,
+                                  <argument><expr><name pos:line="20" pos:column="35">current_time<pos:position pos:line="20" pos:column="47"/></name></expr></argument>, <argument><expr><name pos:line="20" pos:column="49">DS_TYPE_COUNTER<pos:position pos:line="20" pos:column="64"/></name></expr></argument>)<pos:position pos:line="20" pos:column="65"/></argument_list></call></expr>;<pos:position pos:line="20" pos:column="66"/></expr_stmt>
+  }<pos:position pos:line="21" pos:column="4"/></block></then></if>
+
+  <comment type="block" pos:line="23" pos:column="3">/* XPath:     server/queries-in/rdtype, server/counters[@type='qtype']
+   * Variables: RESERVED0, A, NS, CNAME, SOA, MR, PTR, HINFO, MX, TXT, RP,
+   *            X25, PX, AAAA, LOC, SRV, NAPTR, A6, DS, RRSIG, NSEC, DNSKEY,
+   *            SPF, TKEY, IXFR, AXFR, ANY, ..., Others
+   * Layout v1 or v2:
+   *   &lt;rdtype&gt;
+   *     &lt;name&gt;A&lt;/name&gt;
+   *     &lt;counter&gt;1&lt;/counter&gt;
+   *   &lt;/rdtype&gt;
+   *   :
+   */</comment>
+  <if pos:line="34" pos:column="3">if <condition pos:line="34" pos:column="6">(<expr><name pos:line="34" pos:column="7">global_qtypes<pos:position pos:line="34" pos:column="20"/></name> <operator pos:line="34" pos:column="21">!=<pos:position pos:line="34" pos:column="23"/></operator> <literal type="number" pos:line="34" pos:column="24">0<pos:position pos:line="34" pos:column="25"/></literal></expr>)<pos:position pos:line="34" pos:column="26"/></condition><then pos:line="34" pos:column="26"> <block pos:line="34" pos:column="27">{
+    <decl_stmt><decl><type><name pos:line="35" pos:column="5">list_info_ptr_t<pos:position pos:line="35" pos:column="20"/></name></type> <name pos:line="35" pos:column="21">list_info<pos:position pos:line="35" pos:column="30"/></name> <init pos:line="35" pos:column="31">= <expr><block pos:line="35" pos:column="33">{<comment type="block" pos:line="35" pos:column="34">/* plugin instance = */</comment> <expr><literal type="string" pos:line="35" pos:column="58">"global-qtypes"<pos:position pos:line="35" pos:column="73"/></literal></expr>,
+                                 <comment type="block" pos:line="36" pos:column="34">/* type = */</comment> <expr><literal type="string" pos:line="36" pos:column="47">"dns_qtype"<pos:position pos:line="36" pos:column="58"/></literal></expr>}<pos:position pos:line="36" pos:column="59"/></block></expr></init></decl>;<pos:position pos:line="36" pos:column="60"/></decl_stmt>
+
+    <expr_stmt><expr><call><name pos:line="38" pos:column="5">bind_parse_generic_name_value<pos:position pos:line="38" pos:column="34"/></name><argument_list pos:line="38" pos:column="34">(<comment type="block" pos:line="38" pos:column="35">/* xpath = */</comment> <argument><expr><literal type="string" pos:line="38" pos:column="49">"server/queries-in/rdtype"<pos:position pos:line="38" pos:column="75"/></literal></expr></argument>,
+                                  <comment type="block" pos:line="39" pos:column="35">/* callback = */</comment> <argument><expr><name pos:line="39" pos:column="52">bind_xml_list_callback<pos:position pos:line="39" pos:column="74"/></name></expr></argument>,
+                                  <comment type="block" pos:line="40" pos:column="35">/* user_data = */</comment> <argument><expr><operator pos:line="40" pos:column="53">&amp;<pos:position pos:line="40" pos:column="58"/></operator><name pos:line="40" pos:column="54">list_info<pos:position pos:line="40" pos:column="63"/></name></expr></argument>, <argument><expr><name pos:line="40" pos:column="65">doc<pos:position pos:line="40" pos:column="68"/></name></expr></argument>, <argument><expr><name pos:line="40" pos:column="70">xpathCtx<pos:position pos:line="40" pos:column="78"/></name></expr></argument>,
+                                  <argument><expr><name pos:line="41" pos:column="35">current_time<pos:position pos:line="41" pos:column="47"/></name></expr></argument>, <argument><expr><name pos:line="41" pos:column="49">DS_TYPE_COUNTER<pos:position pos:line="41" pos:column="64"/></name></expr></argument>)<pos:position pos:line="41" pos:column="65"/></argument_list></call></expr>;<pos:position pos:line="41" pos:column="66"/></expr_stmt>
+  }<pos:position pos:line="42" pos:column="4"/></block></then></if>
+
+  <comment type="block" pos:line="44" pos:column="3">/* XPath:     server/nsstats, server/nsstat, server/counters[@type='nsstat']
+   * Variables: Requestv4, Requestv6, ReqEdns0, ReqBadEDNSVer, ReqTSIG,
+   *            ReqSIG0, ReqBadSIG, ReqTCP, AuthQryRej, RecQryRej, XfrRej,
+   *            UpdateRej, Response, TruncatedResp, RespEDNS0, RespTSIG,
+   *            RespSIG0, QrySuccess, QryAuthAns, QryNoauthAns, QryReferral,
+   *            QryNxrrset, QrySERVFAIL, QryFORMERR, QryNXDOMAIN, QryRecursion,
+   *            QryDuplicate, QryDropped, QryFailure, XfrReqDone, UpdateReqFwd,
+   *            UpdateRespFwd, UpdateFwdFail, UpdateDone, UpdateFail,
+   *            UpdateBadPrereq
+   * Layout v1:
+   *   &lt;nsstats&gt;
+   *     &lt;Requestv4&gt;1&lt;/Requestv4&gt;
+   *     &lt;Requestv6&gt;0&lt;/Requestv6&gt;
+   *     :
+   *   &lt;/nsstats&gt;
+   * Layout v2:
+   *   &lt;nsstat&gt;
+   *     &lt;name&gt;Requestv4&lt;/name&gt;
+   *     &lt;counter&gt;1&lt;/counter&gt;
+   *   &lt;/nsstat&gt;
+   *   &lt;nsstat&gt;
+   *     &lt;name&gt;Requestv6&lt;/name&gt;
+   *     &lt;counter&gt;0&lt;/counter&gt;
+   *   &lt;/nsstat&gt;
+   *   :
+   */</comment>
+  <if pos:line="70" pos:column="3">if <condition pos:line="70" pos:column="6">(<expr><name pos:line="70" pos:column="7">global_server_stats<pos:position pos:line="70" pos:column="26"/></name></expr>)<pos:position pos:line="70" pos:column="27"/></condition><then pos:line="70" pos:column="27"> <block pos:line="70" pos:column="28">{
+    <decl_stmt><decl><type><name pos:line="71" pos:column="5">translation_table_ptr_t<pos:position pos:line="71" pos:column="28"/></name></type> <name pos:line="71" pos:column="29">table_ptr<pos:position pos:line="71" pos:column="38"/></name> <init pos:line="71" pos:column="39">= <expr><block pos:line="71" pos:column="41">{
+        <expr><name pos:line="72" pos:column="9">nsstats_translation_table<pos:position pos:line="72" pos:column="34"/></name></expr>, <expr><name pos:line="72" pos:column="36">nsstats_translation_table_length<pos:position pos:line="72" pos:column="68"/></name></expr>,
+        <comment type="block" pos:line="73" pos:column="9">/* plugin_instance = */</comment> <expr><literal type="string" pos:line="73" pos:column="33">"global-server_stats"<pos:position pos:line="73" pos:column="54"/></literal></expr>}<pos:position pos:line="73" pos:column="55"/></block></expr></init></decl>;<pos:position pos:line="73" pos:column="56"/></decl_stmt>
+
+    <if pos:line="75" pos:column="5">if <condition pos:line="75" pos:column="8">(<expr><name pos:line="75" pos:column="9">version<pos:position pos:line="75" pos:column="16"/></name> <operator pos:line="75" pos:column="17">==<pos:position pos:line="75" pos:column="19"/></operator> <literal type="number" pos:line="75" pos:column="20">1<pos:position pos:line="75" pos:column="21"/></literal></expr>)<pos:position pos:line="75" pos:column="22"/></condition><then pos:line="75" pos:column="22"> <block pos:line="75" pos:column="23">{
+      <expr_stmt><expr><call><name pos:line="76" pos:column="7">bind_parse_generic_value_list<pos:position pos:line="76" pos:column="36"/></name><argument_list pos:line="76" pos:column="36">(<argument><expr><literal type="string" pos:line="76" pos:column="37">"server/nsstats"<pos:position pos:line="76" pos:column="53"/></literal></expr></argument>,
+                                    <comment type="block" pos:line="77" pos:column="37">/* callback = */</comment> <argument><expr><name pos:line="77" pos:column="54">bind_xml_table_callback<pos:position pos:line="77" pos:column="77"/></name></expr></argument>,
+                                    <comment type="block" pos:line="78" pos:column="37">/* user_data = */</comment> <argument><expr><operator pos:line="78" pos:column="55">&amp;<pos:position pos:line="78" pos:column="60"/></operator><name pos:line="78" pos:column="56">table_ptr<pos:position pos:line="78" pos:column="65"/></name></expr></argument>, <argument><expr><name pos:line="78" pos:column="67">doc<pos:position pos:line="78" pos:column="70"/></name></expr></argument>, <argument><expr><name pos:line="78" pos:column="72">xpathCtx<pos:position pos:line="78" pos:column="80"/></name></expr></argument>,
+                                    <argument><expr><name pos:line="79" pos:column="37">current_time<pos:position pos:line="79" pos:column="49"/></name></expr></argument>, <argument><expr><name pos:line="79" pos:column="51">DS_TYPE_COUNTER<pos:position pos:line="79" pos:column="66"/></name></expr></argument>)<pos:position pos:line="79" pos:column="67"/></argument_list></call></expr>;<pos:position pos:line="79" pos:column="68"/></expr_stmt>
+    }<pos:position pos:line="80" pos:column="6"/></block></then> <else pos:line="80" pos:column="7">else <block pos:line="80" pos:column="12">{
+      <expr_stmt><expr><call><name pos:line="81" pos:column="7">bind_parse_generic_name_value<pos:position pos:line="81" pos:column="36"/></name><argument_list pos:line="81" pos:column="36">(<argument><expr><literal type="string" pos:line="81" pos:column="37">"server/nsstat"<pos:position pos:line="81" pos:column="52"/></literal></expr></argument>,
+                                    <comment type="block" pos:line="82" pos:column="37">/* callback = */</comment> <argument><expr><name pos:line="82" pos:column="54">bind_xml_table_callback<pos:position pos:line="82" pos:column="77"/></name></expr></argument>,
+                                    <comment type="block" pos:line="83" pos:column="37">/* user_data = */</comment> <argument><expr><operator pos:line="83" pos:column="55">&amp;<pos:position pos:line="83" pos:column="60"/></operator><name pos:line="83" pos:column="56">table_ptr<pos:position pos:line="83" pos:column="65"/></name></expr></argument>, <argument><expr><name pos:line="83" pos:column="67">doc<pos:position pos:line="83" pos:column="70"/></name></expr></argument>, <argument><expr><name pos:line="83" pos:column="72">xpathCtx<pos:position pos:line="83" pos:column="80"/></name></expr></argument>,
+                                    <argument><expr><name pos:line="84" pos:column="37">current_time<pos:position pos:line="84" pos:column="49"/></name></expr></argument>, <argument><expr><name pos:line="84" pos:column="51">DS_TYPE_COUNTER<pos:position pos:line="84" pos:column="66"/></name></expr></argument>)<pos:position pos:line="84" pos:column="67"/></argument_list></call></expr>;<pos:position pos:line="84" pos:column="68"/></expr_stmt>
+    }<pos:position pos:line="85" pos:column="6"/></block></else></if>
+  }<pos:position pos:line="86" pos:column="4"/></block></then></if>
+
+  <comment type="block" pos:line="88" pos:column="3">/* XPath:     server/zonestats, server/zonestat,
+   * server/counters[@type='zonestat']
+   * Variables: NotifyOutv4, NotifyOutv6, NotifyInv4, NotifyInv6, NotifyRej,
+   *            SOAOutv4, SOAOutv6, AXFRReqv4, AXFRReqv6, IXFRReqv4, IXFRReqv6,
+   *            XfrSuccess, XfrFail
+   * Layout v1:
+   *   &lt;zonestats&gt;
+   *     &lt;NotifyOutv4&gt;0&lt;/NotifyOutv4&gt;
+   *     &lt;NotifyOutv6&gt;0&lt;/NotifyOutv6&gt;
+   *     :
+   *   &lt;/zonestats&gt;
+   * Layout v2:
+   *   &lt;zonestat&gt;
+   *     &lt;name&gt;NotifyOutv4&lt;/name&gt;
+   *     &lt;counter&gt;0&lt;/counter&gt;
+   *   &lt;/zonestat&gt;
+   *   &lt;zonestat&gt;
+   *     &lt;name&gt;NotifyOutv6&lt;/name&gt;
+   *     &lt;counter&gt;0&lt;/counter&gt;
+   *   &lt;/zonestat&gt;
+   *   :
+   */</comment>
+  <if pos:line="110" pos:column="3">if <condition pos:line="110" pos:column="6">(<expr><name pos:line="110" pos:column="7">global_zone_maint_stats<pos:position pos:line="110" pos:column="30"/></name></expr>)<pos:position pos:line="110" pos:column="31"/></condition><then pos:line="110" pos:column="31"> <block pos:line="110" pos:column="32">{
+    <decl_stmt><decl><type><name pos:line="111" pos:column="5">translation_table_ptr_t<pos:position pos:line="111" pos:column="28"/></name></type> <name pos:line="111" pos:column="29">table_ptr<pos:position pos:line="111" pos:column="38"/></name> <init pos:line="111" pos:column="39">= <expr><block pos:line="111" pos:column="41">{
+        <expr><name pos:line="112" pos:column="9">zonestats_translation_table<pos:position pos:line="112" pos:column="36"/></name></expr>, <expr><name pos:line="112" pos:column="38">zonestats_translation_table_length<pos:position pos:line="112" pos:column="72"/></name></expr>,
+        <comment type="block" pos:line="113" pos:column="9">/* plugin_instance = */</comment> <expr><literal type="string" pos:line="113" pos:column="33">"global-zone_maint_stats"<pos:position pos:line="113" pos:column="58"/></literal></expr>}<pos:position pos:line="113" pos:column="59"/></block></expr></init></decl>;<pos:position pos:line="113" pos:column="60"/></decl_stmt>
+
+    <if pos:line="115" pos:column="5">if <condition pos:line="115" pos:column="8">(<expr><name pos:line="115" pos:column="9">version<pos:position pos:line="115" pos:column="16"/></name> <operator pos:line="115" pos:column="17">==<pos:position pos:line="115" pos:column="19"/></operator> <literal type="number" pos:line="115" pos:column="20">1<pos:position pos:line="115" pos:column="21"/></literal></expr>)<pos:position pos:line="115" pos:column="22"/></condition><then pos:line="115" pos:column="22"> <block pos:line="115" pos:column="23">{
+      <expr_stmt><expr><call><name pos:line="116" pos:column="7">bind_parse_generic_value_list<pos:position pos:line="116" pos:column="36"/></name><argument_list pos:line="116" pos:column="36">(<argument><expr><literal type="string" pos:line="116" pos:column="37">"server/zonestats"<pos:position pos:line="116" pos:column="55"/></literal></expr></argument>,
+                                    <comment type="block" pos:line="117" pos:column="37">/* callback = */</comment> <argument><expr><name pos:line="117" pos:column="54">bind_xml_table_callback<pos:position pos:line="117" pos:column="77"/></name></expr></argument>,
+                                    <comment type="block" pos:line="118" pos:column="37">/* user_data = */</comment> <argument><expr><operator pos:line="118" pos:column="55">&amp;<pos:position pos:line="118" pos:column="60"/></operator><name pos:line="118" pos:column="56">table_ptr<pos:position pos:line="118" pos:column="65"/></name></expr></argument>, <argument><expr><name pos:line="118" pos:column="67">doc<pos:position pos:line="118" pos:column="70"/></name></expr></argument>, <argument><expr><name pos:line="118" pos:column="72">xpathCtx<pos:position pos:line="118" pos:column="80"/></name></expr></argument>,
+                                    <argument><expr><name pos:line="119" pos:column="37">current_time<pos:position pos:line="119" pos:column="49"/></name></expr></argument>, <argument><expr><name pos:line="119" pos:column="51">DS_TYPE_COUNTER<pos:position pos:line="119" pos:column="66"/></name></expr></argument>)<pos:position pos:line="119" pos:column="67"/></argument_list></call></expr>;<pos:position pos:line="119" pos:column="68"/></expr_stmt>
+    }<pos:position pos:line="120" pos:column="6"/></block></then> <else pos:line="120" pos:column="7">else <block pos:line="120" pos:column="12">{
+      <expr_stmt><expr><call><name pos:line="121" pos:column="7">bind_parse_generic_name_value<pos:position pos:line="121" pos:column="36"/></name><argument_list pos:line="121" pos:column="36">(<argument><expr><literal type="string" pos:line="121" pos:column="37">"server/zonestat"<pos:position pos:line="121" pos:column="54"/></literal></expr></argument>,
+                                    <comment type="block" pos:line="122" pos:column="37">/* callback = */</comment> <argument><expr><name pos:line="122" pos:column="54">bind_xml_table_callback<pos:position pos:line="122" pos:column="77"/></name></expr></argument>,
+                                    <comment type="block" pos:line="123" pos:column="37">/* user_data = */</comment> <argument><expr><operator pos:line="123" pos:column="55">&amp;<pos:position pos:line="123" pos:column="60"/></operator><name pos:line="123" pos:column="56">table_ptr<pos:position pos:line="123" pos:column="65"/></name></expr></argument>, <argument><expr><name pos:line="123" pos:column="67">doc<pos:position pos:line="123" pos:column="70"/></name></expr></argument>, <argument><expr><name pos:line="123" pos:column="72">xpathCtx<pos:position pos:line="123" pos:column="80"/></name></expr></argument>,
+                                    <argument><expr><name pos:line="124" pos:column="37">current_time<pos:position pos:line="124" pos:column="49"/></name></expr></argument>, <argument><expr><name pos:line="124" pos:column="51">DS_TYPE_COUNTER<pos:position pos:line="124" pos:column="66"/></name></expr></argument>)<pos:position pos:line="124" pos:column="67"/></argument_list></call></expr>;<pos:position pos:line="124" pos:column="68"/></expr_stmt>
+    }<pos:position pos:line="125" pos:column="6"/></block></else></if>
+  }<pos:position pos:line="126" pos:column="4"/></block></then></if>
+
+  <comment type="block" pos:line="128" pos:column="3">/* XPath:     server/resstats, server/counters[@type='resstat']
+   * Variables: Queryv4, Queryv6, Responsev4, Responsev6, NXDOMAIN, SERVFAIL,
+   *            FORMERR, OtherError, EDNS0Fail, Mismatch, Truncated, Lame,
+   *            Retry, GlueFetchv4, GlueFetchv6, GlueFetchv4Fail,
+   *            GlueFetchv6Fail, ValAttempt, ValOk, ValNegOk, ValFail
+   * Layout v1:
+   *   &lt;resstats&gt;
+   *     &lt;Queryv4&gt;0&lt;/Queryv4&gt;
+   *     &lt;Queryv6&gt;0&lt;/Queryv6&gt;
+   *     :
+   *   &lt;/resstats&gt;
+   * Layout v2:
+   *   &lt;resstat&gt;
+   *     &lt;name&gt;Queryv4&lt;/name&gt;
+   *     &lt;counter&gt;0&lt;/counter&gt;
+   *   &lt;/resstat&gt;
+   *   &lt;resstat&gt;
+   *     &lt;name&gt;Queryv6&lt;/name&gt;
+   *     &lt;counter&gt;0&lt;/counter&gt;
+   *   &lt;/resstat&gt;
+   *   :
+   */</comment>
+  <if pos:line="150" pos:column="3">if <condition pos:line="150" pos:column="6">(<expr><name pos:line="150" pos:column="7">global_resolver_stats<pos:position pos:line="150" pos:column="28"/></name> <operator pos:line="150" pos:column="29">!=<pos:position pos:line="150" pos:column="31"/></operator> <literal type="number" pos:line="150" pos:column="32">0<pos:position pos:line="150" pos:column="33"/></literal></expr>)<pos:position pos:line="150" pos:column="34"/></condition><then pos:line="150" pos:column="34"> <block pos:line="150" pos:column="35">{
+    <decl_stmt><decl><type><name pos:line="151" pos:column="5">translation_table_ptr_t<pos:position pos:line="151" pos:column="28"/></name></type> <name pos:line="151" pos:column="29">table_ptr<pos:position pos:line="151" pos:column="38"/></name> <init pos:line="151" pos:column="39">= <expr><block pos:line="151" pos:column="41">{
+        <expr><name pos:line="152" pos:column="9">resstats_translation_table<pos:position pos:line="152" pos:column="35"/></name></expr>, <expr><name pos:line="152" pos:column="37">resstats_translation_table_length<pos:position pos:line="152" pos:column="70"/></name></expr>,
+        <comment type="block" pos:line="153" pos:column="9">/* plugin_instance = */</comment> <expr><literal type="string" pos:line="153" pos:column="33">"global-resolver_stats"<pos:position pos:line="153" pos:column="56"/></literal></expr>}<pos:position pos:line="153" pos:column="57"/></block></expr></init></decl>;<pos:position pos:line="153" pos:column="58"/></decl_stmt>
+
+    <if pos:line="155" pos:column="5">if <condition pos:line="155" pos:column="8">(<expr><name pos:line="155" pos:column="9">version<pos:position pos:line="155" pos:column="16"/></name> <operator pos:line="155" pos:column="17">==<pos:position pos:line="155" pos:column="19"/></operator> <literal type="number" pos:line="155" pos:column="20">1<pos:position pos:line="155" pos:column="21"/></literal></expr>)<pos:position pos:line="155" pos:column="22"/></condition><then pos:line="155" pos:column="22"> <block pos:line="155" pos:column="23">{
+      <expr_stmt><expr><call><name pos:line="156" pos:column="7">bind_parse_generic_value_list<pos:position pos:line="156" pos:column="36"/></name><argument_list pos:line="156" pos:column="36">(<argument><expr><literal type="string" pos:line="156" pos:column="37">"server/resstats"<pos:position pos:line="156" pos:column="54"/></literal></expr></argument>,
+                                    <comment type="block" pos:line="157" pos:column="37">/* callback = */</comment> <argument><expr><name pos:line="157" pos:column="54">bind_xml_table_callback<pos:position pos:line="157" pos:column="77"/></name></expr></argument>,
+                                    <comment type="block" pos:line="158" pos:column="37">/* user_data = */</comment> <argument><expr><operator pos:line="158" pos:column="55">&amp;<pos:position pos:line="158" pos:column="60"/></operator><name pos:line="158" pos:column="56">table_ptr<pos:position pos:line="158" pos:column="65"/></name></expr></argument>, <argument><expr><name pos:line="158" pos:column="67">doc<pos:position pos:line="158" pos:column="70"/></name></expr></argument>, <argument><expr><name pos:line="158" pos:column="72">xpathCtx<pos:position pos:line="158" pos:column="80"/></name></expr></argument>,
+                                    <argument><expr><name pos:line="159" pos:column="37">current_time<pos:position pos:line="159" pos:column="49"/></name></expr></argument>, <argument><expr><name pos:line="159" pos:column="51">DS_TYPE_COUNTER<pos:position pos:line="159" pos:column="66"/></name></expr></argument>)<pos:position pos:line="159" pos:column="67"/></argument_list></call></expr>;<pos:position pos:line="159" pos:column="68"/></expr_stmt>
+    }<pos:position pos:line="160" pos:column="6"/></block></then> <else pos:line="160" pos:column="7">else <block pos:line="160" pos:column="12">{
+      <expr_stmt><expr><call><name pos:line="161" pos:column="7">bind_parse_generic_name_value<pos:position pos:line="161" pos:column="36"/></name><argument_list pos:line="161" pos:column="36">(<argument><expr><literal type="string" pos:line="161" pos:column="37">"server/resstat"<pos:position pos:line="161" pos:column="53"/></literal></expr></argument>,
+                                    <comment type="block" pos:line="162" pos:column="37">/* callback = */</comment> <argument><expr><name pos:line="162" pos:column="54">bind_xml_table_callback<pos:position pos:line="162" pos:column="77"/></name></expr></argument>,
+                                    <comment type="block" pos:line="163" pos:column="37">/* user_data = */</comment> <argument><expr><operator pos:line="163" pos:column="55">&amp;<pos:position pos:line="163" pos:column="60"/></operator><name pos:line="163" pos:column="56">table_ptr<pos:position pos:line="163" pos:column="65"/></name></expr></argument>, <argument><expr><name pos:line="163" pos:column="67">doc<pos:position pos:line="163" pos:column="70"/></name></expr></argument>, <argument><expr><name pos:line="163" pos:column="72">xpathCtx<pos:position pos:line="163" pos:column="80"/></name></expr></argument>,
+                                    <argument><expr><name pos:line="164" pos:column="37">current_time<pos:position pos:line="164" pos:column="49"/></name></expr></argument>, <argument><expr><name pos:line="164" pos:column="51">DS_TYPE_COUNTER<pos:position pos:line="164" pos:column="66"/></name></expr></argument>)<pos:position pos:line="164" pos:column="67"/></argument_list></call></expr>;<pos:position pos:line="164" pos:column="68"/></expr_stmt>
+    }<pos:position pos:line="165" pos:column="6"/></block></else></if>
+  }<pos:position pos:line="166" pos:column="4"/></block></then></if>
+}<pos:position pos:line="167" pos:column="2"/></block></function></unit>

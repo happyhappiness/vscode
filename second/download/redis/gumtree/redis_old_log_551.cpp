@@ -1,1 +1,0 @@
-f("Hash table stats:\n");

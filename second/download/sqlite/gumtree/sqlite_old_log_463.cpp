@@ -1,1 +1,0 @@
-sqlite3MPrintf(db, "%s-mj%08X", zMainFile, iRandom&0x7fffffff);

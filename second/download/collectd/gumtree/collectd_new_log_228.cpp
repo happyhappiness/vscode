@@ -1,0 +1,1 @@
+YY_FATAL_ERROR ("failed to write to multiline buffer");

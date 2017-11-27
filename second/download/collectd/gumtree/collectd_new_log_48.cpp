@@ -1,0 +1,1 @@
+fprintf(log, ",%.*s", (int) (tmp - name), name);

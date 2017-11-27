@@ -1,0 +1,1 @@
+fprintf (stderr, "Error: Unable to change to directory `%s'.\n", datadir);

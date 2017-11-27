@@ -1,0 +1,4 @@
+void dnstop_set_pcap_obj (pcap_t *po)
+{
+	pcap_obj = po;
+}

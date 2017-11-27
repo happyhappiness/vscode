@@ -1,1 +1,0 @@
-addReplyError(c, "The bit argument must be 1 or 0.");

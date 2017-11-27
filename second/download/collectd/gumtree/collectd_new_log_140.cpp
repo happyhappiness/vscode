@@ -1,0 +1,1 @@
+fprintf (fh, "PluginInstance: %s\n", n->plugin_instance);

@@ -1,1 +1,0 @@
-sqlite3_log(SQLITE_WARNING, "file renamed while open: %s", pFile->zPath);

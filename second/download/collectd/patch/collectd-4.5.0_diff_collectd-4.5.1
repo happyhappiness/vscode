@@ -1,0 +1,4406 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/AUTHORS /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/AUTHORS
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/AUTHORS	2008-09-04 21:01:09.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/AUTHORS	2008-10-17 04:12:19.000000000 +0800
+@@ -2,13 +2,13 @@
+ =========================
+ 
+ Florian "octo" Forster <octo at verplant.org>
+  - Initial author.
+ 
+ Sebastian "tokkee" Harl <sh at tokkee.org>
+- - Bugfixed and enhancments in many places all around the project.
++ - Bugfixes and enhancments in many places all around the project.
+  - perl plugin.
+  - users plugin.
+  - vserver plugin.
+  - Debian package.
+ 
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/ChangeLog /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/ChangeLog
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/ChangeLog	2008-09-04 21:01:09.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/ChangeLog	2008-10-17 04:42:14.000000000 +0800
+@@ -1,6 +1,37 @@
++2008-10-16, Version 4.5.1
++	* build system: Change `--enable-<plugin>' to abort with an error if
++	  dependencies are not met. Thanks to Bruno Prémont for the patch.
++	  Also, the poisoning of various string functions has been restricted
++	  to debug builds.
++	* collectd: Fix a memory leak in the global value cache. With every
++	  *missing* value a couple of bytes would be leaked. Another memory
++	  leak in the configuration handling code has been fixed. Thanks to
++	  Niraj Tolia for reporting these issues.
++	* collectd: Fix an off-by-one error in the ignorelist functionality.
++	  When using regular expressions, the last character would be missing,
++	  possibly matching differently from what one would expect.
++	* collectdmon: Don't block SIGCHLD. This fixes a potential portability
++	  problem.
++	* collectd-nagios: Fix handling of the `-d' option. Thanks to Fabian
++	  Linzberger for reporting the but.
++	* iptables plugin: Fix an off-by-one error. If a string was just one
++	  character too long, it was truncated instead of reporting an error.
++	* network plugin: Fix a memory leak in the configuration handling
++	  code. Thanks to Niraj Tolia for reporting this issue.
++	* perl plugin: Log an error message if bootstrapping `Collectd' fails.
++	* postgresql plugin: Don't reopen connection during reinitialization.
++	  This fixes a bug under Solaris and potentially other platforms.
++	  Missing calls to `PQclear' have been added, too. This fixes memory
++	  leaks. Thanks to ``Admin'' for reporting these bugs.
++	* snmp plugin: Don't expect null-terminated strings from the Net-SNMP
++	  library.
++	* tail plugin: Call `clearerr' after reading an EOF. This fixes
++	  problems with some `libc's. Thanks to Matthias Lay for reporting the
++	  bug.
++
+ 2008-09-04, Version 4.5.0
+ 	* collectd: Added the ability to flush certain identifiers.
+ 	* collectd: The concept of `notification meta data' has been
+ 	  introduced.
+ 	* filecount plugin: The new filecount plugin counts the number of
+ 	  files in a directory and its subdirectories.
+@@ -26,12 +57,35 @@
+ 	* rrdtool plugin: Implement throttling of the `update queue' to lessen
+ 	  IO load.
+ 	* tcpconns plugin: This plugin has been ported to OpenBSD.
+ 	* thermal plugin: The new thermal plugin collects system temperatures
+ 	  using Linux ACPI thermal zone data.
+ 
++2008-10-16, Version 4.4.4
++	* build system: Change `--enable-<plugin>' to abort with an error if
++	  dependencies are not met. Thanks to Bruno Prémont for the patch.
++	  Also, the poisoning of various string functions has been restricted
++	  to debug builds.
++	* collectd: Fix a memory leak in the global value cache. With every
++	  *missing* value a couple of bytes would be leaked. Another memory
++	  leak in the configuration handling code has been fixed. Thanks to
++	  Niraj Tolia for reporting these issues.
++	* collectd: Fix an off-by-one error in the ignorelist functionality.
++	  When using regular expressions, the last character would be missing,
++	  possibly matching differently from what one would expect.
++	* collectdmon: Don't block SIGCHLD. This fixes a potential portability
++	  problem.
++	* collectd-nagios: Fix handling of the `-d' option. Thanks to Fabian
++	  Linzberger for reporting the but.
++	* network plugin: Fix a memory leak in the configuration handling
++	  code. Thanks to Niraj Tolia for reporting this issue.
++	* perl plugin: Log an error message if bootstrapping `Collectd' fails.
++	* tail plugin: Call `clearerr' after reading an EOF. This fixes
++	  problems with some `libc's. Thanks to Matthias Lay for reporting the
++	  bug.
++
+ 2008-09-01, Version 4.4.3
+ 	* collectd: Fix a memory leak in the threshold checking code.
+ 	* memcached plugin: Fix a too short timeout and a related file
+ 	  descriptor leak.
+ 	* memory plugin: A typo in the libstatgrab code has been fixed.
+ 	* snmp plugin: Fix a possible memory leak.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/configure	2008-09-05 16:53:56.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/configure	2008-10-17 04:43:28.000000000 +0800
+@@ -1,9 +1,9 @@
+ #! /bin/sh
+ # Guess values for system-dependent variables and create Makefiles.
+-# Generated by GNU Autoconf 2.61 for collectd 4.5.0.
++# Generated by GNU Autoconf 2.61 for collectd 4.5.1.
+ #
+ # Copyright (C) 1992, 1993, 1994, 1995, 1996, 1998, 1999, 2000, 2001,
+ # 2002, 2003, 2004, 2005, 2006 Free Software Foundation, Inc.
+ # This configure script is free software; the Free Software Foundation
+ # gives unlimited permission to copy, distribute and modify it.
+ ## --------------------- ##
+@@ -723,14 +723,14 @@
+ MAKEFLAGS=
+ SHELL=${CONFIG_SHELL-/bin/sh}
+ 
+ # Identity of this package.
+ PACKAGE_NAME='collectd'
+ PACKAGE_TARNAME='collectd'
+-PACKAGE_VERSION='4.5.0'
+-PACKAGE_STRING='collectd 4.5.0'
++PACKAGE_VERSION='4.5.1'
++PACKAGE_STRING='collectd 4.5.1'
+ PACKAGE_BUGREPORT=''
+ 
+ ac_unique_file="src/collectd.c"
+ ac_default_prefix="/opt/collectd"
+ # Factoring default headers for most tests.
+ ac_includes_default="\
+@@ -1625,13 +1625,13 @@
+ # Report the --help message.
+ #
+ if test "$ac_init_help" = "long"; then
+   # Omit some internal or obsolete options to make the list less imposing.
+   # This message is too long to be a string in the A/UX 3.1 sh.
+   cat <<_ACEOF
+-\`configure' configures collectd 4.5.0 to adapt to many kinds of systems.
++\`configure' configures collectd 4.5.1 to adapt to many kinds of systems.
+ 
+ Usage: $0 [OPTION]... [VAR=VALUE]...
+ 
+ To assign environment variables (e.g., CC, CFLAGS...), specify them as
+ VAR=VALUE.  See below for descriptions of some of the useful variables.
+ 
+@@ -1695,13 +1695,13 @@
+   --host=HOST       cross-compile to build programs to run on HOST [BUILD]
+ _ACEOF
+ fi
+ 
+ if test -n "$ac_init_help"; then
+   case $ac_init_help in
+-     short | recursive ) echo "Configuration of collectd 4.5.0:";;
++     short | recursive ) echo "Configuration of collectd 4.5.1:";;
+    esac
+   cat <<\_ACEOF
+ 
+ Optional Features:
+   --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
+   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
+@@ -1910,13 +1910,13 @@
+   done
+ fi
+ 
+ test -n "$ac_init_help" && exit $ac_status
+ if $ac_init_version; then
+   cat <<\_ACEOF
+-collectd configure 4.5.0
++collectd configure 4.5.1
+ generated by GNU Autoconf 2.61
+ 
+ Copyright (C) 1992, 1993, 1994, 1995, 1996, 1998, 1999, 2000, 2001,
+ 2002, 2003, 2004, 2005, 2006 Free Software Foundation, Inc.
+ This configure script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it.
+@@ -1924,13 +1924,13 @@
+   exit
+ fi
+ cat >config.log <<_ACEOF
+ This file contains any messages produced by compilers while
+ running configure, to aid debugging if configure makes a mistake.
+ 
+-It was created by collectd $as_me 4.5.0, which was
++It was created by collectd $as_me 4.5.1, which was
+ generated by GNU Autoconf 2.61.  Invocation command line was
+ 
+   $ $0 $@
+ 
+ _ACEOF
+ exec 5>>config.log
+@@ -2617,13 +2617,13 @@
+   fi
+ fi
+ 
+ 
+ # Define the identity of the package.
+  PACKAGE='collectd'
+- VERSION='4.5.0'
++ VERSION='4.5.1'
+ 
+ 
+ cat >>confdefs.h <<_ACEOF
+ #define PACKAGE "$PACKAGE"
+ _ACEOF
+ 
+@@ -37895,12 +37895,13 @@
+ else
+   BUILD_FEATURE_GETIFADDRS_TRUE='#'
+   BUILD_FEATURE_GETIFADDRS_FALSE=
+ fi
+ 
+ 
++dependency_error="no"
+ plugin_ascent="no"
+ plugin_battery="no"
+ plugin_cpu="no"
+ plugin_cpufreq="no"
+ plugin_df="no"
+ plugin_disk="no"
+@@ -38105,17 +38106,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$with_libcurl" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_APACHE 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_APACHE_TRUE=
+   BUILD_PLUGIN_APACHE_FALSE='#'
+ else
+   BUILD_PLUGIN_APACHE_TRUE='#'
+@@ -38147,17 +38154,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "xyes" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_APCUPS 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_APCUPS_TRUE=
+   BUILD_PLUGIN_APCUPS_FALSE='#'
+ else
+   BUILD_PLUGIN_APCUPS_TRUE='#'
+@@ -38189,17 +38202,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$with_libiokit" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_APPLE_SENSORS 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_APPLE_SENSORS_TRUE=
+   BUILD_PLUGIN_APPLE_SENSORS_FALSE='#'
+ else
+   BUILD_PLUGIN_APPLE_SENSORS_TRUE='#'
+@@ -38231,17 +38250,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$plugin_ascent" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_ASCENT 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_ASCENT_TRUE=
+   BUILD_PLUGIN_ASCENT_FALSE='#'
+ else
+   BUILD_PLUGIN_ASCENT_TRUE='#'
+@@ -38273,17 +38298,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$plugin_battery" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_BATTERY 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_BATTERY_TRUE=
+   BUILD_PLUGIN_BATTERY_FALSE='#'
+ else
+   BUILD_PLUGIN_BATTERY_TRUE='#'
+@@ -38315,17 +38346,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$plugin_cpu" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_CPU 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_CPU_TRUE=
+   BUILD_PLUGIN_CPU_FALSE='#'
+ else
+   BUILD_PLUGIN_CPU_TRUE='#'
+@@ -38357,17 +38394,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$plugin_cpufreq" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_CPUFREQ 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_CPUFREQ_TRUE=
+   BUILD_PLUGIN_CPUFREQ_FALSE='#'
+ else
+   BUILD_PLUGIN_CPUFREQ_TRUE='#'
+@@ -38399,17 +38442,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "xyes" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_CSV 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_CSV_TRUE=
+   BUILD_PLUGIN_CSV_FALSE='#'
+ else
+   BUILD_PLUGIN_CSV_TRUE='#'
+@@ -38441,17 +38490,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$with_libnotify" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_NOTIFY_DESKTOP 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_NOTIFY_DESKTOP_TRUE=
+   BUILD_PLUGIN_NOTIFY_DESKTOP_FALSE='#'
+ else
+   BUILD_PLUGIN_NOTIFY_DESKTOP_TRUE='#'
+@@ -38483,17 +38538,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$plugin_df" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_DF 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_DF_TRUE=
+   BUILD_PLUGIN_DF_FALSE='#'
+ else
+   BUILD_PLUGIN_DF_TRUE='#'
+@@ -38525,17 +38586,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$plugin_disk" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_DISK 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_DISK_TRUE=
+   BUILD_PLUGIN_DISK_FALSE='#'
+ else
+   BUILD_PLUGIN_DISK_TRUE='#'
+@@ -38567,17 +38634,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$with_libpcap" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_DNS 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_DNS_TRUE=
+   BUILD_PLUGIN_DNS_FALSE='#'
+ else
+   BUILD_PLUGIN_DNS_TRUE='#'
+@@ -38609,17 +38682,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "xyes" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_EMAIL 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_EMAIL_TRUE=
+   BUILD_PLUGIN_EMAIL_FALSE='#'
+ else
+   BUILD_PLUGIN_EMAIL_TRUE='#'
+@@ -38651,17 +38730,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$plugin_entropy" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_ENTROPY 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_ENTROPY_TRUE=
+   BUILD_PLUGIN_ENTROPY_FALSE='#'
+ else
+   BUILD_PLUGIN_ENTROPY_TRUE='#'
+@@ -38693,17 +38778,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "xyes" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_EXEC 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_EXEC_TRUE=
+   BUILD_PLUGIN_EXEC_FALSE='#'
+ else
+   BUILD_PLUGIN_EXEC_TRUE='#'
+@@ -38735,17 +38826,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "xyes" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_FILECOUNT 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_FILECOUNT_TRUE=
+   BUILD_PLUGIN_FILECOUNT_FALSE='#'
+ else
+   BUILD_PLUGIN_FILECOUNT_TRUE='#'
+@@ -38777,17 +38874,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "xyes" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_HDDTEMP 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_HDDTEMP_TRUE=
+   BUILD_PLUGIN_HDDTEMP_FALSE='#'
+ else
+   BUILD_PLUGIN_HDDTEMP_TRUE='#'
+@@ -38819,17 +38922,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$plugin_interface" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_INTERFACE 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_INTERFACE_TRUE=
+   BUILD_PLUGIN_INTERFACE_FALSE='#'
+ else
+   BUILD_PLUGIN_INTERFACE_TRUE='#'
+@@ -38861,17 +38970,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$with_libiptc" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_IPTABLES 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_IPTABLES_TRUE=
+   BUILD_PLUGIN_IPTABLES_FALSE='#'
+ else
+   BUILD_PLUGIN_IPTABLES_TRUE='#'
+@@ -38903,17 +39018,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$plugin_ipmi" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_IPMI 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_IPMI_TRUE=
+   BUILD_PLUGIN_IPMI_FALSE='#'
+ else
+   BUILD_PLUGIN_IPMI_TRUE='#'
+@@ -38945,17 +39066,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$plugin_ipvs" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_IPVS 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_IPVS_TRUE=
+   BUILD_PLUGIN_IPVS_FALSE='#'
+ else
+   BUILD_PLUGIN_IPVS_TRUE='#'
+@@ -38987,17 +39114,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$plugin_irq" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_IRQ 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_IRQ_TRUE=
+   BUILD_PLUGIN_IRQ_FALSE='#'
+ else
+   BUILD_PLUGIN_IRQ_TRUE='#'
+@@ -39029,17 +39162,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$plugin_libvirt" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_LIBVIRT 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_LIBVIRT_TRUE=
+   BUILD_PLUGIN_LIBVIRT_FALSE='#'
+ else
+   BUILD_PLUGIN_LIBVIRT_TRUE='#'
+@@ -39071,17 +39210,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$plugin_load" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_LOAD 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_LOAD_TRUE=
+   BUILD_PLUGIN_LOAD_FALSE='#'
+ else
+   BUILD_PLUGIN_LOAD_TRUE='#'
+@@ -39113,17 +39258,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "xyes" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_LOGFILE 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_LOGFILE_TRUE=
+   BUILD_PLUGIN_LOGFILE_FALSE='#'
+ else
+   BUILD_PLUGIN_LOGFILE_TRUE='#'
+@@ -39155,17 +39306,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "xyes" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_MBMON 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_MBMON_TRUE=
+   BUILD_PLUGIN_MBMON_FALSE='#'
+ else
+   BUILD_PLUGIN_MBMON_TRUE='#'
+@@ -39197,17 +39354,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "xyes" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_MEMCACHED 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_MEMCACHED_TRUE=
+   BUILD_PLUGIN_MEMCACHED_FALSE='#'
+ else
+   BUILD_PLUGIN_MEMCACHED_TRUE='#'
+@@ -39239,17 +39402,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$plugin_memory" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_MEMORY 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_MEMORY_TRUE=
+   BUILD_PLUGIN_MEMORY_FALSE='#'
+ else
+   BUILD_PLUGIN_MEMORY_TRUE='#'
+@@ -39281,17 +39450,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$plugin_multimeter" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_MULTIMETER 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_MULTIMETER_TRUE=
+   BUILD_PLUGIN_MULTIMETER_FALSE='#'
+ else
+   BUILD_PLUGIN_MULTIMETER_TRUE='#'
+@@ -39323,17 +39498,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$with_libmysql" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_MYSQL 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_MYSQL_TRUE=
+   BUILD_PLUGIN_MYSQL_FALSE='#'
+ else
+   BUILD_PLUGIN_MYSQL_TRUE='#'
+@@ -39365,17 +39546,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$with_libnetlink" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_NETLINK 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_NETLINK_TRUE=
+   BUILD_PLUGIN_NETLINK_FALSE='#'
+ else
+   BUILD_PLUGIN_NETLINK_TRUE='#'
+@@ -39407,17 +39594,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "xyes" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_NETWORK 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_NETWORK_TRUE=
+   BUILD_PLUGIN_NETWORK_FALSE='#'
+ else
+   BUILD_PLUGIN_NETWORK_TRUE='#'
+@@ -39449,17 +39642,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$plugin_nfs" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_NFS 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_NFS_TRUE=
+   BUILD_PLUGIN_NFS_FALSE='#'
+ else
+   BUILD_PLUGIN_NFS_TRUE='#'
+@@ -39491,17 +39690,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$with_libcurl" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_NGINX 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_NGINX_TRUE=
+   BUILD_PLUGIN_NGINX_FALSE='#'
+ else
+   BUILD_PLUGIN_NGINX_TRUE='#'
+@@ -39533,17 +39738,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$with_libesmtp" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_NOTIFY_EMAIL 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_NOTIFY_EMAIL_TRUE=
+   BUILD_PLUGIN_NOTIFY_EMAIL_FALSE='#'
+ else
+   BUILD_PLUGIN_NOTIFY_EMAIL_TRUE='#'
+@@ -39575,17 +39786,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "xyes" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_NTPD 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_NTPD_TRUE=
+   BUILD_PLUGIN_NTPD_FALSE='#'
+ else
+   BUILD_PLUGIN_NTPD_TRUE='#'
+@@ -39617,17 +39834,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$with_libupsclient" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_NUT 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_NUT_TRUE=
+   BUILD_PLUGIN_NUT_FALSE='#'
+ else
+   BUILD_PLUGIN_NUT_TRUE='#'
+@@ -39659,17 +39882,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$with_libowcapi" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_ONEWIRE 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_ONEWIRE_TRUE=
+   BUILD_PLUGIN_ONEWIRE_FALSE='#'
+ else
+   BUILD_PLUGIN_ONEWIRE_TRUE='#'
+@@ -39701,17 +39930,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$plugin_perl" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_PERL 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_PERL_TRUE=
+   BUILD_PLUGIN_PERL_FALSE='#'
+ else
+   BUILD_PLUGIN_PERL_TRUE='#'
+@@ -39743,17 +39978,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$with_liboping" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_PING 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_PING_TRUE=
+   BUILD_PLUGIN_PING_FALSE='#'
+ else
+   BUILD_PLUGIN_PING_TRUE='#'
+@@ -39785,17 +40026,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$with_libpq" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_POSTGRESQL 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_POSTGRESQL_TRUE=
+   BUILD_PLUGIN_POSTGRESQL_FALSE='#'
+ else
+   BUILD_PLUGIN_POSTGRESQL_TRUE='#'
+@@ -39827,17 +40074,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "xyes" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_POWERDNS 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_POWERDNS_TRUE=
+   BUILD_PLUGIN_POWERDNS_FALSE='#'
+ else
+   BUILD_PLUGIN_POWERDNS_TRUE='#'
+@@ -39869,17 +40122,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$plugin_processes" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_PROCESSES 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_PROCESSES_TRUE=
+   BUILD_PLUGIN_PROCESSES_FALSE='#'
+ else
+   BUILD_PLUGIN_PROCESSES_TRUE='#'
+@@ -39911,17 +40170,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$with_rrdtool" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_RRDTOOL 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_RRDTOOL_TRUE=
+   BUILD_PLUGIN_RRDTOOL_FALSE='#'
+ else
+   BUILD_PLUGIN_RRDTOOL_TRUE='#'
+@@ -39953,17 +40218,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$with_lm_sensors" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_SENSORS 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_SENSORS_TRUE=
+   BUILD_PLUGIN_SENSORS_FALSE='#'
+ else
+   BUILD_PLUGIN_SENSORS_TRUE='#'
+@@ -39995,17 +40266,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$plugin_serial" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_SERIAL 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_SERIAL_TRUE=
+   BUILD_PLUGIN_SERIAL_FALSE='#'
+ else
+   BUILD_PLUGIN_SERIAL_TRUE='#'
+@@ -40037,17 +40314,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$with_libnetsnmp" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_SNMP 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_SNMP_TRUE=
+   BUILD_PLUGIN_SNMP_FALSE='#'
+ else
+   BUILD_PLUGIN_SNMP_TRUE='#'
+@@ -40079,17 +40362,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$plugin_swap" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_SWAP 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_SWAP_TRUE=
+   BUILD_PLUGIN_SWAP_FALSE='#'
+ else
+   BUILD_PLUGIN_SWAP_TRUE='#'
+@@ -40121,17 +40410,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$have_syslog" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_SYSLOG 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_SYSLOG_TRUE=
+   BUILD_PLUGIN_SYSLOG_FALSE='#'
+ else
+   BUILD_PLUGIN_SYSLOG_TRUE='#'
+@@ -40163,17 +40458,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "xyes" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_TAIL 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_TAIL_TRUE=
+   BUILD_PLUGIN_TAIL_FALSE='#'
+ else
+   BUILD_PLUGIN_TAIL_TRUE='#'
+@@ -40205,17 +40506,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$plugin_tape" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_TAPE 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_TAPE_TRUE=
+   BUILD_PLUGIN_TAPE_FALSE='#'
+ else
+   BUILD_PLUGIN_TAPE_TRUE='#'
+@@ -40247,17 +40554,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$plugin_tcpconns" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_TCPCONNS 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_TCPCONNS_TRUE=
+   BUILD_PLUGIN_TCPCONNS_FALSE='#'
+ else
+   BUILD_PLUGIN_TCPCONNS_TRUE='#'
+@@ -40289,17 +40602,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "xyes" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_TEAMSPEAK2 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_TEAMSPEAK2_TRUE=
+   BUILD_PLUGIN_TEAMSPEAK2_FALSE='#'
+ else
+   BUILD_PLUGIN_TEAMSPEAK2_TRUE='#'
+@@ -40331,17 +40650,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$plugin_thermal" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_THERMAL 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_THERMAL_TRUE=
+   BUILD_PLUGIN_THERMAL_FALSE='#'
+ else
+   BUILD_PLUGIN_THERMAL_TRUE='#'
+@@ -40373,17 +40698,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "xyes" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_UNIXSOCK 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_UNIXSOCK_TRUE=
+   BUILD_PLUGIN_UNIXSOCK_FALSE='#'
+ else
+   BUILD_PLUGIN_UNIXSOCK_TRUE='#'
+@@ -40415,17 +40746,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$plugin_users" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_USERS 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_USERS_TRUE=
+   BUILD_PLUGIN_USERS_FALSE='#'
+ else
+   BUILD_PLUGIN_USERS_TRUE='#'
+@@ -40457,17 +40794,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "xyes" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_UUID 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_UUID_TRUE=
+   BUILD_PLUGIN_UUID_FALSE='#'
+ else
+   BUILD_PLUGIN_UUID_TRUE='#'
+@@ -40499,17 +40842,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$plugin_vmem" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_VMEM 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_VMEM_TRUE=
+   BUILD_PLUGIN_VMEM_FALSE='#'
+ else
+   BUILD_PLUGIN_VMEM_TRUE='#'
+@@ -40541,17 +40890,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$plugin_vserver" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_VSERVER 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_VSERVER_TRUE=
+   BUILD_PLUGIN_VSERVER_FALSE='#'
+ else
+   BUILD_PLUGIN_VSERVER_TRUE='#'
+@@ -40583,17 +40938,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$plugin_wireless" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_WIRELESS 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_WIRELESS_TRUE=
+   BUILD_PLUGIN_WIRELESS_FALSE='#'
+ else
+   BUILD_PLUGIN_WIRELESS_TRUE='#'
+@@ -40625,17 +40986,23 @@
+      fi
+ 
+ fi
+ 
+     if test "x$enable_plugin" = "xyes"
+     then
++	    if test "x$with_libxmms" = "xyes"
++	    then
+ 
+ cat >>confdefs.h <<\_ACEOF
+ #define HAVE_PLUGIN_XMMS 1
+ _ACEOF
+ 
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+      if test "x$enable_plugin" = "xyes"; then
+   BUILD_PLUGIN_XMMS_TRUE=
+   BUILD_PLUGIN_XMMS_FALSE='#'
+ else
+   BUILD_PLUGIN_XMMS_TRUE='#'
+@@ -41746,13 +42113,13 @@
+ exec 6>&1
+ 
+ # Save the log message, to keep $[0] and so on meaningful, and to
+ # report actual input values of CONFIG_FILES etc. instead of their
+ # values after options handling.
+ ac_log="
+-This file was extended by collectd $as_me 4.5.0, which was
++This file was extended by collectd $as_me 4.5.1, which was
+ generated by GNU Autoconf 2.61.  Invocation command line was
+ 
+   CONFIG_FILES    = $CONFIG_FILES
+   CONFIG_HEADERS  = $CONFIG_HEADERS
+   CONFIG_LINKS    = $CONFIG_LINKS
+   CONFIG_COMMANDS = $CONFIG_COMMANDS
+@@ -41799,13 +42166,13 @@
+ 
+ Report bugs to <bug-autoconf@gnu.org>."
+ 
+ _ACEOF
+ cat >>$CONFIG_STATUS <<_ACEOF
+ ac_cs_version="\\
+-collectd config.status 4.5.0
++collectd config.status 4.5.1
+ configured by $0, generated by GNU Autoconf 2.61,
+   with options \\"`echo "$ac_configure_args" | sed 's/^ //; s/[\\""\`\$]/\\\\&/g'`\\"
+ 
+ Copyright (C) 2006 Free Software Foundation, Inc.
+ This config.status script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it."
+@@ -43355,6 +43722,12 @@
+     vmem  . . . . . . . . $enable_vmem
+     vserver . . . . . . . $enable_vserver
+     wireless  . . . . . . $enable_wireless
+     xmms  . . . . . . . . $enable_xmms
+ 
+ EOF
++
++if test "x$dependency_error" = "xyes"; then
++	{ { echo "$as_me:$LINENO: error: \"Some plugins are missing dependencies - see above summary for details\"" >&5
++echo "$as_me: error: \"Some plugins are missing dependencies - see above summary for details\"" >&2;}
++   { (exit 1); exit 1; }; }
++fi
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/configure.in	2008-09-05 16:53:08.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/configure.in	2008-10-17 04:43:11.000000000 +0800
+@@ -2476,13 +2476,19 @@
+      else
+ 	     enable_plugin="no"
+      fi
+     ])
+     if test "x$enable_plugin" = "xyes"
+     then
+-	    AC_DEFINE([HAVE_PLUGIN_]my_toupper([$1]), 1, [Define to 1 if the $1 plugin is enabled.])
++	    if test "x$2" = "xyes"
++	    then
++		    AC_DEFINE([HAVE_PLUGIN_]my_toupper([$1]), 1, [Define to 1 if the $1 plugin is enabled.])
++	    else # User passed "yes" but dependency checking yielded "no" => Dependency problem.
++		    dependency_error="yes"
++		    enable_plugin="no (dependency error)"
++	    fi
+     fi
+     AM_CONDITIONAL([BUILD_PLUGIN_]my_toupper([$1]), test "x$enable_plugin" = "xyes")
+     enable_$1="$enable_plugin"
+   ]
+ )# AC_PLUGIN(name, default, info)
+ 
+@@ -2490,12 +2496,13 @@
+ collectd features:])
+ # FIXME: Remove these calls to `AC_COLLECTD' and then remove that macro.
+ AC_COLLECTD([debug],     [enable],  [feature], [debugging])
+ AC_COLLECTD([daemon],    [disable], [feature], [daemon mode])
+ AC_COLLECTD([getifaddrs],[enable],  [feature], [getifaddrs under Linux])
+ 
++dependency_error="no"
+ plugin_ascent="no"
+ plugin_battery="no"
+ plugin_cpu="no"
+ plugin_cpufreq="no"
+ plugin_df="no"
+ plugin_disk="no"
+@@ -2907,6 +2914,10 @@
+     vmem  . . . . . . . . $enable_vmem
+     vserver . . . . . . . $enable_vserver
+     wireless  . . . . . . $enable_wireless
+     xmms  . . . . . . . . $enable_xmms
+ 
+ EOF
++
++if test "x$dependency_error" = "xyes"; then
++	AC_MSG_ERROR("Some plugins are missing dependencies - see above summary for details")
++fi
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/contrib/collection3/etc/collection.conf /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/contrib/collection3/etc/collection.conf
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/contrib/collection3/etc/collection.conf	2008-09-04 21:00:54.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/contrib/collection3/etc/collection.conf	2008-10-03 19:35:57.000000000 +0800
+@@ -1,8 +1,24 @@
+ GraphWidth 400
+-UnixSockAddr "/var/run/collectd-unixsock"
++#UnixSockAddr "/var/run/collectd-unixsock"
++<Type apache_bytes>
++  DataSources count
++  DSName "count Bytes/s"
++  RRDTitle "Apache Traffic"
++  RRDVerticalLabel "Bytes/s"
++  RRDFormat "%5.1lf%s"
++  Color count 0000ff
++</Type>
++<Type apache_requests>
++  DataSources count
++  DSName "count Requests/s"
++  RRDTitle "Apache Traffic"
++  RRDVerticalLabel "Requests/s"
++  RRDFormat "%5.2lf"
++  Color count 00d000
++</Type>
+ <Type apache_scoreboard>
+   Module GenericStacked
+   DataSources count
+   RRDTitle "Apache scoreboard on {hostname}"
+   RRDVerticalLabel "Slots"
+   RRDFormat "%6.2lf"
+@@ -68,43 +84,43 @@
+ </Type>
+ <Type disk_octets>
+   Module GenericIO
+   DataSources read write
+   DSName "read Read   "
+   DSName write Written
+-  RRDTitle "Disk Traffic ({plugin_instance})"
++  RRDTitle "Disk Traffic ({instance})"
+   RRDVerticalLabel "Bytes per second"
+ # RRDOptions ...
+   RRDFormat "%5.1lf%s"
+ </Type>
+ <Type disk_ops>
+   Module GenericIO
+   DataSources read write
+   DSName "read Read   "
+   DSName write Written
+-  RRDTitle "Disk Operations ({plugin_instance})"
++  RRDTitle "Disk Operations ({instance})"
+   RRDVerticalLabel "Operations per second"
+ # RRDOptions ...
+   RRDFormat "%5.1lf"
+ </Type>
+ <Type disk_merged>
+   Module GenericIO
+   DataSources read write
+   DSName "read Read   "
+   DSName write Written
+-  RRDTitle "Disk Merged Operations ({plugin_instance})"
++  RRDTitle "Disk Merged Operations ({instance})"
+   RRDVerticalLabel "Merged operations/s"
+ # RRDOptions ...
+   RRDFormat "%5.1lf"
+ </Type>
+ <Type disk_time>
+   Module GenericIO
+   DataSources read write
+   DSName "read Read   "
+   DSName write Written
+-  RRDTitle "Disk time per operation ({plugin_instance})"
++  RRDTitle "Disk time per operation ({instance})"
+   RRDVerticalLabel "Avg. Time/Op"
+ # RRDOptions ...
+   RRDFormat "%5.1lf%ss"
+   Scale 0.001
+ </Type>
+ <Type entropy>
+@@ -235,12 +251,133 @@
+   Order free cached buffered used
+   Color free      00e000
+   Color cached    0000ff
+   Color buffered  ffb000
+   Color used      ff0000
+ </Type>
++<Type mysql_commands>
++  Module GenericStacked
++  DataSources value
++  RRDTitle "MySQL commands"
++  RRDVerticalLabel "Invocations"
++  RRDFormat "%6.2lf"
++
++  DSName admin_commands admin_commands
++  DSName alter_table alter_table
++  DSName begin begin
++  DSName change_db change_db
++  DSName check check
++  DSName commit commit
++  DSName create_db create_db
++  DSName create_table create_table
++  DSName delete delete
++  DSName drop_db drop_db
++  DSName drop_table drop_table
++  DSName flush flush
++  DSName grant grant
++  DSName insert insert
++  DSName insert_select insert_select
++  DSName lock_tables lock_tables
++  DSName optimize optimize
++  DSName rename_table rename_table
++  DSName replace replace
++  DSName revoke revoke
++  DSName select select
++  DSName set_option set_option
++  DSName show_create_table show_create_table
++  DSName show_databases show_databases
++  DSName show_fields show_fields
++  DSName show_keys show_keys
++  DSName show_master_status show_master_status
++  DSName show_processlist show_processlist
++  DSName show_slave_hosts show_slave_hosts
++  DSName show_status show_status
++  DSName show_tables show_tables
++  DSName show_triggers show_triggers
++  DSName show_variables show_variables
++  DSName unlock_tables unlock_tables
++  DSName update update
++  DSName update_multi update_multi
++
++  Order admin_commands alter_table begin change_db check commit create_db create_table delete drop_db drop_table flush grant insert insert_select lock_tables optimize rename_table replace revoke select set_option show_create_table show_databases show_fields show_keys show_master_status show_processlist show_slave_hosts show_status show_tables show_triggers show_variables unlock_tables update update_multi
++
++  Color admin_commands ff0000
++  Color alter_table ff002a
++  Color begin ff0055
++  Color change_db ff007f
++  Color check ff00aa
++  Color commit ff00d4
++  Color create_db ff00ff
++  Color create_table d400ff
++  Color delete aa00ff
++  Color drop_db 7f00ff
++  Color drop_table 5400ff
++  Color flush 2a00ff
++  Color grant 0000ff
++  Color insert 002aff
++  Color insert_select 0055ff
++  Color lock_tables 007fff
++  Color optimize 00a9ff
++  Color rename_table 00d4ff
++  Color replace 00ffff
++  Color revoke 00ffd4
++  Color select 00ffa9
++  Color set_option 00ff7f
++  Color show_create_table 00ff55
++  Color show_databases 00ff2a
++  Color show_fields 00ff00
++  Color show_keys 2aff00
++  Color show_master_status 54ff00
++  Color show_processlist 7fff00
++  Color show_slave_hosts aaff00
++  Color show_status d4ff00
++  Color show_tables ffff00
++  Color show_triggers ffd400
++  Color show_variables ffaa00
++  Color unlock_tables ff7f00
++  Color update ff5400
++  Color update_multi ff2a00
++</Type>
++<Type mysql_handler>
++  Module GenericStacked
++  DataSources value
++  RRDTitle "MySQL handler"
++  RRDVerticalLabel "Invocations"
++  RRDFormat "%6.2lf"
++  DSName commit commit
++  DSName delete delete
++  DSName read_first read_first
++  DSName read_key read_key
++  DSName read_next read_next
++  DSName read_prev read_prev
++  DSName read_rnd read_rnd
++  DSName read_rnd_next read_rnd_next
++  DSName update update
++  DSName write write
++  Order commit delete read_first read_key read_next read_prev read_rnd read_rnd_next update write
++  Color commit ff0000
++  Color delete ff0099
++  Color read_first cc00ff
++  Color read_key 3200ff
++  Color read_next 0065ff
++  Color read_prev 00ffff
++  Color read_rnd 00ff65
++  Color read_rnd_next 33ff00
++  Color update cbff00
++  Color write ff9800
++</Type>
++<Type mysql_octets>
++  Module GenericIO
++  DataSources rx tx
++  DSName rx RX
++  DSName tx TX
++  RRDTitle "MySQL Traffic"
++  RRDVerticalLabel "Bits per second"
++  RRDFormat "%5.1lf%s"
++  Scale 8
++</Type>
+ <Type percent>
+   DataSources percent
+   DSName percent Percent
+   RRDTitle "Percent ({type_instance})"
+   RRDVerticalLabel "Percent"
+   RRDFormat "%4.1lf%%"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/contrib/collection.cgi /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/contrib/collection.cgi
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/contrib/collection.cgi	2008-09-04 21:01:09.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/contrib/collection.cgi	2008-10-17 04:14:28.000000000 +0800
+@@ -1013,12 +1013,24 @@
+     "LINE1:avg#$FullBlue:Charge",
+     'GPRINT:min:MIN:%5.1lf%sAh Min,',
+     'GPRINT:avg:AVERAGE:%5.1lf%sAh Avg,',
+     'GPRINT:max:MAX:%5.1lf%sAh Max,',
+     'GPRINT:avg:LAST:%5.1lf%sAh Last\l'
+     ],
++    connections => ['-v', 'Connections',
++    'DEF:avg={file}:value:AVERAGE',
++    'DEF:min={file}:value:MIN',
++    'DEF:max={file}:value:MAX',
++    "AREA:max#$HalfBlue",
++    "AREA:min#$Canvas",
++    "LINE1:avg#$FullBlue:Connections",
++    'GPRINT:min:MIN:%4.1lf Min,',
++    'GPRINT:avg:AVERAGE:%4.1lf Avg,',
++    'GPRINT:max:MAX:%4.1lf Max,',
++    'GPRINT:avg:LAST:%4.1lf Last\l'
++    ],
+     cpu => ['-v', 'CPU load',
+     'DEF:avg={file}:value:AVERAGE',
+     'DEF:min={file}:value:MIN',
+     'DEF:max={file}:value:MAX',
+     "AREA:max#$HalfBlue",
+     "AREA:min#$Canvas",
+@@ -1596,12 +1608,95 @@
+     "LINE1:negspam#$FullRed:Spam mails",
+     'GPRINT:spam:AVERAGE:%4.1lf Avg,',
+     'GPRINT:spam:MAX:%4.1lf Max,',
+     'GPRINT:spam:LAST:%4.1lf Last',
+     'HRULE:0#000000'
+     ],
++    memcached_command => ['-v', 'Commands',
++    'DEF:avg={file}:value:AVERAGE',
++    'DEF:min={file}:value:MIN',
++    'DEF:max={file}:value:MAX',
++    "AREA:max#$HalfBlue",
++    "AREA:min#$Canvas",
++    "LINE1:avg#$FullBlue:Commands",
++    'GPRINT:min:MIN:%5.1lf%s Min,',
++    'GPRINT:avg:AVERAGE:%5.1lf Avg,',
++    'GPRINT:max:MAX:%5.1lf Max,',
++    'GPRINT:avg:LAST:%5.1lf Last\l'
++    ],
++    memcached_connections => ['-v', 'Connections',
++    'DEF:avg={file}:value:AVERAGE',
++    'DEF:min={file}:value:MIN',
++    'DEF:max={file}:value:MAX',
++    "AREA:max#$HalfBlue",
++    "AREA:min#$Canvas",
++    "LINE1:avg#$FullBlue:Connections",
++    'GPRINT:min:MIN:%4.1lf Min,',
++    'GPRINT:avg:AVERAGE:%4.1lf Avg,',
++    'GPRINT:max:MAX:%4.1lf Max,',
++    'GPRINT:avg:LAST:%4.1lf Last\l'
++    ],
++    memcached_items => ['-v', 'Items',
++    'DEF:avg={file}:value:AVERAGE',
++    'DEF:min={file}:value:MIN',
++    'DEF:max={file}:value:MAX',
++    "AREA:max#$HalfBlue",
++    "AREA:min#$Canvas",
++    "LINE1:avg#$FullBlue:Items",
++    'GPRINT:min:MIN:%4.1lf Min,',
++    'GPRINT:avg:AVERAGE:%4.1lf Avg,',
++    'GPRINT:max:MAX:%4.1lf Max,',
++    'GPRINT:avg:LAST:%4.1lf Last\l'
++    ],
++    memcached_octets => ['-v', 'Bits/s',
++    'DEF:out_min={file}:tx:MIN',
++    'DEF:out_avg={file}:tx:AVERAGE',
++    'DEF:out_max={file}:tx:MAX',
++    'DEF:inc_min={file}:rx:MIN',
++    'DEF:inc_avg={file}:rx:AVERAGE',
++    'DEF:inc_max={file}:rx:MAX',
++    'CDEF:mytime=out_avg,TIME,TIME,IF',
++    'CDEF:sample_len_raw=mytime,PREV(mytime),-',
++    'CDEF:sample_len=sample_len_raw,UN,0,sample_len_raw,IF',
++    'CDEF:out_avg_sample=out_avg,UN,0,out_avg,IF,sample_len,*',
++    'CDEF:out_avg_sum=PREV,UN,0,PREV,IF,out_avg_sample,+',
++    'CDEF:inc_avg_sample=inc_avg,UN,0,inc_avg,IF,sample_len,*',
++    'CDEF:inc_avg_sum=PREV,UN,0,PREV,IF,inc_avg_sample,+',
++    'CDEF:out_bit_min=out_min,8,*',
++    'CDEF:out_bit_avg=out_avg,8,*',
++    'CDEF:out_bit_max=out_max,8,*',
++    'CDEF:inc_bit_min=inc_min,8,*',
++    'CDEF:inc_bit_avg=inc_avg,8,*',
++    'CDEF:inc_bit_max=inc_max,8,*',
++    'CDEF:overlap=out_bit_avg,inc_bit_avg,GT,inc_bit_avg,out_bit_avg,IF',
++    "AREA:out_bit_avg#$HalfGreen",
++    "AREA:inc_bit_avg#$HalfBlue",
++    "AREA:overlap#$HalfBlueGreen",
++    "LINE1:out_bit_avg#$FullGreen:Written",
++    'GPRINT:out_bit_avg:AVERAGE:%5.1lf%s Avg,',
++    'GPRINT:out_bit_max:MAX:%5.1lf%s Max,',
++    'GPRINT:out_bit_avg:LAST:%5.1lf%s Last',
++    'GPRINT:out_avg_sum:LAST:(ca. %5.1lf%sB Total)\l',
++    "LINE1:inc_bit_avg#$FullBlue:Read   ",
++    'GPRINT:inc_bit_avg:AVERAGE:%5.1lf%s Avg,',
++    'GPRINT:inc_bit_max:MAX:%5.1lf%s Max,',
++    'GPRINT:inc_bit_avg:LAST:%5.1lf%s Last',
++    'GPRINT:inc_avg_sum:LAST:(ca. %5.1lf%sB Total)\l'
++    ],
++    memcached_ops => ['-v', 'Ops',
++    'DEF:avg={file}:value:AVERAGE',
++    'DEF:min={file}:value:MIN',
++    'DEF:max={file}:value:MAX',
++    "AREA:max#$HalfBlue",
++    "AREA:min#$Canvas",
++    "LINE1:avg#$FullBlue:Ops",
++    'GPRINT:min:MIN:%4.1lf Min,',
++    'GPRINT:avg:AVERAGE:%4.1lf Avg,',
++    'GPRINT:max:MAX:%4.1lf Max,',
++    'GPRINT:avg:LAST:%4.1lf Last\l'
++    ],
+     memory => ['-b', '1024', '-v', 'Bytes',
+     'DEF:avg={file}:value:AVERAGE',
+     'DEF:min={file}:value:MIN',
+     'DEF:max={file}:value:MAX',
+     "AREA:max#$HalfBlue",
+     "AREA:min#$Canvas",
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/contrib/exec-munin.px /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/contrib/exec-munin.px
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/contrib/exec-munin.px	2008-05-06 20:30:12.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/contrib/exec-munin.px	2008-10-17 04:14:28.000000000 +0800
+@@ -27,14 +27,13 @@
+ our $Scripts = [];
+ our $Interval = 300;
+ 
+ main ();
+ exit (0);
+ 
+-# Configuration
+-# {{{
++# Configuration {{{
+ 
+ =head1 CONFIGURATION
+ 
+ This script reads it's configuration from F</etc/exec-munin.conf>. The
+ configuration is read using C<Config::General> which understands a Apache-like
+ config syntax, so it's very similar to the F<collectd.conf> syntax, too.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/README /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/README
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/README	2008-09-04 21:01:09.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/README	2008-10-17 04:29:56.000000000 +0800
+@@ -420,15 +420,17 @@
+   run `./configure --help'.
+   
+   By default, the configure script will check for all build dependencies and
+   disable all plugins whose requirements cannot be fulfilled (any other plugin
+   will be enabled). To enable a plugin, install missing dependencies (see
+   section `Prerequisites' above) and rerun `configure'. If you specify the
+-  `--enable-<plugin>' configure option, you can force the plugin to be built.
+-  This will most likely fail though unless you're working in a very unusual
+-  setup and you really know what you're doing.
++  `--enable-<plugin>' configure option, the script will fail if the depen-
++  dencies for the specified plugin are not met. If you specify the
++  `--disable-<plugin>' configure option, the plugin will not be built. Both
++  options are meant for package maintainers and should not be used in everyday
++  situations.
+ 
+   By default, collectd will be installed into `/opt/collectd'. You can adjust
+   this setting by specifying the `--prefix' configure option - see INSTALL for
+   details. If you pass DESTDIR=<path> to `make install', <path> will be
+   prefixed to all installation directories. This might be useful when creating
+   packages for collectd.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/collectd.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/collectd.1	2008-09-05 16:58:50.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd.1	2008-10-17 04:46:20.000000000 +0800
+@@ -1,18 +1,10 @@
+-.\" Automatically generated by Pod::Man 2.16 (Pod::Simple 3.05)
++.\" Automatically generated by Pod::Man 2.18 (Pod::Simple 3.05)
+ .\"
+ .\" Standard preamble:
+ .\" ========================================================================
+-.de Sh \" Subsection heading
+-.br
+-.if t .Sp
+-.ne 5
+-.PP
+-\fB\\$1\fR
+-.PP
+-..
+ .de Sp \" Vertical space (when we can't use .PP)
+ .if t .sp .5v
+ .if n .sp
+ ..
+ .de Vb \" Begin verbatim text
+ .ft CW
+@@ -50,13 +42,13 @@
+ .\"
+ .\" Escape single quotes in literal strings from groff's Unicode transform.
+ .ie \n(.g .ds Aq \(aq
+ .el       .ds Aq '
+ .\"
+ .\" If the F register is turned on, we'll generate index entries on stderr for
+-.\" titles (.TH), headers (.SH), subsections (.Sh), items (.Ip), and index
++.\" titles (.TH), headers (.SH), subsections (.SS), items (.Ip), and index
+ .\" entries marked with X<> in POD.  Of course, you'll have to process the
+ .\" output yourself in some meaningful fashion.
+ .ie \nF \{\
+ .    de IX
+ .    tm Index:\\$1\t\\n%\t"\\$2"
+ ..
+@@ -129,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD 1"
+-.TH COLLECTD 1 "2008-09-04" "4.5.0" "collectd"
++.TH COLLECTD 1 "2008-09-14" "4.5.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd \- System statistics collection daemon
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/collectd.conf.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd.conf.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/collectd.conf.5	2008-09-05 16:58:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd.conf.5	2008-10-17 04:46:20.000000000 +0800
+@@ -1,18 +1,10 @@
+-.\" Automatically generated by Pod::Man 2.16 (Pod::Simple 3.05)
++.\" Automatically generated by Pod::Man 2.18 (Pod::Simple 3.05)
+ .\"
+ .\" Standard preamble:
+ .\" ========================================================================
+-.de Sh \" Subsection heading
+-.br
+-.if t .Sp
+-.ne 5
+-.PP
+-\fB\\$1\fR
+-.PP
+-..
+ .de Sp \" Vertical space (when we can't use .PP)
+ .if t .sp .5v
+ .if n .sp
+ ..
+ .de Vb \" Begin verbatim text
+ .ft CW
+@@ -50,13 +42,13 @@
+ .\"
+ .\" Escape single quotes in literal strings from groff's Unicode transform.
+ .ie \n(.g .ds Aq \(aq
+ .el       .ds Aq '
+ .\"
+ .\" If the F register is turned on, we'll generate index entries on stderr for
+-.\" titles (.TH), headers (.SH), subsections (.Sh), items (.Ip), and index
++.\" titles (.TH), headers (.SH), subsections (.SS), items (.Ip), and index
+ .\" entries marked with X<> in POD.  Of course, you'll have to process the
+ .\" output yourself in some meaningful fashion.
+ .ie \nF \{\
+ .    de IX
+ .    tm Index:\\$1\t\\n%\t"\\$2"
+ ..
+@@ -129,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD.CONF 5"
+-.TH COLLECTD.CONF 5 "2008-09-04" "4.5.0" "collectd"
++.TH COLLECTD.CONF 5 "2008-10-16" "4.5.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd.conf \- Configuration for the system statistics collection daemon \fBcollectd\fR
+@@ -262,14 +254,14 @@
+ collect data from. These plugins are listed below as well, even if they don't
+ require any configuration within collectd's configfile.
+ .PP
+ A list of all plugins and a short summary for each plugin can be found in the
+ \&\fI\s-1README\s0\fR file shipped with the sourcecode and hopefully binary packets as
+ well.
+-.ie n .Sh "Plugin ""apache"""
+-.el .Sh "Plugin \f(CWapache\fP"
++.ie n .SS "Plugin ""apache"""
++.el .SS "Plugin \f(CWapache\fP"
+ .IX Subsection "Plugin apache"
+ To configure the \f(CW\*(C`apache\*(C'\fR\-plugin you first need to configure the Apache
+ webserver correctly. The Apache-plugin \f(CW\*(C`mod_status\*(C'\fR needs to be loaded and
+ working and the \f(CW\*(C`ExtendedStatus\*(C'\fR directive needs to be \fBenabled\fR. You can use
+ the following snipped to base your Apache config upon:
+ .PP
+@@ -311,25 +303,25 @@
+ connecting to a \s-1SSL\s0 enabled server. Enabled by default.
+ .IP "\fBCACert\fR \fIFile\fR" 4
+ .IX Item "CACert File"
+ File that holds one or more \s-1SSL\s0 certificates. If you want to use \s-1HTTPS\s0 you will
+ possibly need this option. What \s-1CA\s0 certificates come bundled with \f(CW\*(C`libcurl\*(C'\fR
+ and are checked by default depends on the distribution you use.
+-.ie n .Sh "Plugin ""apcups"""
+-.el .Sh "Plugin \f(CWapcups\fP"
++.ie n .SS "Plugin ""apcups"""
++.el .SS "Plugin \f(CWapcups\fP"
+ .IX Subsection "Plugin apcups"
+ .IP "\fBHost\fR \fIHostname\fR" 4
+ .IX Item "Host Hostname"
+ Hostname of the host running \fBapcupsd\fR. Defaults to \fBlocalhost\fR. Please note
+ that IPv6 support has been disabled unless someone can confirm or decline that
+ \&\fBapcupsd\fR can handle it.
+ .IP "\fBPort\fR \fIPort\fR" 4
+ .IX Item "Port Port"
+ TCP-Port to connect to. Defaults to \fB3551\fR.
+-.ie n .Sh "Plugin ""ascent"""
+-.el .Sh "Plugin \f(CWascent\fP"
++.ie n .SS "Plugin ""ascent"""
++.el .SS "Plugin \f(CWascent\fP"
+ .IX Subsection "Plugin ascent"
+ This plugin collects information about an Ascent server, a free server for the
+ \&\*(L"World of Warcraft\*(R" game. This plugin gathers the information by fetching the
+ \&\s-1XML\s0 status page using \f(CW\*(C`libcurl\*(C'\fR and parses it using \f(CW\*(C`libxml2\*(C'\fR.
+ .PP
+ The configuration options are the same as for the \f(CW\*(C`apache\*(C'\fR plugin above:
+@@ -355,34 +347,34 @@
+ connecting to a \s-1SSL\s0 enabled server. Enabled by default.
+ .IP "\fBCACert\fR \fIFile\fR" 4
+ .IX Item "CACert File"
+ File that holds one or more \s-1SSL\s0 certificates. If you want to use \s-1HTTPS\s0 you will
+ possibly need this option. What \s-1CA\s0 certificates come bundled with \f(CW\*(C`libcurl\*(C'\fR
+ and are checked by default depends on the distribution you use.
+-.ie n .Sh "Plugin ""cpufreq"""
+-.el .Sh "Plugin \f(CWcpufreq\fP"
++.ie n .SS "Plugin ""cpufreq"""
++.el .SS "Plugin \f(CWcpufreq\fP"
+ .IX Subsection "Plugin cpufreq"
+ This plugin doesn't have any options. It reads
+ \&\fI/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq\fR (for the first \s-1CPU\s0
+ installed) to get the current \s-1CPU\s0 frequency. If this file does not exist make
+ sure \fBcpufreqd\fR (<http://cpufreqd.sourceforge.net/>) or a similar tool is
+ installed and an \*(L"cpu governor\*(R" (that's a kernel module) is loaded.
+-.ie n .Sh "Plugin ""csv"""
+-.el .Sh "Plugin \f(CWcsv\fP"
++.ie n .SS "Plugin ""csv"""
++.el .SS "Plugin \f(CWcsv\fP"
+ .IX Subsection "Plugin csv"
+ .IP "\fBDataDir\fR \fIDirectory\fR" 4
+ .IX Item "DataDir Directory"
+ Set the directory to store CSV-files under. Per default CSV-files are generated
+ beneath the daemon's working directory, i.\ e. the \fBBaseDir\fR.
+ .IP "\fBStoreRates\fR \fBtrue|false\fR" 4
+ .IX Item "StoreRates true|false"
+ If set to \fBtrue\fR, convert counter values to rates. If set to \fBfalse\fR (the
+ default) counter values are stored as is, i.\ e. as an increasing integer
+ number.
+-.ie n .Sh "Plugin ""df"""
+-.el .Sh "Plugin \f(CWdf\fP"
++.ie n .SS "Plugin ""df"""
++.el .SS "Plugin \f(CWdf\fP"
+ .IX Subsection "Plugin df"
+ .IP "\fBDevice\fR \fIDevice\fR" 4
+ .IX Item "Device Device"
+ Select partitions based on the devicename.
+ .IP "\fBMountPoint\fR \fIDirectory\fR" 4
+ .IX Item "MountPoint Directory"
+@@ -393,14 +385,14 @@
+ .IP "\fBIgnoreSelected\fR \fItrue\fR|\fIfalse\fR" 4
+ .IX Item "IgnoreSelected true|false"
+ Invert the selection: If set to true, all partitions \fBexcept\fR the ones that
+ match any one of the criteria are collected. By default only selected
+ partitions are collected if a selection is made. If no selection is configured
+ at all, \fBall\fR partitions are selected.
+-.ie n .Sh "Plugin ""disk"""
+-.el .Sh "Plugin \f(CWdisk\fP"
++.ie n .SS "Plugin ""disk"""
++.el .SS "Plugin \f(CWdisk\fP"
+ .IX Subsection "Plugin disk"
+ The \f(CW\*(C`disk\*(C'\fR plugin collects information about the usage of physical disks and
+ logical disks (partitions). Values collected are the number of octets written
+ to and read from a disk or partition, the number of read/write operations
+ issued to the disk and a rather complex \*(L"time\*(R" it took for these commands to be
+ issued.
+@@ -423,26 +415,26 @@
+ Sets whether selected disks, i.\ e. the ones matches by any of the \fBDisk\fR
+ statements, are ignored or if all other disks are ignored. The behavior
+ (hopefully) is intuitive: If no \fBDisk\fR option is configured, all disks are
+ collected. If at least one \fBDisk\fR option is given and no \fBIgnoreSelected\fR or
+ set to \fBfalse\fR, \fBonly\fR matching disks will be collected. If \fBIgnoreSelected\fR
+ is set to \fBtrue\fR, all disks are collected \fBexcept\fR the ones matched.
+-.ie n .Sh "Plugin ""dns"""
+-.el .Sh "Plugin \f(CWdns\fP"
++.ie n .SS "Plugin ""dns"""
++.el .SS "Plugin \f(CWdns\fP"
+ .IX Subsection "Plugin dns"
+ .IP "\fBInterface\fR \fIInterface\fR" 4
+ .IX Item "Interface Interface"
+ The dns plugin uses \fBlibpcap\fR to capture dns traffic and analyses it. This
+ option sets the interface that should be used. If this option is not set, or
+ set to \*(L"any\*(R", the plugin will try to get packets from \fBall\fR interfaces. This
+ may not work on certain platforms, such as Mac\ \s-1OS\s0\ X.
+ .IP "\fBIgnoreSource\fR \fIIP-address\fR" 4
+ .IX Item "IgnoreSource IP-address"
+ Ignore packets that originate from this address.
+-.ie n .Sh "Plugin ""email"""
+-.el .Sh "Plugin \f(CWemail\fP"
++.ie n .SS "Plugin ""email"""
++.el .SS "Plugin \f(CWemail\fP"
+ .IX Subsection "Plugin email"
+ .IP "\fBSocketFile\fR \fIPath\fR" 4
+ .IX Item "SocketFile Path"
+ Sets the socket-file which is to be created.
+ .IP "\fBSocketGroup\fR \fIGroup\fR" 4
+ .IX Item "SocketGroup Group"
+@@ -456,14 +448,14 @@
+ .IP "\fBMaxConns\fR \fINumber\fR" 4
+ .IX Item "MaxConns Number"
+ Sets the maximum number of connections that can be handled in parallel. Since
+ this many threads will be started immediately setting this to a very high
+ value will waste valuable resources. Defaults to \fB5\fR and will be forced to be
+ at most \fB16384\fR to prevent typos and dumb mistakes.
+-.ie n .Sh "Plugin ""exec"""
+-.el .Sh "Plugin \f(CWexec\fP"
++.ie n .SS "Plugin ""exec"""
++.el .SS "Plugin \f(CWexec\fP"
+ .IX Subsection "Plugin exec"
+ Please make sure to read \fIcollectd\-exec\fR\|(5) before using this plugin. It
+ contains valuable information on when the executable is executed and the
+ output that is expected from it.
+ .IP "\fBExec\fR \fIUser\fR[:[\fIGroup\fR]] \fIExecutable\fR [\fI<arg>\fR [\fI<arg>\fR ...]]" 4
+ .IX Item "Exec User[:[Group]] Executable [<arg> [<arg> ...]]"
+@@ -487,14 +479,14 @@
+ values may be changed. If you want to be absolutely sure that something is
+ passed as-is please enclose it in quotes.
+ .Sp
+ The \fBExec\fR and \fBNotificationExec\fR statements change the semantics of the
+ programs executed, i.\ e. the data passed to them and the response
+ expected from them. This is documented in great detail in \fIcollectd\-exec\fR\|(5).
+-.ie n .Sh "Plugin ""filecount"""
+-.el .Sh "Plugin \f(CWfilecount\fP"
++.ie n .SS "Plugin ""filecount"""
++.el .SS "Plugin \f(CWfilecount\fP"
+ .IX Subsection "Plugin filecount"
+ The \f(CW\*(C`filecount\*(C'\fR plugin counts the number of files in a certain directory (and
+ its subdirectories) and their combined size. The configuration is very straight
+ forward:
+ .PP
+ .Vb 12
+@@ -554,14 +546,14 @@
+ \&\fISize\fR are counted.
+ .Sp
+ As with the \fBMTime\fR option, a \*(L"multiplier\*(R" may be added. For a detailed
+ description see above. Valid multipliers here are \f(CW\*(C`b\*(C'\fR (byte), \f(CW\*(C`k\*(C'\fR (kilobyte),
+ \&\f(CW\*(C`m\*(C'\fR (megabyte), \f(CW\*(C`g\*(C'\fR (gigabyte), \f(CW\*(C`t\*(C'\fR (terabyte), and \f(CW\*(C`p\*(C'\fR (petabyte). Please
+ note that there are 1000 bytes in a kilobyte, not 1024.
+-.ie n .Sh "Plugin ""hddtemp"""
+-.el .Sh "Plugin \f(CWhddtemp\fP"
++.ie n .SS "Plugin ""hddtemp"""
++.el .SS "Plugin \f(CWhddtemp\fP"
+ .IX Subsection "Plugin hddtemp"
+ To get values from \fBhddtemp\fR collectd connects to \fBlocalhost\fR (127.0.0.1),
+ port \fB7634/tcp\fR. The \fBHost\fR and \fBPort\fR options can be used to change these
+ default values, see below. \f(CW\*(C`hddtemp\*(C'\fR has to be running to work correctly. If
+ \&\f(CW\*(C`hddtemp\*(C'\fR is not running timeouts may appear which may interfere with other
+ statistics..
+@@ -577,14 +569,14 @@
+ .IP "\fBTranslateDevicename\fR \fItrue\fR|\fIfalse\fR" 4
+ .IX Item "TranslateDevicename true|false"
+ If enabled, translate the disk names to major/minor device numbers
+ (e.\ g. \*(L"8\-0\*(R" for /dev/sda). For backwards compatibility this defaults to
+ \&\fItrue\fR but it's recommended to disable it as it will probably be removed in
+ the next major version.
+-.ie n .Sh "Plugin ""interface"""
+-.el .Sh "Plugin \f(CWinterface\fP"
++.ie n .SS "Plugin ""interface"""
++.el .SS "Plugin \f(CWinterface\fP"
+ .IX Subsection "Plugin interface"
+ .IP "\fBInterface\fR \fIInterface\fR" 4
+ .IX Item "Interface Interface"
+ Select this interface. By default these interfaces will then be collected. For
+ a more detailed description see \fBIgnoreSelected\fR below.
+ .IP "\fBIgnoreSelected\fR \fItrue\fR|\fIfalse\fR" 4
+@@ -594,14 +586,14 @@
+ similar interfaces. Thus, you can use the \fBInterface\fR\-option to pick the
+ interfaces you're interested in. Sometimes, however, it's easier/preferred
+ to collect all interfaces \fIexcept\fR a few ones. This option enables you to
+ do that: By setting \fBIgnoreSelected\fR to \fItrue\fR the effect of
+ \&\fBInterface\fR is inverted: All selected interfaces are ignored and all
+ other interfaces are collected.
+-.ie n .Sh "Plugin ""ipmi"""
+-.el .Sh "Plugin \f(CWipmi\fP"
++.ie n .SS "Plugin ""ipmi"""
++.el .SS "Plugin \f(CWipmi\fP"
+ .IX Subsection "Plugin ipmi"
+ .IP "\fBSensor\fR \fISensor\fR" 4
+ .IX Item "Sensor Sensor"
+ Selects sensors to collect or to ignore, depending on \fBIgnoreSelected\fR.
+ .IP "\fBIgnoreSelected\fR \fItrue\fR|\fIfalse\fR" 4
+ .IX Item "IgnoreSelected true|false"
+@@ -618,14 +610,14 @@
+ .IX Item "NotifySensorRemove true|false"
+ If a sensor disappears a notification is sent.
+ .IP "\fBNotifySensorNotPresent\fR \fItrue\fR|\fIfalse\fR" 4
+ .IX Item "NotifySensorNotPresent true|false"
+ If you have for example dual power supply and one of them is (un)plugged then
+ a notification is sent.
+-.ie n .Sh "Plugin ""iptables"""
+-.el .Sh "Plugin \f(CWiptables\fP"
++.ie n .SS "Plugin ""iptables"""
++.el .SS "Plugin \f(CWiptables\fP"
+ .IX Subsection "Plugin iptables"
+ .IP "\fBChain\fR \fITable\fR \fIChain\fR [\fIComment|Number\fR [\fIName\fR]]" 4
+ .IX Item "Chain Table Chain [Comment|Number [Name]]"
+ Select the rules to count. If only \fITable\fR and \fIChain\fR are given, this plugin
+ will collect the counters of all rules which have a comment-match. The comment
+ is then used as type-instance.
+@@ -633,14 +625,14 @@
+ If \fIComment\fR or \fINumber\fR is given, only the rule with the matching comment or
+ the \fIn\fRth rule will be collected. Again, the comment (or the number) will be
+ used as the type-instance.
+ .Sp
+ If \fIName\fR is supplied, it will be used as the type-instance instead of the
+ comment or the number.
+-.ie n .Sh "Plugin ""irq"""
+-.el .Sh "Plugin \f(CWirq\fP"
++.ie n .SS "Plugin ""irq"""
++.el .SS "Plugin \f(CWirq\fP"
+ .IX Subsection "Plugin irq"
+ .IP "\fBIrq\fR \fIIrq\fR" 4
+ .IX Item "Irq Irq"
+ Select this irq. By default these irqs will then be collected. For a more
+ detailed description see \fBIgnoreSelected\fR below.
+ .IP "\fBIgnoreSelected\fR \fItrue\fR|\fIfalse\fR" 4
+@@ -649,14 +641,14 @@
+ irqs. This may not be practical, especially if no interrupts happen. Thus, you
+ can use the \fBIrq\fR\-option to pick the interrupt you're interested in.
+ Sometimes, however, it's easier/preferred to collect all interrupts \fIexcept\fR a
+ few ones. This option enables you to do that: By setting \fBIgnoreSelected\fR to
+ \&\fItrue\fR the effect of \fBIrq\fR is inverted: All selected interrupts are ignored
+ and all other interrupts are collected.
+-.ie n .Sh "Plugin ""libvirt"""
+-.el .Sh "Plugin \f(CWlibvirt\fP"
++.ie n .SS "Plugin ""libvirt"""
++.el .SS "Plugin \f(CWlibvirt\fP"
+ .IX Subsection "Plugin libvirt"
+ This plugin allows \s-1CPU\s0, disk and network load to be collected for virtualized
+ guests on the machine. This means that these characteristics can be collected
+ for guest systems without installing any software on them \- collectd only runs
+ on the hosting system. The statistics are collected through libvirt
+ (<http://libvirt.org/>).
+@@ -724,14 +716,14 @@
+ \&\fBhostname\fR means to use the global \fBHostname\fR setting, which is probably not
+ useful on its own because all guests will appear to have the same name.
+ .Sp
+ You can also specify combinations of these fields. For example \fBname uuid\fR
+ means to concatenate the guest name and \s-1UUID\s0 (with a literal colon character
+ between, thus \fI\*(L"foo:1234\-1234\-1234\-1234\*(R"\fR).
+-.ie n .Sh "Plugin ""logfile"""
+-.el .Sh "Plugin \f(CWlogfile\fP"
++.ie n .SS "Plugin ""logfile"""
++.el .SS "Plugin \f(CWlogfile\fP"
+ .IX Subsection "Plugin logfile"
+ .IP "\fBLogLevel\fR \fBdebug|info|notice|warning|err\fR" 4
+ .IX Item "LogLevel debug|info|notice|warning|err"
+ Sets the log-level. If, for example, set to \fBnotice\fR, then all events with
+ severity \fBnotice\fR, \fBwarning\fR, or \fBerr\fR will be written to the logfile.
+ .Sp
+@@ -743,14 +735,14 @@
+ \&\fBstderr\fR can be used to write to the standard output and standard error
+ channels, respectively. This, of course, only makes much sense when collectd is
+ running in foreground\- or non-daemon-mode.
+ .IP "\fBTimestamp\fR \fBtrue\fR|\fBfalse\fR" 4
+ .IX Item "Timestamp true|false"
+ Prefix all lines printed by the current time. Defaults to \fBtrue\fR.
+-.ie n .Sh "Plugin ""mbmon"""
+-.el .Sh "Plugin \f(CWmbmon\fP"
++.ie n .SS "Plugin ""mbmon"""
++.el .SS "Plugin \f(CWmbmon\fP"
+ .IX Subsection "Plugin mbmon"
+ The \f(CW\*(C`mbmon plugin\*(C'\fR uses mbmon to retrieve temperature, voltage, etc.
+ .PP
+ Be default collectd connects to \fBlocalhost\fR (127.0.0.1), port \fB411/tcp\fR. The
+ \&\fBHost\fR and \fBPort\fR options can be used to change these values, see below.
+ \&\f(CW\*(C`mbmon\*(C'\fR has to be running to work correctly. If \f(CW\*(C`mbmon\*(C'\fR is not running
+@@ -762,26 +754,26 @@
+ .IP "\fBHost\fR \fIHostname\fR" 4
+ .IX Item "Host Hostname"
+ Hostname to connect to. Defaults to \fB127.0.0.1\fR.
+ .IP "\fBPort\fR \fIPort\fR" 4
+ .IX Item "Port Port"
+ TCP-Port to connect to. Defaults to \fB411\fR.
+-.ie n .Sh "Plugin ""memcached"""
+-.el .Sh "Plugin \f(CWmemcached\fP"
++.ie n .SS "Plugin ""memcached"""
++.el .SS "Plugin \f(CWmemcached\fP"
+ .IX Subsection "Plugin memcached"
+ The \f(CW\*(C`memcached plugin\*(C'\fR connects to a memcached server and queries statistics
+ about cache utilization, memory and bandwidth used.
+ <http://www.danga.com/memcached/>
+ .IP "\fBHost\fR \fIHostname\fR" 4
+ .IX Item "Host Hostname"
+ Hostname to connect to. Defaults to \fB127.0.0.1\fR.
+ .IP "\fBPort\fR \fIPort\fR" 4
+ .IX Item "Port Port"
+ TCP-Port to connect to. Defaults to \fB11211\fR.
+-.ie n .Sh "Plugin ""mysql"""
+-.el .Sh "Plugin \f(CWmysql\fP"
++.ie n .SS "Plugin ""mysql"""
++.el .SS "Plugin \f(CWmysql\fP"
+ .IX Subsection "Plugin mysql"
+ The \f(CW\*(C`mysql plugin\*(C'\fR requires \fBmysqlclient\fR to be installed. It connects to the
+ database when started and keeps the connection up as long as possible. When the
+ connection is interrupted for whatever reason it will try to re-connect. The
+ plugin will complaint loudly in case anything goes wrong.
+ .PP
+@@ -803,14 +795,14 @@
+ .IX Item "Password Password"
+ Password needed to log into the database.
+ .IP "\fBDatabase\fR \fIDatabase\fR" 4
+ .IX Item "Database Database"
+ Select this database. Defaults to \fIno database\fR which is a perfectly reasonable
+ option for what this plugin does.
+-.ie n .Sh "Plugin ""netlink"""
+-.el .Sh "Plugin \f(CWnetlink\fP"
++.ie n .SS "Plugin ""netlink"""
++.el .SS "Plugin \f(CWnetlink\fP"
+ .IX Subsection "Plugin netlink"
+ The \f(CW\*(C`netlink\*(C'\fR plugin uses a netlink socket to query the Linux kernel about
+ statistics of various interface and routing aspects.
+ .IP "\fBInterface\fR \fIInterface\fR" 4
+ .IX Item "Interface Interface"
+ .PD 0
+@@ -881,14 +873,14 @@
+ .IX Item "IgnoreSelected"
+ The behaviour is the same as with all other similar plugins: If nothing is
+ selected at all, everything is collected. If some things are selected using the
+ options described above, only these statistics are collected. If you set
+ \&\fBIgnoreSelected\fR to \fBtrue\fR, this behavior is inverted, i.\ e. the
+ specified statistics will not be collected.
+-.ie n .Sh "Plugin ""network"""
+-.el .Sh "Plugin \f(CWnetwork\fP"
++.ie n .SS "Plugin ""network"""
++.el .SS "Plugin \f(CWnetwork\fP"
+ .IX Subsection "Plugin network"
+ .IP "\fBListen\fR \fIHost\fR [\fIPort\fR]" 4
+ .IX Item "Listen Host [Port]"
+ .PD 0
+ .IP "\fBServer\fR \fIHost\fR [\fIPort\fR]" 4
+ .IX Item "Server Host [Port]"
+@@ -933,14 +925,14 @@
+ the last value being sent or received. Every \fISeconds\fR seconds the plugin
+ searches and removes all entries that are older than \fISeconds\fR seconds, thus
+ freeing the unused memory again. Since this process is somewhat expensive and
+ normally doesn't do much, this value should not be too small. The default is
+ 1800 seconds, but setting this to 86400 seconds (one day) will not do much harm
+ either.
+-.ie n .Sh "Plugin ""nginx"""
+-.el .Sh "Plugin \f(CWnginx\fP"
++.ie n .SS "Plugin ""nginx"""
++.el .SS "Plugin \f(CWnginx\fP"
+ .IX Subsection "Plugin nginx"
+ This plugin collects the number of connections and requests handled by the
+ \&\f(CW\*(C`nginx daemon\*(C'\fR (speak: engine\ X), a \s-1HTTP\s0 and mail server/proxy. It
+ queries the page provided by the \f(CW\*(C`ngx_http_stub_status_module\*(C'\fR module, which
+ isn't compiled by default. Please refer to
+ <http://wiki.codemongers.com/NginxStubStatusModule> for more information on
+@@ -969,14 +961,14 @@
+ connecting to a \s-1SSL\s0 enabled server. Enabled by default.
+ .IP "\fBCACert\fR \fIFile\fR" 4
+ .IX Item "CACert File"
+ File that holds one or more \s-1SSL\s0 certificates. If you want to use \s-1HTTPS\s0 you will
+ possibly need this option. What \s-1CA\s0 certificates come bundled with \f(CW\*(C`libcurl\*(C'\fR
+ and are checked by default depends on the distribution you use.
+-.ie n .Sh "Plugin ""notify_desktop"""
+-.el .Sh "Plugin \f(CWnotify_desktop\fP"
++.ie n .SS "Plugin ""notify_desktop"""
++.el .SS "Plugin \f(CWnotify_desktop\fP"
+ .IX Subsection "Plugin notify_desktop"
+ This plugin sends a desktop notification to a notification daemon, as defined
+ in the Desktop Notification Specification. To actually display the
+ notifications, \fBnotification-daemon\fR is required and \fBcollectd\fR has to be
+ able to access the X server.
+ .PP
+@@ -992,14 +984,14 @@
+ .PD
+ Set the \fItimeout\fR, in milliseconds, after which to expire the notification
+ for \f(CW\*(C`OKAY\*(C'\fR, \f(CW\*(C`WARNING\*(C'\fR and \f(CW\*(C`FAILURE\*(C'\fR severities respectively. If zero has
+ been specified, the displayed notification will not be closed at all \- the
+ user has to do so herself. These options default to 5000. If a negative number
+ has been specified, the default is used as well.
+-.ie n .Sh "Plugin ""ntpd"""
+-.el .Sh "Plugin \f(CWntpd\fP"
++.ie n .SS "Plugin ""ntpd"""
++.el .SS "Plugin \f(CWntpd\fP"
+ .IX Subsection "Plugin ntpd"
+ .IP "\fBHost\fR \fIHostname\fR" 4
+ .IX Item "Host Hostname"
+ Hostname of the host running \fBntpd\fR. Defaults to \fBlocalhost\fR.
+ .IP "\fBPort\fR \fIPort\fR" 4
+ .IX Item "Port Port"
+@@ -1007,21 +999,21 @@
+ .IP "\fBReverseLookups\fR \fBtrue\fR|\fBfalse\fR" 4
+ .IX Item "ReverseLookups true|false"
+ Sets wether or not to perform reverse lookups on peers. Since the name or
+ IP-address may be used in a filename it is recommended to disable reverse
+ lookups. The default is to do reverse lookups to preserve backwards
+ compatibility, though.
+-.ie n .Sh "Plugin ""nut"""
+-.el .Sh "Plugin \f(CWnut\fP"
++.ie n .SS "Plugin ""nut"""
++.el .SS "Plugin \f(CWnut\fP"
+ .IX Subsection "Plugin nut"
+ .IP "\fB\s-1UPS\s0\fR \fIupsname\fR\fB@\fR\fIhostname\fR[\fB:\fR\fIport\fR]" 4
+ .IX Item "UPS upsname@hostname[:port]"
+ Add a \s-1UPS\s0 to collect data from. The format is identical to the one accepted by
+ \&\fIupsc\fR\|(8).
+-.ie n .Sh "Plugin ""onewire"""
+-.el .Sh "Plugin \f(CWonewire\fP"
++.ie n .SS "Plugin ""onewire"""
++.el .SS "Plugin \f(CWonewire\fP"
+ .IX Subsection "Plugin onewire"
+ \&\fB\s-1EXPERIMENTAL\s0!\fR See notes below.
+ .PP
+ The \f(CW\*(C`onewire\*(C'\fR plugin uses the \fBowcapi\fR library from the \fBowfs\fR project
+ <http://owfs.org/> to read sensors connected via the onewire bus.
+ .PP
+@@ -1071,29 +1063,29 @@
+ interval). We will probably add some separate thread for reading the sensors
+ and some cache or something like that, but it's not done yet. We will try to
+ maintain backwards compatibility in the future, but we can't probmise. So in
+ short: If it works for you: Great! But kaap in mind that the config \fImight\fR
+ change, though this is unlikely. Oh, and if you want to help improving this
+ plugin, just send a short notice to the mailing list. Thanks\ :)
+-.ie n .Sh "Plugin ""perl"""
+-.el .Sh "Plugin \f(CWperl\fP"
++.ie n .SS "Plugin ""perl"""
++.el .SS "Plugin \f(CWperl\fP"
+ .IX Subsection "Plugin perl"
+ This plugin embeds a Perl-interpreter into collectd and provides an interface
+ to collectd's plugin system. See \fIcollectd\-perl\fR\|(5) for its documentation.
+-.ie n .Sh "Plugin ""ping"""
+-.el .Sh "Plugin \f(CWping\fP"
++.ie n .SS "Plugin ""ping"""
++.el .SS "Plugin \f(CWping\fP"
+ .IX Subsection "Plugin ping"
+ .IP "\fBHost\fR \fIIP-address\fR" 4
+ .IX Item "Host IP-address"
+ Host to ping periodically. This option may be repeated several times to ping
+ multiple hosts.
+ .IP "\fB\s-1TTL\s0\fR \fI0\-255\fR" 4
+ .IX Item "TTL 0-255"
+ Sets the Time-To-Live of generated \s-1ICMP\s0 packets.
+-.ie n .Sh "Plugin ""postgresql"""
+-.el .Sh "Plugin \f(CWpostgresql\fP"
++.ie n .SS "Plugin ""postgresql"""
++.el .SS "Plugin \f(CWpostgresql\fP"
+ .IX Subsection "Plugin postgresql"
+ The \f(CW\*(C`postgresql\*(C'\fR plugin queries statistics from PostgreSQL databases. It
+ keeps a persistent connection to all configured databases and tries to
+ reconnect if the connection has been interrupted. A database is configured by
+ specifying a \fBDatabase\fR block as described below. The default statistics are
+ collected from PostgreSQL's \fBstatistics collector\fR which thus has to be
+@@ -1287,14 +1279,14 @@
+ .IX Item "Query query"
+ Specify a \fIquery\fR which should be executed for the database connection. This
+ may be any of the predefined or user-defined queries. If no such option is
+ given, it defaults to \*(L"backends\*(R", \*(L"transactions\*(R", \*(L"queries\*(R", \*(L"query_plans\*(R",
+ \&\*(L"table_states\*(R", \*(L"disk_io\*(R" and \*(L"disk_usage\*(R". Else, the specified queries are
+ used only.
+-.ie n .Sh "Plugin ""powerdns"""
+-.el .Sh "Plugin \f(CWpowerdns\fP"
++.ie n .SS "Plugin ""powerdns"""
++.el .SS "Plugin \f(CWpowerdns\fP"
+ .IX Subsection "Plugin powerdns"
+ The \f(CW\*(C`powerdns\*(C'\fR plugin queries statistics from an authoritative PowerDNS
+ nameserver and/or a PowerDNS recursor. Since both offer a wide variety of
+ values, many of which are probably meaningless to most users, but may be useful
+ for some. So you may chose which values to collect, but if you don't, some
+ reasonable defaults will be collected.
+@@ -1406,35 +1398,35 @@
+ .Sp
+ In this case please file a bug report with the collectd team.
+ .RE
+ .IP "\fBSocket\fR \fIPath\fR" 4
+ .IX Item "Socket Path"
+ Configures the path to the \s-1UNIX\s0 domain socket to be used when connecting to the
+-daemon. By default \f(CW\*(C`/var/run/pdns.controlsocket\*(C'\fR will be used for an
+-authoritative server and \f(CW\*(C`/var/run/pdns_recursor.controlsocket\*(C'\fR will be used
+-for the recursor.
++daemon. By default \f(CW\*(C`${localstatedir}/run/pdns.controlsocket\*(C'\fR will be used for
++an authoritative server and \f(CW\*(C`${localstatedir}/run/pdns_recursor.controlsocket\*(C'\fR
++will be used for the recursor.
+ .RE
+ .RS 4
+ .RE
+ .IP "\fBLocalSocket\fR \fIPath\fR" 4
+ .IX Item "LocalSocket Path"
+ Querying the recursor is done using \s-1UDP\s0. When using \s-1UDP\s0 over \s-1UNIX\s0 domain
+ sockets, the client socket needs a name in the file system, too. You can set
+ this local name to \fIPath\fR using the \fBLocalSocket\fR option. The default is
+ \&\f(CW\*(C`\f(CIprefix\f(CW/var/run/collectd\-powerdns\*(C'\fR.
+-.ie n .Sh "Plugin ""processes"""
+-.el .Sh "Plugin \f(CWprocesses\fP"
++.ie n .SS "Plugin ""processes"""
++.el .SS "Plugin \f(CWprocesses\fP"
+ .IX Subsection "Plugin processes"
+ .IP "\fBProcess\fR \fIName\fR" 4
+ .IX Item "Process Name"
+ Select more detailed statistics of processes matching this name. The statistics
+ collected for these selected processes are size of the resident segment size
+ (\s-1RSS\s0), user\- and system-time used, number of processes and number of threads,
+ and minor and major pagefaults.
+-.ie n .Sh "Plugin ""rrdtool"""
+-.el .Sh "Plugin \f(CWrrdtool\fP"
++.ie n .SS "Plugin ""rrdtool"""
++.el .SS "Plugin \f(CWrrdtool\fP"
+ .IX Subsection "Plugin rrdtool"
+ You can use the settings \fBStepSize\fR, \fBHeartBeat\fR, \fBRRARows\fR, and \fB\s-1XFF\s0\fR to
+ fine-tune your RRD-files. Please read \fIrrdcreate\fR\|(1) if you encounter problems
+ using these settings. If you don't want to dive into the depths of RRDTool, you
+ can safely ignore these settings.
+ .IP "\fBDataDir\fR \fIDirectory\fR" 4
+@@ -1500,14 +1492,14 @@
+ .IP "\fBWritesPerSecond\fR \fBUpdates\fR" 4
+ .IX Item "WritesPerSecond Updates"
+ When collecting many statistics with collectd and the \f(CW\*(C`rrdtool\*(C'\fR plugin, you
+ will run serious performance problems. The \fBCacheFlush\fR setting and the
+ internal update queue assert that collectd continues to work just fine even
+ under heavy load, but the system may become very unresponsive and slow. This is
+-a problem especially if create graphs from the \s-1RRD\s0 files on the same machine,
+-for example using the \f(CW\*(C`graph.cgi\*(C'\fR script included in the
++a problem especially if you create graphs from the \s-1RRD\s0 files on the same
++machine, for example using the \f(CW\*(C`graph.cgi\*(C'\fR script included in the
+ \&\f(CW\*(C`contrib/collection3/\*(C'\fR directory.
+ .Sp
+ This setting is designed for very large setups. Setting this option to a value
+ between 25 and 80 updates per second, depending on your hardware, will leave
+ the server responsive enough to draw graphs even while all the cached values
+ are written to disk. Flushed values, i.\ e. values that are forced to disk
+@@ -1517,14 +1509,14 @@
+ .Sp
+ For example: If you have 100,000 \s-1RRD\s0 files and set \fBWritesPerSecond\fR to 30
+ updates per second, writing all values to disk will take approximately
+ 56\ minutes. Together with the flushing ability that's integrated into
+ \&\*(L"collection3\*(R" you'll end up with a responsive and fast system, up to date
+ graphs and basically a \*(L"backup\*(R" of your values every hour.
+-.ie n .Sh "Plugin ""sensors"""
+-.el .Sh "Plugin \f(CWsensors\fP"
++.ie n .SS "Plugin ""sensors"""
++.el .SS "Plugin \f(CWsensors\fP"
+ .IX Subsection "Plugin sensors"
+ The \f(CW\*(C`sensors plugin\*(C'\fR uses \fBlm_sensors\fR to retrieve sensor-values. This means
+ that all the needed modules have to be loaded and lm_sensors has to be
+ configured (most likely by editing \fI/etc/sensors.conf\fR. Read
+ \&\fIsensors.conf\fR\|(5) for details.
+ .PP
+@@ -1542,31 +1534,31 @@
+ sensors. This may not be practical, especially for uninteresting sensors.
+ Thus, you can use the \fBSensor\fR\-option to pick the sensors you're interested
+ in. Sometimes, however, it's easier/preferred to collect all sensors \fIexcept\fR a
+ few ones. This option enables you to do that: By setting \fBIgnoreSelected\fR to
+ \&\fItrue\fR the effect of \fBSensor\fR is inverted: All selected sensors are ignored
+ and all other sensors are collected.
+-.ie n .Sh "Plugin ""snmp"""
+-.el .Sh "Plugin \f(CWsnmp\fP"
++.ie n .SS "Plugin ""snmp"""
++.el .SS "Plugin \f(CWsnmp\fP"
+ .IX Subsection "Plugin snmp"
+ Since the configuration of the \f(CW\*(C`snmp plugin\*(C'\fR is a little more complicated than
+ other plugins, its documentation has been moved to an own manpage,
+ \&\fIcollectd\-snmp\fR\|(5). Please see there for details.
+-.ie n .Sh "Plugin ""syslog"""
+-.el .Sh "Plugin \f(CWsyslog\fP"
++.ie n .SS "Plugin ""syslog"""
++.el .SS "Plugin \f(CWsyslog\fP"
+ .IX Subsection "Plugin syslog"
+ .IP "\fBLogLevel\fR \fBdebug|info|notice|warning|err\fR" 4
+ .IX Item "LogLevel debug|info|notice|warning|err"
+ Sets the log-level. If, for example, set to \fBnotice\fR, then all events with
+ severity \fBnotice\fR, \fBwarning\fR, or \fBerr\fR will be submitted to the
+ syslog-daemon.
+ .Sp
+ Please note that \fBdebug\fR is only available if collectd has been compiled with
+ debugging support.
+-.ie n .Sh "Plugin ""tail"""
+-.el .Sh "Plugin \f(CWtail\fP"
++.ie n .SS "Plugin ""tail"""
++.el .SS "Plugin \f(CWtail\fP"
+ .IX Subsection "Plugin tail"
+ The \f(CW\*(C`tail plugin\*(C'\fR plugins follows logfiles, just like \fItail\fR\|(1) does, parses
+ each line and dispatches found values. What is matched can be configured by the
+ user using (extended) regular expressions, as described in \fIregex\fR\|(7).
+ .PP
+ .Vb 10
+@@ -1654,14 +1646,14 @@
+ .IX Item "Type Type"
+ Sets the type used to dispatch this value. Detailed information about types and
+ their configuration can be found in \fItypes.db\fR\|(5).
+ .IP "\fBInstance\fR \fITypeInstance\fR" 4
+ .IX Item "Instance TypeInstance"
+ This optional setting sets the type instance to use.
+-.ie n .Sh "Plugin ""teamspeak2"""
+-.el .Sh "Plugin \f(CWteamspeak2\fP"
++.ie n .SS "Plugin ""teamspeak2"""
++.el .SS "Plugin \f(CWteamspeak2\fP"
+ .IX Subsection "Plugin teamspeak2"
+ The \f(CW\*(C`teamspeak2 plugin\*(C'\fR connects to the query port of a teamspeak2 server and
+ polls interesting global and virtual server data. The plugin can query only one
+ physical server but unlimited virtual servers. You can use the following
+ options to configure it:
+ .IP "\fBHost\fR \fIhostname/ip\fR" 4
+@@ -1682,14 +1674,14 @@
+ \&  Server "8767"
+ .Ve
+ .Sp
+ This option, although numeric, needs to be a string, i.\ e. you \fBmust\fR
+ use quotes around it! If no such statement is given only global information
+ will be collected.
+-.ie n .Sh "Plugin ""tcpconns"""
+-.el .Sh "Plugin \f(CWtcpconns\fP"
++.ie n .SS "Plugin ""tcpconns"""
++.el .SS "Plugin \f(CWtcpconns\fP"
+ .IX Subsection "Plugin tcpconns"
+ The \f(CW\*(C`tcpconns plugin\*(C'\fR counts the number of currently established \s-1TCP\s0
+ connections based on the local port and/or the remote port. Since there may be
+ a lot of connections the default if to count all connections with a local port,
+ for which a listening socket is opened. You can use the following options to
+ fine-tune the ports you are interested in:
+@@ -1713,14 +1705,14 @@
+ Count the connections to a specific remote port. This is useful to see how
+ much a remote service is used. This is most useful if you want to know how many
+ connections a local service has opened to remote services, e.\ g. how many
+ connections a mail server or news server has to other mail or news servers, or
+ how many connections a web proxy holds to web servers. You have to give the
+ port in numeric form.
+-.ie n .Sh "Plugin ""thermal"""
+-.el .Sh "Plugin \f(CWthermal\fP"
++.ie n .SS "Plugin ""thermal"""
++.el .SS "Plugin \f(CWthermal\fP"
+ .IX Subsection "Plugin thermal"
+ .IP "\fBForceUseProcfs\fR \fItrue\fR|\fIfalse\fR" 4
+ .IX Item "ForceUseProcfs true|false"
+ By default, the \f(CW\*(C`thermal\*(C'\fR plugin tries to read the statistics from the Linux
+ \&\f(CW\*(C`sysfs\*(C'\fR interface. If that is not available, the plugin falls back to the
+ \&\f(CW\*(C`procfs\*(C'\fR interface. By setting this option to \fItrue\fR, you can force the
+@@ -1733,14 +1725,14 @@
+ .IP "\fBIgnoreSelected\fR \fItrue\fR|\fIfalse\fR" 4
+ .IX Item "IgnoreSelected true|false"
+ Invert the selection: If set to true, all devices \fBexcept\fR the ones that
+ match the device names specified by the \fBDevice\fR option are collected. By
+ default only selected devices are collected if a selection is made. If no
+ selection is configured at all, \fBall\fR devices are selected.
+-.ie n .Sh "Plugin ""unixsock"""
+-.el .Sh "Plugin \f(CWunixsock\fP"
++.ie n .SS "Plugin ""unixsock"""
++.el .SS "Plugin \f(CWunixsock\fP"
+ .IX Subsection "Plugin unixsock"
+ .IP "\fBSocketFile\fR \fIPath\fR" 4
+ .IX Item "SocketFile Path"
+ Sets the socket-file which is to be created.
+ .IP "\fBSocketGroup\fR \fIGroup\fR" 4
+ .IX Item "SocketGroup Group"
+@@ -1748,14 +1740,14 @@
+ created. Defaults to \fBcollectd\fR.
+ .IP "\fBSocketPerms\fR \fIPermissions\fR" 4
+ .IX Item "SocketPerms Permissions"
+ Change the file permissions of the UNIX-socket after it has been created. The
+ permissions must be given as a numeric, octal value as you would pass to
+ \&\fIchmod\fR\|(1). Defaults to \fB0770\fR.
+-.ie n .Sh "Plugin ""uuid"""
+-.el .Sh "Plugin \f(CWuuid\fP"
++.ie n .SS "Plugin ""uuid"""
++.el .SS "Plugin \f(CWuuid\fP"
+ .IX Subsection "Plugin uuid"
+ This plugin, if loaded, causes the Hostname to be taken from the machine's
+ \&\s-1UUID\s0. The \s-1UUID\s0 is a universally unique designation for the machine, usually
+ taken from the machine's \s-1BIOS\s0. This is most useful if the machine is running in
+ a virtual environment such as Xen, in which case the \s-1UUID\s0 is preserved across
+ shutdowns and migration.
+@@ -1772,27 +1764,27 @@
+ Check for \s-1UUID\s0 from Xen hypervisor.
+ .PP
+ If no \s-1UUID\s0 can be found then the hostname is not modified.
+ .IP "\fBUUIDFile\fR \fIPath\fR" 4
+ .IX Item "UUIDFile Path"
+ Take the \s-1UUID\s0 from the given file (default \fI/etc/uuid\fR).
+-.ie n .Sh "Plugin ""vmem"""
+-.el .Sh "Plugin \f(CWvmem\fP"
++.ie n .SS "Plugin ""vmem"""
++.el .SS "Plugin \f(CWvmem\fP"
+ .IX Subsection "Plugin vmem"
+ The \f(CW\*(C`vmem\*(C'\fR plugin collects information about the usage of virtual memory.
+ Since the statistics provided by the Linux kernel are very detailed, they are
+ collected very detailed. However, to get all the details, you have to switch
+ them on manually. Most people just want an overview over, such as the number of
+ pages read from swap space.
+ .IP "\fBVerbose\fR \fBtrue\fR|\fBfalse\fR" 4
+ .IX Item "Verbose true|false"
+ Enables verbose collection of information. This will start collecting page
+ \&\*(L"actions\*(R", e.\ g. page allocations, (de)activations, steals and so on.
+ Part of these statistics are collected on a \*(L"per zone\*(R" basis.
+-.ie n .Sh "Plugin ""vserver"""
+-.el .Sh "Plugin \f(CWvserver\fP"
++.ie n .SS "Plugin ""vserver"""
++.el .SS "Plugin \f(CWvserver\fP"
+ .IX Subsection "Plugin vserver"
+ This plugin doesn't have any options. \fBVServer\fR support is only available for
+ Linux. It cannot yet be found in a vanilla kernel, though. To make use of this
+ plugin you need a kernel that has \fBVServer\fR support built in, i.\ e. you
+ need to apply the patches and compile your own kernel, which will then provide
+ the \fI/proc/virtual\fR filesystem that is required by this plugin.
+@@ -1819,12 +1811,15 @@
+ \&\*(L"interesting\*(R". As a consequence collectd will issue a notification if they are
+ not received for twice the last timeout of the values. If, for example, some
+ hosts sends it's \s-1CPU\s0 statistics to the server every 60 seconds, a notification
+ will be dispatched after about 120 seconds. It may take a little longer because
+ the timeout is checked only once each \fBInterval\fR on the server.
+ .PP
++When a value comes within range again or is received after it was missing, an
++\&\*(L"OKAY-notification\*(R" is dispatched.
++.PP
+ Here is a configuration example to get you started. Read below for more
+ information.
+ .PP
+ .Vb 9
+ \& <Threshold>
+ \&   <Type "foo">
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/collectd.conf.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd.conf.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/collectd.conf.in	2008-09-04 21:01:11.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd.conf.in	2008-10-17 04:29:56.000000000 +0800
+@@ -260,12 +260,17 @@
+ 
+ #<Plugin perl>
+ #	IncludeDir "/my/include/path"
+ #	BaseName "Collectd::Plugin"
+ #	EnableDebugger ""
+ #	LoadPlugin foo
++#
++#	<Plugin foo>
++#		Foo "Bar"
++#		Qux "Baz"
++#	</Plugin>
+ #</Plugin>
+ 
+ #<Plugin ping>
+ #	Host "host.foo.bar"
+ #	TTL 255
+ #</Plugin>
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/collectd.conf.pod /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd.conf.pod
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/collectd.conf.pod	2008-09-04 21:01:11.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd.conf.pod	2008-10-17 04:29:56.000000000 +0800
+@@ -1469,15 +1469,15 @@
+ 
+ In this case please file a bug report with the collectd team.
+ 
+ =item B<Socket> I<Path>
+ 
+ Configures the path to the UNIX domain socket to be used when connecting to the
+-daemon. By default C</var/run/pdns.controlsocket> will be used for an
+-authoritative server and C</var/run/pdns_recursor.controlsocket> will be used
+-for the recursor.
++daemon. By default C<${localstatedir}/run/pdns.controlsocket> will be used for
++an authoritative server and C<${localstatedir}/run/pdns_recursor.controlsocket>
++will be used for the recursor.
+ 
+ =back
+ 
+ =item B<LocalSocket> I<Path>
+ 
+ Querying the recursor is done using UDP. When using UDP over UNIX domain
+@@ -1580,14 +1580,14 @@
+ =item B<WritesPerSecond> B<Updates>
+ 
+ When collecting many statistics with collectd and the C<rrdtool> plugin, you
+ will run serious performance problems. The B<CacheFlush> setting and the
+ internal update queue assert that collectd continues to work just fine even
+ under heavy load, but the system may become very unresponsive and slow. This is
+-a problem especially if create graphs from the RRD files on the same machine,
+-for example using the C<graph.cgi> script included in the
++a problem especially if you create graphs from the RRD files on the same
++machine, for example using the C<graph.cgi> script included in the
+ C<contrib/collection3/> directory.
+ 
+ This setting is designed for very large setups. Setting this option to a value
+ between 25 and 80 updates per second, depending on your hardware, will leave
+ the server responsive enough to draw graphs even while all the cached values
+ are written to disk. Flushed values, i.E<nbsp>e. values that are forced to disk
+@@ -1969,12 +1969,15 @@
+ "interesting". As a consequence collectd will issue a notification if they are
+ not received for twice the last timeout of the values. If, for example, some
+ hosts sends it's CPU statistics to the server every 60 seconds, a notification
+ will be dispatched after about 120 seconds. It may take a little longer because
+ the timeout is checked only once each B<Interval> on the server.
+ 
++When a value comes within range again or is received after it was missing, an
++"OKAY-notification" is dispatched.
++
+ Here is a configuration example to get you started. Read below for more
+ information.
+ 
+  <Threshold>
+    <Type "foo">
+      WarningMin    0.00
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/collectd-email.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd-email.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/collectd-email.5	2008-09-05 16:58:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd-email.5	2008-10-17 04:46:20.000000000 +0800
+@@ -1,18 +1,10 @@
+-.\" Automatically generated by Pod::Man 2.16 (Pod::Simple 3.05)
++.\" Automatically generated by Pod::Man 2.18 (Pod::Simple 3.05)
+ .\"
+ .\" Standard preamble:
+ .\" ========================================================================
+-.de Sh \" Subsection heading
+-.br
+-.if t .Sp
+-.ne 5
+-.PP
+-\fB\\$1\fR
+-.PP
+-..
+ .de Sp \" Vertical space (when we can't use .PP)
+ .if t .sp .5v
+ .if n .sp
+ ..
+ .de Vb \" Begin verbatim text
+ .ft CW
+@@ -50,13 +42,13 @@
+ .\"
+ .\" Escape single quotes in literal strings from groff's Unicode transform.
+ .ie \n(.g .ds Aq \(aq
+ .el       .ds Aq '
+ .\"
+ .\" If the F register is turned on, we'll generate index entries on stderr for
+-.\" titles (.TH), headers (.SH), subsections (.Sh), items (.Ip), and index
++.\" titles (.TH), headers (.SH), subsections (.SS), items (.Ip), and index
+ .\" entries marked with X<> in POD.  Of course, you'll have to process the
+ .\" output yourself in some meaningful fashion.
+ .ie \nF \{\
+ .    de IX
+ .    tm Index:\\$1\t\\n%\t"\\$2"
+ ..
+@@ -129,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-EMAIL 5"
+-.TH COLLECTD-EMAIL 5 "2007-10-24" "4.5.0" "collectd"
++.TH COLLECTD-EMAIL 5 "2007-10-24" "4.5.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-email \- Documentation of collectd's \f(CW\*(C`email plugin\*(C'\fR
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/collectd-exec.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd-exec.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/collectd-exec.5	2008-09-05 16:58:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd-exec.5	2008-10-17 04:46:20.000000000 +0800
+@@ -1,18 +1,10 @@
+-.\" Automatically generated by Pod::Man 2.16 (Pod::Simple 3.05)
++.\" Automatically generated by Pod::Man 2.18 (Pod::Simple 3.05)
+ .\"
+ .\" Standard preamble:
+ .\" ========================================================================
+-.de Sh \" Subsection heading
+-.br
+-.if t .Sp
+-.ne 5
+-.PP
+-\fB\\$1\fR
+-.PP
+-..
+ .de Sp \" Vertical space (when we can't use .PP)
+ .if t .sp .5v
+ .if n .sp
+ ..
+ .de Vb \" Begin verbatim text
+ .ft CW
+@@ -50,13 +42,13 @@
+ .\"
+ .\" Escape single quotes in literal strings from groff's Unicode transform.
+ .ie \n(.g .ds Aq \(aq
+ .el       .ds Aq '
+ .\"
+ .\" If the F register is turned on, we'll generate index entries on stderr for
+-.\" titles (.TH), headers (.SH), subsections (.Sh), items (.Ip), and index
++.\" titles (.TH), headers (.SH), subsections (.SS), items (.Ip), and index
+ .\" entries marked with X<> in POD.  Of course, you'll have to process the
+ .\" output yourself in some meaningful fashion.
+ .ie \nF \{\
+ .    de IX
+ .    tm Index:\\$1\t\\n%\t"\\$2"
+ ..
+@@ -129,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-EXEC 5"
+-.TH COLLECTD-EXEC 5 "2008-09-04" "4.5.0" "collectd"
++.TH COLLECTD-EXEC 5 "2008-10-16" "4.5.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-exec \- Documentation of collectd's \f(CW\*(C`exec plugin\*(C'\fR
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/collectd.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/collectd.h	2008-09-04 21:01:12.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd.h	2008-10-17 04:14:28.000000000 +0800
+@@ -251,24 +251,24 @@
+ 
+ /* Remove GNU specific __attribute__ settings when using another compiler */
+ #if !__GNUC__
+ # define __attribute__(x) /**/
+ #endif
+ 
+-#if __GNUC__
++#if defined(COLLECT_DEBUG) && COLLECT_DEBUG && defined(__GNUC__) && __GNUC__
+ # pragma GCC poison strcpy strcat strtok
+ #endif
+ 
+ /* 
+  * Special hack for the perl plugin: Because the later included perl.h defines
+  * a macro which is never used, but contains `sprintf', we cannot poison that
+  * identifies just yet. The parl plugin will do that itself once perl.h is
+  * included.
+  */
+ #ifndef DONT_POISON_SPRINTF_YET
+-# if __GNUC__
++# if defined(COLLECT_DEBUG) && COLLECT_DEBUG && defined(__GNUC__) && __GNUC__
+ #  pragma GCC poison sprintf
+ # endif
+ #endif
+ 
+ extern char hostname_g[];
+ extern int  interval_g;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/collectdmon.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectdmon.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/collectdmon.1	2008-09-05 16:58:53.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectdmon.1	2008-10-17 04:46:21.000000000 +0800
+@@ -1,18 +1,10 @@
+-.\" Automatically generated by Pod::Man 2.16 (Pod::Simple 3.05)
++.\" Automatically generated by Pod::Man 2.18 (Pod::Simple 3.05)
+ .\"
+ .\" Standard preamble:
+ .\" ========================================================================
+-.de Sh \" Subsection heading
+-.br
+-.if t .Sp
+-.ne 5
+-.PP
+-\fB\\$1\fR
+-.PP
+-..
+ .de Sp \" Vertical space (when we can't use .PP)
+ .if t .sp .5v
+ .if n .sp
+ ..
+ .de Vb \" Begin verbatim text
+ .ft CW
+@@ -50,13 +42,13 @@
+ .\"
+ .\" Escape single quotes in literal strings from groff's Unicode transform.
+ .ie \n(.g .ds Aq \(aq
+ .el       .ds Aq '
+ .\"
+ .\" If the F register is turned on, we'll generate index entries on stderr for
+-.\" titles (.TH), headers (.SH), subsections (.Sh), items (.Ip), and index
++.\" titles (.TH), headers (.SH), subsections (.SS), items (.Ip), and index
+ .\" entries marked with X<> in POD.  Of course, you'll have to process the
+ .\" output yourself in some meaningful fashion.
+ .ie \nF \{\
+ .    de IX
+ .    tm Index:\\$1\t\\n%\t"\\$2"
+ ..
+@@ -129,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTDMON 1"
+-.TH COLLECTDMON 1 "2008-05-06" "4.5.0" "collectd"
++.TH COLLECTDMON 1 "2008-05-06" "4.5.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectdmon \- Monitoring daemon for collectd
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/collectdmon.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectdmon.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/collectdmon.c	2008-05-06 20:30:12.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectdmon.c	2008-10-04 05:18:29.000000000 +0800
+@@ -328,18 +328,12 @@
+ 
+ 	if (0 != sigaction (SIGHUP, &sa, NULL)) {
+ 		syslog (LOG_ERR, "Error: sigaction() failed: %s", strerror (errno));
+ 		return 1;
+ 	}
+ 
+-	sigaddset (&sa.sa_mask, SIGCHLD);
+-	if (0 != sigprocmask (SIG_BLOCK, &sa.sa_mask, NULL)) {
+-		syslog (LOG_ERR, "Error: sigprocmask() failed: %s", strerror (errno));
+-		return 1;
+-	}
+-
+ 	while (0 == loop) {
+ 		int status = 0;
+ 
+ 		if (0 != collectd_start (collectd_argv)) {
+ 			syslog (LOG_ERR, "Error: failed to start collectd.");
+ 			break;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/collectd-nagios.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd-nagios.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/collectd-nagios.1	2008-09-05 16:58:50.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd-nagios.1	2008-10-17 04:46:20.000000000 +0800
+@@ -1,18 +1,10 @@
+-.\" Automatically generated by Pod::Man 2.16 (Pod::Simple 3.05)
++.\" Automatically generated by Pod::Man 2.18 (Pod::Simple 3.05)
+ .\"
+ .\" Standard preamble:
+ .\" ========================================================================
+-.de Sh \" Subsection heading
+-.br
+-.if t .Sp
+-.ne 5
+-.PP
+-\fB\\$1\fR
+-.PP
+-..
+ .de Sp \" Vertical space (when we can't use .PP)
+ .if t .sp .5v
+ .if n .sp
+ ..
+ .de Vb \" Begin verbatim text
+ .ft CW
+@@ -50,13 +42,13 @@
+ .\"
+ .\" Escape single quotes in literal strings from groff's Unicode transform.
+ .ie \n(.g .ds Aq \(aq
+ .el       .ds Aq '
+ .\"
+ .\" If the F register is turned on, we'll generate index entries on stderr for
+-.\" titles (.TH), headers (.SH), subsections (.Sh), items (.Ip), and index
++.\" titles (.TH), headers (.SH), subsections (.SS), items (.Ip), and index
+ .\" entries marked with X<> in POD.  Of course, you'll have to process the
+ .\" output yourself in some meaningful fashion.
+ .ie \nF \{\
+ .    de IX
+ .    tm Index:\\$1\t\\n%\t"\\$2"
+ ..
+@@ -129,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-NAGIOS 1"
+-.TH COLLECTD-NAGIOS 1 "2007-10-27" "4.5.0" "collectd"
++.TH COLLECTD-NAGIOS 1 "2008-10-16" "4.5.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-nagios \- Nagios plugin for querying collectd
+@@ -170,13 +162,13 @@
+ Each \fIvalue_spec\fR may be made of multiple \*(L"data sources\*(R". With this option you
+ can select one or more data sources. To select multiple data sources simply
+ specify this option again. If multiple data sources are examined they are
+ handled according to the consolidation function given with the \fB\-g\fR option.
+ .IP "\fB\-g\fR \fBnone\fR\fI|\fR\fBaverage\fR\fI|\fR\fBsum\fR" 4
+ .IX Item "-g none|average|sum"
+-When multiple data sources are selected from a value spec they can be handled
++When multiple data sources are selected from a value spec, they can be handled
+ differently depending on this option. The values of the following meaning:
+ .RS 4
+ .IP "\fBnone\fR" 4
+ .IX Item "none"
+ No consolidation if done and the warning and critical regions are applied to
+ each value independently.
+@@ -194,25 +186,35 @@
+ .PD 0
+ .IP "\fB\-w\fR \fIrange\fR" 4
+ .IX Item "-w range"
+ .PD
+ Set the critical (\fB\-c\fR) and warning (\fB\-w\fR) ranges. These options mostly
+ follow the normal syntax of Nagios plugins. The general format is
+-"\fImin\fR\fB:\fR\fImax\fR". If a value if smaller than \fImin\fR or bigger than \fImax\fR a
+-warning or critical is returned, otherwise okay is returned. \fImin\fR (and the
+-colon) may be omitted and are then assumed to be zero. If \fImax\fR (but not the
+-colon) is omitted \fImax\fR is set to positive infinity. If either \fImin\fR or
+-\&\fImax\fR if set to \fB~\fR they are set to negative and positive infinity,
+-respectively.
++"\fImin\fR\fB:\fR\fImax\fR". If a value is smaller than \fImin\fR or bigger than \fImax\fR, a
++\&\fIwarning\fR or \fIcritical\fR status is returned, otherwise the status is
++\&\fIsuccess\fR.
++.Sp
++The tilde sign (\fB~\fR) can be used to explicitly specify infinity. If \fB~\fR is
++used as a \fImin\fR value, negative infinity is used. In case of \fImax\fR, it is
++interpreted as positive infinity.
++.Sp
++If the first character of the \fIrange\fR is the at\ sign (\fB@\fR), the meaning
++of the range will be inverted. I.\ e. all values \fIwithin\fR the range will
++yield a \fIwarning\fR or \fIcritical\fR status, while all values \fIoutside\fR the range
++will result in a \fIsuccess\fR status.
++.Sp
++\&\fImin\fR (and the colon) may be omitted,
++\&\fImin\fR is then assumed to be zero. If \fImax\fR (but not the trailing colon) is
++omitted, \fImax\fR is assumed to be positive infinity.
+ .SH "RETURN VALUE"
+ .IX Header "RETURN VALUE"
+-As usual for Nagios plugins this program writes a short, one line status
++As usual for Nagios plugins, this program writes a short, one line status
+ message to \s-1STDOUT\s0 and signals success or failure with it's return value. It
+-exists with a return value of \fB0\fR for success or \fB1\fR or \fB2\fR for warning and
+-critical, respectively. If the values is not available or some other error
+-occurred it returns \fB3\fR for \*(L"unknown\*(R".
++exits with a return value of \fB0\fR for \fIsuccess\fR, \fB1\fR for \fIwarning\fR and \fB2\fR
++for \fIcritical\fR. If the values are not available or some other error occurred,
++it returns \fB3\fR for \fIunknown\fR.
+ .SH "SEE ALSO"
+ .IX Header "SEE ALSO"
+ \&\fIcollectd\fR\|(1),
+ \&\fIcollectd.conf\fR\|(5),
+ \&\fIcollectd\-unixsock\fR\|(5),
+ <http://nagios.org/>
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/collectd-nagios.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd-nagios.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/collectd-nagios.c	2008-09-04 21:00:54.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd-nagios.c	2008-10-17 03:23:01.000000000 +0800
+@@ -147,12 +147,13 @@
+ 
+ 	int values_num;
+ 	double *values;
+ 	char **values_names;
+ 
+ 	int i;
++	int j;
+ 
+ 	fd = socket (PF_UNIX, SOCK_STREAM, 0);
+ 	if (fd < 0)
+ 	{
+ 		fprintf (stderr, "socket failed: %s\n",
+ 				strerror (errno));
+@@ -226,37 +227,64 @@
+ 	{
+ 		fprintf (stderr, "malloc failed: %s\n",
+ 				strerror (errno));
+ 		free (values);
+ 		return (-1);
+ 	}
++	memset (values_names, 0, values_num * sizeof (char *));
+ 
+-	i = 0;
++	i = 0; /* index of the values returned by the server */
++	j = 0; /* number of values in `values_names' and `values' */
+ 	while (fgets (buffer, sizeof (buffer), fh_in) != NULL)
+ 	{
+-		char *key;
+-		char *value;
+-
+-		key = buffer;
+-
+-		value = strchr (key, '=');
+-		if (value == NULL)
+-			continue;
+-		*value = '\0'; value++;
+-
+-		if (ignore_ds (key) != 0)
+-			continue;
+-
+-		values_names[i] = strdup (key);
+-		values[i] = atof (value);
++		do /* while (0) */
++		{
++			char *key;
++			char *value;
++			char *endptr;
++
++			key = buffer;
++
++			value = strchr (key, '=');
++			if (value == NULL)
++			{
++				fprintf (stderr, "Cannot parse line: %s\n", buffer);
++				break;
++			}
++			*value = 0;
++			value++;
++
++			if (ignore_ds (key) != 0)
++				break;
++
++			endptr = NULL;
++			errno = 0;
++			values[j] = strtod (value, &endptr);
++			if ((endptr == value) || (errno != 0))
++			{
++				fprintf (stderr, "Could not parse buffer "
++						"as number: %s\n", value);
++				break;
++			}
++
++			values_names[j] = strdup (key);
++			if (values_names[j] == NULL)
++			{
++				fprintf (stderr, "strdup failed.\n");
++				break;
++			}
++			j++;
++		} while (0);
+ 
+ 		i++;
+ 		if (i >= values_num)
+ 			break;
+ 	}
+-	values_num = i;
++	/* Set `values_num' to the number of values actually stored in the
++	 * array. */
++	values_num = j;
+ 
+ 	fclose (fh_in); fh_in = NULL; fd = -1;
+ 	fclose (fh_out); fh_out = NULL;
+ 
+ 	*ret_values_num = values_num;
+ 	*ret_values = values;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/collectd-nagios.pod /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd-nagios.pod
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/collectd-nagios.pod	2007-10-27 16:57:24.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd-nagios.pod	2008-10-17 03:23:01.000000000 +0800
+@@ -42,13 +42,13 @@
+ can select one or more data sources. To select multiple data sources simply
+ specify this option again. If multiple data sources are examined they are
+ handled according to the consolidation function given with the B<-g> option.
+ 
+ =item B<-g> B<none>I<|>B<average>I<|>B<sum>
+ 
+-When multiple data sources are selected from a value spec they can be handled
++When multiple data sources are selected from a value spec, they can be handled
+ differently depending on this option. The values of the following meaning:
+ 
+ =over 4
+ 
+ =item B<none>
+ 
+@@ -68,28 +68,38 @@
+ =item B<-c> I<range>
+ 
+ =item B<-w> I<range>
+ 
+ Set the critical (B<-c>) and warning (B<-w>) ranges. These options mostly
+ follow the normal syntax of Nagios plugins. The general format is
+-"I<min>B<:>I<max>". If a value if smaller than I<min> or bigger than I<max> a
+-warning or critical is returned, otherwise okay is returned. I<min> (and the
+-colon) may be omitted and are then assumed to be zero. If I<max> (but not the
+-colon) is omitted I<max> is set to positive infinity. If either I<min> or
+-I<max> if set to B<~> they are set to negative and positive infinity,
+-respectively.
++"I<min>B<:>I<max>". If a value is smaller than I<min> or bigger than I<max>, a
++I<warning> or I<critical> status is returned, otherwise the status is
++I<success>.
++
++The tilde sign (B<~>) can be used to explicitly specify infinity. If B<~> is
++used as a I<min> value, negative infinity is used. In case of I<max>, it is
++interpreted as positive infinity.
++
++If the first character of the I<range> is the atE<nbsp>sign (B<@>), the meaning
++of the range will be inverted. I.E<nbsp>e. all values I<within> the range will
++yield a I<warning> or I<critical> status, while all values I<outside> the range
++will result in a I<success> status.
++
++I<min> (and the colon) may be omitted,
++I<min> is then assumed to be zero. If I<max> (but not the trailing colon) is
++omitted, I<max> is assumed to be positive infinity.
+ 
+ =back
+ 
+ =head1 RETURN VALUE
+ 
+-As usual for Nagios plugins this program writes a short, one line status
++As usual for Nagios plugins, this program writes a short, one line status
+ message to STDOUT and signals success or failure with it's return value. It
+-exists with a return value of B<0> for success or B<1> or B<2> for warning and
+-critical, respectively. If the values is not available or some other error
+-occurred it returns B<3> for "unknown". 
++exits with a return value of B<0> for I<success>, B<1> for I<warning> and B<2>
++for I<critical>. If the values are not available or some other error occurred,
++it returns B<3> for I<unknown>. 
+ 
+ =head1 SEE ALSO
+ 
+ L<collectd(1)>,
+ L<collectd.conf(5)>,
+ L<collectd-unixsock(5)>,
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/collectd-perl.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd-perl.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/collectd-perl.5	2008-09-05 16:58:52.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd-perl.5	2008-10-17 04:46:20.000000000 +0800
+@@ -1,18 +1,10 @@
+-.\" Automatically generated by Pod::Man 2.16 (Pod::Simple 3.05)
++.\" Automatically generated by Pod::Man 2.18 (Pod::Simple 3.05)
+ .\"
+ .\" Standard preamble:
+ .\" ========================================================================
+-.de Sh \" Subsection heading
+-.br
+-.if t .Sp
+-.ne 5
+-.PP
+-\fB\\$1\fR
+-.PP
+-..
+ .de Sp \" Vertical space (when we can't use .PP)
+ .if t .sp .5v
+ .if n .sp
+ ..
+ .de Vb \" Begin verbatim text
+ .ft CW
+@@ -50,13 +42,13 @@
+ .\"
+ .\" Escape single quotes in literal strings from groff's Unicode transform.
+ .ie \n(.g .ds Aq \(aq
+ .el       .ds Aq '
+ .\"
+ .\" If the F register is turned on, we'll generate index entries on stderr for
+-.\" titles (.TH), headers (.SH), subsections (.Sh), items (.Ip), and index
++.\" titles (.TH), headers (.SH), subsections (.SS), items (.Ip), and index
+ .\" entries marked with X<> in POD.  Of course, you'll have to process the
+ .\" output yourself in some meaningful fashion.
+ .ie \nF \{\
+ .    de IX
+ .    tm Index:\\$1\t\\n%\t"\\$2"
+ ..
+@@ -129,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-PERL 5"
+-.TH COLLECTD-PERL 5 "2008-09-04" "4.5.0" "collectd"
++.TH COLLECTD-PERL 5 "2008-10-16" "4.5.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-perl \- Documentation of collectd's \f(CW\*(C`perl plugin\*(C'\fR
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/collectd-snmp.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd-snmp.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/collectd-snmp.5	2008-09-05 16:58:52.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd-snmp.5	2008-10-17 04:46:21.000000000 +0800
+@@ -1,18 +1,10 @@
+-.\" Automatically generated by Pod::Man 2.16 (Pod::Simple 3.05)
++.\" Automatically generated by Pod::Man 2.18 (Pod::Simple 3.05)
+ .\"
+ .\" Standard preamble:
+ .\" ========================================================================
+-.de Sh \" Subsection heading
+-.br
+-.if t .Sp
+-.ne 5
+-.PP
+-\fB\\$1\fR
+-.PP
+-..
+ .de Sp \" Vertical space (when we can't use .PP)
+ .if t .sp .5v
+ .if n .sp
+ ..
+ .de Vb \" Begin verbatim text
+ .ft CW
+@@ -50,13 +42,13 @@
+ .\"
+ .\" Escape single quotes in literal strings from groff's Unicode transform.
+ .ie \n(.g .ds Aq \(aq
+ .el       .ds Aq '
+ .\"
+ .\" If the F register is turned on, we'll generate index entries on stderr for
+-.\" titles (.TH), headers (.SH), subsections (.Sh), items (.Ip), and index
++.\" titles (.TH), headers (.SH), subsections (.SS), items (.Ip), and index
+ .\" entries marked with X<> in POD.  Of course, you'll have to process the
+ .\" output yourself in some meaningful fashion.
+ .ie \nF \{\
+ .    de IX
+ .    tm Index:\\$1\t\\n%\t"\\$2"
+ ..
+@@ -129,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-SNMP 5"
+-.TH COLLECTD-SNMP 5 "2008-05-06" "4.5.0" "collectd"
++.TH COLLECTD-SNMP 5 "2008-05-06" "4.5.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-snmp \- Documentation of collectd's \f(CW\*(C`snmp plugin\*(C'\fR
+@@ -206,13 +198,13 @@
+ .PP
+ Since the \f(CW\*(C`Net\-SNMP\*(C'\fR library is used you can use all the environment variables
+ that are interpreted by that package. See \fIsnmpcmd\fR\|(1) for more details.
+ .PP
+ There are two types of blocks that can be contained in the
+ \&\f(CW\*(C`<Plugin\ snmp>\*(C'\fR block: \fBData\fR and \fBHost\fR:
+-.Sh "The \fBData\fP block"
++.SS "The \fBData\fP block"
+ .IX Subsection "The Data block"
+ The \fBData\fR block defines a list of values or a table of values that are to be
+ queried. The following options can be set:
+ .IP "\fBType\fR \fItype\fR" 4
+ .IX Item "Type type"
+ collectd's type that is to be used, e.\ g. \*(L"if_octets\*(R" for interface
+@@ -311,13 +303,13 @@
+ \&\fIValue\fR is added to gauge-values returned by the SNMP-agent after they have
+ been multiplied by any \fBScale\fR value. If, for example, a thermometer returns
+ degrees Kelvin you could specify a shift of \fB273.15\fR here to store values in
+ degrees Celsius. The default value is is course \fB0.0\fR.
+ .Sp
+ This value is not applied to counter-values.
+-.Sh "The Host block"
++.SS "The Host block"
+ .IX Subsection "The Host block"
+ The \fBHost\fR block defines which hosts to query, which \s-1SNMP\s0 community and
+ version to use and which of the defined \fBData\fR to query.
+ .PP
+ The argument passed to the \fBHost\fR block is used as the hostname in the data
+ stored by collectd.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/collectd-unixsock.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd-unixsock.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/collectd-unixsock.5	2008-09-05 16:58:52.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd-unixsock.5	2008-10-17 04:46:21.000000000 +0800
+@@ -1,18 +1,10 @@
+-.\" Automatically generated by Pod::Man 2.16 (Pod::Simple 3.05)
++.\" Automatically generated by Pod::Man 2.18 (Pod::Simple 3.05)
+ .\"
+ .\" Standard preamble:
+ .\" ========================================================================
+-.de Sh \" Subsection heading
+-.br
+-.if t .Sp
+-.ne 5
+-.PP
+-\fB\\$1\fR
+-.PP
+-..
+ .de Sp \" Vertical space (when we can't use .PP)
+ .if t .sp .5v
+ .if n .sp
+ ..
+ .de Vb \" Begin verbatim text
+ .ft CW
+@@ -50,13 +42,13 @@
+ .\"
+ .\" Escape single quotes in literal strings from groff's Unicode transform.
+ .ie \n(.g .ds Aq \(aq
+ .el       .ds Aq '
+ .\"
+ .\" If the F register is turned on, we'll generate index entries on stderr for
+-.\" titles (.TH), headers (.SH), subsections (.Sh), items (.Ip), and index
++.\" titles (.TH), headers (.SH), subsections (.SS), items (.Ip), and index
+ .\" entries marked with X<> in POD.  Of course, you'll have to process the
+ .\" output yourself in some meaningful fashion.
+ .ie \nF \{\
+ .    de IX
+ .    tm Index:\\$1\t\\n%\t"\\$2"
+ ..
+@@ -129,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-UNIXSOCK 5"
+-.TH COLLECTD-UNIXSOCK 5 "2008-09-04" "4.5.0" "collectd"
++.TH COLLECTD-UNIXSOCK 5 "2008-10-16" "4.5.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-unixsock \- Documentation of collectd's \f(CW\*(C`unixsock plugin\*(C'\fR
+@@ -326,13 +318,13 @@
+ \&\fBidentifier\fR option multiple times to flush several values. If this option is
+ not specified at all, all values will be flushed.
+ .Sp
+ Example:
+   \-> | \s-1FLUSH\s0 plugin=rrdtool identifier=localhost/df/df\-root identifier=localhost/df/df\-var
+   <\- | 0 Done: 2 successful, 0 errors
+-.Sh "Identifiers"
++.SS "Identifiers"
+ .IX Subsection "Identifiers"
+ Value or value-lists are identified in a uniform fashion:
+ .PP
+ \&\fIHostname\fR/\fIPlugin\fR/\fIType\fR
+ .PP
+ Where \fIPlugin\fR and \fIType\fR are both either of type "\fIName\fR\*(L" or
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/configfile.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/configfile.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/configfile.c	2008-09-04 21:01:13.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/configfile.c	2008-10-17 04:12:19.000000000 +0800
+@@ -884,10 +884,14 @@
+ 		if (conf->children[i].children == NULL)
+ 			dispatch_value (conf->children + i);
+ 		else
+ 			dispatch_block (conf->children + i);
+ 	}
+ 
++	oconfig_free (conf);
++
++	/* Read the default types.db if no `TypesDB' option was given. */
+ 	if (cf_default_typesdb)
+-		read_types_list (PLUGINDIR"/types.db"); /* FIXME: Configure path */
++		read_types_list (PLUGINDIR"/types.db");
++
+ 	return (0);
+ } /* int cf_read */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/iptables.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/iptables.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/iptables.c	2008-09-04 21:01:14.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/iptables.c	2008-10-17 04:12:19.000000000 +0800
+@@ -104,23 +104,23 @@
+ 		    return (1);
+ 		}
+ 
+ 		table = fields[0];
+ 		chain = fields[1];
+ 
+-		table_len = strlen (table);
+-		if ((unsigned int)table_len >= sizeof(temp.table))
++		table_len = strlen (table) + 1;
++		if ((unsigned int)table_len > sizeof(temp.table))
+ 		{
+ 			ERROR ("Table `%s' too long.", table);
+ 			free (value_copy);
+ 			return (1);
+ 		}
+ 		sstrncpy (temp.table, table, table_len);
+ 
+-		chain_len = strlen (chain);
+-		if ((unsigned int)chain_len >= sizeof(temp.chain))
++		chain_len = strlen (chain) + 1;
++		if ((unsigned int)chain_len > sizeof(temp.chain))
+ 		{
+ 			ERROR ("Chain `%s' too long.", chain);
+ 			free (value_copy);
+ 			return (1);
+ 		}
+ 		sstrncpy (temp.chain, chain, chain_len);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/ipvs.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/ipvs.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/ipvs.c	2008-09-04 21:01:14.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/ipvs.c	2008-10-17 04:12:19.000000000 +0800
+@@ -277,13 +277,13 @@
+ 
+ static void cipvs_submit_dest (char *pi, struct ip_vs_dest_entry *de) {
+ 	struct ip_vs_stats_user stats = de->stats;
+ 
+ 	char ti[DATA_MAX_NAME_LEN];
+ 
+-	if (0 != get_ti (de, ti, DATA_MAX_NAME_LEN))
++	if (0 != get_ti (de, ti, sizeof (ti)))
+ 		return;
+ 
+ 	cipvs_submit_connections (pi, ti, stats.conns);
+ 	cipvs_submit_if (pi, "if_packets", ti, stats.inpkts, stats.outpkts);
+ 	cipvs_submit_if (pi, "if_octets", ti, stats.inbytes, stats.outbytes);
+ 	return;
+@@ -295,13 +295,13 @@
+ 	struct ip_vs_get_dests  *dests = ipvs_get_dests (se);
+ 
+ 	char pi[DATA_MAX_NAME_LEN];
+ 
+ 	int i = 0;
+ 
+-	if (0 != get_pi (se, pi, DATA_MAX_NAME_LEN))
++	if (0 != get_pi (se, pi, sizeof (pi)))
+ 		return;
+ 
+ 	cipvs_submit_connections (pi, NULL, stats.conns);
+ 	cipvs_submit_if (pi, "if_packets", NULL, stats.inpkts, stats.outpkts);
+ 	cipvs_submit_if (pi, "if_octets", NULL, stats.inbytes, stats.outbytes);
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/Makefile.am /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/Makefile.am
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/Makefile.am	2008-09-04 21:01:09.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/Makefile.am	2008-10-17 04:29:56.000000000 +0800
+@@ -130,13 +130,13 @@
+ pkglib_LTLIBRARIES += ascent.la
+ ascent_la_SOURCES = ascent.c
+ ascent_la_LDFLAGS = -module -avoid-version
+ ascent_la_CFLAGS = $(AM_CFLAGS) \
+ 		$(BUILD_WITH_LIBCURL_CFLAGS) $(BUILD_WITH_LIBXML2_CFLAGS)
+ ascent_la_LIBADD = $(BUILD_WITH_LIBCURL_LIBS) $(BUILD_WITH_LIBXML2_LIBS)
+-collectd_LDADD += "-dlopen" apache.la
++collectd_LDADD += "-dlopen" ascent.la
+ collectd_DEPENDENCIES += ascent.la
+ endif
+ 
+ if BUILD_PLUGIN_BATTERY
+ pkglib_LTLIBRARIES += battery.la
+ battery_la_SOURCES = battery.c
+@@ -816,8 +816,9 @@
+ 	then \
+ 		$(INSTALL) -m 0640 collectd.conf $(DESTDIR)$(sysconfdir)/collectd.conf.pkg-orig; \
+ 	else \
+ 		$(INSTALL) -m 0640 collectd.conf $(DESTDIR)$(sysconfdir)/collectd.conf; \
+ 	fi; \
+ 	cp -f $(srcdir)/types.db $(DESTDIR)$(pkglibdir)/;
+-	$(INSTALL) -D -m 0644 $(srcdir)/postgresql_default.conf \
++	$(mkinstalldirs) $(DESTDIR)$(pkgdatadir)
++	$(INSTALL) -m 0644 $(srcdir)/postgresql_default.conf \
+ 		$(DESTDIR)$(pkgdatadir)/postgresql_default.conf;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/Makefile.in	2008-09-05 16:53:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/Makefile.in	2008-10-17 04:43:26.000000000 +0800
+@@ -66,13 +66,13 @@
+ @BUILD_PLUGIN_APCUPS_TRUE@am__append_24 = "-dlopen" apcups.la
+ @BUILD_PLUGIN_APCUPS_TRUE@am__append_25 = apcups.la
+ @BUILD_PLUGIN_APPLE_SENSORS_TRUE@am__append_26 = apple_sensors.la
+ @BUILD_PLUGIN_APPLE_SENSORS_TRUE@am__append_27 = "-dlopen" apple_sensors.la
+ @BUILD_PLUGIN_APPLE_SENSORS_TRUE@am__append_28 = apple_sensors.la
+ @BUILD_PLUGIN_ASCENT_TRUE@am__append_29 = ascent.la
+-@BUILD_PLUGIN_ASCENT_TRUE@am__append_30 = "-dlopen" apache.la
++@BUILD_PLUGIN_ASCENT_TRUE@am__append_30 = "-dlopen" ascent.la
+ @BUILD_PLUGIN_ASCENT_TRUE@am__append_31 = ascent.la
+ @BUILD_PLUGIN_BATTERY_TRUE@am__append_32 = battery.la
+ @BUILD_PLUGIN_BATTERY_TRUE@@BUILD_WITH_LIBIOKIT_TRUE@am__append_33 = -lIOKit
+ @BUILD_PLUGIN_BATTERY_TRUE@am__append_34 = "-dlopen" battery.la
+ @BUILD_PLUGIN_BATTERY_TRUE@am__append_35 = battery.la
+ @BUILD_PLUGIN_CPU_TRUE@am__append_36 = cpu.la
+@@ -2678,11 +2678,12 @@
+ 	then \
+ 		$(INSTALL) -m 0640 collectd.conf $(DESTDIR)$(sysconfdir)/collectd.conf.pkg-orig; \
+ 	else \
+ 		$(INSTALL) -m 0640 collectd.conf $(DESTDIR)$(sysconfdir)/collectd.conf; \
+ 	fi; \
+ 	cp -f $(srcdir)/types.db $(DESTDIR)$(pkglibdir)/;
+-	$(INSTALL) -D -m 0644 $(srcdir)/postgresql_default.conf \
++	$(mkinstalldirs) $(DESTDIR)$(pkgdatadir)
++	$(INSTALL) -m 0644 $(srcdir)/postgresql_default.conf \
+ 		$(DESTDIR)$(pkgdatadir)/postgresql_default.conf;
+ # Tell versions [3.59,3.63) of GNU make to not export all variables.
+ # Otherwise a system limit (for SysV at least) may be exceeded.
+ .NOEXPORT:
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/netlink.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/netlink.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/netlink.c	2008-09-04 21:01:14.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/netlink.c	2008-10-17 04:12:19.000000000 +0800
+@@ -361,13 +361,13 @@
+     return (0);
+   }
+ 
+   if (msg->tcm_ifindex >= iflist_len)
+   {
+     ERROR ("netlink plugin: qos_filter: msg->tcm_ifindex = %i "
+-	">= iflist_len = %i",
++	">= iflist_len = %zu",
+ 	msg->tcm_ifindex, iflist_len);
+     return (-1);
+   }
+ 
+   dev = iflist[msg->tcm_ifindex];
+   if (dev == NULL)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/network.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/network.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/network.c	2008-09-04 21:01:14.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/network.c	2008-10-17 04:12:19.000000000 +0800
+@@ -1545,25 +1545,30 @@
+ 			return (1);
+ 
+ 		service = NET_DEFAULT_PORT;
+ 		fields_num = strsplit (val_cpy, fields, 3);
+ 		if ((fields_num != 1)
+ 				&& (fields_num != 2))
++		{
++			sfree (val_cpy);
+ 			return (1);
++		}
+ 		else if (fields_num == 2)
+ 		{
+ 			if ((service = strchr (fields[1], '.')) != NULL)
+ 				*service = '\0';
+ 			service = fields[1];
+ 		}
+ 		node = fields[0];
+ 
+ 		if (strcasecmp ("Listen", key) == 0)
+ 			network_add_listen_socket (node, service);
+ 		else
+ 			network_add_sending_socket (node, service);
++
++		sfree (val_cpy);
+ 	}
+ 	else if (strcasecmp ("TimeToLive", key) == 0)
+ 	{
+ 		int tmp = atoi (val);
+ 		if ((tmp > 0) && (tmp < 256))
+ 			network_config_ttl = tmp;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/perl.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/perl.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/perl.c	2008-09-04 21:01:14.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/perl.c	2008-10-17 04:29:56.000000000 +0800
+@@ -33,13 +33,13 @@
+ 
+ #include "configfile.h"
+ 
+ #include <EXTERN.h>
+ #include <perl.h>
+ 
+-#if __GNUC__
++#if defined(COLLECT_DEBUG) && COLLECT_DEBUG && defined(__GNUC__) && __GNUC__
+ # pragma GCC poison sprintf
+ #endif
+ 
+ #include <XSUB.h>
+ 
+ /* Some versions of Perl define their own version of DEBUG... :-/ */
+@@ -1558,13 +1558,15 @@
+ 
+ 	perl_construct (aTHX);
+ 
+ 	PL_exit_flags |= PERL_EXIT_DESTRUCT_END;
+ 
+ 	if (0 != perl_parse (aTHX_ xs_init, argc, argv, NULL)) {
+-		log_err ("init_pi: Unable to bootstrap Collectd.");
++		SV *err = get_sv ("@", 1);
++		log_err ("init_pi: Unable to bootstrap Collectd: %s",
++				SvPV_nolen (err));
+ 
+ 		perl_destruct (perl_threads->head->interp);
+ 		perl_free (perl_threads->head->interp);
+ 		sfree (perl_threads);
+ 
+ 		pthread_key_delete (perl_thr_key);
+@@ -1765,49 +1767,60 @@
+ 	retvals = call_pv ("Collectd::_plugin_dispatch_config", G_SCALAR);
+ 
+ 	SPAGAIN;
+ 	if (0 < retvals) {
+ 		SV *tmp = POPs;
+ 		if (! SvTRUE (tmp))
+-			ret = -1;
++			ret = 1;
+ 	}
+ 	else
+-		ret = -1;
++		ret = 1;
+ 
+ 	PUTBACK;
+ 	FREETMPS;
+ 	LEAVE;
+ 	return ret;
+ } /* static int perl_config_plugin (oconfig_item_it *) */
+ 
+ static int perl_config (oconfig_item_t *ci)
+ {
++	int status = 0;
+ 	int i = 0;
+ 
+ 	dTHXa (NULL);
+ 
+ 	for (i = 0; i < ci->children_num; ++i) {
+ 		oconfig_item_t *c = ci->children + i;
++		int current_status;
+ 
+ 		if (NULL != perl_threads)
+ 			aTHX = PERL_GET_CONTEXT;
+ 
+ 		if (0 == strcasecmp (c->key, "LoadPlugin"))
+-			perl_config_loadplugin (aTHX_ c);
++			current_status = perl_config_loadplugin (aTHX_ c);
+ 		else if (0 == strcasecmp (c->key, "BaseName"))
+-			perl_config_basename (aTHX_ c);
++			current_status = perl_config_basename (aTHX_ c);
+ 		else if (0 == strcasecmp (c->key, "EnableDebugger"))
+-			perl_config_enabledebugger (aTHX_ c);
++			current_status = perl_config_enabledebugger (aTHX_ c);
+ 		else if (0 == strcasecmp (c->key, "IncludeDir"))
+-			perl_config_includedir (aTHX_ c);
++			current_status = perl_config_includedir (aTHX_ c);
+ 		else if (0 == strcasecmp (c->key, "Plugin"))
+-			perl_config_plugin (aTHX_ c);
++			current_status = perl_config_plugin (aTHX_ c);
+ 		else
+ 			log_warn ("Ignoring unknown config key \"%s\".", c->key);
++
++		/* fatal error - it's up to perl_config_* to clean up */
++		if (0 > current_status) {
++			log_err ("Configuration failed with a fatal error - "
++					"plugin disabled!");
++			return current_status;
++		}
++
++		status += current_status;
+ 	}
+-	return 0;
++	return status;
+ } /* static int perl_config (oconfig_item_t *) */
+ 
+ void module_register (void)
+ {
+ 	perl_argc = 4;
+ 	perl_argv = (char **)smalloc ((perl_argc + 1) * sizeof (char *));
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/plugin.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/plugin.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/plugin.c	2008-09-04 21:01:14.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/plugin.c	2008-10-17 04:29:56.000000000 +0800
+@@ -827,13 +827,13 @@
+ 
+ 	return (0);
+ } /* int plugin_dispatch_notification */
+ 
+ void plugin_log (int level, const char *format, ...)
+ {
+-	char msg[512];
++	char msg[1024];
+ 	va_list ap;
+ 
+ 	void (*callback) (int, const char *);
+ 	llentry_t *le;
+ 
+ 	if (list_log == NULL)
+@@ -842,14 +842,14 @@
+ #if !COLLECT_DEBUG
+ 	if (level >= LOG_DEBUG)
+ 		return;
+ #endif
+ 
+ 	va_start (ap, format);
+-	vsnprintf (msg, 512, format, ap);
+-	msg[511] = '\0';
++	vsnprintf (msg, sizeof (msg), format, ap);
++	msg[sizeof (msg) - 1] = '\0';
+ 	va_end (ap);
+ 
+ 	le = llist_head (list_log);
+ 	while (le != NULL)
+ 	{
+ 		callback = (void (*) (int, const char *)) le->value;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/postgresql.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/postgresql.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/postgresql.c	2008-09-04 21:01:14.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/postgresql.c	2008-10-17 04:29:56.000000000 +0800
+@@ -241,12 +241,13 @@
+ 	return db;
+ } /* c_psql_database_new */
+ 
+ static void c_psql_database_delete (c_psql_database_t *db)
+ {
+ 	PQfinish (db->conn);
++	db->conn = NULL;
+ 
+ 	sfree (db->queries);
+ 	db->queries_num = 0;
+ 
+ 	sfree (db->database);
+ 	sfree (db->host);
+@@ -414,20 +415,23 @@
+ 		log_info ("SQL query was: %s", query->query);
+ 		PQclear (res);
+ 		return -1;
+ 	}
+ 
+ 	rows = PQntuples (res);
+-	if (1 > rows)
++	if (1 > rows) {
++		PQclear (res);
+ 		return 0;
++	}
+ 
+ 	cols = PQnfields (res);
+ 	if (query->cols_num != cols) {
+ 		log_err ("SQL query returned wrong number of fields "
+ 				"(expected: %i, got: %i)", query->cols_num, cols);
+ 		log_info ("SQL query was: %s", query->query);
++		PQclear (res);
+ 		return -1;
+ 	}
+ 
+ 	for (i = 0; i < rows; ++i) {
+ 		int j;
+ 
+@@ -439,12 +443,13 @@
+ 			if (col.ds_type == DS_TYPE_COUNTER)
+ 				submit_counter (db, col.type, col.type_instance, value);
+ 			else if (col.ds_type == DS_TYPE_GAUGE)
+ 				submit_gauge (db, col.type, col.type_instance, value);
+ 		}
+ 	}
++	PQclear (res);
+ 	return 0;
+ } /* c_psql_exec_query */
+ 
+ static int c_psql_read (void)
+ {
+ 	int success = 0;
+@@ -543,12 +548,18 @@
+ 
+ 		char *server_host;
+ 		int   server_version;
+ 
+ 		int j;
+ 
++		/* this will happen during reinitialization */
++		if (NULL != db->conn) {
++			c_psql_check_connection (db);
++			continue;
++		}
++
+ 		status = ssnprintf (buf, buf_len, "dbname = '%s'", db->database);
+ 		if (0 < status) {
+ 			buf     += status;
+ 			buf_len -= status;
+ 		}
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/powerdns.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/powerdns.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/powerdns.c	2008-09-04 21:01:14.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/powerdns.c	2008-10-17 04:12:20.000000000 +0800
+@@ -42,16 +42,16 @@
+ 
+ #ifndef UNIX_PATH_MAX
+ # define UNIX_PATH_MAX sizeof (((struct sockaddr_un *)0)->sun_path)
+ #endif
+ #define FUNC_ERROR(func) do { char errbuf[1024]; ERROR ("powerdns plugin: %s failed: %s", func, sstrerror (errno, errbuf, sizeof (errbuf))); } while (0)
+ 
+-#define SERVER_SOCKET  "/var/run/pdns.controlsocket"
++#define SERVER_SOCKET  LOCALSTATEDIR"/run/pdns.controlsocket"
+ #define SERVER_COMMAND "SHOW *"
+ 
+-#define RECURSOR_SOCKET  "/var/run/pdns_recursor.controlsocket"
++#define RECURSOR_SOCKET  LOCALSTATEDIR"/run/pdns_recursor.controlsocket"
+ #define RECURSOR_COMMAND "get noerror-answers nxdomain-answers " \
+   "servfail-answers sys-msec user-msec qa-latency cache-entries cache-hits " \
+   "cache-misses questions"
+ 
+ struct list_item_s;
+ typedef struct list_item_s list_item_t;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/snmp.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/snmp.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/snmp.c	2008-09-04 21:01:14.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/snmp.c	2008-10-17 04:29:56.000000000 +0800
+@@ -726,28 +726,47 @@
+     WARNING ("snmp plugin: I don't know the ASN type `%i'", (int) vl->type);
+     defined = 0;
+   }
+ 
+   if (vl->type == ASN_OCTET_STR)
+   {
+-    char *string;
+     char *endptr;
+ 
+-    string = (char *) vl->val.string;
+     endptr = NULL;
+-
+-    if (string != NULL)
++    if (vl->val.string != NULL)
+     {
++      char string[64];
++      size_t string_length;
++
++      string_length = sizeof (string) - 1;
++      if (vl->val_len < string_length)
++	string_length = vl->val_len;
++
++      /* The strings we get from the Net-SNMP library may not be null
++       * terminated. That is why we're using `membpy' here and not `strcpy'.
++       * `string_length' is set to `vl->val_len' which holds the length of the
++       * string.  -octo */
++      memcpy (string, vl->val.string, string_length);
++      string[string_length] = 0;
++
+       if (type == DS_TYPE_COUNTER)
++      {
+ 	ret.counter = (counter_t) strtoll (string, &endptr, /* base = */ 0);
++	DEBUG ("snmp plugin: csnmp_value_list_to_value: String to counter: %s -> %llu",
++	    string, (unsigned long long) ret.counter);
++      }
+       else if (type == DS_TYPE_GAUGE)
++      {
+ 	ret.gauge = (gauge_t) strtod (string, &endptr);
++	DEBUG ("snmp plugin: csnmp_value_list_to_value: String to gauge: %s -> %g",
++	    string, (double) ret.gauge);
++      }
+     }
+ 
+     /* Check if an error occurred */
+-    if ((string == NULL) || (endptr == string))
++    if ((vl->val.string == NULL) || (endptr == (char *) vl->val.string))
+     {
+       if (type == DS_TYPE_COUNTER)
+ 	ret.counter = 0;
+       else if (type == DS_TYPE_GAUGE)
+ 	ret.gauge = NAN;
+     }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/types.db /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/types.db
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/types.db	2008-09-04 21:01:15.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/types.db	2008-10-17 04:29:56.000000000 +0800
+@@ -81,12 +81,13 @@
+ ps_rss			value:GAUGE:0:9223372036854775807
+ ps_state		value:GAUGE:0:65535
+ serial_octets		rx:COUNTER:0:4294967295, tx:COUNTER:0:4294967295
+ signal_noise		value:GAUGE:U:0
+ signal_power		value:GAUGE:U:0
+ signal_quality		value:GAUGE:0:U
++spam_check		value:GAUGE:0:U
+ spam_score		value:GAUGE:U:U
+ swap			value:GAUGE:0:1099511627776
+ tcp_connections		value:GAUGE:0:4294967295
+ temperature		value:GAUGE:-273.15:U
+ time_dispersion		seconds:GAUGE:-1000000:1000000
+ timeleft		timeleft:GAUGE:0:3600
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/types.db.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/types.db.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/types.db.5	2008-09-05 16:58:53.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/types.db.5	2008-10-17 04:46:21.000000000 +0800
+@@ -1,18 +1,10 @@
+-.\" Automatically generated by Pod::Man 2.16 (Pod::Simple 3.05)
++.\" Automatically generated by Pod::Man 2.18 (Pod::Simple 3.05)
+ .\"
+ .\" Standard preamble:
+ .\" ========================================================================
+-.de Sh \" Subsection heading
+-.br
+-.if t .Sp
+-.ne 5
+-.PP
+-\fB\\$1\fR
+-.PP
+-..
+ .de Sp \" Vertical space (when we can't use .PP)
+ .if t .sp .5v
+ .if n .sp
+ ..
+ .de Vb \" Begin verbatim text
+ .ft CW
+@@ -50,13 +42,13 @@
+ .\"
+ .\" Escape single quotes in literal strings from groff's Unicode transform.
+ .ie \n(.g .ds Aq \(aq
+ .el       .ds Aq '
+ .\"
+ .\" If the F register is turned on, we'll generate index entries on stderr for
+-.\" titles (.TH), headers (.SH), subsections (.Sh), items (.Ip), and index
++.\" titles (.TH), headers (.SH), subsections (.SS), items (.Ip), and index
+ .\" entries marked with X<> in POD.  Of course, you'll have to process the
+ .\" output yourself in some meaningful fashion.
+ .ie \nF \{\
+ .    de IX
+ .    tm Index:\\$1\t\\n%\t"\\$2"
+ ..
+@@ -129,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "TYPES.DB 5"
+-.TH TYPES.DB 5 "2008-05-06" "4.5.0" "collectd"
++.TH TYPES.DB 5 "2008-05-06" "4.5.1" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ types.db \- Data\-set specifications for the system statistics collection daemon
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/utils_cache.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/utils_cache.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/utils_cache.c	2008-09-04 21:01:15.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/utils_cache.c	2008-10-17 04:12:20.000000000 +0800
+@@ -295,12 +295,13 @@
+ 	  (void *) &key, (void *) &ce);
+       if (status != 0)
+       {
+ 	ERROR ("uc_check_timeout: c_avl_remove (%s) failed.", keys[i]);
+       }
+       sfree (keys[i]);
++      sfree (key);
+       cache_free (ce);
+     }
+     else if (status == 1) /* persist */
+     {
+       DEBUG ("uc_check_timeout: %s is missing, sending notification.",
+ 	  keys[i]);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/utils_ignorelist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/utils_ignorelist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/utils_ignorelist.c	2008-09-04 21:01:15.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/utils_ignorelist.c	2008-10-17 04:12:20.000000000 +0800
+@@ -303,17 +303,18 @@
+ 
+ #if HAVE_REGEX_H
+ 	/* regex string is enclosed in "/.../" */
+ 	if ((entry_len > 2) && (entry[0] == '/') && entry[entry_len - 1] == '/')
+ 	{
+ 		char *entry_copy;
++		size_t entry_copy_size;
+ 
+ 		/* We need to copy `entry' since it's const */
+-		entry_copy = smalloc (entry_len);
+-		memset (entry_copy, '\0', entry_len);
+-		sstrncpy (entry_copy, entry + 1, entry_len - 2);
++		entry_copy_size = entry_len - 1;
++		entry_copy = smalloc (entry_copy_size);
++		sstrncpy (entry_copy, entry + 1, entry_copy_size);
+ 
+ 		DEBUG("I'm about to add regex entry: %s", entry_copy);
+ 		ret = ignorelist_append_regex(il, entry_copy);
+ 		sfree (entry_copy);
+ 	}
+ 	else
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/utils_tail.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/utils_tail.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/src/utils_tail.c	2008-09-04 21:00:55.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/utils_tail.c	2008-10-17 04:14:28.000000000 +0800
+@@ -159,12 +159,13 @@
+       return (status);
+   }
+   assert (obj->fh != NULL);
+ 
+   /* Try to read from the filehandle. If that succeeds, everything appears to
+    * be fine and we can return. */
++  clearerr (obj->fh);
+   if (fgets (buf, buflen, obj->fh) != NULL)
+   {
+     buf[buflen - 1] = 0;
+     return (0);
+   }
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/version-gen.sh /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/version-gen.sh
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.0/version-gen.sh	2008-09-04 21:01:15.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/version-gen.sh	2008-10-17 04:42:32.000000000 +0800
+@@ -1,9 +1,9 @@
+ #!/bin/sh
+ 
+-DEFAULT_VERSION="4.5.0.git"
++DEFAULT_VERSION="4.5.1.git"
+ 
+ VERSION="$( git describe 2> /dev/null | sed -e 's/^collectd-//' )"
+ 
+ if test -z "$VERSION"; then
+ 	VERSION="$DEFAULT_VERSION"
+ fi

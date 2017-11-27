@@ -1,0 +1,1 @@
+fputs ("ERROR: Cannot get values from daemon\n", stdout);

@@ -1,0 +1,1 @@
+fprintf (fh, "-1 format_name failed.\n");

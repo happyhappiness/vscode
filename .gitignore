@@ -19,5 +19,6 @@ second/download/xgboost/xgboost/xgboost/
 second/download/*/repos/
 *.joernIndex/
 
+*.tex
 
 *.pyc

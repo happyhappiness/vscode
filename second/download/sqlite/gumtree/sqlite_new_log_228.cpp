@@ -1,1 +1,0 @@
-sqlite3SetString(&p->zErrMsg, db, "no such savepoint: %s", zName);

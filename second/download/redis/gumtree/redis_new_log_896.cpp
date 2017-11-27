@@ -1,1 +1,0 @@
-latencyModePrint(min,max,avg,count);

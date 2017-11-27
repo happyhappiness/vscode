@@ -5,11 +5,6 @@
             "label": "Ctrl+N",
             "isNative": true
         },
-        "workbench.action.files.openFolder": {
-            "id": "workbench.action.files.openFolder",
-            "label": "Ctrl+K Ctrl+O",
-            "isNative": false
-        },
         "workbench.action.reopenClosedEditor": {
             "id": "workbench.action.reopenClosedEditor",
             "label": "Ctrl+Shift+T",
@@ -455,9 +450,9 @@
             "uiState": {
                 "mode": 0,
                 "x": 1280,
-                "y": 26,
+                "y": 25,
                 "width": 1920,
-                "height": 1028
+                "height": 1027
             }
         }
     }

@@ -1,1 +1,0 @@
-sqlite3_value_type(ppArg[1]);

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/gumtree/collectd_repos_function_2228_collectd-5.6.2.cpp" pos:tabs="8"><function><type><name pos:line="1" pos:column="1">int<pos:position pos:line="1" pos:column="4"/></name></type> <name pos:line="1" pos:column="5">yyget_lineno<pos:position pos:line="1" pos:column="17"/></name>  <parameter_list pos:line="1" pos:column="19">(<parameter><decl><type><name pos:line="1" pos:column="20">void<pos:position pos:line="1" pos:column="24"/></name></type></decl></parameter>)<pos:position pos:line="1" pos:column="25"/></parameter_list>
+<block pos:line="2" pos:column="1">{
+        
+    <return pos:line="4" pos:column="5">return <expr><name pos:line="4" pos:column="12">yylineno<pos:position pos:line="4" pos:column="20"/></name></expr>;<pos:position pos:line="4" pos:column="21"/></return>
+}<pos:position pos:line="5" pos:column="2"/></block></function></unit>

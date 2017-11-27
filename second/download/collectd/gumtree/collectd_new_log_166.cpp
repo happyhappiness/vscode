@@ -1,0 +1,1 @@
+YY_FATAL_ERROR( "out of dynamic memory in yyensure_buffer_stack()" );

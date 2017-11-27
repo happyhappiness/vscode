@@ -1,0 +1,2 @@
+print_to_socket (fh, "-1 Error parsing option `%s'\n",
+						fields[i]);

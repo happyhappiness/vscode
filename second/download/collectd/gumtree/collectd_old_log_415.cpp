@@ -1,0 +1,1 @@
+fprintf (stderr, "malloc failed.\n");

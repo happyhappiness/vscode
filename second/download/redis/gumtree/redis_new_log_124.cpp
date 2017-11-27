@@ -1,2 +1,0 @@
-notifyKeyspaceEvent(REDIS_NOTIFY_STRING,
-            "setrange",c->argv[1],c->db->id);

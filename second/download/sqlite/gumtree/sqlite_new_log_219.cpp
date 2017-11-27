@@ -1,1 +1,0 @@
-sqlite3Error(db, rc, zErr);

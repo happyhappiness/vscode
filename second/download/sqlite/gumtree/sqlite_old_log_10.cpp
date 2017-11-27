@@ -1,1 +1,0 @@
-sqlite3_mprintf("SELECT %s WHERE rowid = ?", p->zReadExprlist);

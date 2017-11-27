@@ -1,0 +1,1 @@
+plugin_get_ds(type);

@@ -1,0 +1,1 @@
+cmd_error(CMD_ERROR, err, "Invalid arguments to cmd_parse_getval.");

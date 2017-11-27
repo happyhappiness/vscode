@@ -1,0 +1,153 @@
+cmd_status_t cmd_parse_putval(size_t argc, char **argv,
+                              cmd_putval_t *ret_putval,
+                              const cmd_options_t *opts,
+                              cmd_error_handler_t *err) {
+  cmd_status_t result;
+
+  char *identifier;
+  char *hostname;
+  char *plugin;
+  char *plugin_instance;
+  char *type;
+  char *type_instance;
+  int status;
+
+  char *identifier_copy;
+
+  const data_set_t *ds;
+  value_list_t vl = VALUE_LIST_INIT;
+
+  if ((ret_putval == NULL) || (opts == NULL)) {
+    errno = EINVAL;
+    cmd_error(CMD_ERROR, err, "Invalid arguments to cmd_parse_putval.");
+    return (CMD_ERROR);
+  }
+
+  if (argc < 2) {
+    cmd_error(CMD_PARSE_ERROR, err, "Missing identifier and/or value-list.");
+    return (CMD_PARSE_ERROR);
+  }
+
+  identifier = argv[0];
+
+  /* parse_identifier() modifies its first argument, returning pointers into
+   * it; retain the old value for later. */
+  identifier_copy = sstrdup(identifier);
+
+  status =
+      parse_identifier(identifier, &hostname, &plugin, &plugin_instance, &type,
+                       &type_instance, opts->identifier_default_host);
+  if (status != 0) {
+    DEBUG("cmd_handle_putval: Cannot parse identifier `%s'.", identifier_copy);
+    cmd_error(CMD_PARSE_ERROR, err, "Cannot parse identifier `%s'.",
+              identifier_copy);
+    sfree(identifier_copy);
+    return (CMD_PARSE_ERROR);
+  }
+
+  if ((strlen(hostname) >= sizeof(vl.host)) ||
+      (strlen(plugin) >= sizeof(vl.plugin)) ||
+      ((plugin_instance != NULL) &&
+       (strlen(plugin_instance) >= sizeof(vl.plugin_instance))) ||
+      ((type_instance != NULL) &&
+       (strlen(type_instance) >= sizeof(vl.type_instance)))) {
+    cmd_error(CMD_PARSE_ERROR, err, "Identifier too long.");
+    sfree(identifier_copy);
+    return (CMD_PARSE_ERROR);
+  }
+
+  sstrncpy(vl.host, hostname, sizeof(vl.host));
+  sstrncpy(vl.plugin, plugin, sizeof(vl.plugin));
+  sstrncpy(vl.type, type, sizeof(vl.type));
+  if (plugin_instance != NULL)
+    sstrncpy(vl.plugin_instance, plugin_instance, sizeof(vl.plugin_instance));
+  if (type_instance != NULL)
+    sstrncpy(vl.type_instance, type_instance, sizeof(vl.type_instance));
+
+  ds = plugin_get_ds(type);
+  if (ds == NULL) {
+    cmd_error(CMD_PARSE_ERROR, err, "1 Type `%s' isn't defined.", type);
+    sfree(identifier_copy);
+    return (CMD_PARSE_ERROR);
+  }
+
+  hostname = NULL;
+  plugin = NULL;
+  plugin_instance = NULL;
+  type = NULL;
+  type_instance = NULL;
+
+  ret_putval->raw_identifier = identifier_copy;
+  if (ret_putval->raw_identifier == NULL) {
+    cmd_error(CMD_ERROR, err, "malloc failed.");
+    cmd_destroy_putval(ret_putval);
+    sfree(vl.values);
+    return (CMD_ERROR);
+  }
+
+  /* All the remaining fields are part of the option list. */
+  result = CMD_OK;
+  for (size_t i = 1; i < argc; ++i) {
+    value_list_t *tmp;
+
+    char *key = NULL;
+    char *value = NULL;
+
+    status = cmd_parse_option(argv[i], &key, &value, err);
+    if (status == CMD_OK) {
+      assert(key != NULL);
+      assert(value != NULL);
+      set_option(&vl, key, value);
+      continue;
+    } else if (status != CMD_NO_OPTION) {
+      /* parse_option failed, buffer has been modified.
+       * => we need to abort */
+      result = status;
+      break;
+    }
+    /* else: cmd_parse_option did not find an option; treat this as a
+     * value list. */
+
+    vl.values_len = ds->ds_num;
+    vl.values = calloc(vl.values_len, sizeof(*vl.values));
+    if (vl.values == NULL) {
+      cmd_error(CMD_ERROR, err, "malloc failed.");
+      result = CMD_ERROR;
+      break;
+    }
+
+    status = parse_values(argv[i], &vl, ds);
+    if (status != 0) {
+      cmd_error(CMD_PARSE_ERROR, err, "Parsing the values string failed.");
+      result = CMD_PARSE_ERROR;
+      vl.values_len = 0;
+      sfree(vl.values);
+      break;
+    }
+
+    tmp = realloc(ret_putval->vl,
+                  (ret_putval->vl_num + 1) * sizeof(*ret_putval->vl));
+    if (tmp == NULL) {
+      cmd_error(CMD_ERROR, err, "realloc failed.");
+      cmd_destroy_putval(ret_putval);
+      result = CMD_ERROR;
+      vl.values_len = 0;
+      sfree(vl.values);
+      break;
+    }
+
+    ret_putval->vl = tmp;
+    ret_putval->vl_num++;
+    memcpy(&ret_putval->vl[ret_putval->vl_num - 1], &vl, sizeof(vl));
+
+    /* pointer is now owned by ret_putval->vl[] */
+    vl.values_len = 0;
+    vl.values = NULL;
+  } /* while (*buffer != 0) */
+  /* Done parsing the options. */
+
+  if (result != CMD_OK)
+    cmd_destroy_putval(ret_putval);
+
+  return (result);
+}

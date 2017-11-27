@@ -1,1 +1,0 @@
-sqlite3ErrorWithMsg(db, rc, (zErrMsg?"%s":0), zErrMsg);

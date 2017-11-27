@@ -1,1 +1,0 @@
-sdscatprintf(sdsempty(),"select %d\r\n",dictid);

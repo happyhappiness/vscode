@@ -1,0 +1,18 @@
+static const char *dpdk_helper_status_str(enum DPDK_HELPER_STATUS status) {
+  switch (status) {
+  case DPDK_HELPER_ALIVE_SENDING_EVENTS:
+    return "DPDK_HELPER_ALIVE_SENDING_EVENTS";
+  case DPDK_HELPER_WAITING_ON_PRIMARY:
+    return "DPDK_HELPER_WAITING_ON_PRIMARY";
+  case DPDK_HELPER_INITIALIZING:
+    return "DPDK_HELPER_INITIALIZING";
+  case DPDK_HELPER_INITIALIZING_EAL:
+    return "DPDK_HELPER_INITIALIZING_EAL";
+  case DPDK_HELPER_GRACEFUL_QUIT:
+    return "DPDK_HELPER_GRACEFUL_QUIT";
+  case DPDK_HELPER_NOT_INITIALIZED:
+    return "DPDK_HELPER_NOT_INITIALIZED";
+  default:
+    return "UNKNOWN";
+  }
+}

@@ -1,1 +1,0 @@
-sqlite3VdbeError(p, "cannot open savepoint - SQL statements in progress");

@@ -1,1 +1,0 @@
-sqlite3SetString(&p->zErrMsg, db, "database table is locked: %s", z);

@@ -1,1 +1,0 @@
-sqlite3MPrintf(db, "USING INDEX %s FOR IN-OPERATOR",pIdx->zName);

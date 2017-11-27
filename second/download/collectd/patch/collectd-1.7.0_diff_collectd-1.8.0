@@ -1,0 +1,460 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.7.0/ChangeLog /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/ChangeLog
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.7.0/ChangeLog	2005-08-25 16:48:53.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/ChangeLog	2005-08-29 23:09:37.000000000 +0800
+@@ -1,6 +1,9 @@
++2005-08-29, Version 1.8.0:
++	* Support for collecting disk statistics under Solaris.
++
+ 2005-08-25, Version 1.7.0:
+ 	* Support for libstatgrab[1] for load, memory usage and network
+ 	  traffic. CPU- and disk-usage are not (yet) supported, since
+ 	  libstatgrab returns insufficient information. I will contact the
+ 	  authors.
+ 	* Improved the CPU-initialization code for Solaris. Apparently CPUs
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.7.0/collectd.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/collectd.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.7.0/collectd.spec	2005-08-25 16:49:37.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/collectd.spec	2005-08-29 23:09:37.000000000 +0800
+@@ -1,9 +1,9 @@
+ Summary:	Statistics collection daemon for filling RRD files.
+ Name:           collectd
+-Version:	1.7.0
++Version:	1.8.0
+ Release:	1
+ Source:		http://verplant.org/collectd/%{name}-%{version}.tar.gz
+ License:	GPL
+ Group:		System Environment/Daemons
+ BuildRoot:	%{_tmppath}/%{name}-%{version}-root
+ BuildPrereq:	lm_sensors-devel
+@@ -44,12 +44,15 @@
+ %config /etc/default/collectd
+ %attr(0755,root,root) /etc/rc.d/init.d/collectd
+ %attr(0755,root,root) /usr/sbin/collectd
+ %dir /var/lib/collectd
+ 
+ %changelog
++* Mon Aug 29 2005 Florian octo Forster <octo@verplant.org> 1.8.0-1
++- New upstream version
++
+ * Sun Aug 25 2005 Florian octo Forster <octo@verplant.org> 1.7.0-1
+ - New upstream version
+ 
+ * Sun Aug 21 2005 Florian octo Forster <octo@verplant.org> 1.6.0-1
+ - New upstream version
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.7.0/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.7.0/configure	2005-08-25 17:58:54.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/configure	2005-08-29 23:15:55.000000000 +0800
+@@ -1800,13 +1800,13 @@
+   fi
+ fi
+ 
+ 
+ # Define the identity of the package.
+  PACKAGE=collectd
+- VERSION=1.7.0
++ VERSION=1.8.0
+ 
+ 
+ cat >>confdefs.h <<_ACEOF
+ #define PACKAGE "$PACKAGE"
+ _ACEOF
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.7.0/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.7.0/configure.in	2005-08-25 17:57:23.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/configure.in	2005-08-29 23:09:37.000000000 +0800
+@@ -1,9 +1,9 @@
+ dnl Process this file with autoconf to produce a configure script.
+ AC_INIT(src/collectd.c)
+-AM_INIT_AUTOMAKE(collectd, 1.7.0)
++AM_INIT_AUTOMAKE(collectd, 1.8.0)
+ AM_CONFIG_HEADER(src/config.h src/libping/config.h)
+ AC_LANG(C)
+ 
+ dnl Checks for programs.
+ AC_PROG_CC
+ AC_PROG_CPP
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.7.0/debian/changelog /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/debian/changelog
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.7.0/debian/changelog	2005-08-25 16:50:06.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/debian/changelog	2005-08-29 23:09:37.000000000 +0800
+@@ -1,6 +1,12 @@
++collectd (1.8.0-1) unstable; urgency=low
++
++  * New upstream version
++
++ -- Florian Forster <octo@verplant.org>  Mon, 29 Aug 2005 12:09:20 +0200
++
+ collectd (1.7.0-1) unstable; urgency=low
+ 
+   * New upstream version
+ 
+  -- Florian Forster <octo@verplant.org>  Sun, 25 Aug 2005 10:50:08 +0200
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.7.0/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.7.0/Makefile.in	2005-08-25 17:58:53.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/Makefile.in	2005-08-29 23:15:54.000000000 +0800
+@@ -34,13 +34,13 @@
+ PRE_UNINSTALL = :
+ POST_UNINSTALL = :
+ build_triplet = @build@
+ host_triplet = @host@
+ DIST_COMMON = README $(am__configure_deps) $(srcdir)/Makefile.am \
+ 	$(srcdir)/Makefile.in $(top_srcdir)/configure AUTHORS COPYING \
+-	ChangeLog INSTALL NEWS config.guess config.sub depcomp \
++	ChangeLog INSTALL NEWS TODO config.guess config.sub depcomp \
+ 	install-sh ltmain.sh missing
+ subdir = .
+ ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
+ am__aclocal_m4_deps = $(top_srcdir)/configure.in
+ am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
+ 	$(ACLOCAL_M4)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.7.0/src/collectd.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/collectd.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.7.0/src/collectd.c	2005-08-24 16:22:19.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/collectd.c	2005-08-28 17:36:12.000000000 +0800
+@@ -97,32 +97,29 @@
+ 	return;
+ }
+ #endif /* HAVE_LIBKSTAT */
+ 
+ void exit_usage (char *name)
+ {
+-	printf ("\nUsage: %s [OPTIONS]\n\n"
++	printf ("Usage: %s [OPTIONS]\n\n"
+ 			
+ 			"Available options:\n"
+ 			"  General:\n"
+ 			"    -d <dir>        Base directory to use\n"
+ 			"                    Default: /var/lib/collectd\n\n"
+ 
+ #if COLLECT_CPU
+ 			"  CPU:\n"
+-			"    -c <file>       RRD filename-template for\n"
+-			"                    cpu accounting\n"
++			"    -c <file>       RRD filename-template for CPU accounting\n"
+ 			"                    Default: cpu%%d.rrd\n\n"
+ #endif
+ #if COLLECT_DISK
+ 			"  Diskstats:\n"
+-			"    -k <file>       RRD filename-template for\n"
+-			"                    disk accounting\n"
++			"    -k <file>       RRD filename-template for disk accounting\n"
+ 			"                    Default: disk-%%s.rrd\n"
+-			"    -K <file>       RRD filename-template for\n"
+-			"                    partition accounting\n"
++			"    -K <file>       RRD filename-template for partition accounting\n"
+ 			"                    Default: partition-%%s.rrd\n\n"
+ #endif /* COLLECT_DISK */
+ #if COLLECT_LOAD
+ 			"  Load:\n"
+ 			"    -l <file>       RRD file for load accounting\n"
+ 			"                    Default: load.rrd\n\n"
+@@ -138,24 +135,23 @@
+ 			"                    Default: ping.rrd\n"
+ 			"    -P <host>       Host to ping periodically\n"
+ 			"                    Default: default gateway\n\n"
+ #endif /* COLLECT_PING */
+ #if COLLECT_SENSORS
+ 			"  Sensors:\n"
+-			"    -s <file>       RRD filename-template for\n"
+-			"                    lm-sensors accounting\n"
++			"    -s <file>       RRD filename-template for lm_sensors accounting\n"
+ 			"                    Default: sensors-%%s.rrd\n\n"
+ #endif
+ #if COLLECT_TRAFFIC
+ 			"  Traffic:\n"
+-			"    -t <file>       RRD filename-template for\n"
+-			"                    traffic accounting\n"
++			"    -t <file>       RRD filename-template for traffic accounting\n"
+ 			"                    Default: traffic-%%s.rrd\n\n"
+ #endif
+ 			
+-			"%s %s by Florian octo Forster <octo@verplant.org>\n",
++			"%s %s, http://verplant.org/collectd/\n"
++			"by Florian octo Forster <octo@verplant.org>\n",
+ 			PACKAGE, PACKAGE, VERSION);
+ 	exit (0);
+ }
+ 
+ int main (int argc, char **argv)
+ {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.7.0/src/cpu.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/cpu.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.7.0/src/cpu.c	2005-08-24 16:19:18.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/cpu.c	2005-08-28 18:00:43.000000000 +0800
+@@ -5,13 +5,13 @@
+ #ifdef HAVE_LIBKSTAT
+ /* colleague tells me that Sun doesn't sell systems with more than 100 or so CPUs.. */
+ #define MAX_NUMCPU 256
+ extern kstat_ctl_t *kc;
+ static kstat_t *ksp[MAX_NUMCPU];
+ static int numcpu = 0;
+-#endif
++#endif /* HAVE_LIBKSTAT */
+ 
+ static char *cpu_file = "cpu%d.rrd";
+ 
+ static char *ds_def[] =
+ {
+ 	"DS:user:COUNTER:25:0:100",
+@@ -89,12 +89,13 @@
+ 		idle = atol (fields[4]);
+ 
+ 		rrd_update_cpu (cpu, user, nice, syst, idle);
+ 	}
+ 
+ 	fclose (fh);
++/* #endif defined(KERNEL_LINUX) */
+ 
+ #elif defined(HAVE_LIBKSTAT)
+ 	static cpu_stat_t cs;
+ 
+ 	if (kc == NULL)
+ 		return (1);
+@@ -108,12 +109,12 @@
+ 		user = (long) cs.cpu_sysinfo.cpu[CPU_USER];
+ 		syst = (long) cs.cpu_sysinfo.cpu[CPU_KERNEL];
+ 		nice = (long) cs.cpu_sysinfo.cpu[CPU_WAIT]; /* FIXME */
+ 
+ 		rrd_update_cpu (ksp[cpu]->ks_instance, user, nice, syst, idle);
+ 	}
+-#endif
++#endif /* defined(HAVE_LIBKSTAT) */
+ 
+ 	return (0);
+ }
+ 
+ #endif /* COLLECT_CPU */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.7.0/src/diskstats.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/diskstats.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.7.0/src/diskstats.c	2005-08-25 16:35:03.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/diskstats.c	2005-08-29 01:33:00.000000000 +0800
+@@ -1,8 +1,17 @@
+ #include "diskstats.h"
+ 
++#if COLLECT_DISK
++
++#ifdef HAVE_LIBKSTAT
++#define MAX_NUMDISK 256
++extern kstat_ctl_t *kc;
++static kstat_t *ksp[MAX_NUMDISK];
++static int numdisk = 0;
++#endif /* HAVE_LIBKSTAT */
++
+ static char *disk_filename_template = "disk-%s.rrd";
+ static char *part_filename_template = "partition-%s.rrd";
+ 
+ static char *disk_ds_def[] =
+ {
+ 	"DS:rcount:COUNTER:25:0:U",
+@@ -26,12 +35,28 @@
+ 	NULL
+ };
+ static int part_ds_num = 4;
+ 
+ void diskstats_init (char *new_disk_file, char *new_part_file)
+ {
++#ifdef HAVE_LIBKSTAT
++	kstat_t *ksp_chain;
++
++	for (numdisk = 0, ksp_chain = kc->kc_chain;
++			(numdisk < MAX_NUMDISK) && (ksp_chain != NULL);
++			ksp_chain = ksp_chain->ks_next)
++	{
++		if (strncmp (ksp_chain->ks_class, "disk", 4)
++				&& strncmp (ksp_chain->ks_class, "partition", 9))
++			continue;
++		if (ksp_chain->ks_type != KSTAT_TYPE_IO)
++			continue;
++		ksp[numdisk++] = ksp_chain;
++	}
++#endif
++
+ 	if (new_disk_file != NULL)
+ 		disk_filename_template = new_disk_file;
+ 	if (new_part_file != NULL)
+ 		part_filename_template = new_part_file;
+ }
+ 
+@@ -158,10 +183,35 @@
+ 					write_count, write_merged, write_sectors, write_time);
+ 		else
+ 			part_update_rrd (disk_name, read_count, read_sectors, write_count, write_sectors);
+ 	}
+ 
+ 	fclose (fh);
+-#endif /* KERNEL_LINUX */
++/* #endif defined(KERNEL_LINUX) */
++
++#elif defined(HAVE_LIBKSTAT)
++	static kstat_io_t kio;
++	int i;
++
++	if (kc == NULL)
++		return (1);
++
++	for (i = 0; i < numdisk; i++)
++	{
++		if (kstat_read (kc, ksp[i], &kio) == -1)
++			continue;
++
++		if (strncmp (ksp[i]->ks_class, "disk", 4) == 0)
++			disk_update_rrd (ksp[i]->ks_name,
++					kio.reads,  0LL, kio.nread,   kio.rtime,
++					kio.writes, 0LL, kio.nwritten, kio.wtime);
++		else if (strncmp (ksp[i]->ks_class, "partition", 9) == 0)
++			part_update_rrd (ksp[i]->ks_name,
++					kio.reads, kio.nread,
++					kio.writes,kio.nwritten);
++	}
++#endif /* defined(HAVE_LIBKSTAT) */
+ 
+ 	return (0);
+ }
++
++#endif /* COLLECT_DISK */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.7.0/src/diskstats.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/diskstats.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.7.0/src/diskstats.h	2005-08-20 18:47:33.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/diskstats.h	2005-08-28 18:22:58.000000000 +0800
+@@ -1,13 +1,13 @@
+ #ifndef DISKSTATS_H
+ #define DISKSTATS_H
+ 
+ #include "collectd.h"
+ #include "common.h"
+ 
+-#ifdef KERNEL_LINUX
++#if defined(KERNEL_LINUX) || defined(HAVE_LIBKSTAT)
+ #define COLLECT_DISK 1
+ #else
+ #define COLLECT_DISK 0
+ #endif
+ 
+ #if COLLECT_DISK
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.7.0/src/load.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/load.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.7.0/src/load.c	2005-08-24 23:33:20.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/load.c	2005-08-29 22:27:29.000000000 +0800
+@@ -10,15 +10,15 @@
+ 	"DS:midterm:GAUGE:25:0:100",
+ 	"DS:longterm:GAUGE:25:0:100",
+ 	NULL
+ };
+ static int ds_num = 3;
+ 
+-#ifdef KERNEL_SOLARIS
++#ifdef HAVE_LIBKSTAT
+ static kstat_t *ksp;
+-#endif /* KERNEL_SOLARIS */
++#endif /* HAVE_LIBKSTAT */
+ 
+ void load_init (char *new_load_file)
+ {
+ 	if (new_load_file != NULL)
+ 		load_file = new_load_file;
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.7.0/src/traffic.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/traffic.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.7.0/src/traffic.c	2005-08-24 15:41:09.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/traffic.c	2005-08-29 23:15:40.000000000 +0800
+@@ -1,22 +1,50 @@
+ #include "traffic.h"
+ 
+ #if COLLECT_TRAFFIC
+ 
+ static char *traffic_filename_template = "traffic-%s.rrd";
+ 
++#ifdef HAVE_LIBKSTAT
++#define MAX_NUMIF 256
++extern kstat_ctl_t *kc;
++static kstat_t *ksp[MAX_NUMIF];
++static int numif = 0;
++#endif /* HAVE_LIBKSTAT */
++
+ static char *ds_def[] =
+ {
+ 	"DS:incoming:COUNTER:25:0:U",
+ 	"DS:outgoing:COUNTER:25:0:U",
+ 	NULL
+ };
+ static int ds_num = 2;
+ 
+ void traffic_init (char *new_traffic_file)
+ {
++#ifdef HAVE_LIBKSTAT
++	kstat_t *ksp_chain;
++	kstat_named_t *kn;
++	long long val;
++
++	for (numif = 0, ksp_chain = kc->kc_chain;
++			(numif < MAX_NUMIF) && (ksp_chain != NULL);
++			ksp_chain = ksp_chain->ks_next)
++	{
++		if (strncmp (ksp_chain->ks_class, "net", 3))
++			continue;
++		if (ksp_chain->ks_type != KSTAT_TYPE_NAMED)
++			continue;
++		if (kstat_read (kc, ksp_chain, NULL) == -1)
++			continue;
++		if ((val = get_kstat_value (ksp_chain, "obytes")) == -1LL)
++			continue;
++		ksp[numif++] = ksp_chain;
++	}
++#endif /* HAVE_LIBKSTAT */
++
+ 	if (new_traffic_file != NULL)
+ 		traffic_filename_template = new_traffic_file;
+ }
+ 
+ void traffic_update_rrd (char *device, long long incoming, long long outgoing)
+ {
+@@ -73,13 +101,35 @@
+ 		outgoing = atoll (fields[8]);
+ 
+ 		traffic_update_rrd (device, incoming, outgoing);
+ 	}
+ 
+ 	fclose (fh);
+-/* KERNEL_LINUX */
++/* #endif KERNEL_LINUX */
++
++#elif defined(HAVE_LIBKSTAT)
++	int i;
++	long long incoming, outgoing;
++
++	if (kc == NULL)
++		return (1);
++
++	for (i = 0; i < numif; i++)
++	{
++		if (kstat_read (kc, ksp[i], NULL) == -1)
++			continue;
++
++		if ((incoming = get_kstat_value (ksp[i], "rbytes")) == -1LL)
++			continue;
++		if ((outgoing = get_kstat_value (ksp[i], "obytes")) == -1LL)
++			continue;
++
++		traffic_update_rrd (ksp[i]->ks_name, incoming, outgoing);
++	}
++/* #endif HAVE_LIBKSTAT */
++
+ #elif defined(HAVE_LIBSTATGRAB)
+ 	sg_network_io_stats *ios;
+ 	int i, num;
+ 
+ 	ios = sg_get_network_io_stats (&num);
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.7.0/src/traffic.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/traffic.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.7.0/src/traffic.h	2005-08-24 15:34:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0/src/traffic.h	2005-08-29 23:09:26.000000000 +0800
+@@ -1,13 +1,13 @@
+ #ifndef TRAFFIC_H
+ #define TRAFFIC_H
+ 
+ #include "collectd.h"
+ #include "common.h"
+ 
+-#if defined(KERNEL_LINUX) || defined(HAVE_LIBSTATGRAB)
++#if defined(KERNEL_LINUX) || defined(HAVE_LIBKSTAT) || defined(HAVE_LIBSTATGRAB)
+ #define COLLECT_TRAFFIC 1
+ #else
+ #define COLLECT_TRAFFIC 0
+ #endif
+ 
+ #if COLLECT_TRAFFIC
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-1.8.0: TODO

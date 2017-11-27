@@ -1,0 +1,1 @@
+fprintf (stderr, "Maximum of %i ping hosts reached.\n", MAX_PINGHOSTS);

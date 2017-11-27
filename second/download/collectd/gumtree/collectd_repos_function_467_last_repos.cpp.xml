@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/gumtree/collectd_repos_function_467_last_repos.cpp" pos:tabs="8"><function><specifier pos:line="1" pos:column="1">static<pos:position pos:line="1" pos:column="7"/></specifier> <type><name pos:line="1" pos:column="8">void<pos:position pos:line="1" pos:column="12"/></name></type> <name pos:line="1" pos:column="13">ovs_stats_interface_table_change_cb<pos:position pos:line="1" pos:column="48"/></name><parameter_list pos:line="1" pos:column="48">(<parameter><decl><type><name pos:line="1" pos:column="49">yajl_val<pos:position pos:line="1" pos:column="57"/></name></type> <name pos:line="1" pos:column="58">jupdates<pos:position pos:line="1" pos:column="66"/></name></decl></parameter>)<pos:position pos:line="1" pos:column="67"/></parameter_list> <block pos:line="1" pos:column="68">{
+  <comment type="block" pos:line="2" pos:column="3">/* Interface Table update example JSON data
+    {
+      "Interface": {
+        "33a289a0-1d34-4e46-a3c2-3e4066fbecc6": {
+          "new": {
+            "name": "br1",
+            "statistics": [
+              "map",
+              [
+                [
+                  "collisions",
+                  0
+                ],
+                [
+                  "rx_bytes",
+                  0
+                ],
+               . . .
+                [
+                  "tx_packets",
+                  12617
+                ]
+              ]
+            ],
+            "_uuid": [
+              "uuid",
+              "33a289a0-1d34-4e46-a3c2-3e4066fbecc6"
+            ]
+            "external_ids": [
+                "map",
+                [
+                  [
+                    "attached-mac",
+                    "fa:16:3e:7c:1c:4b"
+                  ],
+                  [
+                    "iface-id",
+                    "a61b7e2b-6951-488a-b4c6-6e91343960b2"
+                  ],
+                  [
+                    "iface-status",
+                    "active"
+                  ]
+                ]
+              ]
+          }
+        }
+      }
+    }
+   */</comment>
+  <decl_stmt><decl><type><specifier pos:line="52" pos:column="3">const<pos:position pos:line="52" pos:column="8"/></specifier> <name pos:line="52" pos:column="9">char<pos:position pos:line="52" pos:column="13"/></name> <modifier pos:line="52" pos:column="14">*<pos:position pos:line="52" pos:column="15"/></modifier></type><name><name pos:line="52" pos:column="15">path<pos:position pos:line="52" pos:column="19"/></name><index pos:line="52" pos:column="19">[]<pos:position pos:line="52" pos:column="21"/></index></name> <init pos:line="52" pos:column="22">= <expr><block pos:line="52" pos:column="24">{<expr><literal type="string" pos:line="52" pos:column="25">"Interface"<pos:position pos:line="52" pos:column="36"/></literal></expr>, <expr><name pos:line="52" pos:column="38">NULL<pos:position pos:line="52" pos:column="42"/></name></expr>}<pos:position pos:line="52" pos:column="43"/></block></expr></init></decl>;<pos:position pos:line="52" pos:column="44"/></decl_stmt>
+  <decl_stmt><decl><type><name pos:line="53" pos:column="3">yajl_val<pos:position pos:line="53" pos:column="11"/></name></type> <name pos:line="53" pos:column="12">ports<pos:position pos:line="53" pos:column="17"/></name> <init pos:line="53" pos:column="18">= <expr><call><name pos:line="53" pos:column="20">yajl_tree_get<pos:position pos:line="53" pos:column="33"/></name><argument_list pos:line="53" pos:column="33">(<argument><expr><name pos:line="53" pos:column="34">jupdates<pos:position pos:line="53" pos:column="42"/></name></expr></argument>, <argument><expr><name pos:line="53" pos:column="44">path<pos:position pos:line="53" pos:column="48"/></name></expr></argument>, <argument><expr><name pos:line="53" pos:column="50">yajl_t_object<pos:position pos:line="53" pos:column="63"/></name></expr></argument>)<pos:position pos:line="53" pos:column="64"/></argument_list></call></expr></init></decl>;<pos:position pos:line="53" pos:column="65"/></decl_stmt>
+  <expr_stmt><expr><call><name pos:line="54" pos:column="3">pthread_mutex_lock<pos:position pos:line="54" pos:column="21"/></name><argument_list pos:line="54" pos:column="21">(<argument><expr><operator pos:line="54" pos:column="22">&amp;<pos:position pos:line="54" pos:column="27"/></operator><name pos:line="54" pos:column="23">g_stats_lock<pos:position pos:line="54" pos:column="35"/></name></expr></argument>)<pos:position pos:line="54" pos:column="36"/></argument_list></call></expr>;<pos:position pos:line="54" pos:column="37"/></expr_stmt>
+  <if pos:line="55" pos:column="3">if <condition pos:line="55" pos:column="6">(<expr><name pos:line="55" pos:column="7">ports<pos:position pos:line="55" pos:column="12"/></name> <operator pos:line="55" pos:column="13">&amp;&amp;<pos:position pos:line="55" pos:column="23"/></operator> <call><name pos:line="55" pos:column="16">YAJL_IS_OBJECT<pos:position pos:line="55" pos:column="30"/></name><argument_list pos:line="55" pos:column="30">(<argument><expr><name pos:line="55" pos:column="31">ports<pos:position pos:line="55" pos:column="36"/></name></expr></argument>)<pos:position pos:line="55" pos:column="37"/></argument_list></call></expr>)<pos:position pos:line="55" pos:column="38"/></condition><then pos:line="55" pos:column="38">
+    <block type="pseudo"><for pos:line="56" pos:column="5">for <control pos:line="56" pos:column="9">(<init><decl><type><name pos:line="56" pos:column="10">size_t<pos:position pos:line="56" pos:column="16"/></name></type> <name pos:line="56" pos:column="17">i<pos:position pos:line="56" pos:column="18"/></name> <init pos:line="56" pos:column="19">= <expr><literal type="number" pos:line="56" pos:column="21">0<pos:position pos:line="56" pos:column="22"/></literal></expr></init></decl>;<pos:position pos:line="56" pos:column="23"/></init> <condition><expr><name pos:line="56" pos:column="24">i<pos:position pos:line="56" pos:column="25"/></name> <operator pos:line="56" pos:column="26">&lt;<pos:position pos:line="56" pos:column="30"/></operator> <call><name pos:line="56" pos:column="28">YAJL_GET_OBJECT<pos:position pos:line="56" pos:column="43"/></name><argument_list pos:line="56" pos:column="43">(<argument><expr><name pos:line="56" pos:column="44">ports<pos:position pos:line="56" pos:column="49"/></name></expr></argument>)<pos:position pos:line="56" pos:column="50"/></argument_list></call><operator pos:line="56" pos:column="50">-&gt;<pos:position pos:line="56" pos:column="55"/></operator><name pos:line="56" pos:column="52">len<pos:position pos:line="56" pos:column="55"/></name></expr>;<pos:position pos:line="56" pos:column="56"/></condition> <incr><expr><name pos:line="56" pos:column="57">i<pos:position pos:line="56" pos:column="58"/></name><operator pos:line="56" pos:column="58">++<pos:position pos:line="56" pos:column="60"/></operator></expr></incr>)<pos:position pos:line="56" pos:column="61"/></control>
+      <block type="pseudo"><expr_stmt><expr><call><name pos:line="57" pos:column="7">ovs_stats_update_iface<pos:position pos:line="57" pos:column="29"/></name><argument_list pos:line="57" pos:column="29">(<argument><expr><call><name pos:line="57" pos:column="30">YAJL_GET_OBJECT<pos:position pos:line="57" pos:column="45"/></name><argument_list pos:line="57" pos:column="45">(<argument><expr><name pos:line="57" pos:column="46">ports<pos:position pos:line="57" pos:column="51"/></name></expr></argument>)<pos:position pos:line="57" pos:column="52"/></argument_list></call><operator pos:line="57" pos:column="52">-&gt;<pos:position pos:line="57" pos:column="57"/></operator><name><name pos:line="57" pos:column="54">values<pos:position pos:line="57" pos:column="60"/></name><index pos:line="57" pos:column="60">[<expr><name pos:line="57" pos:column="61">i<pos:position pos:line="57" pos:column="62"/></name></expr>]<pos:position pos:line="57" pos:column="63"/></index></name></expr></argument>)<pos:position pos:line="57" pos:column="64"/></argument_list></call></expr>;<pos:position pos:line="57" pos:column="65"/></expr_stmt></block></for></block></then></if>
+  <expr_stmt><expr><call><name pos:line="58" pos:column="3">pthread_mutex_unlock<pos:position pos:line="58" pos:column="23"/></name><argument_list pos:line="58" pos:column="23">(<argument><expr><operator pos:line="58" pos:column="24">&amp;<pos:position pos:line="58" pos:column="29"/></operator><name pos:line="58" pos:column="25">g_stats_lock<pos:position pos:line="58" pos:column="37"/></name></expr></argument>)<pos:position pos:line="58" pos:column="38"/></argument_list></call></expr>;<pos:position pos:line="58" pos:column="39"/></expr_stmt>
+  <return pos:line="59" pos:column="3">return;<pos:position pos:line="59" pos:column="10"/></return>
+}<pos:position pos:line="60" pos:column="2"/></block></function></unit>

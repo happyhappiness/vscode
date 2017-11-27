@@ -1,0 +1,165 @@
+int udb_query_create (udb_query_t ***ret_query_list, /* {{{ */
+    size_t *ret_query_list_len, oconfig_item_t *ci,
+    udb_query_create_callback_t cb, int legacy_mode)
+{
+  udb_query_t **query_list;
+  size_t        query_list_len;
+
+  udb_query_t *q;
+  int status;
+  int i;
+
+  size_t legacy_position;
+
+  if ((ret_query_list == NULL) || (ret_query_list_len == NULL))
+    return (-EINVAL);
+  query_list     = *ret_query_list;
+  query_list_len = *ret_query_list_len;
+
+  if ((ci->values_num != 1)
+      || (ci->values[0].type != OCONFIG_TYPE_STRING))
+  {
+    WARNING ("db query utils: The `Query' block "
+        "needs exactly one string argument.");
+    return (-1);
+  }
+
+  q = (udb_query_t *) malloc (sizeof (*q));
+  if (q == NULL)
+  {
+    ERROR ("db query utils: malloc failed.");
+    return (-1);
+  }
+  memset (q, 0, sizeof (*q));
+  q->legacy_mode = legacy_mode;
+  q->min_version = 0;
+  q->max_version = UINT_MAX;
+
+  legacy_position = 0;
+
+  status = udb_config_set_string (&q->name, ci);
+  if (status != 0)
+  {
+    sfree (q);
+    return (status);
+  }
+
+  /* Fill the `udb_query_t' structure.. */
+  for (i = 0; i < ci->children_num; i++)
+  {
+    oconfig_item_t *child = ci->children + i;
+
+    if (strcasecmp ("Statement", child->key) == 0)
+      status = udb_config_set_string (&q->statement, child);
+    else if (strcasecmp ("Result", child->key) == 0)
+      status = udb_result_create (q->name, &q->results, child);
+    else if (strcasecmp ("MinVersion", child->key) == 0)
+      status = udb_config_set_uint (&q->min_version, child);
+    else if (strcasecmp ("MaxVersion", child->key) == 0)
+      status = udb_config_set_uint (&q->max_version, child);
+
+    /* PostgreSQL compatibility code */
+    else if ((strcasecmp ("Query", child->key) == 0)
+        && (q->legacy_mode == 1))
+    {
+      WARNING ("db query utils: Query `%s': The `Query' option is "
+          "deprecated. Please use `Statement' instead.",
+          q->name);
+      status = udb_config_set_string (&q->statement, child);
+    }
+    else if ((strcasecmp ("Column", child->key) == 0)
+        && (q->legacy_mode == 1))
+    {
+      WARNING ("db query utils: Query `%s': The `Column' option is "
+          "deprecated. Please use the new syntax instead.",
+          q->name);
+      status = udb_legacy_result_create (q->name, &q->results, child,
+          legacy_position);
+      legacy_position++;
+    }
+    else if ((strcasecmp ("MinPGVersion", child->key) == 0)
+        && (q->legacy_mode == 1))
+    {
+      WARNING ("db query utils: Query `%s': The `MinPGVersion' option is "
+          "deprecated. Please use `MinVersion' instead.",
+          q->name);
+      status = udb_config_set_uint (&q->min_version, child);
+    }
+    else if ((strcasecmp ("MaxPGVersion", child->key) == 0)
+        && (q->legacy_mode == 1))
+    {
+      WARNING ("db query utils: Query `%s': The `MaxPGVersion' option is "
+          "deprecated. Please use `MaxVersion' instead.",
+          q->name);
+      status = udb_config_set_uint (&q->max_version, child);
+    }
+
+    /* Call custom callbacks */
+    else if (cb != NULL)
+    {
+      status = (*cb) (q, child);
+      if (status != 0)
+      {
+        WARNING ("db query utils: The configuration callback failed "
+            "to handle `%s'.", child->key);
+      }
+    }
+    else
+    {
+      WARNING ("db query utils: Query `%s': Option `%s' not allowed here.",
+          q->name, child->key);
+      status = -1;
+    }
+
+    if (status != 0)
+      break;
+  }
+
+  /* Check that all necessary options have been given. */
+  if (status == 0)
+  {
+    if (q->statement == NULL)
+    {
+      WARNING ("db query utils: Query `%s': No `Statement' given.", q->name);
+      status = -1;
+    }
+    if (q->results == NULL)
+    {
+      WARNING ("db query utils: Query `%s': No (valid) `Result' block given.",
+          q->name);
+      status = -1;
+    }
+  } /* if (status == 0) */
+
+  /* If all went well, add this query to the list of queries within the
+   * database structure. */
+  if (status == 0)
+  {
+    udb_query_t **temp;
+
+    temp = (udb_query_t **) realloc (query_list,
+        sizeof (*query_list) * (query_list_len + 1));
+    if (temp == NULL)
+    {
+      ERROR ("db query utils: realloc failed");
+      status = -1;
+    }
+    else
+    {
+      query_list = temp;
+      query_list[query_list_len] = q;
+      query_list_len++;
+    }
+  }
+
+  if (status != 0)
+  {
+    udb_query_free_one (q);
+    return (-1);
+  }
+
+  *ret_query_list     = query_list;
+  *ret_query_list_len = query_list_len;
+
+  return (0);
+}

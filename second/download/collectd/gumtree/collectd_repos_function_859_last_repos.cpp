@@ -1,0 +1,127 @@
+static PyObject *Values_dispatch(Values *self, PyObject *args, PyObject *kwds) {
+  int ret;
+  const data_set_t *ds;
+  size_t size;
+  value_t *value;
+  value_list_t value_list = VALUE_LIST_INIT;
+  PyObject *values = self->values, *meta = self->meta;
+  double time = self->data.time, interval = self->interval;
+  char *host = NULL, *plugin = NULL, *plugin_instance = NULL, *type = NULL,
+       *type_instance = NULL;
+
+  static char *kwlist[] = {
+      "type", "values", "plugin_instance", "type_instance", "plugin",
+      "host", "time",   "interval",        "meta",          NULL};
+  if (!PyArg_ParseTupleAndKeywords(args, kwds, "|etOetetetetddO", kwlist, NULL,
+                                   &type, &values, NULL, &plugin_instance, NULL,
+                                   &type_instance, NULL, &plugin, NULL, &host,
+                                   &time, &interval, &meta))
+    return NULL;
+
+  sstrncpy(value_list.host, host ? host : self->data.host,
+           sizeof(value_list.host));
+  sstrncpy(value_list.plugin, plugin ? plugin : self->data.plugin,
+           sizeof(value_list.plugin));
+  sstrncpy(value_list.plugin_instance,
+           plugin_instance ? plugin_instance : self->data.plugin_instance,
+           sizeof(value_list.plugin_instance));
+  sstrncpy(value_list.type, type ? type : self->data.type,
+           sizeof(value_list.type));
+  sstrncpy(value_list.type_instance,
+           type_instance ? type_instance : self->data.type_instance,
+           sizeof(value_list.type_instance));
+  FreeAll();
+  if (value_list.type[0] == 0) {
+    PyErr_SetString(PyExc_RuntimeError, "type not set");
+    FreeAll();
+    return NULL;
+  }
+  ds = plugin_get_ds(value_list.type);
+  if (ds == NULL) {
+    PyErr_Format(PyExc_TypeError, "Dataset %s not found", value_list.type);
+    return NULL;
+  }
+  if (values == NULL ||
+      (PyTuple_Check(values) == 0 && PyList_Check(values) == 0)) {
+    PyErr_Format(PyExc_TypeError, "values must be list or tuple");
+    return NULL;
+  }
+  if (meta != NULL && meta != Py_None && !PyDict_Check(meta)) {
+    PyErr_Format(PyExc_TypeError, "meta must be a dict");
+    return NULL;
+  }
+  size = (size_t)PySequence_Length(values);
+  if (size != ds->ds_num) {
+    PyErr_Format(PyExc_RuntimeError, "type %s needs %zu values, got %zu",
+                 value_list.type, ds->ds_num, size);
+    return NULL;
+  }
+  value = calloc(size, sizeof(*value));
+  for (size_t i = 0; i < size; ++i) {
+    PyObject *item, *num;
+    item = PySequence_Fast_GET_ITEM(values, (int)i); /* Borrowed reference. */
+    switch (ds->ds[i].type) {
+    case DS_TYPE_COUNTER:
+      num = PyNumber_Long(item); /* New reference. */
+      if (num != NULL) {
+        value[i].counter = PyLong_AsUnsignedLongLong(num);
+        Py_XDECREF(num);
+      }
+      break;
+    case DS_TYPE_GAUGE:
+      num = PyNumber_Float(item); /* New reference. */
+      if (num != NULL) {
+        value[i].gauge = PyFloat_AsDouble(num);
+        Py_XDECREF(num);
+      }
+      break;
+    case DS_TYPE_DERIVE:
+      /* This might overflow without raising an exception.
+       * Not much we can do about it */
+      num = PyNumber_Long(item); /* New reference. */
+      if (num != NULL) {
+        value[i].derive = PyLong_AsLongLong(num);
+        Py_XDECREF(num);
+      }
+      break;
+    case DS_TYPE_ABSOLUTE:
+      /* This might overflow without raising an exception.
+       * Not much we can do about it */
+      num = PyNumber_Long(item); /* New reference. */
+      if (num != NULL) {
+        value[i].absolute = PyLong_AsUnsignedLongLong(num);
+        Py_XDECREF(num);
+      }
+      break;
+    default:
+      free(value);
+      PyErr_Format(PyExc_RuntimeError, "unknown data type %d for %s",
+                   ds->ds[i].type, value_list.type);
+      return NULL;
+    }
+    if (PyErr_Occurred() != NULL) {
+      free(value);
+      return NULL;
+    }
+  }
+  value_list.values = value;
+  value_list.meta = cpy_build_meta(meta);
+  value_list.values_len = size;
+  value_list.time = DOUBLE_TO_CDTIME_T(time);
+  value_list.interval = DOUBLE_TO_CDTIME_T(interval);
+  if (value_list.host[0] == 0)
+    sstrncpy(value_list.host, hostname_g, sizeof(value_list.host));
+  if (value_list.plugin[0] == 0)
+    sstrncpy(value_list.plugin, "python", sizeof(value_list.plugin));
+  Py_BEGIN_ALLOW_THREADS;
+  ret = plugin_dispatch_values(&value_list);
+  Py_END_ALLOW_THREADS;
+  meta_data_destroy(value_list.meta);
+  free(value);
+  if (ret != 0) {
+    PyErr_SetString(PyExc_RuntimeError,
+                    "error dispatching values, read the logs");
+    return NULL;
+  }
+  Py_RETURN_NONE;
+}

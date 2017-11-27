@@ -1,0 +1,1 @@
+fprintf (stderr, ERR_SECTION_ONLY, shortvar);

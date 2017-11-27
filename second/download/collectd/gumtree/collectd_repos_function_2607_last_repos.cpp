@@ -1,0 +1,1 @@
+int plugin_register_data_set(const data_set_t *ds) { return ENOTSUP; }

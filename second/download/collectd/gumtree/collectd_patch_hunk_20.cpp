@@ -1,0 +1,510 @@
+ 	closedir (dh);
+ 
+ 	return (ret);
+ }
+ 
+ /*
+- * (Try to) load all plugins in `dir'. Returns the number of loaded plugins..
++ * The `register_*' functions follow
+  */
+-int plugin_load_all (char *dir)
++int plugin_register_config (const char *name,
++		int (*callback) (const char *key, const char *val),
++		const char **keys, int keys_num)
+ {
+-	DIR *dh;
+-	struct dirent *de;
+-	char filename[BUFSIZE];
+-	struct stat statbuf;
++	cf_register (name, callback, keys, keys_num);
++	return (0);
++} /* int plugin_register_config */
+ 
+-	if (dir == NULL)
+-		dir = plugin_get_dir ();
+-	else
+-		plugin_set_dir (dir);
++int plugin_register_init (const char *name,
++		int (*callback) (void))
++{
++	return (register_callback (&list_init, name, (void *) callback));
++} /* plugin_register_init */
+ 
+-	if ((dh = opendir (dir)) == NULL)
++int plugin_register_read (const char *name,
++		int (*callback) (void))
++{
++	read_func_t *rf;
++
++	rf = (read_func_t *) malloc (sizeof (read_func_t));
++	if (rf == NULL)
+ 	{
+-		syslog (LOG_ERR, "opendir (%s): %s", dir, strerror (errno));
+-		return (0);
++		char errbuf[1024];
++		ERROR ("plugin_register_read: malloc failed: %s",
++				sstrerror (errno, errbuf, sizeof (errbuf)));
++		return (-1);
+ 	}
+ 
+-	while ((de = readdir (dh)) != NULL)
++	memset (rf, '\0', sizeof (read_func_t));
++	rf->wait_time = interval_g;
++	rf->wait_left = 0;
++	rf->callback = callback;
++	rf->needs_read = DONE;
++
++	return (register_callback (&list_read, name, (void *) rf));
++} /* int plugin_register_read */
++
++int plugin_register_write (const char *name,
++		int (*callback) (const data_set_t *ds, const value_list_t *vl))
++{
++	return (register_callback (&list_write, name, (void *) callback));
++} /* int plugin_register_write */
++
++int plugin_register_shutdown (char *name,
++		int (*callback) (void))
++{
++	return (register_callback (&list_shutdown, name, (void *) callback));
++} /* int plugin_register_shutdown */
++
++int plugin_register_data_set (const data_set_t *ds)
++{
++	data_set_t *ds_copy;
++	int i;
++
++	if ((list_data_set != NULL)
++			&& (llist_search (list_data_set, ds->type) != NULL))
+ 	{
+-		if (snprintf (filename, BUFSIZE, "%s/%s", dir, de->d_name) >= BUFSIZE)
+-		{
+-			syslog (LOG_WARNING, "snprintf: truncated: %s/%s", dir, de->d_name);
+-			continue;
+-		}
++		NOTICE ("Replacing DS `%s' with another version.", ds->type);
++		plugin_unregister_data_set (ds->type);
++	}
+ 
+-		if (lstat (filename, &statbuf) == -1)
+-		{
+-			syslog (LOG_WARNING, "stat %s: %s", filename, strerror (errno));
+-			continue;
+-		}
+-		else if (!S_ISREG (statbuf.st_mode))
+-		{
+-			continue;
+-		}
++	ds_copy = (data_set_t *) malloc (sizeof (data_set_t));
++	if (ds_copy == NULL)
++		return (-1);
++	memcpy(ds_copy, ds, sizeof (data_set_t));
+ 
+-		plugin_load_file (filename);
++	ds_copy->ds = (data_source_t *) malloc (sizeof (data_source_t)
++			* ds->ds_num);
++	if (ds_copy->ds == NULL)
++	{
++		free (ds_copy);
++		return (-1);
+ 	}
+ 
+-	closedir (dh);
++	for (i = 0; i < ds->ds_num; i++)
++		memcpy (ds_copy->ds + i, ds->ds + i, sizeof (data_source_t));
++
++	return (register_callback (&list_data_set, ds->type, (void *) ds_copy));
++} /* int plugin_register_data_set */
+ 
+-	return (plugin_count ());
++int plugin_register_log (char *name,
++		void (*callback) (int priority, const char *msg))
++{
++	return (register_callback (&list_log, name, (void *) callback));
++} /* int plugin_register_log */
++
++int plugin_unregister_config (const char *name)
++{
++	cf_unregister (name);
++	return (0);
++} /* int plugin_unregister_config */
++
++int plugin_unregister_init (const char *name)
++{
++	return (plugin_unregister (list_init, name));
+ }
+-#undef BUFSIZE
+ 
+-/*
+- * Call `init' on all plugins (if given)
+- */
+-void plugin_init_all (void)
++int plugin_unregister_read (const char *name)
+ {
+-	plugin_t *p;
++	llentry_t *e;
++
++	e = llist_search (list_read, name);
++
++	if (e == NULL)
++		return (-1);
+ 
+-	for (p = first_plugin; p != NULL; p = p->next)
+-		if (p->init != NULL)
+-			(*p->init) ();
++	llist_remove (list_read, e);
++	free (e->value);
++	llentry_destroy (e);
++
++	return (0);
+ }
+ 
+-/*
+- * Call `read' on all plugins (if given)
+- */
+-void plugin_read_all (const int *loop)
++int plugin_unregister_write (const char *name)
+ {
+-	plugin_t *p;
++	return (plugin_unregister (list_write, name));
++}
+ 
+-	for (p = first_plugin; (*loop == 0) && (p != NULL); p = p->next)
+-		if (p->read != NULL)
+-			(*p->read) ();
++int plugin_unregister_shutdown (const char *name)
++{
++	return (plugin_unregister (list_shutdown, name));
+ }
+ 
+-/*
+- * Call `shutdown' on all plugins (if given)
+- */
+-void plugin_shutdown_all (void)
++int plugin_unregister_data_set (const char *name)
+ {
+-	plugin_t *p;
++	llentry_t  *e;
++	data_set_t *ds;
++
++	if (list_data_set == NULL)
++		return (-1);
++
++	e = llist_search (list_data_set, name);
++
++	if (e == NULL)
++		return (-1);
++
++	llist_remove (list_data_set, e);
++	ds = (data_set_t *) e->value;
++	llentry_destroy (e);
++
++	sfree (ds->ds);
++	sfree (ds);
++
++	return (0);
++} /* int plugin_unregister_data_set */
+ 
+-	for (p = first_plugin; NULL != p; p = p->next)
+-		if (NULL != p->shutdown)
+-			(*p->shutdown) ();
+-	return;
++int plugin_unregister_log (const char *name)
++{
++	return (plugin_unregister (list_log, name));
+ }
+ 
+-/*
+- * Add plugin to the linked list of registered plugins.
+- */
+-void plugin_register (char *type,
+-		void (*init) (void),
+-		void (*read) (void),
+-		void (*write) (char *, char *, char *))
++void plugin_init_all (void)
+ {
+-	plugin_t *p;
++	int (*callback) (void);
++	llentry_t *le;
++	int status;
+ 
+-	if (plugin_search (type) != NULL)
++	/* Start read-threads */
++	if (list_read != NULL)
++	{
++		const char *rt;
++		int num;
++		rt = global_option_get ("ReadThreads");
++		num = atoi (rt);
++		start_threads ((num > 0) ? num : 5);
++	}
++
++	if (list_init == NULL)
+ 		return;
+ 
+-#ifdef HAVE_LIBRRD
+-	if (operating_mode != MODE_SERVER)
+-#endif
+-		if ((init != NULL) && (read == NULL))
+-			syslog (LOG_NOTICE, "Plugin `%s' doesn't provide a read function.", type);
++	le = llist_head (list_init);
++	while (le != NULL)
++	{
++		callback = (int (*) (void)) le->value;
++		status = (*callback) ();
++
++		if (status != 0)
++		{
++			ERROR ("Initialization of plugin `%s' "
++					"failed with status %i. "
++					"Plugin will be unloaded.",
++					le->key, status);
++			/* FIXME: Unload _all_ functions */
++			plugin_unregister_read (le->key);
++		}
+ 
+-	if ((p = (plugin_t *) malloc (sizeof (plugin_t))) == NULL)
++		le = le->next;
++	}
++} /* void plugin_init_all */
++
++void plugin_read_all (const int *loop)
++{
++	llentry_t   *le;
++	read_func_t *rf;
++
++	if (list_read == NULL)
+ 		return;
+ 
+-	if ((p->type = strdup (type)) == NULL)
++	pthread_mutex_lock (&read_lock);
++
++	le = llist_head (list_read);
++	while (le != NULL)
+ 	{
+-		free (p);
+-		return;
++		rf = (read_func_t *) le->value;
++
++		if (rf->needs_read != DONE)
++		{
++			le = le->next;
++			continue;
++		}
++
++		if (rf->wait_left > 0)
++			rf->wait_left -= interval_g;
++
++		if (rf->wait_left <= 0)
++		{
++			rf->needs_read = TODO;
++		}
++
++		le = le->next;
+ 	}
+ 
+-	p->init  = init;
+-	p->read  = read;
+-	p->write = write;
++	DEBUG ("plugin: plugin_read_all: Signalling `read_cond'");
++	pthread_cond_broadcast (&read_cond);
++	pthread_mutex_unlock (&read_lock);
++} /* void plugin_read_all */
+ 
+-	p->shutdown = NULL;
++void plugin_shutdown_all (void)
++{
++	int (*callback) (void);
++	llentry_t *le;
+ 
+-	p->next = first_plugin;
+-	first_plugin = p;
+-}
++	stop_threads ();
+ 
+-/*
+- * Register the shutdown function (optional).
+- */
+-int plugin_register_shutdown (char *type, void (*shutdown) (void))
++	if (list_shutdown == NULL)
++		return;
++
++	le = llist_head (list_shutdown);
++	while (le != NULL)
++	{
++		callback = (int (*) (void)) le->value;
++
++		/* Advance the pointer before calling the callback allows
++		 * shutdown functions to unregister themselves. If done the
++		 * other way around the memory `le' points to will be freed
++		 * after callback returns. */
++		le = le->next;
++
++		(*callback) ();
++	}
++} /* void plugin_shutdown_all */
++
++int plugin_dispatch_values (const char *name, value_list_t *vl)
+ {
+-	plugin_t *p = plugin_search (type);
++	int (*callback) (const data_set_t *, const value_list_t *);
++	data_set_t *ds;
++	llentry_t *le;
+ 
+-	if (NULL == p)
+-		return -1;
++	if ((list_write == NULL) || (list_data_set == NULL))
++		return (-1);
+ 
+-	p->shutdown = shutdown;
+-	return 0;
+-}
++	le = llist_search (list_data_set, name);
++	if (le == NULL)
++	{
++		DEBUG ("No such dataset registered: %s", name);
++		return (-1);
++	}
+ 
+-/*
+- * Send received data back to the plugin/module which will append DS
+- * definitions and pass it on to ``rrd_update_file''.
+- */
+-void plugin_write (char *host, char *type, char *inst, char *val)
++	ds = (data_set_t *) le->value;
++
++	DEBUG ("plugin: plugin_dispatch_values: time = %u; host = %s; "
++			"plugin = %s; plugin_instance = %s; type = %s; "
++			"type_instance = %s;",
++			(unsigned int) vl->time, vl->host,
++			vl->plugin, vl->plugin_instance,
++			ds->type, vl->type_instance);
++
++#if COLLECT_DEBUG
++	assert (ds->ds_num == vl->values_len);
++#else
++	if (ds->ds_num != vl->values_len)
++	{
++		ERROR ("plugin: ds->type = %s: (ds->ds_num = %i) != "
++				"(vl->values_len = %i)",
++				ds->type, ds->ds_num, vl->values_len);
++		return (-1);
++	}
++#endif
++
++	escape_slashes (vl->host, sizeof (vl->host));
++	escape_slashes (vl->plugin, sizeof (vl->plugin));
++	escape_slashes (vl->plugin_instance, sizeof (vl->plugin_instance));
++	escape_slashes (vl->type_instance, sizeof (vl->type_instance));
++
++	le = llist_head (list_write);
++	while (le != NULL)
++	{
++		callback = (int (*) (const data_set_t *, const value_list_t *)) le->value;
++		(*callback) (ds, vl);
++
++		le = le->next;
++	}
++
++	return (0);
++} /* int plugin_dispatch_values */
++
++void plugin_log (int level, const char *format, ...)
+ {
+-	plugin_t *p;
++	char msg[512];
++	va_list ap;
+ 
+-	if ((p = plugin_search (type)) == NULL)
+-		return;
++	void (*callback) (int, const char *);
++	llentry_t *le;
+ 
+-	if (p->write == NULL)
++	if (list_log == NULL)
+ 		return;
+ 
+-	(*p->write) (host, inst, val);
+-}
++#if !COLLECT_DEBUG
++	if (level >= LOG_DEBUG)
++		return;
++#endif
+ 
+-/*
+- * Receive data from the plugin/module and get it somehow to ``plugin_write'':
+- * Either using ``network_send'' (when in network/client mode) or call it
+- * directly (in local mode).
+- */
+-void plugin_submit (char *type, char *inst, char *val)
+-{
+-	if (inst == NULL)
+-		inst = "-";
++	va_start (ap, format);
++	vsnprintf (msg, 512, format, ap);
++	msg[511] = '\0';
++	va_end (ap);
+ 
+-	if ((type == NULL) || (val == NULL))
++	le = llist_head (list_log);
++	while (le != NULL)
+ 	{
+-		DBG ("Help! NULL-pointer! type = %s; inst = %s; val = %s;",
+-				(type == NULL) ? "(null)" : type,
+-				inst,
+-				(val == NULL) ? "(null)" : val);
+-		return;
+-	}
++		callback = (void (*) (int, const char *)) le->value;
++		(*callback) (level, msg);
+ 
+-        if (operating_mode == MODE_CLIENT)
+-		network_send (type, inst, val);
+-	else
+-		plugin_write (NULL, type, inst, val);
+-}
++		le = le->next;
++	}
++} /* void plugin_log */
+ 
+ void plugin_complain (int level, complain_t *c, const char *format, ...)
+ {
+ 	char message[512];
+ 	va_list ap;
+-	int step;
+ 
+ 	if (c->delay > 0)
+ 	{
+ 		c->delay--;
+ 		return;
+ 	}
+ 
+-	step = atoi (COLLECTD_STEP);
+-	assert (step > 0);
+-
+-	if (c->interval < step)
+-		c->interval = step;
++	if (c->interval < interval_g)
++		c->interval = interval_g;
+ 	else
+ 		c->interval *= 2;
+ 
+ 	if (c->interval > 86400)
+ 		c->interval = 86400;
+ 
+-	c->delay = c->interval / step;
++	c->delay = c->interval / interval_g;
+ 
+ 	va_start (ap, format);
+ 	vsnprintf (message, 512, format, ap);
+ 	message[511] = '\0';
+ 	va_end (ap);
+ 
+-	syslog (level, message);
++	plugin_log (level, message);
+ }
+ 
+ void plugin_relief (int level, complain_t *c, const char *format, ...)
+ {
+ 	char message[512];
+ 	va_list ap;

@@ -1,0 +1,1 @@
+printf ("%s: %g average |", status_str, average);

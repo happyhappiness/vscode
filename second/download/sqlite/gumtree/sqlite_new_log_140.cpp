@@ -1,1 +1,0 @@
-OSTRACE1("No-transfer, same thread\n");

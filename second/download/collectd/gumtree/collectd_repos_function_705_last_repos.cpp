@@ -1,0 +1,13 @@
+static void mic_submit_temp(int micnumber, const char *type, gauge_t value) {
+  value_list_t vl = VALUE_LIST_INIT;
+
+  vl.values = &(value_t){.gauge = value};
+  vl.values_len = 1;
+
+  strncpy(vl.plugin, "mic", sizeof(vl.plugin));
+  snprintf(vl.plugin_instance, sizeof(vl.plugin_instance), "%i", micnumber);
+  strncpy(vl.type, "temperature", sizeof(vl.type));
+  strncpy(vl.type_instance, type, sizeof(vl.type_instance));
+
+  plugin_dispatch_values(&vl);
+}

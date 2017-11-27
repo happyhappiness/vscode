@@ -1,1 +1,0 @@
-sqlite3_mprintf(zFmt, pRtree->zDb, pRtree->zName);

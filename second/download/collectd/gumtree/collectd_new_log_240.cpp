@@ -1,0 +1,1 @@
+fprintf (fh, "%s: %"PRIu64"\n", meta->name, meta->nm_value.nm_unsigned_int);

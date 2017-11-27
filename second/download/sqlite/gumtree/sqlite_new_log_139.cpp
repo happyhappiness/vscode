@@ -1,1 +1,0 @@
-pthread_create(&t, 0, threadLockingTest, &d);

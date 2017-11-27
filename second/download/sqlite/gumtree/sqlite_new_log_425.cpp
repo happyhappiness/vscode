@@ -1,1 +1,0 @@
-corruptSchema(pData, argv[0], sqlite3_errmsg(db));

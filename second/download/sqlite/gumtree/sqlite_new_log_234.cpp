@@ -1,1 +1,0 @@
-sqlite3SetString(&p->zErrMsg, db, "%s", sqlite3_value_text(&ctx.s));

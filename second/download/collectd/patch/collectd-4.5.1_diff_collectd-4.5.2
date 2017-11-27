@@ -1,0 +1,3170 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/ChangeLog /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/ChangeLog
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/ChangeLog	2008-10-17 04:42:14.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/ChangeLog	2009-01-03 06:17:55.000000000 +0800
+@@ -1,6 +1,38 @@
++2009-01-02, Version 4.5.2
++	* build system: Check for `mysql.h' and `mysql/mysql.h', since the
++	  file may be in both locations, especially when the database was
++	  installed in a non-standard path. Thanks to Dusty Doris for
++	  reporting this.
++	* build system: Handle the _POSIX_PTHREAD_SEMANTICS defined, needed by
++	  Solaris, in the configure script automatically.
++	* build system, tcpconns plugin: Check for `kvm_nlist' and
++	  `kvm_openfiles' before enabling the plugin: Solaris provides a KVM
++	  library with similar functions to the BSD variant, but doesn't
++	  provide these necessary functions.
++	* collectd.conf(5): Various fixes and clarifications.
++	* collectd: Remove a GNUism (unnamed unions), thus improving
++	  portability.
++	* collectd, apcups plugin: Include "collectd.h" before <stdlib.h>.
++	  This solves portability problems, especially for Solaris.
++	* dns plugin: Fix a portability problem with NetBSD.
++	* filecount plugin: Fix an off-by-one error. This error may cause a
++	  segmentation fault.
++	* network plugin: Fix the handling of `type' in the network protocol.
++	  Due to a programming mistake, only 4 or 8 bytes would be copied to a
++	  much larger buffer. This caused the `type' to be transferred much
++	  more often than necessary. In some cases, e. g. the `cpu' and
++	  `cpufreq' plugins being used at the same time, data may be corrupted
++	  in those files. Thanks to Bruno Prémont for debugging and reporting
++	  this issue.
++	* processes plugin: Fix a possible segmentation fault when specifying
++	  invalid configuration options.
++	* unixsock plugin: Make sure the initialization function is run only
++	  once. This resolves a file descriptor leak under systems which run
++	  the initialization more than once, such as Solaris.
++
+ 2008-10-16, Version 4.5.1
+ 	* build system: Change `--enable-<plugin>' to abort with an error if
+ 	  dependencies are not met. Thanks to Bruno Prémont for the patch.
+ 	  Also, the poisoning of various string functions has been restricted
+ 	  to debug builds.
+ 	* collectd: Fix a memory leak in the global value cache. With every
+@@ -10,25 +42,25 @@
+ 	* collectd: Fix an off-by-one error in the ignorelist functionality.
+ 	  When using regular expressions, the last character would be missing,
+ 	  possibly matching differently from what one would expect.
+ 	* collectdmon: Don't block SIGCHLD. This fixes a potential portability
+ 	  problem.
+ 	* collectd-nagios: Fix handling of the `-d' option. Thanks to Fabian
+-	  Linzberger for reporting the but.
++	  Linzberger for reporting the bug.
+ 	* iptables plugin: Fix an off-by-one error. If a string was just one
+ 	  character too long, it was truncated instead of reporting an error.
+ 	* network plugin: Fix a memory leak in the configuration handling
+ 	  code. Thanks to Niraj Tolia for reporting this issue.
+ 	* perl plugin: Log an error message if bootstrapping `Collectd' fails.
+ 	* postgresql plugin: Don't reopen connection during reinitialization.
+ 	  This fixes a bug under Solaris and potentially other platforms.
+ 	  Missing calls to `PQclear' have been added, too. This fixes memory
+ 	  leaks. Thanks to ``Admin'' for reporting these bugs.
+ 	* snmp plugin: Don't expect null-terminated strings from the Net-SNMP
+ 	  library.
+-	* tail plugin: Call `clearerr' after reading an EOF. This fixes
++	* tail plugin: Call `clearerr(3)' after reading an EOF. This fixes
+ 	  problems with some `libc's. Thanks to Matthias Lay for reporting the
+ 	  bug.
+ 
+ 2008-09-04, Version 4.5.0
+ 	* collectd: Added the ability to flush certain identifiers.
+ 	* collectd: The concept of `notification meta data' has been
+@@ -57,12 +89,34 @@
+ 	* rrdtool plugin: Implement throttling of the `update queue' to lessen
+ 	  IO load.
+ 	* tcpconns plugin: This plugin has been ported to OpenBSD.
+ 	* thermal plugin: The new thermal plugin collects system temperatures
+ 	  using Linux ACPI thermal zone data.
+ 
++2009-01-02, Version 4.4.5
++	* build system: Check for `mysql.h' and `mysql/mysql.h', since the
++	  file may be in both locations, especially when the database was
++	  installed in a non-standard path. Thanks to Dusty Doris for
++	  reporting this.
++	* build system: Handle the _POSIX_PTHREAD_SEMANTICS defined, needed by
++	  Solaris, in the configure script automatically.
++	* collectd.conf(5): Various fixes and clarifications.
++	* apcups plugin: Include "collectd.h" before <stdlib.h>. This solves
++	  portability problems, especially for Solaris.
++	* dns plugin: Fix a portability problem with NetBSD.
++	* network plugin: Fix the handling of `type' in the network protocol.
++	  Due to a programming mistake, only 4 or 8 bytes would be copied to a
++	  much larger buffer. This caused the `type' to be transferred much
++	  more often than necessary. In some cases, e. g. the `cpu' and
++	  `cpufreq' plugins being used at the same time, data may be corrupted
++	  in those files. Thanks to Bruno Prémont for debugging and reporting
++	  this issue.
++	* unixsock plugin: Make sure the initialization function is run only
++	  once. This resolves a file descriptor leak under systems which run
++	  the initialization more than once, such as Solaris.
++
+ 2008-10-16, Version 4.4.4
+ 	* build system: Change `--enable-<plugin>' to abort with an error if
+ 	  dependencies are not met. Thanks to Bruno Prémont for the patch.
+ 	  Also, the poisoning of various string functions has been restricted
+ 	  to debug builds.
+ 	* collectd: Fix a memory leak in the global value cache. With every
+@@ -72,17 +126,17 @@
+ 	* collectd: Fix an off-by-one error in the ignorelist functionality.
+ 	  When using regular expressions, the last character would be missing,
+ 	  possibly matching differently from what one would expect.
+ 	* collectdmon: Don't block SIGCHLD. This fixes a potential portability
+ 	  problem.
+ 	* collectd-nagios: Fix handling of the `-d' option. Thanks to Fabian
+-	  Linzberger for reporting the but.
++	  Linzberger for reporting the bug.
+ 	* network plugin: Fix a memory leak in the configuration handling
+ 	  code. Thanks to Niraj Tolia for reporting this issue.
+ 	* perl plugin: Log an error message if bootstrapping `Collectd' fails.
+-	* tail plugin: Call `clearerr' after reading an EOF. This fixes
++	* tail plugin: Call `clearerr(3)' after reading an EOF. This fixes
+ 	  problems with some `libc's. Thanks to Matthias Lay for reporting the
+ 	  bug.
+ 
+ 2008-09-01, Version 4.4.3
+ 	* collectd: Fix a memory leak in the threshold checking code.
+ 	* memcached plugin: Fix a too short timeout and a related file
+@@ -113,13 +167,13 @@
+ 	* collectd: Fixed min/max output in notifications generated by
+ 	  threshold checking.
+ 	* collectd-nagios: Fix the protocol used to communicate with the
+ 	  daemon.
+ 	* perl plugin: Fail noisily, but don't shutdown the daemon, if
+ 	  initialization has errors. An issue with Perl 5.10 has been fixed.
+-	* teamspeak2 plugin: Fixed an out of bounce array access. Thanks to
++	* teamspeak2 plugin: Fixed an out of bound array access. Thanks to
+ 	  René Rebe and Siegmund Gorr for reporting this.
+ 
+ 2008-05-06, Version 4.4.0
+ 	* collectd: Internal code cleanups.
+ 	* collectd: Added support for a `Flush' command in the unixsock and
+ 	  exec plugins. This command can be used to force a plugin (or all) to
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/configure	2008-10-17 04:43:28.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/configure	2009-01-03 06:19:15.000000000 +0800
+@@ -1,9 +1,9 @@
+ #! /bin/sh
+ # Guess values for system-dependent variables and create Makefiles.
+-# Generated by GNU Autoconf 2.61 for collectd 4.5.1.
++# Generated by GNU Autoconf 2.61 for collectd 4.5.2.
+ #
+ # Copyright (C) 1992, 1993, 1994, 1995, 1996, 1998, 1999, 2000, 2001,
+ # 2002, 2003, 2004, 2005, 2006 Free Software Foundation, Inc.
+ # This configure script is free software; the Free Software Foundation
+ # gives unlimited permission to copy, distribute and modify it.
+ ## --------------------- ##
+@@ -723,14 +723,14 @@
+ MAKEFLAGS=
+ SHELL=${CONFIG_SHELL-/bin/sh}
+ 
+ # Identity of this package.
+ PACKAGE_NAME='collectd'
+ PACKAGE_TARNAME='collectd'
+-PACKAGE_VERSION='4.5.1'
+-PACKAGE_STRING='collectd 4.5.1'
++PACKAGE_VERSION='4.5.2'
++PACKAGE_STRING='collectd 4.5.2'
+ PACKAGE_BUGREPORT=''
+ 
+ ac_unique_file="src/collectd.c"
+ ac_default_prefix="/opt/collectd"
+ # Factoring default headers for most tests.
+ ac_includes_default="\
+@@ -914,12 +914,14 @@
+ BUILD_WITH_LIBKVM_GETPROCS_TRUE
+ BUILD_WITH_LIBKVM_GETPROCS_FALSE
+ BUILD_WITH_LIBKVM_GETSWAPINFO_TRUE
+ BUILD_WITH_LIBKVM_GETSWAPINFO_FALSE
+ BUILD_WITH_LIBKVM_NLIST_TRUE
+ BUILD_WITH_LIBKVM_NLIST_FALSE
++BUILD_WITH_LIBKVM_OPENFILES_TRUE
++BUILD_WITH_LIBKVM_OPENFILES_FALSE
+ BUILD_WITH_LIBSENSORS_CFLAGS
+ BUILD_WITH_LIBSENSORS_LDFLAGS
+ BUILD_WITH_LM_SENSORS_TRUE
+ BUILD_WITH_LM_SENSORS_FALSE
+ BUILD_WITH_LIBMYSQL_CFLAGS
+ BUILD_WITH_LIBMYSQL_LIBS
+@@ -1625,13 +1627,13 @@
+ # Report the --help message.
+ #
+ if test "$ac_init_help" = "long"; then
+   # Omit some internal or obsolete options to make the list less imposing.
+   # This message is too long to be a string in the A/UX 3.1 sh.
+   cat <<_ACEOF
+-\`configure' configures collectd 4.5.1 to adapt to many kinds of systems.
++\`configure' configures collectd 4.5.2 to adapt to many kinds of systems.
+ 
+ Usage: $0 [OPTION]... [VAR=VALUE]...
+ 
+ To assign environment variables (e.g., CC, CFLAGS...), specify them as
+ VAR=VALUE.  See below for descriptions of some of the useful variables.
+ 
+@@ -1695,13 +1697,13 @@
+   --host=HOST       cross-compile to build programs to run on HOST [BUILD]
+ _ACEOF
+ fi
+ 
+ if test -n "$ac_init_help"; then
+   case $ac_init_help in
+-     short | recursive ) echo "Configuration of collectd 4.5.1:";;
++     short | recursive ) echo "Configuration of collectd 4.5.2:";;
+    esac
+   cat <<\_ACEOF
+ 
+ Optional Features:
+   --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
+   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
+@@ -1910,13 +1912,13 @@
+   done
+ fi
+ 
+ test -n "$ac_init_help" && exit $ac_status
+ if $ac_init_version; then
+   cat <<\_ACEOF
+-collectd configure 4.5.1
++collectd configure 4.5.2
+ generated by GNU Autoconf 2.61
+ 
+ Copyright (C) 1992, 1993, 1994, 1995, 1996, 1998, 1999, 2000, 2001,
+ 2002, 2003, 2004, 2005, 2006 Free Software Foundation, Inc.
+ This configure script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it.
+@@ -1924,13 +1926,13 @@
+   exit
+ fi
+ cat >config.log <<_ACEOF
+ This file contains any messages produced by compilers while
+ running configure, to aid debugging if configure makes a mistake.
+ 
+-It was created by collectd $as_me 4.5.1, which was
++It was created by collectd $as_me 4.5.2, which was
+ generated by GNU Autoconf 2.61.  Invocation command line was
+ 
+   $ $0 $@
+ 
+ _ACEOF
+ exec 5>>config.log
+@@ -2617,13 +2619,13 @@
+   fi
+ fi
+ 
+ 
+ # Define the identity of the package.
+  PACKAGE='collectd'
+- VERSION='4.5.1'
++ VERSION='4.5.2'
+ 
+ 
+ cat >>confdefs.h <<_ACEOF
+ #define PACKAGE "$PACKAGE"
+ _ACEOF
+ 
+@@ -6299,13 +6301,13 @@
+     esac
+   fi
+   rm -rf conftest*
+   ;;
+ *-*-irix6*)
+   # Find out which ABI we are using.
+-  echo '#line 6305 "configure"' > conftest.$ac_ext
++  echo '#line 6307 "configure"' > conftest.$ac_ext
+   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+   (eval $ac_compile) 2>&5
+   ac_status=$?
+   echo "$as_me:$LINENO: \$? = $ac_status" >&5
+   (exit $ac_status); }; then
+    if test "$lt_cv_prog_gnu_ld" = yes; then
+@@ -9121,17 +9123,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:9127: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:9129: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:9131: \$? = $ac_status" >&5
++   echo "$as_me:9133: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -9411,17 +9413,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:9417: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:9419: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:9421: \$? = $ac_status" >&5
++   echo "$as_me:9423: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -9515,17 +9517,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:9521: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:9523: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:9525: \$? = $ac_status" >&5
++   echo "$as_me:9527: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -11892,13 +11894,13 @@
+   	  if test "$cross_compiling" = yes; then :
+   lt_cv_dlopen_self=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 11898 "configure"
++#line 11900 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -11992,13 +11994,13 @@
+   	  if test "$cross_compiling" = yes; then :
+   lt_cv_dlopen_self_static=cross
+ else
+   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
+   lt_status=$lt_dlunknown
+   cat > conftest.$ac_ext <<EOF
+-#line 11998 "configure"
++#line 12000 "configure"
+ #include "confdefs.h"
+ 
+ #if HAVE_DLFCN_H
+ #include <dlfcn.h>
+ #endif
+ 
+@@ -14393,17 +14395,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:14399: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:14401: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:14403: \$? = $ac_status" >&5
++   echo "$as_me:14405: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -14497,17 +14499,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:14503: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:14505: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:14507: \$? = $ac_status" >&5
++   echo "$as_me:14509: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -16095,17 +16097,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:16101: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:16103: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:16105: \$? = $ac_status" >&5
++   echo "$as_me:16107: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -16199,17 +16201,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:16205: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:16207: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:16209: \$? = $ac_status" >&5
++   echo "$as_me:16211: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -18419,17 +18421,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:18425: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:18427: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:18429: \$? = $ac_status" >&5
++   echo "$as_me:18431: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -18709,17 +18711,17 @@
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    # The option is referenced via a variable to avoid confusing sed.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:18715: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:18717: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>conftest.err)
+    ac_status=$?
+    cat conftest.err >&5
+-   echo "$as_me:18719: \$? = $ac_status" >&5
++   echo "$as_me:18721: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s "$ac_outfile"; then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings other than the usual output.
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' >conftest.exp
+      $SED '/^$/d; /^ *+/d' conftest.err >conftest.er2
+      if test ! -s conftest.er2 || diff conftest.exp conftest.er2 >/dev/null; then
+@@ -18813,17 +18815,17 @@
+    # Note that $ac_compile itself does not contain backslashes and begins
+    # with a dollar sign (not a hyphen), so the echo should work correctly.
+    lt_compile=`echo "$ac_compile" | $SED \
+    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
+    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
+    -e 's:$: $lt_compiler_flag:'`
+-   (eval echo "\"\$as_me:18819: $lt_compile\"" >&5)
++   (eval echo "\"\$as_me:18821: $lt_compile\"" >&5)
+    (eval "$lt_compile" 2>out/conftest.err)
+    ac_status=$?
+    cat out/conftest.err >&5
+-   echo "$as_me:18823: \$? = $ac_status" >&5
++   echo "$as_me:18825: \$? = $ac_status" >&5
+    if (exit $ac_status) && test -s out/conftest2.$ac_objext
+    then
+      # The compiler can only warn and ignore the option if not recognized
+      # So say no if there are warnings
+      $echo "X$_lt_compiler_boilerplate" | $Xsed -e '/^$/d' > out/conftest.exp
+      $SED '/^$/d; /^ *+/d' out/conftest.err >out/conftest.er2
+@@ -21916,12 +21918,17 @@
+ 	fi
+ 
+ 	KERNEL_CFLAGS="-I$KERNEL_DIR/include"
+ 
+ fi
+ 
++if test "x$ac_system" = "xSolaris"
++then
++	CPPFLAGS="$CPPFLAGS -D_POSIX_PTHREAD_SEMANTICS"
++fi
++
+ #
+ # Checks for header files.
+ #
+ { echo "$as_me:$LINENO: checking for ANSI C header files" >&5
+ echo $ECHO_N "checking for ANSI C header files... $ECHO_C" >&6; }
+ if test "${ac_cv_header_stdc+set}" = set; then
+@@ -23925,12 +23932,13 @@
+ fi
+ 
+ done
+ 
+ 
+ # For the swap module
++have_sys_swap_h="yes"
+ 
+ for ac_header in sys/swap.h
+ do
+ as_ac_Header=`echo "ac_cv_header_$ac_header" | $as_tr_sh`
+ { echo "$as_me:$LINENO: checking for $ac_header" >&5
+ echo $ECHO_N "checking for $ac_header... $ECHO_C" >&6; }
+@@ -23986,17 +23994,25 @@
+ echo "${ECHO_T}$ac_res" >&6; }
+ if test `eval echo '${'$as_ac_Header'}'` = yes; then
+   cat >>confdefs.h <<_ACEOF
+ #define `echo "HAVE_$ac_header" | $as_tr_cpp` 1
+ _ACEOF
+ 
++else
++  have_sys_swap_h="no"
+ fi
+ 
+ done
+ 
+ 
++if test "x$have_sys_swap_h$ac_system" = "xnoSolaris"
++then
++	{ echo "$as_me:$LINENO: Solaris detected and sys/swap.h not found: Try building a 64bit binary." >&5
++echo "$as_me: Solaris detected and sys/swap.h not found: Try building a 64bit binary." >&6;}
++fi
++
+ # For load module
+ # For the processes plugin
+ # For users module
+ 
+ 
+ 
+@@ -33352,12 +33368,97 @@
+ else
+   BUILD_WITH_LIBKVM_NLIST_TRUE='#'
+   BUILD_WITH_LIBKVM_NLIST_FALSE=
+ fi
+ 
+ 
++{ echo "$as_me:$LINENO: checking for kvm_openfiles in -lkvm" >&5
++echo $ECHO_N "checking for kvm_openfiles in -lkvm... $ECHO_C" >&6; }
++if test "${ac_cv_lib_kvm_kvm_openfiles+set}" = set; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++else
++  ac_check_lib_save_LIBS=$LIBS
++LIBS="-lkvm  $LIBS"
++cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++
++/* Override any GCC internal prototype to avoid an error.
++   Use char because int might match the return type of a GCC
++   builtin and then its argument prototype would still apply.  */
++#ifdef __cplusplus
++extern "C"
++#endif
++char kvm_openfiles ();
++int
++main ()
++{
++return kvm_openfiles ();
++  ;
++  return 0;
++}
++_ACEOF
++rm -f conftest.$ac_objext conftest$ac_exeext
++if { (ac_try="$ac_link"
++case "(($ac_try" in
++  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
++  *) ac_try_echo=$ac_try;;
++esac
++eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
++  (eval "$ac_link") 2>conftest.er1
++  ac_status=$?
++  grep -v '^ *+' conftest.er1 >conftest.err
++  rm -f conftest.er1
++  cat conftest.err >&5
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } && {
++	 test -z "$ac_c_werror_flag" ||
++	 test ! -s conftest.err
++       } && test -s conftest$ac_exeext &&
++       $as_test_x conftest$ac_exeext; then
++  ac_cv_lib_kvm_kvm_openfiles=yes
++else
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++	ac_cv_lib_kvm_kvm_openfiles=no
++fi
++
++rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
++      conftest$ac_exeext conftest.$ac_ext
++LIBS=$ac_check_lib_save_LIBS
++fi
++{ echo "$as_me:$LINENO: result: $ac_cv_lib_kvm_kvm_openfiles" >&5
++echo "${ECHO_T}$ac_cv_lib_kvm_kvm_openfiles" >&6; }
++if test $ac_cv_lib_kvm_kvm_openfiles = yes; then
++  with_kvm_openfiles="yes"
++else
++  with_kvm_openfiles="no"
++fi
++
++if test "x$with_kvm_openfiles" = "xyes"
++then
++
++cat >>confdefs.h <<\_ACEOF
++#define HAVE_LIBKVM_NLIST 1
++_ACEOF
++
++	with_libkvm="yes"
++fi
++ if test "x$with_kvm_openfiles" = "xyes"; then
++  BUILD_WITH_LIBKVM_OPENFILES_TRUE=
++  BUILD_WITH_LIBKVM_OPENFILES_FALSE='#'
++else
++  BUILD_WITH_LIBKVM_OPENFILES_TRUE='#'
++  BUILD_WITH_LIBKVM_OPENFILES_FALSE=
++fi
++
++
+ with_sensors_cflags=""
+ with_sensors_ldflags=""
+ 
+ # Check whether --with-lm-sensors was given.
+ if test "${with_lm_sensors+set}" = set; then
+   withval=$with_lm_sensors;
+@@ -33674,19 +33775,21 @@
+ then
+ 	with_mysql_cflags=`$with_mysql_config --cflags 2>/dev/null`
+ 	mysql_config_status=$?
+ 
+ 	if test $mysql_config_status -ne 0
+ 	then
+-		with_libmysql="no"
++		with_libmysql="no ($with_mysql_config failed)"
+ 	else
+ 		SAVE_CPPFLAGS="$CPPFLAGS"
+ 		CPPFLAGS="$CPPFLAGS $with_mysql_cflags"
+ 
++		have_mysql_h="no"
++		have_mysql_mysql_h="no"
+ 
+-for ac_header in mysql/mysql.h
++for ac_header in mysql.h
+ do
+ as_ac_Header=`echo "ac_cv_header_$ac_header" | $as_tr_sh`
+ if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
+   { echo "$as_me:$LINENO: checking for $ac_header" >&5
+ echo $ECHO_N "checking for $ac_header... $ECHO_C" >&6; }
+ if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
+@@ -33814,31 +33917,178 @@
+ 
+ fi
+ if test `eval echo '${'$as_ac_Header'}'` = yes; then
+   cat >>confdefs.h <<_ACEOF
+ #define `echo "HAVE_$ac_header" | $as_tr_cpp` 1
+ _ACEOF
++ have_mysql_h="yes"
++fi
++
++done
++
++
++		if test "x$have_mysql_h" = "xno"
++		then
+ 
++for ac_header in mysql/mysql.h
++do
++as_ac_Header=`echo "ac_cv_header_$ac_header" | $as_tr_sh`
++if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
++  { echo "$as_me:$LINENO: checking for $ac_header" >&5
++echo $ECHO_N "checking for $ac_header... $ECHO_C" >&6; }
++if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++fi
++ac_res=`eval echo '${'$as_ac_Header'}'`
++	       { echo "$as_me:$LINENO: result: $ac_res" >&5
++echo "${ECHO_T}$ac_res" >&6; }
+ else
+-  with_libmysql="no (mysql/mysql.h not found)"
++  # Is the header compilable?
++{ echo "$as_me:$LINENO: checking $ac_header usability" >&5
++echo $ECHO_N "checking $ac_header usability... $ECHO_C" >&6; }
++cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++$ac_includes_default
++#include <$ac_header>
++_ACEOF
++rm -f conftest.$ac_objext
++if { (ac_try="$ac_compile"
++case "(($ac_try" in
++  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
++  *) ac_try_echo=$ac_try;;
++esac
++eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
++  (eval "$ac_compile") 2>conftest.er1
++  ac_status=$?
++  grep -v '^ *+' conftest.er1 >conftest.err
++  rm -f conftest.er1
++  cat conftest.err >&5
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } && {
++	 test -z "$ac_c_werror_flag" ||
++	 test ! -s conftest.err
++       } && test -s conftest.$ac_objext; then
++  ac_header_compiler=yes
++else
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++	ac_header_compiler=no
++fi
++
++rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
++{ echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
++echo "${ECHO_T}$ac_header_compiler" >&6; }
++
++# Is the header present?
++{ echo "$as_me:$LINENO: checking $ac_header presence" >&5
++echo $ECHO_N "checking $ac_header presence... $ECHO_C" >&6; }
++cat >conftest.$ac_ext <<_ACEOF
++/* confdefs.h.  */
++_ACEOF
++cat confdefs.h >>conftest.$ac_ext
++cat >>conftest.$ac_ext <<_ACEOF
++/* end confdefs.h.  */
++#include <$ac_header>
++_ACEOF
++if { (ac_try="$ac_cpp conftest.$ac_ext"
++case "(($ac_try" in
++  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
++  *) ac_try_echo=$ac_try;;
++esac
++eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
++  (eval "$ac_cpp conftest.$ac_ext") 2>conftest.er1
++  ac_status=$?
++  grep -v '^ *+' conftest.er1 >conftest.err
++  rm -f conftest.er1
++  cat conftest.err >&5
++  echo "$as_me:$LINENO: \$? = $ac_status" >&5
++  (exit $ac_status); } >/dev/null && {
++	 test -z "$ac_c_preproc_warn_flag$ac_c_werror_flag" ||
++	 test ! -s conftest.err
++       }; then
++  ac_header_preproc=yes
++else
++  echo "$as_me: failed program was:" >&5
++sed 's/^/| /' conftest.$ac_ext >&5
++
++  ac_header_preproc=no
++fi
++
++rm -f conftest.err conftest.$ac_ext
++{ echo "$as_me:$LINENO: result: $ac_header_preproc" >&5
++echo "${ECHO_T}$ac_header_preproc" >&6; }
++
++# So?  What about this header?
++case $ac_header_compiler:$ac_header_preproc:$ac_c_preproc_warn_flag in
++  yes:no: )
++    { echo "$as_me:$LINENO: WARNING: $ac_header: accepted by the compiler, rejected by the preprocessor!" >&5
++echo "$as_me: WARNING: $ac_header: accepted by the compiler, rejected by the preprocessor!" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header: proceeding with the compiler's result" >&5
++echo "$as_me: WARNING: $ac_header: proceeding with the compiler's result" >&2;}
++    ac_header_preproc=yes
++    ;;
++  no:yes:* )
++    { echo "$as_me:$LINENO: WARNING: $ac_header: present but cannot be compiled" >&5
++echo "$as_me: WARNING: $ac_header: present but cannot be compiled" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header:     check for missing prerequisite headers?" >&5
++echo "$as_me: WARNING: $ac_header:     check for missing prerequisite headers?" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header: see the Autoconf documentation" >&5
++echo "$as_me: WARNING: $ac_header: see the Autoconf documentation" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header:     section \"Present But Cannot Be Compiled\"" >&5
++echo "$as_me: WARNING: $ac_header:     section \"Present But Cannot Be Compiled\"" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header: proceeding with the preprocessor's result" >&5
++echo "$as_me: WARNING: $ac_header: proceeding with the preprocessor's result" >&2;}
++    { echo "$as_me:$LINENO: WARNING: $ac_header: in the future, the compiler will take precedence" >&5
++echo "$as_me: WARNING: $ac_header: in the future, the compiler will take precedence" >&2;}
++
++    ;;
++esac
++{ echo "$as_me:$LINENO: checking for $ac_header" >&5
++echo $ECHO_N "checking for $ac_header... $ECHO_C" >&6; }
++if { as_var=$as_ac_Header; eval "test \"\${$as_var+set}\" = set"; }; then
++  echo $ECHO_N "(cached) $ECHO_C" >&6
++else
++  eval "$as_ac_Header=\$ac_header_preproc"
++fi
++ac_res=`eval echo '${'$as_ac_Header'}'`
++	       { echo "$as_me:$LINENO: result: $ac_res" >&5
++echo "${ECHO_T}$ac_res" >&6; }
++
++fi
++if test `eval echo '${'$as_ac_Header'}'` = yes; then
++  cat >>confdefs.h <<_ACEOF
++#define `echo "HAVE_$ac_header" | $as_tr_cpp` 1
++_ACEOF
++ have_mysql_mysql_h="yes"
+ fi
+ 
+ done
+ 
++		fi
++
++		if test "x$have_mysql_h$have_mysql_mysql_h" = "xnono"
++		then
++			with_libmysql="no (mysql.h not found)"
++		fi
+ 
+ 		CPPFLAGS="$SAVE_CPPFLAGS"
+ 	fi
+ fi
+ if test "x$with_libmysql" = "xyes"
+ then
+ 	with_mysql_libs=`$with_mysql_config --libs 2>/dev/null`
+ 	mysql_config_status=$?
+ 
+ 	if test $mysql_config_status -ne 0
+ 	then
+-		with_libmysql="no"
++		with_libmysql="no ($with_mysql_config failed)"
+ 	else
+ 		{ echo "$as_me:$LINENO: checking for mysql_init in -lmysqlclient" >&5
+ echo $ECHO_N "checking for mysql_init in -lmysqlclient... $ECHO_C" >&6; }
+ if test "${ac_cv_lib_mysqlclient_mysql_init+set}" = set; then
+   echo $ECHO_N "(cached) $ECHO_C" >&6
+ else
+@@ -37971,16 +38221,20 @@
+ if test "x$with_devinfo$with_kstat" = "xyesyes"
+ then
+ 	plugin_cpu="yes"
+ 	plugin_disk="yes"
+ 	plugin_interface="yes"
+ 	plugin_memory="yes"
+-	plugin_swap="yes"
+ 	plugin_tape="yes"
+ fi
+ 
++if test "x$have_sys_swap_h$with_kstat$ac_system" = "xyesyesSolaris"
++then
++	plugin_swap="yes"
++fi
++
+ # libstatgrab
+ if test "x$with_libstatgrab" = "xyes"
+ then
+ 	plugin_cpu="yes"
+ 	plugin_disk="yes"
+ 	plugin_interface="yes"
+@@ -38063,13 +38317,13 @@
+ 
+ if test "x$with_kvm_getswapinfo" = "xyes"
+ then
+ 	plugin_swap="yes"
+ fi
+ 
+-if test "x$with_kvm_nlist" = "xyes"
++if test "x$with_kvm_openfiles$with_kvm_nlist" = "xyesyes"
+ then
+ 	plugin_tcpconns="yes"
+ fi
+ 
+ if test "x$have_getutent" = "xyes"
+ then
+@@ -41267,12 +41521,19 @@
+   { { echo "$as_me:$LINENO: error: conditional \"BUILD_WITH_LIBKVM_NLIST\" was never defined.
+ Usually this means the macro was only invoked conditionally." >&5
+ echo "$as_me: error: conditional \"BUILD_WITH_LIBKVM_NLIST\" was never defined.
+ Usually this means the macro was only invoked conditionally." >&2;}
+    { (exit 1); exit 1; }; }
+ fi
++if test -z "${BUILD_WITH_LIBKVM_OPENFILES_TRUE}" && test -z "${BUILD_WITH_LIBKVM_OPENFILES_FALSE}"; then
++  { { echo "$as_me:$LINENO: error: conditional \"BUILD_WITH_LIBKVM_OPENFILES\" was never defined.
++Usually this means the macro was only invoked conditionally." >&5
++echo "$as_me: error: conditional \"BUILD_WITH_LIBKVM_OPENFILES\" was never defined.
++Usually this means the macro was only invoked conditionally." >&2;}
++   { (exit 1); exit 1; }; }
++fi
+ if test -z "${BUILD_WITH_LM_SENSORS_TRUE}" && test -z "${BUILD_WITH_LM_SENSORS_FALSE}"; then
+   { { echo "$as_me:$LINENO: error: conditional \"BUILD_WITH_LM_SENSORS\" was never defined.
+ Usually this means the macro was only invoked conditionally." >&5
+ echo "$as_me: error: conditional \"BUILD_WITH_LM_SENSORS\" was never defined.
+ Usually this means the macro was only invoked conditionally." >&2;}
+    { (exit 1); exit 1; }; }
+@@ -42113,13 +42374,13 @@
+ exec 6>&1
+ 
+ # Save the log message, to keep $[0] and so on meaningful, and to
+ # report actual input values of CONFIG_FILES etc. instead of their
+ # values after options handling.
+ ac_log="
+-This file was extended by collectd $as_me 4.5.1, which was
++This file was extended by collectd $as_me 4.5.2, which was
+ generated by GNU Autoconf 2.61.  Invocation command line was
+ 
+   CONFIG_FILES    = $CONFIG_FILES
+   CONFIG_HEADERS  = $CONFIG_HEADERS
+   CONFIG_LINKS    = $CONFIG_LINKS
+   CONFIG_COMMANDS = $CONFIG_COMMANDS
+@@ -42166,13 +42427,13 @@
+ 
+ Report bugs to <bug-autoconf@gnu.org>."
+ 
+ _ACEOF
+ cat >>$CONFIG_STATUS <<_ACEOF
+ ac_cs_version="\\
+-collectd config.status 4.5.1
++collectd config.status 4.5.2
+ configured by $0, generated by GNU Autoconf 2.61,
+   with options \\"`echo "$ac_configure_args" | sed 's/^ //; s/[\\""\`\$]/\\\\&/g'`\\"
+ 
+ Copyright (C) 2006 Free Software Foundation, Inc.
+ This config.status script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it."
+@@ -42541,12 +42802,14 @@
+ BUILD_WITH_LIBKVM_GETPROCS_TRUE!$BUILD_WITH_LIBKVM_GETPROCS_TRUE$ac_delim
+ BUILD_WITH_LIBKVM_GETPROCS_FALSE!$BUILD_WITH_LIBKVM_GETPROCS_FALSE$ac_delim
+ BUILD_WITH_LIBKVM_GETSWAPINFO_TRUE!$BUILD_WITH_LIBKVM_GETSWAPINFO_TRUE$ac_delim
+ BUILD_WITH_LIBKVM_GETSWAPINFO_FALSE!$BUILD_WITH_LIBKVM_GETSWAPINFO_FALSE$ac_delim
+ BUILD_WITH_LIBKVM_NLIST_TRUE!$BUILD_WITH_LIBKVM_NLIST_TRUE$ac_delim
+ BUILD_WITH_LIBKVM_NLIST_FALSE!$BUILD_WITH_LIBKVM_NLIST_FALSE$ac_delim
++BUILD_WITH_LIBKVM_OPENFILES_TRUE!$BUILD_WITH_LIBKVM_OPENFILES_TRUE$ac_delim
++BUILD_WITH_LIBKVM_OPENFILES_FALSE!$BUILD_WITH_LIBKVM_OPENFILES_FALSE$ac_delim
+ BUILD_WITH_LIBSENSORS_CFLAGS!$BUILD_WITH_LIBSENSORS_CFLAGS$ac_delim
+ BUILD_WITH_LIBSENSORS_LDFLAGS!$BUILD_WITH_LIBSENSORS_LDFLAGS$ac_delim
+ BUILD_WITH_LM_SENSORS_TRUE!$BUILD_WITH_LM_SENSORS_TRUE$ac_delim
+ BUILD_WITH_LM_SENSORS_FALSE!$BUILD_WITH_LM_SENSORS_FALSE$ac_delim
+ BUILD_WITH_LIBMYSQL_CFLAGS!$BUILD_WITH_LIBMYSQL_CFLAGS$ac_delim
+ BUILD_WITH_LIBMYSQL_LIBS!$BUILD_WITH_LIBMYSQL_LIBS$ac_delim
+@@ -42584,14 +42847,12 @@
+ BUILD_WITH_LIBXMMS_CFLAGS!$BUILD_WITH_LIBXMMS_CFLAGS$ac_delim
+ BUILD_WITH_LIBXMMS_LIBS!$BUILD_WITH_LIBXMMS_LIBS$ac_delim
+ BUILD_WITH_LIBXMMS_TRUE!$BUILD_WITH_LIBXMMS_TRUE$ac_delim
+ BUILD_WITH_LIBXMMS_FALSE!$BUILD_WITH_LIBXMMS_FALSE$ac_delim
+ BUILD_WITH_LIBNETLINK_CFLAGS!$BUILD_WITH_LIBNETLINK_CFLAGS$ac_delim
+ BUILD_WITH_LIBNETLINK_LIBS!$BUILD_WITH_LIBNETLINK_LIBS$ac_delim
+-BUILD_WITH_LIBNETLINK_TRUE!$BUILD_WITH_LIBNETLINK_TRUE$ac_delim
+-BUILD_WITH_LIBNETLINK_FALSE!$BUILD_WITH_LIBNETLINK_FALSE$ac_delim
+ _ACEOF
+ 
+   if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 97; then
+     break
+   elif $ac_last_try; then
+     { { echo "$as_me:$LINENO: error: could not make $CONFIG_STATUS" >&5
+@@ -42627,12 +42888,14 @@
+ _ACEOF
+ 
+ 
+ ac_delim='%!_!# '
+ for ac_last_try in false false false false false :; do
+   cat >conf$$subs.sed <<_ACEOF
++BUILD_WITH_LIBNETLINK_TRUE!$BUILD_WITH_LIBNETLINK_TRUE$ac_delim
++BUILD_WITH_LIBNETLINK_FALSE!$BUILD_WITH_LIBNETLINK_FALSE$ac_delim
+ BUILD_WITH_OPENIPMI_CFLAGS!$BUILD_WITH_OPENIPMI_CFLAGS$ac_delim
+ BUILD_WITH_OPENIPMI_LIBS!$BUILD_WITH_OPENIPMI_LIBS$ac_delim
+ BUILD_WITH_LIBPQ_CPPFLAGS!$BUILD_WITH_LIBPQ_CPPFLAGS$ac_delim
+ BUILD_WITH_LIBPQ_LDFLAGS!$BUILD_WITH_LIBPQ_LDFLAGS$ac_delim
+ BUILD_WITH_LIBPQ_TRUE!$BUILD_WITH_LIBPQ_TRUE$ac_delim
+ BUILD_WITH_LIBPQ_FALSE!$BUILD_WITH_LIBPQ_FALSE$ac_delim
+@@ -42722,14 +42985,12 @@
+ BUILD_PLUGIN_NUT_FALSE!$BUILD_PLUGIN_NUT_FALSE$ac_delim
+ BUILD_PLUGIN_ONEWIRE_TRUE!$BUILD_PLUGIN_ONEWIRE_TRUE$ac_delim
+ BUILD_PLUGIN_ONEWIRE_FALSE!$BUILD_PLUGIN_ONEWIRE_FALSE$ac_delim
+ BUILD_PLUGIN_PERL_TRUE!$BUILD_PLUGIN_PERL_TRUE$ac_delim
+ BUILD_PLUGIN_PERL_FALSE!$BUILD_PLUGIN_PERL_FALSE$ac_delim
+ BUILD_PLUGIN_PING_TRUE!$BUILD_PLUGIN_PING_TRUE$ac_delim
+-BUILD_PLUGIN_PING_FALSE!$BUILD_PLUGIN_PING_FALSE$ac_delim
+-BUILD_PLUGIN_POSTGRESQL_TRUE!$BUILD_PLUGIN_POSTGRESQL_TRUE$ac_delim
+ _ACEOF
+ 
+   if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 97; then
+     break
+   elif $ac_last_try; then
+     { { echo "$as_me:$LINENO: error: could not make $CONFIG_STATUS" >&5
+@@ -42765,12 +43026,14 @@
+ _ACEOF
+ 
+ 
+ ac_delim='%!_!# '
+ for ac_last_try in false false false false false :; do
+   cat >conf$$subs.sed <<_ACEOF
++BUILD_PLUGIN_PING_FALSE!$BUILD_PLUGIN_PING_FALSE$ac_delim
++BUILD_PLUGIN_POSTGRESQL_TRUE!$BUILD_PLUGIN_POSTGRESQL_TRUE$ac_delim
+ BUILD_PLUGIN_POSTGRESQL_FALSE!$BUILD_PLUGIN_POSTGRESQL_FALSE$ac_delim
+ BUILD_PLUGIN_POWERDNS_TRUE!$BUILD_PLUGIN_POWERDNS_TRUE$ac_delim
+ BUILD_PLUGIN_POWERDNS_FALSE!$BUILD_PLUGIN_POWERDNS_FALSE$ac_delim
+ BUILD_PLUGIN_PROCESSES_TRUE!$BUILD_PLUGIN_PROCESSES_TRUE$ac_delim
+ BUILD_PLUGIN_PROCESSES_FALSE!$BUILD_PLUGIN_PROCESSES_FALSE$ac_delim
+ BUILD_PLUGIN_RRDTOOL_TRUE!$BUILD_PLUGIN_RRDTOOL_TRUE$ac_delim
+@@ -42812,13 +43075,13 @@
+ PERL_BINDINGS!$PERL_BINDINGS$ac_delim
+ PERL_BINDINGS_OPTIONS!$PERL_BINDINGS_OPTIONS$ac_delim
+ LIBOBJS!$LIBOBJS$ac_delim
+ LTLIBOBJS!$LTLIBOBJS$ac_delim
+ _ACEOF
+ 
+-  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 45; then
++  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 47; then
+     break
+   elif $ac_last_try; then
+     { { echo "$as_me:$LINENO: error: could not make $CONFIG_STATUS" >&5
+ echo "$as_me: error: could not make $CONFIG_STATUS" >&2;}
+    { (exit 1); exit 1; }; }
+   else
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/configure.in	2008-10-17 04:43:11.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/configure.in	2009-01-03 06:18:58.000000000 +0800
+@@ -62,12 +62,17 @@
+ 	fi
+ 
+ 	KERNEL_CFLAGS="-I$KERNEL_DIR/include"
+ 	AC_SUBST(KERNEL_CFLAGS)
+ fi
+ 
++if test "x$ac_system" = "xSolaris"
++then
++	CPPFLAGS="$CPPFLAGS -D_POSIX_PTHREAD_SEMANTICS"
++fi
++
+ #
+ # Checks for header files.
+ #
+ AC_HEADER_STDC
+ AC_HEADER_SYS_WAIT
+ AC_HEADER_DIRENT
+@@ -237,22 +242,28 @@
+ #if HAVE_IOKIT_IOTYPES_H
+ #  include <IOKit/IOTypes.h>
+ #endif
+ ])
+ 
+ # For the swap module
+-AC_CHECK_HEADERS(sys/swap.h, [], [],
++have_sys_swap_h="yes"
++AC_CHECK_HEADERS(sys/swap.h, [], [have_sys_swap_h="no"],
+ [
+ #if HAVE_SYS_TYPES_H
+ #  include <sys/types.h>
+ #endif
+ #if HAVE_SYS_PARAM_H
+ # include <sys/param.h>
+ #endif
+ ])
+ 
++if test "x$have_sys_swap_h$ac_system" = "xnoSolaris"
++then
++	AC_MSG_NOTICE([Solaris detected and sys/swap.h not found: Try building a 64bit binary.])
++fi
++
+ # For load module
+ # For the processes plugin
+ # For users module
+ AC_CHECK_HEADERS(sys/loadavg.h linux/config.h utmp.h utmpx.h)
+ 
+ # For interface plugin
+@@ -1260,12 +1271,21 @@
+ 	AC_DEFINE(HAVE_LIBKVM_NLIST, 1,
+ 		  [Define to 1 if you have the 'kvm' library with the 'kvm_nlist' symbol (-lkvm)])
+ 	with_libkvm="yes"
+ fi
+ AM_CONDITIONAL(BUILD_WITH_LIBKVM_NLIST, test "x$with_kvm_nlist" = "xyes")
+ 
++AC_CHECK_LIB(kvm, kvm_openfiles, [with_kvm_openfiles="yes"], [with_kvm_openfiles="no"])
++if test "x$with_kvm_openfiles" = "xyes"
++then
++	AC_DEFINE(HAVE_LIBKVM_NLIST, 1,
++		  [Define to 1 if you have the 'kvm' library with the 'kvm_openfiles' symbol (-lkvm)])
++	with_libkvm="yes"
++fi
++AM_CONDITIONAL(BUILD_WITH_LIBKVM_OPENFILES, test "x$with_kvm_openfiles" = "xyes")
++
+ with_sensors_cflags=""
+ with_sensors_ldflags=""
+ AC_ARG_WITH(lm-sensors, [AS_HELP_STRING([--with-lm-sensors@<:@=PREFIX@:>@], [Path to lm_sensors.])],
+ [
+ 	if test "x$withval" = "xno"
+ 	then
+@@ -1356,30 +1376,42 @@
+ then
+ 	with_mysql_cflags=`$with_mysql_config --cflags 2>/dev/null`
+ 	mysql_config_status=$?
+ 
+ 	if test $mysql_config_status -ne 0
+ 	then
+-		with_libmysql="no"
++		with_libmysql="no ($with_mysql_config failed)"
+ 	else
+ 		SAVE_CPPFLAGS="$CPPFLAGS"
+ 		CPPFLAGS="$CPPFLAGS $with_mysql_cflags"
+ 
+-		AC_CHECK_HEADERS(mysql/mysql.h, [], [with_libmysql="no (mysql/mysql.h not found)"], [])
++		have_mysql_h="no"
++		have_mysql_mysql_h="no"
++		AC_CHECK_HEADERS(mysql.h, [have_mysql_h="yes"])
++
++		if test "x$have_mysql_h" = "xno"
++		then
++			AC_CHECK_HEADERS(mysql/mysql.h, [have_mysql_mysql_h="yes"])
++		fi
++
++		if test "x$have_mysql_h$have_mysql_mysql_h" = "xnono"
++		then
++			with_libmysql="no (mysql.h not found)"
++		fi
+ 
+ 		CPPFLAGS="$SAVE_CPPFLAGS"
+ 	fi
+ fi
+ if test "x$with_libmysql" = "xyes"
+ then
+ 	with_mysql_libs=`$with_mysql_config --libs 2>/dev/null`
+ 	mysql_config_status=$?
+ 
+ 	if test $mysql_config_status -ne 0
+ 	then
+-		with_libmysql="no"
++		with_libmysql="no ($with_mysql_config failed)"
+ 	else
+ 		AC_CHECK_LIB(mysqlclient, mysql_init,
+ 		 [with_libmysql="yes"],
+ 		 [with_libmysql="no (symbol 'mysql_init' not found)"],
+ 		 [$with_mysql_libs])
+ 	fi
+@@ -2572,16 +2604,20 @@
+ if test "x$with_devinfo$with_kstat" = "xyesyes"
+ then
+ 	plugin_cpu="yes"
+ 	plugin_disk="yes"
+ 	plugin_interface="yes"
+ 	plugin_memory="yes"
+-	plugin_swap="yes"
+ 	plugin_tape="yes"
+ fi
+ 
++if test "x$have_sys_swap_h$with_kstat$ac_system" = "xyesyesSolaris"
++then
++	plugin_swap="yes"
++fi
++
+ # libstatgrab
+ if test "x$with_libstatgrab" = "xyes"
+ then
+ 	plugin_cpu="yes"
+ 	plugin_disk="yes"
+ 	plugin_interface="yes"
+@@ -2664,13 +2700,13 @@
+ 
+ if test "x$with_kvm_getswapinfo" = "xyes"
+ then
+ 	plugin_swap="yes"
+ fi
+ 
+-if test "x$with_kvm_nlist" = "xyes"
++if test "x$with_kvm_openfiles$with_kvm_nlist" = "xyesyes"
+ then
+ 	plugin_tcpconns="yes"
+ fi
+ 
+ if test "x$have_getutent" = "xyes"
+ then
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/contrib/collection3/bin/graph.cgi /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/contrib/collection3/bin/graph.cgi
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/contrib/collection3/bin/graph.cgi	2008-09-14 18:42:25.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/contrib/collection3/bin/graph.cgi	2008-11-25 21:04:46.000000000 +0800
+@@ -17,12 +17,29 @@
+ use Collectd::Graph::Type ();
+ 
+ our $Debug = param ('debug');
+ our $Begin = param ('begin');
+ our $End = param ('end');
+ our $GraphWidth = param ('width');
++our $OutputFormat = 'PNG';
++our $ContentType = 'image/png';
++
++if (param ('format'))
++{
++  my $temp = param ('format') || '';
++  $temp = uc ($temp);
++
++  if ($temp =~ m/^(PNG|SVG|EPS|PDF)$/)
++  {
++    $OutputFormat = $temp;
++
++    if ($OutputFormat eq 'SVG') { $ContentType = 'image/svg+xml'; }
++    elsif ($OutputFormat eq 'EPS') { $ContentType = 'image/eps'; }
++    elsif ($OutputFormat eq 'PDF') { $ContentType = 'application/pdf'; }
++  }
++}
+ 
+ if ($Debug)
+ {
+   print <<HTTP;
+ Content-Type: text/plain
+ 
+@@ -138,13 +155,13 @@
+ flush_files ($files,
+     begin => $Begin,
+     end => $End,
+     addr => gc_get_scalar ('UnixSockAddr', undef),
+     interval => gc_get_scalar ('Interval', 10));
+ 
+-print STDOUT header (-Content_type => 'image/png',
++print STDOUT header (-Content_type => $ContentType,
+   -Last_Modified => epoch_to_rfc1123 ($obj->getLastModified ()),
+   -Expires => epoch_to_rfc1123 ($expires));
+ 
+ if ($Debug)
+ {
+   print "\$expires = $expires;\n";
+@@ -170,13 +187,13 @@
+   else
+   {
+     @timesel = ('-s', $Begin); # End is implicitely `now'.
+   }
+ 
+   $| = 1;
+-  RRDs::graph ('-', '-a', 'PNG', '--width', $GraphWidth, @timesel, @$args);
++  RRDs::graph ('-', '-a', $OutputFormat, '--width', $GraphWidth, @timesel, @$args);
+   if (my $err = RRDs::error ())
+   {
+     print STDERR "RRDs::graph failed: $err\n";
+     exit (1);
+   }
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/contrib/collection.cgi /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/contrib/collection.cgi
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/contrib/collection.cgi	2008-10-17 04:14:28.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/contrib/collection.cgi	2009-01-03 05:39:54.000000000 +0800
+@@ -2541,17 +2541,87 @@
+     "LINE1:avg#$FullBlue:Processes",
+     'GPRINT:min:MIN:%5.1lf Min,',
+     'GPRINT:avg:AVERAGE:%5.1lf Avg.,',
+     'GPRINT:max:MAX:%5.1lf Max,',
+     'GPRINT:avg:LAST:%5.1lf Last\l',
+     ],
++    vmpage_number => ['-v', 'Pages',
++    'DEF:avg={file}:value:AVERAGE',
++    'DEF:min={file}:value:MIN',
++    'DEF:max={file}:value:MAX',
++    "AREA:max#$HalfBlue",
++    "AREA:min#$Canvas",
++    "LINE1:avg#$FullBlue:Number",
++    'GPRINT:min:MIN:%4.1lf Min,',
++    'GPRINT:avg:AVERAGE:%4.1lf Avg,',
++    'GPRINT:max:MAX:%4.1lf Max,',
++    'GPRINT:avg:LAST:%4.1lf Last\l'
++    ],
++    vmpage_faults => [
++    "DEF:minf_avg={file}:minflt:AVERAGE",
++    "DEF:minf_min={file}:minflt:MIN",
++    "DEF:minf_max={file}:minflt:MAX",
++    "DEF:majf_avg={file}:majflt:AVERAGE",
++    "DEF:majf_min={file}:majflt:MIN",
++    "DEF:majf_max={file}:majflt:MAX",
++    'CDEF:overlap=majf_avg,minf_avg,GT,minf_avg,majf_avg,IF',
++    "AREA:majf_avg#$HalfGreen",
++    "AREA:minf_avg#$HalfBlue",
++    "AREA:overlap#$HalfBlueGreen",
++    "LINE1:majf_avg#$FullGreen:Major",
++    'GPRINT:majf_min:MIN:%5.1lf%s Min,',
++    'GPRINT:majf_avg:AVERAGE:%5.1lf%s Avg,',
++    'GPRINT:majf_max:MAX:%5.1lf%s Max,',
++    'GPRINT:majf_avg:LAST:%5.1lf%s Last\l',
++    "LINE1:minf_avg#$FullBlue:Minor",
++    'GPRINT:minf_min:MIN:%5.1lf%s Min,',
++    'GPRINT:minf_avg:AVERAGE:%5.1lf%s Avg,',
++    'GPRINT:minf_max:MAX:%5.1lf%s Max,',
++    'GPRINT:minf_avg:LAST:%5.1lf%s Last\l'
++    ],
++    vmpage_io => [
++    "DEF:rpag_avg={file}:in:AVERAGE",
++    "DEF:rpag_min={file}:in:MIN",
++    "DEF:rpag_max={file}:in:MAX",
++    "DEF:wpag_avg={file}:out:AVERAGE",
++    "DEF:wpag_min={file}:out:MIN",
++    "DEF:wpag_max={file}:out:MAX",
++    'CDEF:overlap=wpag_avg,rpag_avg,GT,rpag_avg,wpag_avg,IF',
++    "AREA:wpag_avg#$HalfGreen",
++    "AREA:rpag_avg#$HalfBlue",
++    "AREA:overlap#$HalfBlueGreen",
++    "LINE1:wpag_avg#$FullGreen:OUT",
++    'GPRINT:wpag_min:MIN:%5.1lf%s Min,',
++    'GPRINT:wpag_avg:AVERAGE:%5.1lf%s Avg,',
++    'GPRINT:wpag_max:MAX:%5.1lf%s Max,',
++    'GPRINT:wpag_avg:LAST:%5.1lf%s Last\l',
++    "LINE1:rpag_avg#$FullBlue:IN ",
++    'GPRINT:rpag_min:MIN:%5.1lf%s Min,',
++    'GPRINT:rpag_avg:AVERAGE:%5.1lf%s Avg,',
++    'GPRINT:rpag_max:MAX:%5.1lf%s Max,',
++    'GPRINT:rpag_avg:LAST:%5.1lf%s Last\l'
++    ],
++    vmpage_action => ['-v', 'Pages',
++    'DEF:avg={file}:value:AVERAGE',
++    'DEF:min={file}:value:MIN',
++    'DEF:max={file}:value:MAX',
++    "AREA:max#$HalfBlue",
++    "AREA:min#$Canvas",
++    "LINE1:avg#$FullBlue:Number",
++    'GPRINT:min:MIN:%4.1lf Min,',
++    'GPRINT:avg:AVERAGE:%4.1lf Avg,',
++    'GPRINT:max:MAX:%4.1lf Max,',
++    'GPRINT:avg:LAST:%4.1lf Last\l'
++    ],
+   };
+   $GraphDefs->{'if_multicast'} = $GraphDefs->{'ipt_packets'};
+   $GraphDefs->{'if_tx_errors'} = $GraphDefs->{'if_rx_errors'};
+   $GraphDefs->{'dns_qtype'} = $GraphDefs->{'dns_opcode'};
+   $GraphDefs->{'dns_rcode'} = $GraphDefs->{'dns_opcode'};
++  $GraphDefs->{'vmpage_io-memory'} = $GraphDefs->{'vmpage_io'};
++  $GraphDefs->{'vmpage_io-swap'} = $GraphDefs->{'vmpage_io'};
+ 
+   $MetaGraphDefs->{'cpu'} = \&meta_graph_cpu;
+   $MetaGraphDefs->{'dns_qtype'} = \&meta_graph_dns;
+   $MetaGraphDefs->{'dns_rcode'} = \&meta_graph_dns;
+   $MetaGraphDefs->{'if_rx_errors'} = \&meta_graph_if_rx_errors;
+   $MetaGraphDefs->{'if_tx_errors'} = \&meta_graph_if_rx_errors;
+@@ -2559,12 +2629,14 @@
+   $MetaGraphDefs->{'nfs_procedure'} = \&meta_graph_nfs_procedure;
+   $MetaGraphDefs->{'ps_state'} = \&meta_graph_ps_state;
+   $MetaGraphDefs->{'swap'} = \&meta_graph_swap;
+   $MetaGraphDefs->{'mysql_commands'} = \&meta_graph_mysql_commands;
+   $MetaGraphDefs->{'mysql_handler'} = \&meta_graph_mysql_commands;
+   $MetaGraphDefs->{'tcp_connections'} = \&meta_graph_tcp_connections;
++  $MetaGraphDefs->{'vmpage_number'} = \&meta_graph_vmpage_number;
++  $MetaGraphDefs->{'vmpage_action'} = \&meta_graph_vmpage_action;
+ } # load_graph_definitions
+ 
+ sub meta_graph_generic_stack
+ {
+   confess ("Wrong number of arguments") if (@_ != 2);
+ 
+@@ -3160,7 +3232,134 @@
+       }
+     );
+   } # for (@$type_instances)
+ 
+   return (meta_graph_generic_stack ($opts, $sources));
+ } # meta_graph_tcp_connections
++
++sub meta_graph_vmpage_number
++{
++  confess ("Wrong number of arguments") if (@_ != 5);
++
++  my $host = shift;
++  my $plugin = shift;
++  my $plugin_instance = shift;
++  my $type = shift;
++  my $type_instances = shift;
++
++  my $opts = {};
++  my $sources = [];
++
++  $opts->{'title'} = "$host/$plugin"
++  . (defined ($plugin_instance) ? "-$plugin_instance" : '') . "/$type";
++  $opts->{'number_format'} = '%6.2lf';
++
++  $opts->{'rrd_opts'} = ['-v', 'Pages'];
++
++  my @files = ();
++
++  $opts->{'colors'} =
++  {
++    anon_pages	  => '00e000',
++    bounce	  => '00e0ff',
++    dirty	  => '00e0a0',
++    file_pages	  => 'f000f0',
++    mapped	  => 'f000a0',
++    page_table_pages	  => 'ffb000',
++    slab	  => '0000f0',
++    unstable	  => '0000a0',
++    writeback	  => 'ff0000',
++  };
++
++  _custom_sort_arrayref ($type_instances,
++    [reverse qw(anon_pages bounce dirty file_pages mapped page_table_pages slab unstable writeback)]);
++
++  for (@$type_instances)
++  {
++    my $inst = $_;
++    my $file = '';
++    my $title = $opts->{'title'};
++
++    for (@DataDirs)
++    {
++      if (-e "$_/$title-$inst.rrd")
++      {
++	$file = "$_/$title-$inst.rrd";
++	last;
++      }
++    }
++    confess ("No file found for $title") if ($file eq '');
++
++    push (@$sources,
++      {
++	name => $inst,
++	file => $file
++      }
++    );
++  } # for (@$type_instances)
++
++  return (meta_graph_generic_stack ($opts, $sources));
++} # meta_graph_vmpage_number
++
++sub meta_graph_vmpage_action
++{
++  confess ("Wrong number of arguments") if (@_ != 5);
++
++  my $host = shift;
++  my $plugin = shift;
++  my $plugin_instance = shift;
++  my $type = shift;
++  my $type_instances = shift;
++
++  my $opts = {};
++  my $sources = [];
++
++  $opts->{'title'} = "$host/$plugin"
++  . (defined ($plugin_instance) ? "-$plugin_instance" : '') . "/$type";
++  $opts->{'number_format'} = '%6.2lf';
++
++  $opts->{'rrd_opts'} = ['-v', 'Pages'];
++
++  my @files = ();
++
++  $opts->{'colors'} =
++  {
++    activate	  => '00e000',
++    deactivate	  => '00e0ff',
++    free	  => '00e0a0',
++    alloc	  => 'f000f0',
++    refill	  => 'f000a0',
++    scan_direct	  => 'ffb000',
++    scan_kswapd	  => '0000f0',
++    steal	  => '0000a0',
++  };
++
++  _custom_sort_arrayref ($type_instances,
++    [reverse qw(activate deactivate alloc free refill scan_direct scan_kswapd steal)]);
++
++  for (@$type_instances)
++  {
++    my $inst = $_;
++    my $file = '';
++    my $title = $opts->{'title'};
++
++    for (@DataDirs)
++    {
++      if (-e "$_/$title-$inst.rrd")
++      {
++	$file = "$_/$title-$inst.rrd";
++	last;
++      }
++    }
++    confess ("No file found for $title") if ($file eq '');
++
++    push (@$sources,
++      {
++	name => $inst,
++	file => $file
++      }
++    );
++  } # for (@$type_instances)
++
++  return (meta_graph_generic_stack ($opts, $sources));
++} # meta_graph_vmpage_action
+ # vim: shiftwidth=2:softtabstop=2:tabstop=8
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/contrib: ds_to_color.px
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/apcups.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/apcups.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/apcups.c	2008-10-17 04:12:19.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/apcups.c	2009-01-03 05:39:55.000000000 +0800
+@@ -21,19 +21,12 @@
+  * MA 02111-1307, USA.
+  *
+  * Authors:
+  *   Anthony Gialluca <tonyabg at charter.net>
+  **/
+ 
+-/*
+- * FIXME: Don't know why but without this here atof() was not returning
+- * correct values for me. This is behavior that I don't understand and
+- * should be examined in closer detail.
+- */
+-#include <stdlib.h>
+-
+ #include "collectd.h"
+ #include "common.h"      /* rrd_update_file */
+ #include "plugin.h"      /* plugin_register, plugin_submit */
+ #include "configfile.h"  /* cf_register */
+ 
+ #if HAVE_SYS_TYPES_H
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/collectd.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd.1	2008-10-17 04:46:20.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/collectd.1	2009-01-03 06:21:15.000000000 +0800
+@@ -1,7 +1,7 @@
+-.\" Automatically generated by Pod::Man 2.18 (Pod::Simple 3.05)
++.\" Automatically generated by Pod::Man 2.1801 (Pod::Simple 3.05)
+ .\"
+ .\" Standard preamble:
+ .\" ========================================================================
+ .de Sp \" Vertical space (when we can't use .PP)
+ .if t .sp .5v
+ .if n .sp
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD 1"
+-.TH COLLECTD 1 "2008-09-14" "4.5.1" "collectd"
++.TH COLLECTD 1 "2008-11-25" "4.5.2" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd \- System statistics collection daemon
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/collectd.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd.c	2008-10-17 04:12:19.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/collectd.c	2009-01-03 05:39:55.000000000 +0800
+@@ -241,13 +241,13 @@
+ } /* static void update_kstat (void) */
+ #endif /* HAVE_LIBKSTAT */
+ 
+ /* TODO
+  * Remove all settings but `-f' and `-C'
+  */
+-static void exit_usage (void)
++static void exit_usage (int status)
+ {
+ 	printf ("Usage: "PACKAGE" [OPTIONS]\n\n"
+ 			
+ 			"Available options:\n"
+ 			"  General:\n"
+ 			"    -C <file>       Configuration file.\n"
+@@ -263,14 +263,14 @@
+ 			"  Config-File       "CONFIGFILE"\n"
+ 			"  PID-File          "PIDFILE"\n"
+ 			"  Data-Directory    "PKGLOCALSTATEDIR"\n"
+ 			"\n"PACKAGE" "VERSION", http://collectd.org/\n"
+ 			"by Florian octo Forster <octo@verplant.org>\n"
+ 			"for contributions see `AUTHORS'\n");
+-	exit (0);
+-} /* static void exit_usage (char *name) */
++	exit (status);
++} /* static void exit_usage (int status) */
+ 
+ static int do_init (void)
+ {
+ #if HAVE_LIBKSTAT
+ 	kc = NULL;
+ 	update_kstat ();
+@@ -433,17 +433,22 @@
+ 				break;
+ 			case 'f':
+ 				daemonize = 0;
+ 				break;
+ #endif /* COLLECT_DAEMON */
+ 			case 'h':
++				exit_usage (0);
++				break;
+ 			default:
+-				exit_usage ();
++				exit_usage (1);
+ 		} /* switch (c) */
+ 	} /* while (1) */
+ 
++	if (optind < argc)
++		exit_usage (1);
++
+ 	/*
+ 	 * Read options from the config file, the environment and the command
+ 	 * line (in that order, with later options overwriting previous ones in
+ 	 * general).
+ 	 * Also, this will automatically load modules.
+ 	 */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd.conf.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/collectd.conf.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd.conf.5	2008-10-17 04:46:20.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/collectd.conf.5	2009-01-03 06:21:15.000000000 +0800
+@@ -1,7 +1,7 @@
+-.\" Automatically generated by Pod::Man 2.18 (Pod::Simple 3.05)
++.\" Automatically generated by Pod::Man 2.1801 (Pod::Simple 3.05)
+ .\"
+ .\" Standard preamble:
+ .\" ========================================================================
+ .de Sp \" Vertical space (when we can't use .PP)
+ .if t .sp .5v
+ .if n .sp
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD.CONF 5"
+-.TH COLLECTD.CONF 5 "2008-10-16" "4.5.1" "collectd"
++.TH COLLECTD.CONF 5 "2009-01-02" "4.5.2" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd.conf \- Configuration for the system statistics collection daemon \fBcollectd\fR
+@@ -774,26 +774,28 @@
+ .IX Subsection "Plugin mysql"
+ The \f(CW\*(C`mysql plugin\*(C'\fR requires \fBmysqlclient\fR to be installed. It connects to the
+ database when started and keeps the connection up as long as possible. When the
+ connection is interrupted for whatever reason it will try to re-connect. The
+ plugin will complaint loudly in case anything goes wrong.
+ .PP
+-This plugin issues \f(CW\*(C`SHOW STATUS\*(C'\fR and evaluates \f(CW\*(C`Bytes_{received,sent}\*(C'\fR,
+-\&\f(CW\*(C`Com_*\*(C'\fR and \f(CW\*(C`Handler_*\*(C'\fR which correspond to \fImysql_octets.rrd\fR,
+-\&\fImysql_commands\-*.rrd\fR and \fImysql_handler\-*.rrd\fR. Also, the values of
+-\&\f(CW\*(C`Qcache_*\*(C'\fR are put in \fImysql_qcache.rrd\fR and values of \f(CW\*(C`Threads_*\*(C'\fR are put
+-in \fImysql_threads.rrd\fR. Please refer to the \fBMySQL reference manual\fR,
+-\&\fI5.2.4. Server Status Variables\fR for an explanation of these values.
++This plugin issues the MySQL \f(CW\*(C`SHOW STATUS\*(C'\fR command and collects information
++about MySQL network traffic, executed statements, requests, the query cache
++and threads by evaluating the \f(CW\*(C`Bytes_{received,sent}\*(C'\fR, \f(CW\*(C`Com_*\*(C'\fR,
++\&\f(CW\*(C`Handler_*\*(C'\fR, \f(CW\*(C`Qcache_*\*(C'\fR and \f(CW\*(C`Threads_*\*(C'\fR return values. Please refer to the
++\&\fBMySQL reference manual\fR, \fI5.1.6. Server Status Variables\fR for an
++explanation of these values.
+ .PP
+ Use the following options to configure the plugin:
+ .IP "\fBHost\fR \fIHostname\fR" 4
+ .IX Item "Host Hostname"
+ Hostname of the database server. Defaults to \fBlocalhost\fR.
+ .IP "\fBUser\fR \fIUsername\fR" 4
+ .IX Item "User Username"
+-Username to use when connecting to the database.
++Username to use when connecting to the database. The user does not have to be
++granted any privileges (which is synonym to granting the \f(CW\*(C`USAGE\*(C'\fR privilege).
++Any existing MySQL user will do.
+ .IP "\fBPassword\fR \fIPassword\fR" 4
+ .IX Item "Password Password"
+ Password needed to log into the database.
+ .IP "\fBDatabase\fR \fIDatabase\fR" 4
+ .IX Item "Database Database"
+ Select this database. Defaults to \fIno database\fR which is a perfectly reasonable
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd.conf.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/collectd.conf.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd.conf.in	2008-10-17 04:29:56.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/collectd.conf.in	2009-01-03 05:39:55.000000000 +0800
+@@ -382,13 +382,13 @@
+ #      Type "ipt_bytes"
+ #      Instance "total"
+ #    </Match>
+ #    <Match>
+ #      Regex "\\<R=local_user\\>"
+ #      DSType "CounterInc"
+-#      Type "email_count"
++#      Type "counter"
+ #      Instance "local_user"
+ #    </Match>
+ #  </File>
+ #</Plugin>
+ 
+ #<Plugin tcpconns>
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd.conf.pod /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/collectd.conf.pod
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd.conf.pod	2008-10-17 04:29:56.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/collectd.conf.pod	2009-01-03 05:39:55.000000000 +0800
+@@ -766,30 +766,32 @@
+ 
+ The C<mysql plugin> requires B<mysqlclient> to be installed. It connects to the
+ database when started and keeps the connection up as long as possible. When the
+ connection is interrupted for whatever reason it will try to re-connect. The
+ plugin will complaint loudly in case anything goes wrong.
+ 
+-This plugin issues C<SHOW STATUS> and evaluates C<Bytes_{received,sent}>,
+-C<Com_*> and C<Handler_*> which correspond to F<mysql_octets.rrd>,
+-F<mysql_commands-*.rrd> and F<mysql_handler-*.rrd>. Also, the values of
+-C<Qcache_*> are put in F<mysql_qcache.rrd> and values of C<Threads_*> are put
+-in F<mysql_threads.rrd>. Please refer to the B<MySQL reference manual>,
+-I<5.2.4. Server Status Variables> for an explanation of these values.
++This plugin issues the MySQL C<SHOW STATUS> command and collects information
++about MySQL network traffic, executed statements, requests, the query cache
++and threads by evaluating the C<Bytes_{received,sent}>, C<Com_*>,
++C<Handler_*>, C<Qcache_*> and C<Threads_*> return values. Please refer to the
++B<MySQL reference manual>, I<5.1.6. Server Status Variables> for an
++explanation of these values.
+ 
+ Use the following options to configure the plugin:
+ 
+ =over 4
+ 
+ =item B<Host> I<Hostname>
+ 
+ Hostname of the database server. Defaults to B<localhost>.
+ 
+ =item B<User> I<Username>
+ 
+-Username to use when connecting to the database.
++Username to use when connecting to the database. The user does not have to be
++granted any privileges (which is synonym to granting the C<USAGE> privilege).
++Any existing MySQL user will do.
+ 
+ =item B<Password> I<Password>
+ 
+ Password needed to log into the database.
+ 
+ =item B<Database> I<Database>
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd-email.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/collectd-email.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd-email.5	2008-10-17 04:46:20.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/collectd-email.5	2009-01-03 06:21:15.000000000 +0800
+@@ -1,7 +1,7 @@
+-.\" Automatically generated by Pod::Man 2.18 (Pod::Simple 3.05)
++.\" Automatically generated by Pod::Man 2.1801 (Pod::Simple 3.05)
+ .\"
+ .\" Standard preamble:
+ .\" ========================================================================
+ .de Sp \" Vertical space (when we can't use .PP)
+ .if t .sp .5v
+ .if n .sp
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-EMAIL 5"
+-.TH COLLECTD-EMAIL 5 "2007-10-24" "4.5.1" "collectd"
++.TH COLLECTD-EMAIL 5 "2007-10-24" "4.5.2" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-email \- Documentation of collectd's \f(CW\*(C`email plugin\*(C'\fR
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd-exec.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/collectd-exec.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd-exec.5	2008-10-17 04:46:20.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/collectd-exec.5	2009-01-03 06:21:15.000000000 +0800
+@@ -1,7 +1,7 @@
+-.\" Automatically generated by Pod::Man 2.18 (Pod::Simple 3.05)
++.\" Automatically generated by Pod::Man 2.1801 (Pod::Simple 3.05)
+ .\"
+ .\" Standard preamble:
+ .\" ========================================================================
+ .de Sp \" Vertical space (when we can't use .PP)
+ .if t .sp .5v
+ .if n .sp
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-EXEC 5"
+-.TH COLLECTD-EXEC 5 "2008-10-16" "4.5.1" "collectd"
++.TH COLLECTD-EXEC 5 "2009-01-02" "4.5.2" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-exec \- Documentation of collectd's \f(CW\*(C`exec plugin\*(C'\fR
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectdmon.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/collectdmon.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectdmon.1	2008-10-17 04:46:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/collectdmon.1	2009-01-03 06:21:16.000000000 +0800
+@@ -1,7 +1,7 @@
+-.\" Automatically generated by Pod::Man 2.18 (Pod::Simple 3.05)
++.\" Automatically generated by Pod::Man 2.1801 (Pod::Simple 3.05)
+ .\"
+ .\" Standard preamble:
+ .\" ========================================================================
+ .de Sp \" Vertical space (when we can't use .PP)
+ .if t .sp .5v
+ .if n .sp
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTDMON 1"
+-.TH COLLECTDMON 1 "2008-05-06" "4.5.1" "collectd"
++.TH COLLECTDMON 1 "2008-05-06" "4.5.2" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectdmon \- Monitoring daemon for collectd
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd-nagios.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/collectd-nagios.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd-nagios.1	2008-10-17 04:46:20.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/collectd-nagios.1	2009-01-03 06:21:15.000000000 +0800
+@@ -1,7 +1,7 @@
+-.\" Automatically generated by Pod::Man 2.18 (Pod::Simple 3.05)
++.\" Automatically generated by Pod::Man 2.1801 (Pod::Simple 3.05)
+ .\"
+ .\" Standard preamble:
+ .\" ========================================================================
+ .de Sp \" Vertical space (when we can't use .PP)
+ .if t .sp .5v
+ .if n .sp
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-NAGIOS 1"
+-.TH COLLECTD-NAGIOS 1 "2008-10-16" "4.5.1" "collectd"
++.TH COLLECTD-NAGIOS 1 "2009-01-02" "4.5.2" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-nagios \- Nagios plugin for querying collectd
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd-perl.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/collectd-perl.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd-perl.5	2008-10-17 04:46:20.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/collectd-perl.5	2009-01-03 06:21:15.000000000 +0800
+@@ -1,7 +1,7 @@
+-.\" Automatically generated by Pod::Man 2.18 (Pod::Simple 3.05)
++.\" Automatically generated by Pod::Man 2.1801 (Pod::Simple 3.05)
+ .\"
+ .\" Standard preamble:
+ .\" ========================================================================
+ .de Sp \" Vertical space (when we can't use .PP)
+ .if t .sp .5v
+ .if n .sp
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-PERL 5"
+-.TH COLLECTD-PERL 5 "2008-10-16" "4.5.1" "collectd"
++.TH COLLECTD-PERL 5 "2009-01-02" "4.5.2" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-perl \- Documentation of collectd's \f(CW\*(C`perl plugin\*(C'\fR
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd-snmp.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/collectd-snmp.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd-snmp.5	2008-10-17 04:46:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/collectd-snmp.5	2009-01-03 06:21:16.000000000 +0800
+@@ -1,7 +1,7 @@
+-.\" Automatically generated by Pod::Man 2.18 (Pod::Simple 3.05)
++.\" Automatically generated by Pod::Man 2.1801 (Pod::Simple 3.05)
+ .\"
+ .\" Standard preamble:
+ .\" ========================================================================
+ .de Sp \" Vertical space (when we can't use .PP)
+ .if t .sp .5v
+ .if n .sp
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-SNMP 5"
+-.TH COLLECTD-SNMP 5 "2008-05-06" "4.5.1" "collectd"
++.TH COLLECTD-SNMP 5 "2008-05-06" "4.5.2" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-snmp \- Documentation of collectd's \f(CW\*(C`snmp plugin\*(C'\fR
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd-unixsock.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/collectd-unixsock.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/collectd-unixsock.5	2008-10-17 04:46:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/collectd-unixsock.5	2009-01-03 06:21:16.000000000 +0800
+@@ -1,7 +1,7 @@
+-.\" Automatically generated by Pod::Man 2.18 (Pod::Simple 3.05)
++.\" Automatically generated by Pod::Man 2.1801 (Pod::Simple 3.05)
+ .\"
+ .\" Standard preamble:
+ .\" ========================================================================
+ .de Sp \" Vertical space (when we can't use .PP)
+ .if t .sp .5v
+ .if n .sp
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "COLLECTD-UNIXSOCK 5"
+-.TH COLLECTD-UNIXSOCK 5 "2008-10-16" "4.5.1" "collectd"
++.TH COLLECTD-UNIXSOCK 5 "2009-01-02" "4.5.2" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ collectd\-unixsock \- Documentation of collectd's \f(CW\*(C`unixsock plugin\*(C'\fR
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/common.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/common.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/common.c	2008-10-17 04:12:19.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/common.c	2009-01-03 05:39:55.000000000 +0800
+@@ -534,18 +534,18 @@
+ #ifdef assert
+ 	assert (ksp != NULL);
+ 	assert (ksp->ks_type == KSTAT_TYPE_NAMED);
+ #else
+ 	if (ksp == NULL)
+ 	{
+-		fprintf (stderr, "ERROR: %s:%i: ksp == NULL\n", __FILE__, __LINE__);
++		ERROR ("ERROR: %s:%i: ksp == NULL\n", __FILE__, __LINE__);
+ 		return (-1LL);
+ 	}
+ 	else if (ksp->ks_type != KSTAT_TYPE_NAMED)
+ 	{
+-		fprintf (stderr, "ERROR: %s:%i: ksp->ks_type != KSTAT_TYPE_NAMED\n", __FILE__, __LINE__);
++		ERROR ("ERROR: %s:%i: ksp->ks_type != KSTAT_TYPE_NAMED\n", __FILE__, __LINE__);
+ 		return (-1LL);
+ 	}
+ #endif
+ 
+ 	if ((kn = (kstat_named_t *) kstat_data_lookup (ksp, name)) == NULL)
+ 		return (retval);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/configfile.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/configfile.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/configfile.c	2008-10-17 04:12:19.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/configfile.c	2009-01-03 05:39:55.000000000 +0800
+@@ -152,13 +152,14 @@
+ 	}
+ 
+ 	ret = -1;
+ 
+ 	for (i = 0; i < cf_cb->keys_num; i++)
+ 	{
+-		if (strcasecmp (cf_cb->keys[i], key) == 0)
++		if ((cf_cb->keys[i] != NULL)
++				&& (strcasecmp (cf_cb->keys[i], key) == 0))
+ 		{
+ 			ret = (*cf_cb->callback) (key, value);
+ 			break;
+ 		}
+ 	}
+ 
+@@ -273,13 +274,13 @@
+ 		buffer_ptr  += status;
+ 	}
+ 	/* skip the initial space */
+ 	buffer_ptr = buffer + 1;
+ 
+ 	return (cf_dispatch (plugin, ci->key, buffer_ptr));
+-} /* int plugin_conf_dispatch */
++} /* int dispatch_value_plugin */
+ 
+ static int dispatch_value (const oconfig_item_t *ci)
+ {
+ 	int ret = -2;
+ 	int i;
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/config.h.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/config.h.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/config.h.in	2008-10-17 04:45:54.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/config.h.in	2009-01-03 06:20:34.000000000 +0800
+@@ -195,13 +195,13 @@
+ #undef HAVE_LIBKVM_GETPROCS
+ 
+ /* Define to 1 if you have the 'kvm' library with the 'kvm_getswapinfo' symbol
+    (-lkvm) */
+ #undef HAVE_LIBKVM_GETSWAPINFO
+ 
+-/* Define to 1 if you have the 'kvm' library with the 'kvm_nlist' symbol
++/* Define to 1 if you have the 'kvm' library with the 'kvm_openfiles' symbol
+    (-lkvm) */
+ #undef HAVE_LIBKVM_NLIST
+ 
+ /* Define to 1 if you have the <libnetlink.h> header file. */
+ #undef HAVE_LIBNETLINK_H
+ 
+@@ -336,12 +336,15 @@
+ /* Define to 1 if you have the <mntent.h> header file. */
+ #undef HAVE_MNTENT_H
+ 
+ /* Define to 1 if you have the <mnttab.h> header file. */
+ #undef HAVE_MNTTAB_H
+ 
++/* Define to 1 if you have the <mysql.h> header file. */
++#undef HAVE_MYSQL_H
++
+ /* Define to 1 if you have the <mysql/mysql.h> header file. */
+ #undef HAVE_MYSQL_MYSQL_H
+ 
+ /* Define to 1 if you have the `nanosleep' function. */
+ #undef HAVE_NANOSLEEP
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/email.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/email.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/email.c	2008-10-17 04:12:19.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/email.c	2009-01-03 05:39:55.000000000 +0800
+@@ -184,18 +184,24 @@
+ 		long int tmp = strtol (value, NULL, 0);
+ 
+ 		if (tmp < 1) {
+ 			fprintf (stderr, "email plugin: `MaxConns' was set to invalid "
+ 					"value %li, will use default %i.\n",
+ 					tmp, MAX_CONNS);
++			ERROR ("email plugin: `MaxConns' was set to invalid "
++					"value %li, will use default %i.\n",
++					tmp, MAX_CONNS);
+ 			max_conns = MAX_CONNS;
+ 		}
+ 		else if (tmp > MAX_CONNS_LIMIT) {
+ 			fprintf (stderr, "email plugin: `MaxConns' was set to invalid "
+ 					"value %li, will use hardcoded limit %i.\n",
+ 					tmp, MAX_CONNS_LIMIT);
++			ERROR ("email plugin: `MaxConns' was set to invalid "
++					"value %li, will use hardcoded limit %i.\n",
++					tmp, MAX_CONNS_LIMIT);
+ 			max_conns = MAX_CONNS_LIMIT;
+ 		}
+ 		else {
+ 			max_conns = (int)tmp;
+ 		}
+ 	}
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/exec.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/exec.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/exec.c	2008-10-17 04:12:19.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/exec.c	2009-01-03 05:39:55.000000000 +0800
+@@ -687,22 +687,22 @@
+   if (strlen (n->type_instance) > 0)
+     fprintf (fh, "TypeInstance: %s\n", n->type_instance);
+ 
+   for (meta = n->meta; meta != NULL; meta = meta->next)
+   {
+     if (meta->type == NM_TYPE_STRING)
+-      fprintf (fh, "%s: %s\n", meta->name, meta->value_string);
++      fprintf (fh, "%s: %s\n", meta->name, meta->nm_value.nm_string);
+     else if (meta->type == NM_TYPE_SIGNED_INT)
+-      fprintf (fh, "%s: %"PRIi64"\n", meta->name, meta->value_signed_int);
++      fprintf (fh, "%s: %"PRIi64"\n", meta->name, meta->nm_value.nm_signed_int);
+     else if (meta->type == NM_TYPE_UNSIGNED_INT)
+-      fprintf (fh, "%s: %"PRIu64"\n", meta->name, meta->value_unsigned_int);
++      fprintf (fh, "%s: %"PRIu64"\n", meta->name, meta->nm_value.nm_unsigned_int);
+     else if (meta->type == NM_TYPE_DOUBLE)
+-      fprintf (fh, "%s: %e\n", meta->name, meta->value_double);
++      fprintf (fh, "%s: %e\n", meta->name, meta->nm_value.nm_double);
+     else if (meta->type == NM_TYPE_BOOLEAN)
+       fprintf (fh, "%s: %s\n", meta->name,
+-	  meta->value_boolean ? "true" : "false");
++	  meta->nm_value.nm_boolean ? "true" : "false");
+   }
+ 
+   fprintf (fh, "\n%s\n", n->message);
+ 
+   fflush (fh);
+   fclose (fh);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/filecount.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/filecount.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/filecount.c	2008-10-17 04:12:19.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/filecount.c	2009-01-03 05:39:55.000000000 +0800
+@@ -368,13 +368,13 @@
+ 
+   if (status == 0)
+   {
+     fc_directory_conf_t **temp;
+ 
+     temp = (fc_directory_conf_t **) realloc (directories,
+-        sizeof (*directories) * directories_num);
++        sizeof (*directories) * (directories_num + 1));
+     if (temp == NULL)
+     {
+       ERROR ("filecount plugin: realloc failed.");
+       status = -1;
+     }
+     else
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/ipmi.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/ipmi.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/ipmi.c	2008-10-17 04:12:19.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/ipmi.c	2009-01-03 05:39:55.000000000 +0800
+@@ -491,13 +491,13 @@
+     unsigned int port_num,
+     int still_connected,
+     void *user_data)
+ {
+   int status;
+ 
+-  printf ("domain_connection_change_handler (domain = %p, err = %i, "
++  DEBUG ("domain_connection_change_handler (domain = %p, err = %i, "
+       "conn_num = %u, port_num = %u, still_connected = %i, "
+       "user_data = %p);\n",
+       (void *) domain, err, conn_num, port_num, still_connected, user_data);
+ 
+   status = ipmi_domain_add_entity_update_handler (domain,
+       domain_entity_update_handler, /* user data = */ NULL);
+@@ -558,13 +558,13 @@
+   int status;
+   os_handler_t *os_handler = NULL;
+ 
+   status = thread_init (&os_handler);
+   if (status != 0)
+   {
+-    fprintf (stderr, "ipmi plugin: thread_init failed.\n");
++    ERROR ("ipmi plugin: thread_init failed.\n");
+     return ((void *) -1);
+   }
+ 
+   while (c_ipmi_active != 0)
+   {
+     struct timeval tv = { 1, 0 };
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/libiptc/libip6tc.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/libiptc/libip6tc.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/libiptc/libip6tc.c	2008-10-17 04:29:56.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/libiptc/libip6tc.c	2008-11-25 21:04:47.000000000 +0800
+@@ -128,13 +128,13 @@
+ #define ALIGN			IP6T_ALIGN
+ #define RETURN			IP6T_RETURN
+ 
+ #include "libiptc.c"
+ 
+ #define BIT6(a, l) \
+- ((ntohl(a->in6_u.u6_addr32[(l) / 32]) >> (31 - ((l) & 31))) & 1)
++ ((ntohl(a->s6_addr32[(l) / 32]) >> (31 - ((l) & 31))) & 1)
+ 
+ int
+ ipv6_prefix_length(const struct in6_addr *a)
+ {
+ 	int l, i;
+ 	for (l = 0; l < 128; l++) {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/liboconfig/parser.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/liboconfig/parser.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/liboconfig/parser.c	2008-07-06 20:52:40.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/liboconfig/parser.c	2008-12-20 20:01:16.000000000 +0800
+@@ -117,13 +117,13 @@
+ 
+ /* Enabling verbose error messages.  */
+ #ifdef YYERROR_VERBOSE
+ # undef YYERROR_VERBOSE
+ # define YYERROR_VERBOSE 1
+ #else
+-# define YYERROR_VERBOSE 1
++# define YYERROR_VERBOSE 0
+ #endif
+ 
+ /* Enabling the token table.  */
+ #ifndef YYTOKEN_TABLE
+ # define YYTOKEN_TABLE 0
+ #endif
+@@ -440,15 +440,15 @@
+       -1,    11,    -1,    22,    21,    -1,    21,    -1,    22,    -1
+ };
+ 
+ /* YYRLINE[YYN] -- source line where rule number YYN was defined.  */
+ static const yytype_uint8 yyrline[] =
+ {
+-       0,    73,    73,    74,    78,    79,    80,    81,    85,    92,
+-     101,   105,   115,   121,   131,   138,   154,   155,   156,   160,
+-     170,   187
++       0,    70,    70,    71,    75,    76,    77,    78,    82,    89,
++      98,   102,   112,   118,   128,   135,   151,   152,   153,   157,
++     167,   184
+ };
+ #endif
+ 
+ #if YYDEBUG || YYERROR_VERBOSE || YYTOKEN_TABLE
+ /* YYTNAME[SYMBOL-NUM] -- String name of the symbol SYMBOL-NUM.
+    First, the terminals, then, starting at YYNTOKENS, nonterminals.  */
+@@ -1366,102 +1366,102 @@
+ 
+ 
+   YY_REDUCE_PRINT (yyn);
+   switch (yyn)
+     {
+         case 2:
+-#line 73 "parser.y"
++#line 70 "parser.y"
+     {(yyval.string) = unquote ((yyvsp[(1) - (1)].string));}
+     break;
+ 
+   case 3:
+-#line 74 "parser.y"
++#line 71 "parser.y"
+     {(yyval.string) = strdup ((yyvsp[(1) - (1)].string));}
+     break;
+ 
+   case 4:
+-#line 78 "parser.y"
++#line 75 "parser.y"
+     {(yyval.cv).value.number = (yyvsp[(1) - (1)].number); (yyval.cv).type = OCONFIG_TYPE_NUMBER;}
+     break;
+ 
+   case 5:
+-#line 79 "parser.y"
++#line 76 "parser.y"
+     {(yyval.cv).value.boolean = 1; (yyval.cv).type = OCONFIG_TYPE_BOOLEAN;}
+     break;
+ 
+   case 6:
+-#line 80 "parser.y"
++#line 77 "parser.y"
+     {(yyval.cv).value.boolean = 0; (yyval.cv).type = OCONFIG_TYPE_BOOLEAN;}
+     break;
+ 
+   case 7:
+-#line 81 "parser.y"
++#line 78 "parser.y"
+     {(yyval.cv).value.string = (yyvsp[(1) - (1)].string); (yyval.cv).type = OCONFIG_TYPE_STRING;}
+     break;
+ 
+   case 8:
+-#line 86 "parser.y"
++#line 83 "parser.y"
+     {
+ 	 (yyval.al) = (yyvsp[(1) - (2)].al);
+ 	 (yyval.al).argument_num++;
+ 	 (yyval.al).argument = realloc ((yyval.al).argument, (yyval.al).argument_num * sizeof (oconfig_value_t));
+ 	 (yyval.al).argument[(yyval.al).argument_num-1] = (yyvsp[(2) - (2)].cv);
+ 	}
+     break;
+ 
+   case 9:
+-#line 93 "parser.y"
++#line 90 "parser.y"
+     {
+ 	 (yyval.al).argument = malloc (sizeof (oconfig_value_t));
+ 	 (yyval.al).argument[0] = (yyvsp[(1) - (1)].cv);
+ 	 (yyval.al).argument_num = 1;
+ 	}
+     break;
+ 
+   case 10:
+-#line 101 "parser.y"
++#line 98 "parser.y"
+     {(yyval.string) = strdup ((yyvsp[(1) - (1)].string));}
+     break;
+ 
+   case 11:
+-#line 106 "parser.y"
++#line 103 "parser.y"
+     {
+ 	 memset (&(yyval.ci), '\0', sizeof ((yyval.ci)));
+ 	 (yyval.ci).key = (yyvsp[(1) - (3)].string);
+ 	 (yyval.ci).values = (yyvsp[(2) - (3)].al).argument;
+ 	 (yyval.ci).values_num = (yyvsp[(2) - (3)].al).argument_num;
+ 	}
+     break;
+ 
+   case 12:
+-#line 116 "parser.y"
++#line 113 "parser.y"
+     {
+ 	 memset (&(yyval.ci), '\0', sizeof ((yyval.ci)));
+ 	 (yyval.ci).key = (yyvsp[(2) - (4)].string);
+ 	}
+     break;
+ 
+   case 13:
+-#line 122 "parser.y"
++#line 119 "parser.y"
+     {
+ 	 memset (&(yyval.ci), '\0', sizeof ((yyval.ci)));
+ 	 (yyval.ci).key = (yyvsp[(2) - (5)].string);
+ 	 (yyval.ci).values = (yyvsp[(3) - (5)].al).argument;
+ 	 (yyval.ci).values_num = (yyvsp[(3) - (5)].al).argument_num;
+ 	}
+     break;
+ 
+   case 14:
+-#line 132 "parser.y"
++#line 129 "parser.y"
+     {
+ 	 (yyval.string) = (yyvsp[(3) - (5)].string);
+ 	}
+     break;
+ 
+   case 15:
+-#line 139 "parser.y"
++#line 136 "parser.y"
+     {
+ 	 if (strcmp ((yyvsp[(1) - (3)].ci).key, (yyvsp[(3) - (3)].string)) != 0)
+ 	 {
+ 		printf ("block_begin = %s; block_end = %s;\n", (yyvsp[(1) - (3)].ci).key, (yyvsp[(3) - (3)].string));
+ 	 	yyerror ("Block not closed..\n");
+ 		exit (1);
+@@ -1471,41 +1471,41 @@
+ 	 (yyval.ci).children = (yyvsp[(2) - (3)].sl).statement;
+ 	 (yyval.ci).children_num = (yyvsp[(2) - (3)].sl).statement_num;
+ 	}
+     break;
+ 
+   case 16:
+-#line 154 "parser.y"
++#line 151 "parser.y"
+     {(yyval.ci) = (yyvsp[(1) - (1)].ci);}
+     break;
+ 
+   case 17:
+-#line 155 "parser.y"
++#line 152 "parser.y"
+     {(yyval.ci) = (yyvsp[(1) - (1)].ci);}
+     break;
+ 
+   case 18:
+-#line 156 "parser.y"
++#line 153 "parser.y"
+     {(yyval.ci).values_num = 0;}
+     break;
+ 
+   case 19:
+-#line 161 "parser.y"
++#line 158 "parser.y"
+     {
+ 	 (yyval.sl) = (yyvsp[(1) - (2)].sl);
+ 	 if (((yyvsp[(2) - (2)].ci).values_num > 0) || ((yyvsp[(2) - (2)].ci).children_num > 0))
+ 	 {
+ 		 (yyval.sl).statement_num++;
+ 		 (yyval.sl).statement = realloc ((yyval.sl).statement, (yyval.sl).statement_num * sizeof (oconfig_item_t));
+ 		 (yyval.sl).statement[(yyval.sl).statement_num-1] = (yyvsp[(2) - (2)].ci);
+ 	 }
+ 	}
+     break;
+ 
+   case 20:
+-#line 171 "parser.y"
++#line 168 "parser.y"
+     {
+ 	 if (((yyvsp[(1) - (1)].ci).values_num > 0) || ((yyvsp[(1) - (1)].ci).children_num > 0))
+ 	 {
+ 		 (yyval.sl).statement = malloc (sizeof (oconfig_item_t));
+ 		 (yyval.sl).statement[0] = (yyvsp[(1) - (1)].ci);
+ 		 (yyval.sl).statement_num = 1;
+@@ -1516,13 +1516,13 @@
+ 		(yyval.sl).statement_num = 0;
+ 	 }
+ 	}
+     break;
+ 
+   case 21:
+-#line 188 "parser.y"
++#line 185 "parser.y"
+     {
+ 	 ci_root = malloc (sizeof (oconfig_item_t));
+ 	 memset (ci_root, '\0', sizeof (oconfig_item_t));
+ 	 ci_root->children = (yyvsp[(1) - (1)].sl).statement;
+ 	 ci_root->children_num = (yyvsp[(1) - (1)].sl).statement_num;
+ 	}
+@@ -1741,13 +1741,13 @@
+ #endif
+   /* Make sure YYID is used.  */
+   return YYID (yyresult);
+ }
+ 
+ 
+-#line 196 "parser.y"
++#line 193 "parser.y"
+ 
+ static int yyerror (const char *s)
+ {
+ 	char *text;
+ 
+ 	if (*yytext == '\n')
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/liboconfig/parser.y /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/liboconfig/parser.y
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/liboconfig/parser.y	2008-05-06 20:30:12.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/liboconfig/parser.y	2008-12-20 18:15:37.000000000 +0800
+@@ -62,15 +62,12 @@
+ /* statements */
+ %type <ci> option
+ %type <ci> statement
+ %type <sl> statement_list
+ %type <ci> entire_file
+ 
+-/* pass an verbose, specific error message to yyerror() */
+-%error-verbose
+-
+ %%
+ string:
+ 	QUOTED_STRING		{$$ = unquote ($1);}
+ 	| UNQUOTED_STRING	{$$ = strdup ($1);}
+ 	;
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/Makefile.am /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/Makefile.am
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/Makefile.am	2008-10-17 04:29:56.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/Makefile.am	2009-01-03 05:39:55.000000000 +0800
+@@ -320,13 +320,13 @@
+ collectd_DEPENDENCIES += ipmi.la
+ endif
+ 
+ if BUILD_PLUGIN_IPVS
+ pkglib_LTLIBRARIES += ipvs.la
+ ipvs_la_SOURCES = ipvs.c
+-ipvs_la_CFLAGS = $(KERNEL_CFLAGS)
++ipvs_la_CFLAGS = $(AM_CFLAGS) $(KERNEL_CFLAGS)
+ ipvs_la_LDFLAGS = -module -avoid-version
+ collectd_LDADD += "-dlopen" ipvs.la
+ collectd_DEPENDENCIES += ipvs.la
+ endif
+ 
+ if BUILD_PLUGIN_IRQ
+@@ -736,13 +736,13 @@
+ collectd_DEPENDENCIES += users.la
+ endif
+ 
+ if BUILD_PLUGIN_UUID
+ pkglib_LTLIBRARIES += uuid.la
+ uuid_la_SOURCES = uuid.c
+-uuid_la_CFLAGS  = $(BUILD_WITH_LIBHAL_CFLAGS)
++uuid_la_CFLAGS  = $(AM_CFLAGS) $(BUILD_WITH_LIBHAL_CFLAGS)
+ uuid_la_LIBADD  = $(BUILD_WITH_LIBHAL_LIBS)
+ uuid_la_LDFLAGS = -module -avoid-version
+ collectd_LDADD += "-dlopen" uuid.la
+ collectd_DEPENDENCIES += uuid.la
+ endif
+ 
+@@ -794,21 +794,21 @@
+ 	collectd.conf.pod collectd.pod collectdmon.pod types.db.pod \
+ 	postgresql_default.conf
+ 
+ .pod.1:
+ 	pod2man --release=$(VERSION) --center=$(PACKAGE) $< \
+ 		>.pod2man.tmp 2>/dev/null && mv -f .pod2man.tmp $@ || true
+-	if grep '\<POD ERRORS\>' $@ >/dev/null 2>&1; \
++	@if grep '\<POD ERRORS\>' $@ >/dev/null 2>&1; \
+ 	then \
+ 		echo "$@ has some POD errors!"; false; \
+ 	fi
+ 
+ .pod.5:
+ 	pod2man --section=5 --release=$(VERSION) --center=$(PACKAGE) $< \
+ 		>.pod2man.tmp 2>/dev/null && mv -f .pod2man.tmp $@ || true
+-	if grep '\<POD ERRORS\>' $@ >/dev/null 2>&1; \
++	@if grep '\<POD ERRORS\>' $@ >/dev/null 2>&1; \
+ 	then \
+ 		echo "$@ has some POD errors!"; false; \
+ 	fi
+ 
+ install-exec-hook:
+ 	$(mkinstalldirs) $(DESTDIR)$(sysconfdir)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/Makefile.in	2008-10-17 04:43:26.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/Makefile.in	2009-01-03 06:23:21.000000000 +0800
+@@ -1315,13 +1315,13 @@
+ @BUILD_PLUGIN_IPTABLES_TRUE@@BUILD_WITH_OWN_LIBIPTC_TRUE@iptables_la_DEPENDENCIES = libiptc/libiptc.la
+ @BUILD_PLUGIN_IPMI_TRUE@ipmi_la_SOURCES = ipmi.c
+ @BUILD_PLUGIN_IPMI_TRUE@ipmi_la_CFLAGS = $(AM_CFLAGS) $(BUILD_WITH_OPENIPMI_CFLAGS)
+ @BUILD_PLUGIN_IPMI_TRUE@ipmi_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_IPMI_TRUE@ipmi_la_LIBADD = $(BUILD_WITH_OPENIPMI_LIBS)
+ @BUILD_PLUGIN_IPVS_TRUE@ipvs_la_SOURCES = ipvs.c
+-@BUILD_PLUGIN_IPVS_TRUE@ipvs_la_CFLAGS = $(KERNEL_CFLAGS)
++@BUILD_PLUGIN_IPVS_TRUE@ipvs_la_CFLAGS = $(AM_CFLAGS) $(KERNEL_CFLAGS)
+ @BUILD_PLUGIN_IPVS_TRUE@ipvs_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_IRQ_TRUE@irq_la_SOURCES = irq.c
+ @BUILD_PLUGIN_IRQ_TRUE@irq_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_LIBVIRT_TRUE@libvirt_la_SOURCES = libvirt.c
+ @BUILD_PLUGIN_LIBVIRT_TRUE@libvirt_la_CFLAGS = $(AM_CFLAGS) \
+ @BUILD_PLUGIN_LIBVIRT_TRUE@		$(BUILD_WITH_LIBVIRT_CFLAGS) $(BUILD_WITH_LIBXML2_CFLAGS)
+@@ -1459,13 +1459,13 @@
+ @BUILD_PLUGIN_USERS_TRUE@users_la_SOURCES = users.c
+ @BUILD_PLUGIN_USERS_TRUE@users_la_CFLAGS = $(AM_CFLAGS) \
+ @BUILD_PLUGIN_USERS_TRUE@	$(am__append_230)
+ @BUILD_PLUGIN_USERS_TRUE@users_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_USERS_TRUE@users_la_LIBADD = $(am__append_231)
+ @BUILD_PLUGIN_UUID_TRUE@uuid_la_SOURCES = uuid.c
+-@BUILD_PLUGIN_UUID_TRUE@uuid_la_CFLAGS = $(BUILD_WITH_LIBHAL_CFLAGS)
++@BUILD_PLUGIN_UUID_TRUE@uuid_la_CFLAGS = $(AM_CFLAGS) $(BUILD_WITH_LIBHAL_CFLAGS)
+ @BUILD_PLUGIN_UUID_TRUE@uuid_la_LIBADD = $(BUILD_WITH_LIBHAL_LIBS)
+ @BUILD_PLUGIN_UUID_TRUE@uuid_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_VMEM_TRUE@vmem_la_SOURCES = vmem.c
+ @BUILD_PLUGIN_VMEM_TRUE@vmem_la_LDFLAGS = -module -avoid-version
+ @BUILD_PLUGIN_VSERVER_TRUE@vserver_la_SOURCES = vserver.c
+ @BUILD_PLUGIN_VSERVER_TRUE@vserver_la_LDFLAGS = -module -avoid-version
+@@ -2656,21 +2656,21 @@
+ 	uninstall-sbinPROGRAMS
+ 
+ 
+ .pod.1:
+ 	pod2man --release=$(VERSION) --center=$(PACKAGE) $< \
+ 		>.pod2man.tmp 2>/dev/null && mv -f .pod2man.tmp $@ || true
+-	if grep '\<POD ERRORS\>' $@ >/dev/null 2>&1; \
++	@if grep '\<POD ERRORS\>' $@ >/dev/null 2>&1; \
+ 	then \
+ 		echo "$@ has some POD errors!"; false; \
+ 	fi
+ 
+ .pod.5:
+ 	pod2man --section=5 --release=$(VERSION) --center=$(PACKAGE) $< \
+ 		>.pod2man.tmp 2>/dev/null && mv -f .pod2man.tmp $@ || true
+-	if grep '\<POD ERRORS\>' $@ >/dev/null 2>&1; \
++	@if grep '\<POD ERRORS\>' $@ >/dev/null 2>&1; \
+ 	then \
+ 		echo "$@ has some POD errors!"; false; \
+ 	fi
+ 
+ install-exec-hook:
+ 	$(mkinstalldirs) $(DESTDIR)$(sysconfdir)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/multimeter.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/multimeter.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/multimeter.c	2008-10-17 04:12:19.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/multimeter.c	2009-01-03 05:39:55.000000000 +0800
+@@ -83,13 +83,18 @@
+ 			char *range;
+ 			int status;
+ 			fd_set rfds;
+     			struct timeval timeout;
+     			struct timeval time_now;
+ 
+-			write(fd, "D", 1);
++			status = swrite (fd, "D", 1);
++			if (status < 0)
++			{
++				ERROR ("multimeter plugin: swrite failed.");
++				return (-1);
++			}
+ 
+ 			FD_ZERO(&rfds);
+ 			FD_SET(fd, &rfds);
+ 
+ 			if (gettimeofday (&time_now, NULL) < 0)
+ 	                {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/mysql.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/mysql.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/mysql.c	2008-10-17 04:12:19.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/mysql.c	2009-01-03 05:39:55.000000000 +0800
+@@ -21,13 +21,15 @@
+ 
+ #include "collectd.h"
+ #include "common.h"
+ #include "plugin.h"
+ #include "configfile.h"
+ 
+-#ifdef HAVE_MYSQL_MYSQL_H
++#ifdef HAVE_MYSQL_H
++#include <mysql.h>
++#elif defined(HAVE_MYSQL_MYSQL_H)
+ #include <mysql/mysql.h>
+ #endif
+ 
+ /* TODO: Understand `Select_*' and possibly do that stuff as well.. */
+ 
+ static const char *config_keys[] =
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/network.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/network.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/network.c	2008-10-17 04:12:19.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/network.c	2009-01-03 05:39:59.000000000 +0800
+@@ -175,13 +175,12 @@
+ static pthread_t dispatch_thread_id = 0;
+ 
+ static char         send_buffer[BUFF_SIZE];
+ static char        *send_buffer_ptr;
+ static int          send_buffer_fill;
+ static value_list_t send_buffer_vl = VALUE_LIST_STATIC;
+-static char         send_buffer_type[DATA_MAX_NAME_LEN];
+ static pthread_mutex_t send_buffer_lock = PTHREAD_MUTEX_INITIALIZER;
+ 
+ static c_avl_tree_t      *cache_tree = NULL;
+ static pthread_mutex_t  cache_lock = PTHREAD_MUTEX_INITIALIZER;
+ static time_t           cache_flush_last = 0;
+ static int              cache_flush_interval = 1800;
+@@ -1390,13 +1389,13 @@
+ 			break;
+ 		} /* while (42) */
+ 	} /* for (sending_sockets) */
+ } /* void network_send_buffer */
+ 
+ static int add_to_buffer (char *buffer, int buffer_size,
+-		value_list_t *vl_def, char *type_def,
++		value_list_t *vl_def,
+ 		const data_set_t *ds, const value_list_t *vl)
+ {
+ 	char *buffer_orig = buffer;
+ 
+ 	if (strcmp (vl_def->host, vl->host) != 0)
+ 	{
+@@ -1436,18 +1435,18 @@
+ 					vl->plugin_instance,
+ 					strlen (vl->plugin_instance)) != 0)
+ 			return (-1);
+ 		sstrncpy (vl_def->plugin_instance, vl->plugin_instance, sizeof (vl_def->plugin_instance));
+ 	}
+ 
+-	if (strcmp (type_def, vl->type) != 0)
++	if (strcmp (vl_def->type, vl->type) != 0)
+ 	{
+ 		if (write_part_string (&buffer, &buffer_size, TYPE_TYPE,
+ 					vl->type, strlen (vl->type)) != 0)
+ 			return (-1);
+-		sstrncpy (type_def, vl->type, sizeof (type_def));
++		sstrncpy (vl_def->type, ds->type, sizeof (vl_def->type));
+ 	}
+ 
+ 	if (strcmp (vl_def->type_instance, vl->type_instance) != 0)
+ 	{
+ 		if (write_part_string (&buffer, &buffer_size, TYPE_TYPE_INSTANCE,
+ 					vl->type_instance,
+@@ -1467,14 +1466,13 @@
+ 	DEBUG ("network plugin: flush_buffer: send_buffer_fill = %i",
+ 			send_buffer_fill);
+ 
+ 	network_send_buffer (send_buffer, send_buffer_fill);
+ 	send_buffer_ptr  = send_buffer;
+ 	send_buffer_fill = 0;
+-	memset (&send_buffer_vl, '\0', sizeof (send_buffer_vl));
+-	memset (send_buffer_type, '\0', sizeof (send_buffer_type));
++	memset (&send_buffer_vl, 0, sizeof (send_buffer_vl));
+ }
+ 
+ static int network_write (const data_set_t *ds, const value_list_t *vl)
+ {
+ 	int status;
+ 
+@@ -1487,13 +1485,13 @@
+ 		return (0);
+ 
+ 	pthread_mutex_lock (&send_buffer_lock);
+ 
+ 	status = add_to_buffer (send_buffer_ptr,
+ 			sizeof (send_buffer) - send_buffer_fill,
+-			&send_buffer_vl, send_buffer_type,
++			&send_buffer_vl,
+ 			ds, vl);
+ 	if (status >= 0)
+ 	{
+ 		/* status == bytes added to the buffer */
+ 		send_buffer_fill += status;
+ 		send_buffer_ptr  += status;
+@@ -1501,13 +1499,13 @@
+ 	else
+ 	{
+ 		flush_buffer ();
+ 
+ 		status = add_to_buffer (send_buffer_ptr,
+ 				sizeof (send_buffer) - send_buffer_fill,
+-				&send_buffer_vl, send_buffer_type,
++				&send_buffer_vl,
+ 				ds, vl);
+ 
+ 		if (status >= 0)
+ 		{
+ 			send_buffer_fill += status;
+ 			send_buffer_ptr  += status;
+@@ -1723,14 +1721,13 @@
+ 		return (0);
+ 
+ 	plugin_register_shutdown ("network", network_shutdown);
+ 
+ 	send_buffer_ptr  = send_buffer;
+ 	send_buffer_fill = 0;
+-	memset (&send_buffer_vl, '\0', sizeof (send_buffer_vl));
+-	memset (send_buffer_type, '\0', sizeof (send_buffer_type));
++	memset (&send_buffer_vl, 0, sizeof (send_buffer_vl));
+ 
+ 	cache_tree = c_avl_create ((int (*) (const void *, const void *)) strcmp);
+ 	cache_flush_last = time (NULL);
+ 
+ 	/* setup socket(s) and so on */
+ 	if (sending_sockets != NULL)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/perl.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/perl.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/perl.c	2008-10-17 04:29:56.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/perl.c	2009-01-03 05:39:55.000000000 +0800
+@@ -1089,13 +1089,13 @@
+ 
+ 	if (2 != items) {
+ 		log_err ("Usage: Collectd::plugin_log(level, message)");
+ 		XSRETURN_EMPTY;
+ 	}
+ 
+-	plugin_log (SvIV (ST (0)), SvPV_nolen (ST (1)));
++	plugin_log (SvIV (ST (0)), "%s", SvPV_nolen (ST (1)));
+ 	XSRETURN_YES;
+ } /* static XS (Collectd_plugin_log) */
+ 
+ /*
+  * Collectd::call_by_name (...).
+  *
+@@ -1787,13 +1787,13 @@
+ 	int i = 0;
+ 
+ 	dTHXa (NULL);
+ 
+ 	for (i = 0; i < ci->children_num; ++i) {
+ 		oconfig_item_t *c = ci->children + i;
+-		int current_status;
++		int current_status = 0;
+ 
+ 		if (NULL != perl_threads)
+ 			aTHX = PERL_GET_CONTEXT;
+ 
+ 		if (0 == strcasecmp (c->key, "LoadPlugin"))
+ 			current_status = perl_config_loadplugin (aTHX_ c);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/plugin.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/plugin.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/plugin.c	2008-10-17 04:29:56.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/plugin.c	2009-01-03 05:39:55.000000000 +0800
+@@ -898,39 +898,39 @@
+   meta->type = type;
+ 
+   switch (type)
+   {
+     case NM_TYPE_STRING:
+     {
+-      meta->value_string = strdup ((const char *) value);
+-      if (meta->value_string == NULL)
++      meta->nm_value.nm_string = strdup ((const char *) value);
++      if (meta->nm_value.nm_string == NULL)
+       {
+         ERROR ("plugin_notification_meta_add: strdup failed.");
+         sfree (meta);
+         return (-1);
+       }
+       break;
+     }
+     case NM_TYPE_SIGNED_INT:
+     {
+-      meta->value_signed_int = *((int64_t *) value);
++      meta->nm_value.nm_signed_int = *((int64_t *) value);
+       break;
+     }
+     case NM_TYPE_UNSIGNED_INT:
+     {
+-      meta->value_unsigned_int = *((uint64_t *) value);
++      meta->nm_value.nm_unsigned_int = *((uint64_t *) value);
+       break;
+     }
+     case NM_TYPE_DOUBLE:
+     {
+-      meta->value_double = *((double *) value);
++      meta->nm_value.nm_double = *((double *) value);
+       break;
+     }
+     case NM_TYPE_BOOLEAN:
+     {
+-      meta->value_boolean = *((bool *) value);
++      meta->nm_value.nm_boolean = *((bool *) value);
+       break;
+     }
+     default:
+     {
+       ERROR ("plugin_notification_meta_add: Unknown type: %i", type);
+       sfree (meta);
+@@ -997,25 +997,25 @@
+   assert ((src->meta == NULL) || (src->meta != dst->meta));
+ 
+   for (meta = src->meta; meta != NULL; meta = meta->next)
+   {
+     if (meta->type == NM_TYPE_STRING)
+       plugin_notification_meta_add_string (dst, meta->name,
+-          meta->value_string);
++          meta->nm_value.nm_string);
+     else if (meta->type == NM_TYPE_SIGNED_INT)
+       plugin_notification_meta_add_signed_int (dst, meta->name,
+-          meta->value_signed_int);
++          meta->nm_value.nm_signed_int);
+     else if (meta->type == NM_TYPE_UNSIGNED_INT)
+       plugin_notification_meta_add_unsigned_int (dst, meta->name,
+-          meta->value_unsigned_int);
++          meta->nm_value.nm_unsigned_int);
+     else if (meta->type == NM_TYPE_DOUBLE)
+       plugin_notification_meta_add_double (dst, meta->name,
+-          meta->value_double);
++          meta->nm_value.nm_double);
+     else if (meta->type == NM_TYPE_BOOLEAN)
+       plugin_notification_meta_add_boolean (dst, meta->name,
+-          meta->value_boolean);
++          meta->nm_value.nm_boolean);
+   }
+ 
+   return (0);
+ } /* int plugin_notification_meta_copy */
+ 
+ int plugin_notification_meta_free (notification_t *n)
+@@ -1034,14 +1034,14 @@
+   while (this != NULL)
+   {
+     next = this->next;
+ 
+     if (this->type == NM_TYPE_STRING)
+     {
+-      free ((char *)this->value_string);
+-      this->value_string = NULL;
++      free ((char *)this->nm_value.nm_string);
++      this->nm_value.nm_string = NULL;
+     }
+     sfree (this);
+ 
+     this = next;
+   }
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/plugin.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/plugin.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/plugin.h	2008-10-17 04:29:56.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/plugin.h	2009-01-03 05:39:55.000000000 +0800
+@@ -111,18 +111,18 @@
+ typedef struct notification_meta_s
+ {
+ 	char name[DATA_MAX_NAME_LEN];
+ 	enum notification_meta_type_e type;
+ 	union
+ 	{
+-		const char *value_string;
+-		int64_t value_signed_int;
+-		uint64_t value_unsigned_int;
+-		double value_double;
+-		bool value_boolean;
+-	};
++		const char *nm_string;
++		int64_t nm_signed_int;
++		uint64_t nm_unsigned_int;
++		double nm_double;
++		bool nm_boolean;
++	} nm_value;
+ 	struct notification_meta_s *next;
+ } notification_meta_t;
+ 
+ typedef struct notification_s
+ {
+ 	int    severity;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/processes.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/processes.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/processes.c	2008-10-17 04:12:20.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/processes.c	2009-01-03 05:39:55.000000000 +0800
+@@ -103,14 +103,13 @@
+ 
+ #define BUFSIZE 256
+ 
+ static const char *config_keys[] =
+ {
+ 	"Process",
+-	"ProcessMatch",
+-	NULL
++	"ProcessMatch"
+ };
+ static int config_keys_num = STATIC_ARRAY_SIZE (config_keys);
+ 
+ typedef struct procstat_entry_s
+ {
+ 	unsigned long id;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/rrdtool.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/rrdtool.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/rrdtool.c	2008-10-17 04:29:56.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/rrdtool.c	2009-01-03 05:39:55.000000000 +0800
+@@ -1156,23 +1156,27 @@
+ 	{
+ 		int tmp = atoi (value);
+ 		if (tmp < 0)
+ 		{
+ 			fprintf (stderr, "rrdtool: `CacheTimeout' must "
+ 					"be greater than 0.\n");
++			ERROR ("rrdtool: `CacheTimeout' must "
++					"be greater than 0.\n");
+ 			return (1);
+ 		}
+ 		cache_timeout = tmp;
+ 	}
+ 	else if (strcasecmp ("CacheFlush", key) == 0)
+ 	{
+ 		int tmp = atoi (value);
+ 		if (tmp < 0)
+ 		{
+ 			fprintf (stderr, "rrdtool: `CacheFlush' must "
+ 					"be greater than 0.\n");
++			ERROR ("rrdtool: `CacheFlush' must "
++					"be greater than 0.\n");
+ 			return (1);
+ 		}
+ 		cache_flush_timeout = tmp;
+ 	}
+ 	else if (strcasecmp ("DataDir", key) == 0)
+ 	{
+@@ -1210,12 +1214,14 @@
+ 	{
+ 		int tmp = atoi (value);
+ 		if (tmp <= 0)
+ 		{
+ 			fprintf (stderr, "rrdtool: `RRARows' must "
+ 					"be greater than 0.\n");
++			ERROR ("rrdtool: `RRARows' must "
++					"be greater than 0.\n");
+ 			return (1);
+ 		}
+ 		rrarows = tmp;
+ 	}
+ 	else if (strcasecmp ("RRATimespan", key) == 0)
+ 	{
+@@ -1236,12 +1242,13 @@
+ 			
+ 			tmp_alloc = realloc (rra_timespans_custom,
+ 					sizeof (int) * (rra_timespans_custom_num + 1));
+ 			if (tmp_alloc == NULL)
+ 			{
+ 				fprintf (stderr, "rrdtool: realloc failed.\n");
++				ERROR ("rrdtool: realloc failed.\n");
+ 				free (value_copy);
+ 				return (1);
+ 			}
+ 			rra_timespans_custom = tmp_alloc;
+ 			rra_timespans_custom[rra_timespans_custom_num] = atoi (ptr);
+ 			if (rra_timespans_custom[rra_timespans_custom_num] != 0)
+@@ -1259,12 +1266,14 @@
+ 	{
+ 		double tmp = atof (value);
+ 		if ((tmp < 0.0) || (tmp >= 1.0))
+ 		{
+ 			fprintf (stderr, "rrdtool: `XFF' must "
+ 					"be in the range 0 to 1 (exclusive).");
++			ERROR ("rrdtool: `XFF' must "
++					"be in the range 0 to 1 (exclusive).");
+ 			return (1);
+ 		}
+ 		xff = tmp;
+ 	}
+ 	else if (strcasecmp ("WritesPerSecond", key) == 0)
+ 	{
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/types.db.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/types.db.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/types.db.5	2008-10-17 04:46:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/types.db.5	2009-01-03 06:21:16.000000000 +0800
+@@ -1,7 +1,7 @@
+-.\" Automatically generated by Pod::Man 2.18 (Pod::Simple 3.05)
++.\" Automatically generated by Pod::Man 2.1801 (Pod::Simple 3.05)
+ .\"
+ .\" Standard preamble:
+ .\" ========================================================================
+ .de Sp \" Vertical space (when we can't use .PP)
+ .if t .sp .5v
+ .if n .sp
+@@ -121,13 +121,13 @@
+ .    ds Ae AE
+ .\}
+ .rm #[ #] #H #V #F C
+ .\" ========================================================================
+ .\"
+ .IX Title "TYPES.DB 5"
+-.TH TYPES.DB 5 "2008-05-06" "4.5.1" "collectd"
++.TH TYPES.DB 5 "2009-01-02" "4.5.2" "collectd"
+ .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+ .\" way too many mistakes in technical documents.
+ .if n .ad l
+ .nh
+ .SH "NAME"
+ types.db \- Data\-set specifications for the system statistics collection daemon
+@@ -155,15 +155,26 @@
+ data stored for this data-source. If \fBU\fR is specified for either the min or
+ max value, it will be set to unknown, meaning that no range checks will
+ happen. See \fIrrdcreate\fR\|(1) for more details.
+ .SH "FILES"
+ .IX Header "FILES"
+ The location of the types.db file is defined by the \fBTypesDB\fR configuration
+-option (see \fIcollectd.conf\fR\|(5)). If you want to specify custom data-sets, you
+-should do so by using a custom file specified as an additional argument to the
+-\&\fBTypesDB\fR option.
++option (see \fIcollectd.conf\fR\|(5)).
++.SH "CUSTOM TYPES"
++.IX Header "CUSTOM TYPES"
++If you want to specify custom types, you should do so by specifying a custom
++file in addition to the default one (see \s-1FILES\s0) above. You can do that by
++having multiple \fBTypesDB\fR statements in your configuration file or by
++specifying more than one file in one line.
++.PP
++For example:
++.PP
++.Vb 2
++\& TypesDB "/opt/collectd/share/collectd/types.db"
++\& TypesDB "/opt/collectd/etc/types.db.custom"
++.Ve
+ .SH "SEE ALSO"
+ .IX Header "SEE ALSO"
+ \&\fIcollectd\fR\|(1),
+ \&\fIcollectd.conf\fR\|(5),
+ \&\fIrrdcreate\fR\|(1)
+ .SH "AUTHOR"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/types.db.pod /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/types.db.pod
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/types.db.pod	2008-05-06 20:30:13.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/types.db.pod	2009-01-03 05:39:59.000000000 +0800
+@@ -26,15 +26,25 @@
+ max value, it will be set to unknown, meaning that no range checks will
+ happen. See L<rrdcreate(1)> for more details.
+ 
+ =head1 FILES
+ 
+ The location of the types.db file is defined by the B<TypesDB> configuration
+-option (see L<collectd.conf(5)>). If you want to specify custom data-sets, you
+-should do so by using a custom file specified as an additional argument to the
+-B<TypesDB> option.
++option (see L<collectd.conf(5)>).
++
++=head1 CUSTOM TYPES
++
++If you want to specify custom types, you should do so by specifying a custom
++file in addition to the default one (see L<FILES>) above. You can do that by
++having multiple B<TypesDB> statements in your configuration file or by
++specifying more than one file in one line.
++
++For example:
++
++ TypesDB "/opt/collectd/share/collectd/types.db"
++ TypesDB "/opt/collectd/etc/types.db.custom"
+ 
+ =head1 SEE ALSO
+ 
+ L<collectd(1)>,
+ L<collectd.conf(5)>,
+ L<rrdcreate(1)>
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/unixsock.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/unixsock.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/unixsock.c	2008-10-17 04:12:20.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/unixsock.c	2009-01-03 05:39:55.000000000 +0800
+@@ -380,14 +380,21 @@
+ 
+ 	return (0);
+ } /* int us_config */
+ 
+ static int us_init (void)
+ {
++	static int have_init = 0;
++
+ 	int status;
+ 
++	/* Initialize only once. */
++	if (have_init != 0)
++		return (0);
++	have_init = 1;
++
+ 	loop = 1;
+ 
+ 	status = pthread_create (&listen_thread, NULL, us_server_thread, NULL);
+ 	if (status != 0)
+ 	{
+ 		char errbuf[1024];
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/utils_complain.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/utils_complain.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/utils_complain.c	2008-10-17 04:12:20.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/utils_complain.c	2009-01-03 05:39:55.000000000 +0800
+@@ -18,12 +18,13 @@
+  *
+  * Authors:
+  *   Florian octo Forster <octo at verplant.org>
+  *   Sebastian tokkee Harl <sh at tokkee.org>
+  **/
+ 
++#include "collectd.h"
+ #include "utils_complain.h"
+ #include "plugin.h"
+ 
+ /* vcomplain returns 0 if it did not report, 1 else */
+ static int vcomplain (int level, c_complain_t *c,
+ 		const char *format, va_list ap)
+@@ -46,13 +47,13 @@
+ 	if (c->interval > 86400)
+ 		c->interval = 86400;
+ 
+ 	vsnprintf (message, sizeof (message), format, ap);
+ 	message[sizeof (message) - 1] = '\0';
+ 
+-	plugin_log (level, message);
++	plugin_log (level, "%s", message);
+ 	return 1;
+ } /* vcomplain */
+ 
+ void c_complain (int level, c_complain_t *c, const char *format, ...)
+ {
+ 	va_list ap;
+@@ -91,11 +92,11 @@
+ 
+ 	va_start (ap, format);
+ 	vsnprintf (message, sizeof (message), format, ap);
+ 	message[sizeof (message) - 1] = '\0';
+ 	va_end (ap);
+ 
+-	plugin_log (level, message);
++	plugin_log (level, "%s", message);
+ } /* c_release */
+ 
+ /* vim: set sw=4 ts=4 tw=78 noexpandtab : */
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/utils_dns.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/utils_dns.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/src/utils_dns.c	2008-10-17 04:12:20.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/src/utils_dns.c	2009-01-03 05:39:55.000000000 +0800
+@@ -31,12 +31,13 @@
+  * Authors:
+  *   The Measurement Factory, Inc. <http://www.measurement-factory.com/>
+  *   Florian octo Forster <octo at verplant.org>
+  */
+ 
+ #include "collectd.h"
++#include "plugin.h"
+ #include "common.h"
+ 
+ #if HAVE_NETINET_IN_SYSTM_H
+ # include <netinet/in_systm.h>
+ #endif
+ #if HAVE_NETINET_IN_H
+@@ -352,13 +353,12 @@
+ 
+     memcpy(&us, buf + 0, 2);
+     qh.id = ntohs(us);
+ 
+     memcpy(&us, buf + 2, 2);
+     us = ntohs(us);
+-    fprintf (stderr, "Bytes 0, 1: 0x%04hx\n", us);
+     qh.qr = (us >> 15) & 0x01;
+     qh.opcode = (us >> 11) & 0x0F;
+     qh.aa = (us >> 10) & 0x01;
+     qh.tc = (us >> 9) & 0x01;
+     qh.rd = (us >> 8) & 0x01;
+     qh.ra = (us >> 7) & 0x01;
+@@ -388,13 +388,13 @@
+ 	sstrncpy (qh.qname, ".", sizeof (qh.qname));
+     while ((t = strchr(qh.qname, '\n')))
+ 	*t = ' ';
+     while ((t = strchr(qh.qname, '\r')))
+ 	*t = ' ';
+     for (t = qh.qname; *t; t++)
+-	*t = tolower(*t);
++	*t = tolower((int) *t);
+ 
+     memcpy(&us, buf + offset, 2);
+     qh.qtype = ntohs(us);
+     memcpy(&us, buf + offset + 2, 2);
+     qh.qclass = ntohs(us);
+ 
+@@ -646,13 +646,13 @@
+ 
+ /* public function */
+ void handle_pcap(u_char *udata, const struct pcap_pkthdr *hdr, const u_char *pkt)
+ {
+     int status;
+ 
+-    fprintf (stderr, "handle_pcap (udata = %p, hdr = %p, pkt = %p): hdr->caplen = %i\n",
++    DEBUG ("handle_pcap (udata = %p, hdr = %p, pkt = %p): hdr->caplen = %i\n",
+ 		    (void *) udata, (void *) hdr, (void *) pkt,
+ 		    hdr->caplen);
+ 
+     if (hdr->caplen < ETHER_HDR_LEN)
+ 	return;
+ 
+@@ -683,13 +683,13 @@
+ #endif
+ 	case DLT_NULL:
+ 	    status = handle_null (pkt, hdr->caplen);
+ 	    break;
+ 
+ 	default:
+-	    fprintf (stderr, "unsupported data link type %d\n",
++	    ERROR ("handle_pcap: unsupported data link type %d\n",
+ 		    pcap_datalink(pcap_obj));
+ 	    status = 0;
+ 	    break;
+     } /* switch (pcap_datalink(pcap_obj)) */
+ 
+     if (0 == status)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/version-gen.sh /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/version-gen.sh
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.1/version-gen.sh	2008-10-17 04:42:32.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/collectd/repos/collectd-4.5.2/version-gen.sh	2009-01-03 06:18:00.000000000 +0800
+@@ -1,9 +1,9 @@
+ #!/bin/sh
+ 
+-DEFAULT_VERSION="4.5.1.git"
++DEFAULT_VERSION="4.5.2.git"
+ 
+ VERSION="$( git describe 2> /dev/null | sed -e 's/^collectd-//' )"
+ 
+ if test -z "$VERSION"; then
+ 	VERSION="$DEFAULT_VERSION"
+ fi

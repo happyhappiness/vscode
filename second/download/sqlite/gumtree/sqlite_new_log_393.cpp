@@ -1,1 +1,0 @@
-sqlite3_log(SQLITE_WARNING, "file unlinked while open: %s", pFile->zPath);

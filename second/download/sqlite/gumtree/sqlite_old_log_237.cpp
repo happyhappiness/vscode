@@ -1,1 +1,0 @@
-sqlite3VdbeError(p, "database table is locked: %s", z);

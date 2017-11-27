@@ -1,0 +1,1 @@
+printf ("ERROR: DS `%s' is not available.\n", new_names[i]);

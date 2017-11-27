@@ -1,0 +1,1 @@
+PyErr_SetString(PyExc_RuntimeError, "type not set");

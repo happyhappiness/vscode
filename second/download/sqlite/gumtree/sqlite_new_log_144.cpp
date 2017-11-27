@@ -1,1 +1,0 @@
-close(pFile->dirfd);
