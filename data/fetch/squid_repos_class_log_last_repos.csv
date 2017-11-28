@@ -1,0 +1,974 @@
+class,class_size,check,variable
+911,4,[null],"["" Current buf str_ret"", ""c_str_ret""]"
+746,2,"[""fopen_ret"", ""strtok_arg""]",[null]
+963,30,"[""fopen_ret"", ""strtok_arg""]",[]
+964,28,"[""int""]",[]
+0,1,"[""fopen_ret"", ""strtok_arg""]","[""strchr_arg_ret"", ""int"", ""strlen_arg_ret"", ""strtok_ret""]"
+747,2,"[""int""]","[""strlen_arg_ret""]"
+748,2,"[""int""]","[""int""]"
+1,1,"[""int""]","[""char""]"
+2,1,"[""parse_status_line_arg_ret""]","[""parse_status_line_ret"", ""parse_status_line_arg_ret""]"
+3,1,"[""strcmp_ret""]",[null]
+4,1,"[""strncasecmp_ret""]","[""strncmp_arg"", null]"
+944,6,"[null, null]",[]
+5,1,"[null, null]","[""reset_auth_arg_ret"", null, ""char""]"
+6,1,"[""int""]","[""menu_url_ret"", ""menu_url_arg_ret"", null]"
+7,1,"[""int""]","[""menu_url_ret""]"
+857,3,"[""strncmp_ret""]",[null]
+8,1,"[""strncmp_ret""]","[""munge_action_line_ret"", null]"
+9,1,"[null, null, null, null]","[""MemBuf"", ""strncasecmp_arg"", null]"
+10,1,"[""strncasecmp_ret"", ""strncasecmp_ret""]","[null, null]"
+749,2,[null],"[null, null]"
+11,1,"[""write_ret""]","[null, null, ""debug_arg""]"
+12,1,"[""FILE""]","[""FILE"", ""cfgin_arg"", ""cfgin_arg""]"
+13,1,"["" std ifstream""]","[""strerror_ret"", null, ""cfgin_arg_ret""]"
+14,1,"[""FILE""]","[""FILE"", ""regcomp_arg""]"
+15,1,"[""regcomp_ret""]","[null, ""regcomp_arg_ret"", ""sizeof_arg""]"
+16,1,"[""FILE""]","[""FILE""]"
+17,1,"[""regexec_ret"", null]","[null, ""regcomp_arg_ret"", ""strcmp_arg"", null]"
+18,1,"[""FILE""]","[""FILE"", null, null, ""strcmp_arg"", null, null, null, ""strcmp_arg""]"
+19,1,"[""FILE""]","[""FILE"", null, null, ""int"", ""strcmp_arg"", null, null, ""int"", null, ""strcmp_arg"", null, ""int"", ""strcmp_arg""]"
+20,1,"[""FILE""]","[""FILE"", null, null, ""int"", ""xstrdup_arg"", null, null, ""int"", null, ""xstrdup_arg"", null, ""int"", ""xstrdup_arg""]"
+750,3,"[""FILE""]","[""FILE"", null, null, ""int"", ""strtoul_arg"", null, null, ""int"", null, ""strtoul_arg"", null, ""int"", ""strtoul_arg""]"
+21,1,"[""WIFEXITED_ret""]","[""WEXITSTATUS_ret"", null, null, ""waitpid_ret""]"
+22,1,"[""WIFSIGNALED_ret""]","[""WTERMSIG_ret"", ""WCOREDUMP_ret"", null, null, ""waitpid_ret"", null]"
+23,1,"[""WIFEXITED_ret""]","[null, null, ""waitpid_ret"", ""waitpid_arg_ret""]"
+24,1,"[""bind_ret""]","[""my_sock_ntoa_ret"", ""strerror_ret"", null]"
+25,1,"[""S_ISDIR_ret"", ""stat_ret""]","[null, ""stat_arg_ret""]"
+26,1,"[""S_ISDIR_ret"", ""geteuid_ret"", ""getegid_ret"", ""stat_arg_ret"", null, ""stat_arg_ret"", null, null, ""stat_arg_ret"", null, ""stat_arg_ret"", null, null, ""stat_arg_ret"", null, null]","[null, ""stat_arg_ret""]"
+27,1,"[""strerror_arg"", null]","[""strerror_ret"", null, ""stat_arg_ret""]"
+28,1,"[""mkdir_ret""]","[""strerror_ret"", null, ""mkdir_arg_ret""]"
+29,1,"[""mkdir_ret"", ""strerror_arg"", null]","[""strerror_ret"", null, ""mkdir_arg_ret""]"
+30,1,"[""unsigned""]","[null, ""mkdir_arg_ret""]"
+751,2,"[""open_ret""]","[""strerror_ret"", null, ""open_arg_ret""]"
+31,1,"[""unsigned""]","[null, ""open_arg_ret""]"
+32,1,"[""xlate_ret""]","[null, ""open_arg_ret""]"
+33,1,"[""lseek_ret""]","[""strerror_ret"", null, ""open_arg_ret"", ""lseek_arg""]"
+34,1,"[""lseek_ret""]","[""strerror_ret"", null, ""open_arg_ret"", null, null, ""mmap_arg"", ""mmap_arg""]"
+35,1,"[""unsigned""]","[null, null, null, ""mmap_arg"", null, null, ""mmap_arg"", null, ""lseek_ret""]"
+36,1,"[""regexec_ret"", ""regexec_ret"", null]","[null, null, ""regexec_arg_ret"", null]"
+37,1,"["" meta search_ret"", ""SquidMetaList"", "" meta search_ret""]","[""char"", ""int"", ""long"", null, null, "" meta search_ret"", null]"
+38,1,"["" meta search_ret"", ""SquidMetaList"", "" meta search_ret""]","[""char"", ""int"", ""long"", null, null]"
+39,1,"[""connectTo_ret""]","[""strerror_ret"", null]"
+40,1,"[""write_ret"", ""strlen_ret""]","[""strerror_ret"", null]"
+41,1,"[""read_ret""]","[""strerror_ret"", null]"
+42,1,"[""strtol_ret"", ""strtol_ret""]","[null, ""strtol_arg_ret""]"
+752,2,"[""unlink_ret""]","[""strerror_ret"", null, ""unlink_arg_ret""]"
+43,1,[null],"[null, ""open_arg""]"
+44,1,"[""memcpy_arg_ret"", null, "" meta append_arg""]",[null]
+45,1,"[""memcpy_arg_ret"", ""SquidMetaType_arg"", ""memcpy_arg_ret""]",[null]
+46,1,"[""memcpy_arg_ret"", ""SquidMetaType_arg"", ""read_ret""]",[null]
+47,1,"[""open_ret""]","[""strerror_ret"", null, ""unlink_arg_ret""]"
+48,1,[null],"[null, ""opendir_arg""]"
+753,2,"[""opendir_ret"", null]","[""strerror_ret"", null, ""opendir_arg_ret""]"
+49,1,[null],"[null, ""bool"", ""opendir_arg""]"
+50,1,"[""xstrdup_arg"", ""xstrdup_arg""]","[null, ""getopt_ret""]"
+51,1,"[""strtoul_arg"", ""strtoul_arg""]","[null, ""getopt_ret""]"
+52,1,"[""REList_arg"", ""REList_arg""]","[null, ""getopt_ret""]"
+53,1,"[""fopen_arg"", ""fopen_arg""]","[null, ""getopt_ret""]"
+54,1,"[""strlen_ret"", null]","[null, ""strchr_arg"", ""unsigned long""]"
+55,1,"[""fopen_ret"", ""fopen_ret"", null]","[""strerror_ret"", null, ""strchr_arg""]"
+56,1,"[""strchr_arg"", ""strchr_arg""]","[null, ""getopt_ret""]"
+57,1,"[""convertHostname_ret""]","[null, ""convertHostname_arg""]"
+58,1,"[""convertHostname_ret""]","[null, ""strtol_arg""]"
+59,1,"[""convertPortname_ret""]","[null, ""convertPortname_arg_ret""]"
+60,1,"[""strtol_arg"", ""strtol_arg""]","[null, ""getopt_ret""]"
+754,2,"[""REList_ret""]",[null]
+960,10,"[""int""]",[null]
+972,36,[null],[null]
+957,9,[null],[]
+61,1,"[""int""]","[""assert_copydir_arg_ret"", ""assert_copydir_arg_ret""]"
+62,1,"[""assert_copydir_arg_ret""]",[null]
+63,1,"[""assert_copydir_arg_ret""]",[]
+64,1,"[""int""]","[""assert_arg_ret""]"
+65,1,"[""int""]","[""inet_ntoa_ret"", ""ntohs_ret""]"
+66,1,"[""unsigned""]","[""unsigned""]"
+67,1,"[""int""]","[""REList_ret"", null]"
+68,1,"[""setvbuf_ret""]","[""strerror_ret"", null, ""char"", ""char""]"
+69,1,"[""convertHostname_ret""]","[""makelinebuffered_arg"", null]"
+70,1,"[""convertHostname_ret""]",[]
+71,1,"[""dirlevel_ret""]","[""strerror_ret"", ""makelinebuffered_arg""]"
+72,1,"[""dirlevel_ret""]","[""strerror_ret"", null]"
+73,1,[null],"[null, "" cdv size_ret"", "" cdv begin_ret""]"
+74,1,[null],"[null, ""waitpid_ret""]"
+75,1,"[""readConfigFile_ret""]","[null, ""readConfigFile_arg_ret""]"
+76,1,"[""getopt_ret""]","[null, ""getopt_arg_ret""]"
+77,1,"[""fopen_ret""]","[""getenv_ret"", null, ""getopt_arg_ret"", ""getopt_arg_ret""]"
+78,1,"[""hash_lookup_ret"", ""strtok_arg""]","[null, ""strtok_ret""]"
+79,1,"[""strtok_ret""]","[null, ""strtok_ret"", null]"
+80,1,[null],"[null, ""getopt_arg_ret"", ""xstrdup_ret""]"
+81,1,"[""strncmp_ret"", ""strcspn_ret""]","[null, "" struct _request"", null, null]"
+755,2,"[""free_request_arg"", null, ""free_request_arg"", null, ""free_request_arg"", null]","[null, ""free_request_arg"", null, ""free_request_arg"", null, ""free_request_arg"", null]"
+82,1,"[""free_request_arg"", null, ""free_request_arg"", null]","[null, ""free_request_arg"", null, ""free_request_arg"", null, ""free_request_arg"", null]"
+83,1,"[null, ""free_request_arg"", null, ""free_request_arg"", null]","[null, ""free_request_arg"", null, ""free_request_arg"", null, ""free_request_arg"", null]"
+84,1,[null],"[null, ""free_request_arg"", null, ""free_request_arg"", null, ""free_request_arg"", null, ""free_request_arg"", null, ""free_request_arg"", null, ""free_request_arg"", null]"
+85,1,[null],"[null, ""free_request_arg"", null, ""free_request_arg"", null, ""free_request_arg"", null, ""free_request_arg"", null, ""free_request_arg"", null]"
+86,1,"[""fgets_ret"", null]",[]
+87,1,"[""request_ret""]",[null]
+88,1,"[""gettimeofday_arg_ret"", null, null, ""fd_close_arg"", "" struct timeval"", ""atoi_ret""]","[null, ""fd_close_arg""]"
+89,1,"[""select_ret""]","[null, null]"
+90,1,"[""gettimeofday_arg_ret"", null, "" struct timeval"", null]","[""int_ret"", ""int_ret"", ""int_ret"", ""int_ret"", ""int_arg"", null, null]"
+91,1,"[""gettimeofday_arg_ret"", null, "" struct timeval"", null]",[]
+92,1,"[""lt_dlhandle"", null]","[null, ""LT__GETERROR_arg_ret"", ""LT__GETERROR_arg_ret""]"
+93,1,"[""lt_dlhandle"", null]",[null]
+756,2,"[""slist_tail_arg""]",[null]
+94,1,"[""slist_tail_arg""]","[null, ""lt_dlvtable"", ""lt_dlvtable"", null, ""lt_dlvtable"", null]"
+95,1,"[""RegCreateKeyEx_ret"", null]","[null, null, ""int"", null, ""RegCreateKeyEx_ret""]"
+757,2,"[""RegCloseKey_ret"", null]","[null, null, ""RegCloseKey_ret""]"
+96,1,"[""RegOpenKeyEx_ret"", null]","[null, null]"
+97,1,"[""RegOpenKeyEx_ret"", null]","[null, null, null, ""RegOpenKeyEx_ret""]"
+98,1,"[""RegSetValueEx_ret"", null]","[null, ""RegSetValueEx_arg_ret"", null, ""RegSetValueEx_ret""]"
+99,1,"[""RegSetValueEx_ret"", null]","[null, null, ""RegSetValueEx_arg_ret"", ""DWORD"", null, ""RegSetValueEx_arg_ret"", null, null]"
+100,1,"[""RegCloseKey_ret"", null]","[null, null, null, ""RegCloseKey_ret""]"
+759,3,"[""OpenSCManager_ret""]",[null]
+101,1,"[""OpenService_ret"", null]",[null]
+102,1,"[""DeleteService_ret""]",[null]
+103,1,"[""DeleteService_ret""]","[""SQUIDSBUFPRINT_ret"", null]"
+104,1,"[""GetModuleFileName_ret"", ""GetModuleFileName_ret""]",[null]
+105,1,"[""CreateService_ret""]","[null, null]"
+106,1,"[""CreateService_ret""]","[""SQUIDSBUFPRINT_ret"", null]"
+758,2,"[""CreateService_ret""]",[]
+107,1,"[""CreateService_ret""]",[null]
+108,1,"[""OpenService_ret"", null]","[""SQUIDSBUFPRINT_ret"", null, null, null]"
+109,1,"[""ControlService_ret""]","[""SQUIDSBUFPRINT_ret"", null, null, null]"
+110,1,"[""ControlService_ret""]","[""SQUIDSBUFPRINT_ret"", null]"
+912,7,"[""ControlService_ret""]","[""ControlService_arg_ret"", null]"
+111,1,"[""strchr_ret"", ""strchr_ret""]","[null, ""char""]"
+112,1,"[""StartServiceCtrlDispatcher_ret""]","[""GetLastError_ret"", null]"
+113,1,"["" http getConn_ret"", "" http getConn_ret"", ""getAuth_ret"", ""clientBuildError_arg"", ""clientBuildError_arg""]",[]
+114,1,[null],"[""StoreEntry"", "" map entryLimit_ret""]"
+115,1,"["" map entryLimit_ret""]","[""currentCount_ret"", ""currentCount_ret"", ""StoreEntry"", null, "" map entryLimit_ret""]"
+760,2,"["" Comm DoSelect_ret"", null, null, null, null, null, null, null, null, null, null]",[]
+761,2,[null],"[""StoreEntry"", ""char""]"
+832,3,[null],"[""StoreEntry"", null, null]"
+762,2,[null],"[""StoreEntry"", null]"
+116,1,"[""fflush_arg""]","[""fflush_arg""]"
+117,1,"[""InitializeCriticalSectionAndSpinCount_ret""]",[null]
+118,1,"[""fopen_ret""]","[""fflush_arg"", ""strncmp_arg_ret""]"
+119,1,"[""fopen_ret""]","[""fflush_arg""]"
+120,1,"[""strcmp_arg""]","[null, ""strcmp_arg_ret""]"
+121,1,"[""strcmp_arg_ret""]",[null]
+122,1,"[""ctx_get_descr_arg"", null]","[""ctx_get_descr_arg"", null]"
+123,1,"[""ctx_get_descr_arg"", null]","[""ctx_get_descr_arg""]"
+124,1,"[""ctx_get_descr_arg"", null]","[""ctx_get_descr_ret"", ""ctx_get_descr_arg""]"
+125,1,"[""glob_ret""]","[""xstrerr_ret"", ""glob_arg_ret""]"
+763,2,"[""StrToInt_ret""]","[""StrToInt_arg_ret""]"
+126,1,"[""StrToInt_ret""]","[""xstrncpy_arg_ret""]"
+127,1,"[""parseManyConfigFiles_arg""]","[""debugs_arg_ret""]"
+128,1,"[""fopen_ret""]","[""xstrerr_ret"", ""fopen_arg_ret""]"
+764,3,"["" if_states empty_ret""]",[]
+129,1,"[""pclose_ret""]","[""SetConfigFilename_arg_ret"", ""pclose_ret""]"
+130,1,"[null, ""getpwnam_ret""]","[null, null]"
+131,1,"[null, ""getgrnam_ret""]","[null, null]"
+955,9,"[null, null, null]",[]
+132,1,"[null, null, null, null]","[null, null, null, null, null, null]"
+133,1,"["" l addr isAnyAddr_ret""]","["" l addr toStr_ret"", ""dump_acl_list_arg"", ""char""]"
+134,1,"["" l addr isAnyAddr_ret""]","[""dump_acl_list_arg"", ""char""]"
+135,1,"["" l addr isAnyAddr_ret""]","[""dump_acl_list_arg_ret""]"
+136,1,"[""acl_tos"", null]","[""dump_acl_list_arg"", ""char"", ""acl_tos"", null]"
+137,1,"[""acl_tos"", null]","[""dump_acl_list_arg"", ""char""]"
+138,1,"[""acl_tos"", null]","[""dump_acl_list_arg_ret""]"
+139,1,"[""acl_nfmark"", null]","[""dump_acl_list_arg"", ""char"", ""acl_nfmark"", null]"
+140,1,"[""acl_nfmark"", null]","[""dump_acl_list_arg"", ""char""]"
+141,1,"[""acl_nfmark"", null]","[""dump_acl_list_arg_ret""]"
+142,1,"[""AclSizeLimit"", null]","[""dump_acl_list_arg"", ""char"", null, ""AclSizeLimit"", null, null]"
+143,1,"[""AclSizeLimit"", null]","[""dump_acl_list_arg"", ""char""]"
+144,1,"[""AclSizeLimit"", null]","[""dump_acl_list_arg_ret""]"
+765,2,"[""peerDigestCreate_arg"", null, null]",[]
+145,1,"[""strcmp_ret""]","[""strcmp_arg_ret""]"
+913,4,"[""peerDigestCreate_arg"", null, null]","[""peerDigestCreate_arg"", null, ""peerDigestCreate_arg"", null]"
+766,2,"[""strncmp_ret""]","[""strncmp_arg_ret""]"
+146,1,"[""strcmp_ret""]","[""peerDigestCreate_arg"", null, ""peerDigestCreate_arg"", null]"
+147,1,"[""peerFindByName_ret""]","[""peerDigestCreate_arg"", null]"
+148,1,"[""peerDigestCreate_arg"", null, ""peerDigestCreate_arg"", null, ""peerDigestCreate_arg"", null, null]","[""peerDigestCreate_arg"", null, ""peerDigestCreate_arg"", null, ""peerDigestCreate_arg"", null, null]"
+149,1,"[""strcmp_ret"", ""strcmp_ret""]","[""StoreEntry"", ""char""]"
+150,1,"[""strcmp_ret"", ""strcmp_ret""]","[""StoreEntry"", ""char"", "" Mgr ActionPasswordList"", null]"
+151,1,"[""strcmp_ret"", ""strcmp_ret""]","[""StoreEntry""]"
+152,1,"[""RefreshPattern"", null]","[""StoreEntry"", ""RefreshPattern"", null]"
+952,9,"[""RefreshPattern"", null, null]","[""StoreEntry""]"
+153,1,"[""char"", null]","[""StoreEntry"", ""char"", ""char""]"
+154,1,"[""int_arg""]","[""StoreEntry"", null, ""char"", ""int_arg""]"
+155,1,"[""int_arg""]","[""int_ret"", ""StoreEntry"", ""char""]"
+914,5,"[null, null, null, null, null, null]","[""StoreEntry""]"
+915,5,"["" AnyP PortCfgPointer"", null, null]","["" s secure dumpCfg_arg""]"
+916,6,"["" AnyP PortCfgPointer"", null]","["" s secure dumpCfg_arg""]"
+767,3,"["" AnyP PortCfgPointer"", null]","["" s secure dumpCfg_arg"", "" AnyP PortCfgPointer"", null]"
+156,1,"["" AnyP PortCfgPointer"", null, null, null, null]","["" s secure dumpCfg_arg"", null, null, "" AnyP PortCfgPointer"", null, null]"
+157,1,"["" AnyP PortCfgPointer"", null, null, "" AnyP PortCfgPointer"", null]","["" s secure dumpCfg_arg""]"
+158,1,"["" AnyP PortCfgPointer"", null, null]","["" s secure dumpCfg_arg"", ""char""]"
+159,1,"["" s s isAnyAddr_ret"", "" s s isIPv6_ret""]","["" s secure dumpCfg_arg""]"
+160,1,"["" AnyP PortCfgPointer"", null, null, "" AnyP PortCfgPointer"", null, null, "" AnyP PortCfgPointer"", null, null]","["" s secure dumpCfg_arg"", "" AnyP PortCfgPointer"", null, null, "" AnyP PortCfgPointer"", null, null, "" AnyP PortCfgPointer"", null, null]"
+161,1,"["" AnyP PortCfgPointer"", null, null, "" AnyP PortCfgPointer"", null, null, "" AnyP PortCfgPointer"", null, null]","["" s secure dumpCfg_arg""]"
+162,1,"["" AnyP PortCfgPointer"", null]","["" s secure dumpCfg_arg_ret"", "" AnyP PortCfgPointer"", null]"
+163,1,"["" AnyP PortCfgPointer"", null]","["" s secure dumpCfg_arg_ret""]"
+164,1,"["" AnyP PortCfgPointer"", null]","["" s secure dumpCfg_arg_ret"", null, "" AnyP PortCfgPointer"", null, null]"
+165,1,"[null, null, null]","[""xstrerr_ret"", ""debugs_arg_ret"", ""debugs_arg_ret""]"
+166,1,"[""CustomLog"", null, null, null, null]","[""dump_acl_list_arg"", ""CustomLog"", null, ""CustomLog"", null, ""char""]"
+167,1,"[""CustomLog"", null, null, null, null]","[""dump_acl_list_arg""]"
+917,5,"[""CustomLog"", null, null, null, null]","[""dump_acl_list_arg"", ""CustomLog"", null]"
+168,1,"[""CustomLog"", null]","[""dump_acl_list_arg""]"
+169,1,"[""CustomLog"", null]","[""dump_acl_list_arg"", null, ""CustomLog"", null]"
+170,1,"[""CustomLog"", null]","[""dump_acl_list_arg"", ""CustomLog"", null]"
+171,1,"[""CustomLog"", null]","[""dump_acl_list_arg_ret""]"
+172,1,"[""CpuAffinityMap""]","[""StoreEntry"", ""char""]"
+173,1,"[""CpuAffinityMap""]","["" cpuAffinityMap processes_ret"", ""StoreEntry"", ""size_t"", ""size_t""]"
+768,2,"[""CpuAffinityMap""]","[""StoreEntry""]"
+174,1,"[""CpuAffinityMap""]","["" cpuAffinityMap cores_ret"", ""StoreEntry"", ""size_t"", ""size_t""]"
+175,1,"["" Adaptation Icap Config"", null]","[""StoreEntry"", null, "" Adaptation Icap Config"", null]"
+176,1,"["" Adaptation Icap Config"", null]","[""StoreEntry""]"
+177,1,"["" SquidConfig UrlHelperTimeout"", null]","[""dump_time_t_arg_ret"", "" SquidConfig UrlHelperTimeout"", null]"
+178,1,"["" SquidConfig UrlHelperTimeout"", null]","[""dump_time_t_arg_ret""]"
+792,3,[null],"[""StoreEntry""]"
+179,1,[null],"[""cbdataReferenceValid_ret"", ""StoreEntry"", ""ev_entry"", null, ""ev_entry"", null, ""ev_entry"", null, null, ""ev_entry"", null, ""ev_entry"", null, ""ev_entry"", null]"
+180,1,"["" DelayPools pools_ret""]","[""dump_arg"", ""char""]"
+181,1,"["" DelayPools pools_ret""]","["" DelayPools pools_ret"", ""dump_arg"", ""char""]"
+769,2,"["" buckets empty_ret""]","["" spec stats_arg_ret""]"
+770,2,"["" buckets empty_ret""]","[""visitor_arg_ret""]"
+182,1,"["" icpIncomingConn local setIPv4_ret"", null, null]",[]
+183,1,"["" icpOutgoingConn local setIPv4_ret"", null, null]",[]
+924,5,"["" Comm IsConnOpen_ret""]",[]
+771,2,"[""clientStreamStatus_ret""]",[]
+184,1,"[""atoi_arg""]",[]
+185,1,"["" tok prefix_ret""]","[""xstrdup_arg""]"
+186,1,"["" tok atEnd_ret""]","[""xstrdup_arg""]"
+187,1,"["" service_name length_ret""]","["" service_name length_ret""]"
+188,1,"[""t_arg"", ""t_arg""]",[]
+773,3,"[""getopt_long_ret""]",[]
+772,2,"[""getopt_long_ret""]",[null]
+189,1,"[""getopt_long_ret""]","[""SQUIDSBUFPRINT_ret"", null]"
+937,5,"[""strlen_ret""]",[null]
+190,1,"[""getopt_long_ret""]","[""SSLeay_version_ret""]"
+191,1,"[""geteuid_ret""]",[]
+192,1,"[""chroot_ret""]","[""xstrerr_ret"", null, null]"
+193,1,"[""mainChangeDir_ret""]","[null, null]"
+194,1,"[""EventLoop"", null]",[]
+195,1,"[""open_ret""]","[""xstrerr_ret"", null]"
+196,1,"[""diskCombineWrites_arg"", null, "" Comm SetSelect_arg""]",[]
+197,1,"[""unsigned char""]",[]
+198,1,"[""theComposite_ret"", ""getRaw_ret"", null, null, ""unsigned short""]","["" pool theClassTypeLabel_ret"", ""stats_arg"", ""unsigned short"", null, null, ""unsigned short""]"
+199,1,"[""theComposite_ret"", ""getRaw_ret"", null, null, ""unsigned short""]","[""stats_arg_ret""]"
+918,4,"[""rate_ret"", null]","[""stats_arg_ret""]"
+774,2,"[""rate_ret"", null]","[""stats_arg_ret"", null, null, ""unsigned int""]"
+919,4,"["" buckets size_ret""]","[""stats_arg_ret""]"
+200,1,"["" engine checkEvents_ret""]",[]
+965,18,[null],"[""statAvgDump_arg_ret""]"
+201,1,"[""UsingSmp_ret""]","[""eventAdd_arg"", null, null]"
+202,1,"[""xdiv_arg""]","[""xdiv_ret"", ""StoreEntry"", ""int"", ""int"", ""int"", ""int""]"
+203,1,"[null, null]","[""SQUIDSBUFPRINT_ret"", ""StoreEntry"", null, null]"
+776,3,"[null, null]","[""StoreEntry"", null]"
+204,1,"[null, null]","[""SQUIDSBUFPRINT_ret"", ""StoreEntry"", null]"
+775,2,"[null, null]","[""mkrfc1123_ret"", ""StoreEntry""]"
+966,27,"[null, null, null]","[""StoreEntry"", "" Mgr InfoActionData"", null]"
+205,1,"[null, null, null]","[""StoreEntry"", "" Mgr InfoActionData"", null, ""double""]"
+206,1,"[null, null, null]","[""StoreEntry"", "" Mgr InfoActionData"", null, "" Mgr InfoActionData"", null, ""double""]"
+920,4,"[null, null, null]","[""StoreEntry"", null]"
+953,11,"[null, null, null]","[""StoreEntry"", "" Mgr InfoActionData"", null, ""double"", "" Mgr InfoActionData"", null, ""double""]"
+921,5,"[null, null, null]","[""StoreEntry"", "" Mgr InfoActionData"", null, null, null]"
+207,1,"[null, null, null]","["" Math doublePercent_ret"", "" Math doublePercent_ret"", "" stats store swap available_ret"", ""StoreEntry""]"
+208,1,"[null, null, null]","["" Math doublePercent_ret"", "" Math doublePercent_ret"", "" stats store mem available_ret"", ""StoreEntry""]"
+209,1,"[null, null, null]","["" stats store swap meanObjectSize_ret"", ""StoreEntry""]"
+954,10,"[null, null, null]","[""StoreEntry""]"
+210,1,"[null, null, null]","["" Math doublePercent_ret"", ""StoreEntry"", "" Mgr InfoActionData"", null]"
+777,2,"[null, null, null]","[""StoreEntry"", "" Mgr InfoActionData"", null, null]"
+211,1,"[""getNextPeer_ret"", null]","[""peerDigestStatsReport_arg_ret"", ""getNextPeer_ret"", null]"
+779,3,"[""getNextPeer_ret"", null]","[""peerDigestStatsReport_arg_ret""]"
+778,2,"[""getNextPeer_ret"", null]","[""xpercentInt_ret"", ""peerDigestStatsReport_arg_ret"", ""StatCounters"", null, null]"
+212,1,"[""getNextPeer_ret"", null]","[""xpercentInt_ret"", ""peerDigestStatsReport_arg_ret"", ""int""]"
+213,1,"["" http getConn_ret"", null]","[""StoreEntry"", null, null, ""int"", null, ""int"", null, null, ""int"", null]"
+214,1,"["" http getConn_ret"", null]","[""StoreEntry"", null, ""int"", null]"
+215,1,"["" http getConn_ret"", null]","["" conn inBuf rawContent_ret"", "" conn inBuf length_ret"", "" conn inBuf spaceSize_ret"", ""StoreEntry"", null, null, null, null]"
+216,1,"["" http getConn_ret"", null]","["" conn clientConnection remote toUrl_ret"", ""StoreEntry""]"
+217,1,"["" http getConn_ret"", null]","["" conn clientConnection local toUrl_ret"", ""StoreEntry""]"
+218,1,"["" http getConn_ret"", null]","[""StoreEntry"", "" http getConn_ret"", null, null]"
+219,1,"["" http getConn_ret"", null]","[""StoreEntry"", ""assert_arg_ret"", null]"
+220,1,"["" http getConn_ret"", null]","["" http logType c_str_ret"", ""StoreEntry""]"
+221,1,"["" http getConn_ret"", null]","[""StoreEntry"", null, null, ""assert_arg_ret"", null, null, null, null, null, ""assert_arg_ret"", null, null]"
+222,1,"["" http getConn_ret"", null]","[""StoreEntry"", null, null, ""assert_arg_ret"", null]"
+223,1,"["" http getConn_ret"", null]","["" e getMD5Text_ret"", ""StoreEntry"", "" http storeEntry_ret"", "" http storeEntry_ret""]"
+224,1,"["" http getConn_ret"", null]","[""tvSubDsec_ret"", ""StoreEntry"", null, null, ""assert_arg_ret"", null, null, null, null, null, ""assert_arg_ret"", null, null, null, null]"
+225,1,"["" http getConn_ret"", null]","[""StoreEntry"", ""sslGetUserEmail_ret""]"
+226,1,"["" http getConn_ret"", null]","["" DelayId DelayClient_ret"", ""pool_ret"", ""StoreEntry""]"
+227,1,"["" http getConn_ret"", null]","[""StoreEntry""]"
+793,3,"[""xdiv_arg"", ""bool""]","[""xdiv_ret"", ""StoreEntry"", ""int"", ""char"", ""int""]"
+228,1,"[null, null, null, null, null]","[""debugs_arg""]"
+229,1,"[""helper_server"", null, null]","[""helperOpenServers_arg"", null]"
+230,1,"[""helper_stateful_server"", null, null]","[""helperStatefulOpenServers_arg"", null]"
+231,1,"[""peerDigestFetchedEnough_arg_ret"", null]",[]
+232,1,"[""assert_arg_ret"", null]","[""cacheDigestReport_arg_ret""]"
+233,1,"[""unsigned int""]","[""fdUpdateBiggest_arg"", ""unsigned int"", ""debugs_arg_ret""]"
+234,1,"[""min_ret"", ""debugs_arg"", ""min_ret""]","[""debugs_arg"", ""min_ret"", ""debugs_arg""]"
+235,1,"[""int""]","[""StoreEntry"", ""int"", ""double"", ""int"", ""int"", ""double""]"
+236,1,"[""int""]","[""StoreEntry"", ""int"", null, ""double"", ""int""]"
+237,1,"[""int""]","[""StoreEntry"", null, ""double"", ""int""]"
+780,2,"["" node local_addr isIPv6_ret""]","["" node format dump_arg""]"
+238,1,"[""external_acl"", null, null]","["" node format dump_arg"", ""external_acl"", null]"
+239,1,"[""external_acl"", null, ""external_acl"", null]","["" node format dump_arg"", ""external_acl"", null]"
+781,2,"[""external_acl"", null]","["" node format dump_arg"", ""external_acl"", null]"
+240,1,"[""external_acl"", null, null, null]","["" node format dump_arg"", ""external_acl"", null, null]"
+782,3,"[""external_acl"", null, null]","["" node format dump_arg"", ""external_acl"", null, null]"
+241,1,"[""external_acl"", null, null, null]","["" node format dump_arg""]"
+242,1,"[""external_acl"", null, null, null]","["" node format dump_arg_ret"", ""wordlist"", null]"
+243,1,"[""external_acl"", null, null, null]","["" node format dump_arg_ret""]"
+967,20,"[""CachePeer"", null, null]","["" p secure dumpCfg_arg""]"
+922,5,"[""CachePeer"", null]","["" p secure dumpCfg_arg"", ""CachePeer"", null]"
+783,3,"[""CachePeer"", null, null]","["" p secure dumpCfg_arg"", ""bool""]"
+784,2,"[""CachePeer"", null, null]","["" p secure dumpCfg_arg"", ""CachePeer"", null, null]"
+244,1,"[""CachePeer"", null]","["" p secure dumpCfg_arg"", null, ""CachePeer"", null]"
+245,1,"[""CachePeer"", null, null]","["" p secure dumpCfg_arg"", ""CachePeer"", null]"
+785,3,"[""CachePeer"", null]","["" p secure dumpCfg_arg""]"
+246,1,"[""CachePeer"", null]","["" p secure dumpCfg_arg_ret""]"
+786,2,"[""CachePeer"", ""assert_arg""]","[""dump_peer_options_arg""]"
+247,1,"[""CachePeer"", ""assert_arg""]","[""neighborTypeStr_ret"", ""dump_peer_options_arg"", ""neighborTypeStr_arg_ret"", null]"
+248,1,"[""CachePeer"", ""assert_arg""]","[""dump_peer_options_arg"", ""neighborTypeStr_arg_ret"", null, ""neighborTypeStr_arg_ret"", null, ""neighborTypeStr_arg_ret"", null, null]"
+249,1,"[""CachePeer"", ""assert_arg""]","[""toStr_ret"", ""dump_peer_options_arg_ret"", ""int"", ""dump_peer_options_arg_ret"", null, ""int""]"
+250,1,"[""CachePeer"", ""assert_arg""]","[""neighborUp_ret"", ""dump_peer_options_arg_ret""]"
+787,3,"[""CachePeer"", ""assert_arg""]","[""dump_peer_options_arg_ret"", ""neighborUp_arg_ret"", null, null]"
+788,2,"[""neighborUp_arg_ret"", null, null]","[""int_ret"", ""dump_peer_options_arg_ret""]"
+789,2,"[""neighborUp_arg_ret"", null, null]","[""dump_peer_options_arg_ret""]"
+251,1,"[""neighborUp_arg_ret"", null, null]","[""dump_peer_options_arg_ret"", ""neighborUp_arg_ret"", null, null]"
+923,4,"[""neighborUp_arg_ret"", null, null]","["" Math intPercent_ret"", ""dump_peer_options_arg_ret"", ""neighborUp_arg_ret"", null, null]"
+252,1,"[""neighborUp_arg_ret"", null, null]","["" Math intPercent_ret"", ""dump_peer_options_arg_ret"", null, ""auto"", ""neighborUp_arg_ret"", null, null, ""auto""]"
+253,1,"[""neighborUp_arg_ret"", null, null]","["" Time FormatHttpd_ret"", ""dump_peer_options_arg_ret""]"
+254,1,"[""neighborUp_arg_ret"", null, null]","["" Math intPercent_ret"", ""dump_peer_options_arg_ret""]"
+255,1,"["" pools size_ret""]","["" pools size_ret"", ""dump_arg"", ""char"", null]"
+959,9,"[""EBIT_TEST_ret""]",[]
+790,2,"["" Comm ReadNow_ret""]",[]
+843,3,"[""CommIoCbParams"", null]",[]
+256,1,"[""HttpRequest"", null]","[""HttpHeader"", "" Http HdrType"", null, ""base64_encode_update_ret"", ""base64_encode_update_arg""]"
+257,1,"["" request extacl_user size_ret"", "" request extacl_passwd size_ret"", ""strcmp_ret"", ""strcmp_ret""]","[""HttpHeader"", "" Http HdrType"", null, ""base64_encode_update_ret"", ""base64_encode_update_arg""]"
+258,1,"[""peer_proxy_negotiate_auth_ret""]","[""HttpHeader"", "" Http HdrType"", ""peer_proxy_negotiate_auth_ret""]"
+259,1,"[""peer_proxy_negotiate_auth_ret""]","[""HttpHeader"", "" Http HdrType"", null, ""base64_encode_update_ret"", null]"
+260,1,"[""base64_encode_update_ret""]","[""copyOneHeaderFromClientsideRequestToUpstreamRequest_arg_ret"", null, null, null, null, ""base64_encode_update_ret"", null]"
+261,1,"[""sendRequest_ret""]",[]
+262,1,"[""virginReply_ret"", "" sline status_ret"", null, null]",[]
+263,1,"[""getBlockContainingLocation_ret""]",[]
+264,1,"[""unionNotEmpty_ret""]",[]
+265,1,"[""MemObject"", null]","["" e getMD5Text_ret"", "" reply sline status_ret"", ""SQUIDSTRINGPRINT_ret"", "" e contentLen_ret"", ""SQUIDSBUFPRINT_ret"", "" mem method image_ret"", "" mem logUri_ret"", ""logfileLineEnd_arg"", null, null, null, null, null, null, null, null, null, null, null, ""int"", ""StoreEntry"", null, ""StoreEntry"", null, null, "" e getReply_ret"", null, null, "" e getReply_ret"", null, null, "" e getReply_ret"", null, "" e getReply_ret"", null]"
+266,1,"[""MemObject"", null]","["" e getMD5Text_ret"", ""logfileLineEnd_arg"", null, null, null, null, null, null, null, ""int"", ""StoreEntry"", null, ""StoreEntry"", null]"
+267,1,"[""cacheDigestReport_arg""]","[""xpercent_ret"", ""cacheDigestReport_arg_ret"", null, null, null, null, null, null]"
+268,1,"[""cacheDigestReport_arg""]","[""xpercent_ret"", ""xpercent_ret"", ""cacheDigestReport_arg_ret""]"
+269,1,"[""cacheDigestReport_arg""]","[""cacheDigestReport_arg_ret""]"
+270,1,"["" note key caseCmp_ret""]","["" note key termedBuf_ret"", null, null, null, null]"
+271,1,"["" request url getScheme_ret"", null, null, null, null]",[]
+272,1,"[""headerMangler"", null, null]","[""dump_acl_access_arg"", ""char""]"
+273,1,"[""headerMangler"", null]","[""StoreEntry"", ""char"", ""char"", ""headerMangler"", null]"
+274,1,"[null, null, null]","[""StoreEntry"", null, null, null]"
+275,1,"[null, null, null]","["" S toStr_ret"", ""StoreEntry"", null, ""int"", null, ""int"", null, null, ""int"", null, null, ""int"", null]"
+791,2,"[null, null, null]","[""StoreEntry"", ""int""]"
+276,1,"[null, null, null]","[""StoreEntry"", null, ""int"", ""int""]"
+277,1,"[null, null, null]","[""StoreEntry"", null, ""int""]"
+278,1,[null],"[""StoreEntry"", null, ""int"", null]"
+279,1,"[""comm_open_listener_ret"", ""comm_open_listener_ret""]",[]
+280,1,"[null, null]","["" redirectors packStatsInto_arg""]"
+281,1,"[null, null, null]","["" redirectors packStatsInto_arg_ret"", null]"
+282,1,"[null, null]","["" storeIds packStatsInto_arg""]"
+283,1,"[null, null, null]","["" storeIds packStatsInto_arg_ret"", null]"
+284,1,"[""ipcache_entry""]","[""StoreEntry""]"
+285,1,"[""ipcache_entry""]","[""hashKeyStr_ret"", ""int_ret"", ""int_ret"", ""StoreEntry"", ""ipcache_entry"", null, null, ""ipcache_entry"", null, null, null, ""ipcache_entry"", null, ""int"", null, ""ipcache_entry"", null, null]"
+286,1,"[""ipcache_entry"", null, null]","[""StoreEntry""]"
+794,2,"[""int""]","[""toStr_ret"", ""StoreEntry"", ""ipcache_entry"", null, null, ""int"", ""ipcache_entry"", null, null, ""int""]"
+795,2,"[""xpercent_arg""]","[""StoreEntry"", ""assert_arg_ret""]"
+796,2,"[""xpercent_arg""]","[""StoreEntry""]"
+797,2,"[""xpercent_arg""]","[""xpercent_ret"", ""xpercent_ret"", ""xpercent_ret"", ""StoreEntry"", ""CacheDigestGuessStats"", null, ""CacheDigestGuessStats"", null, ""int""]"
+287,1,"[""xpercent_arg""]","[""xpercent_ret"", ""xpercent_ret"", ""xpercent_ret"", ""StoreEntry"", ""int"", ""int"", ""int""]"
+288,1,"[""xpercent_arg""]","[""xpercentInt_ret"", ""StoreEntry"", ""CacheDigestGuessStats"", null]"
+798,2,"[null, null]","[""tempnam_ret"", null, null]"
+289,1,"[null, null]","[""uniqueHostname_ret"", ""tempnam_ret"", null]"
+290,1,"[null, null]","[""dead_msg_ret"", ""tempnam_ret""]"
+799,2,"[""signal_arg"", ""signal_arg""]","[""fflush_arg""]"
+291,1,"[""signal_arg"", ""signal_arg""]","[""fflush_arg"", ""signal_arg""]"
+292,1,"[null, null]","[""dead_msg_ret""]"
+800,2,[null],"[""char""]"
+293,1,"[""setresuid_ret""]","[""xstrerr_ret""]"
+294,1,"[""seteuid_ret""]","[""xstrerr_ret""]"
+295,1,"[""setuid_ret""]","[""xstrerr_ret""]"
+801,2,"[""setrlimit_ret""]","[""snprintf_arg""]"
+296,1,"[""setrlimit_ret""]",[null]
+297,1,"[""htcpBuildSpecifier_arg"", null, null, null]",[]
+298,1,"[""htcpBuildSpecifier_arg"", null]",[]
+299,1,"["" htcpIncomingConn local setIPv4_ret"", null, null]",[]
+300,1,"["" htcpOutgoingConn local setIPv4_ret"", null, null]",[]
+301,1,"["" CfgFiles empty_ret""]","["" msg c_str_ret""]"
+302,1,"["" CfgFiles empty_ret""]","[null, null, null]"
+303,1,"["" rep parse_arg_ret""]",[]
+304,1,"["" connectRespBuf hasSpace_ret""]",[]
+305,1,"["" rep sline status_ret"", null, null]","[""strcmp_ret"", ""HttpReply"", null]"
+306,1,"[null, null, null]","["" strVia c_str_ret"", null, null, null]"
+307,1,"[""CBIT_TEST_ret""]","[""xdiv_ret"", ""StoreEntry"", ""int"", "" Http HeaderLookupTable lookup_ret"", ""int""]"
+308,1,"[""xpercent_arg""]","[""xpercent_ret"", ""StoreEntry"", ""int"", null, ""double"", ""xpercent_arg""]"
+309,1,"["" struct wccp2_service_list_t"", null, ""htonl_arg""]",[]
+805,3,"[""ntohl_ret"", null, ""ntohl_ret"", null]",[]
+802,2,"[""comm_open_listener_ret""]",[]
+803,2,"[""connect_ret""]",[]
+804,2,"[""getsockname_ret""]",[]
+310,1,"["" struct wccp2_service_list_t"", null]",[]
+806,2,"[""debugs_arg"", null]","[""StoreEntry"", ""char""]"
+807,2,"[""debugs_arg"", null]","[""StoreEntry"", ""debugs_arg""]"
+311,1,"["" struct wccp2_service_list_t"", null, null]","[""StoreEntry"", "" struct wccp2_service_list_t"", null]"
+808,2,"["" struct wccp2_service_list_t"", null, null]","[""StoreEntry""]"
+312,1,"[""int"", null]","[""char""]"
+313,1,"[""strcspn_ret""]","[""strcspn_arg_ret""]"
+314,1,"[""xatoi_ret"", ""xatoi_ret""]","[""memcpy_arg_ret""]"
+315,1,"[""wccp2_get_service_by_id_ret"", null]","[""GetInteger_ret""]"
+316,1,"[""strncmp_ret""]","[""GetInteger_ret"", ""strncmp_arg_ret""]"
+317,1,"[""strtol_ret"", ""strtol_ret""]","[""GetInteger_ret"", ""strtol_arg_ret""]"
+318,1,"[""strncmp_ret""]","[""GetInteger_ret"", ""strtol_arg_ret""]"
+319,1,"[""strtol_ret""]","[""GetInteger_ret""]"
+320,1,"[""wccp2_update_service_arg""]","[""GetInteger_ret""]"
+321,1,"[""parse_wccp2_service_flags_ret"", null]","[""GetInteger_ret""]"
+322,1,"[""ntohl_ret""]","[""StoreEntry""]"
+323,1,"[""ntohl_ret"", null]","[""StoreEntry""]"
+956,9,"[""ntohl_ret"", null]","[""StoreEntry"", ""bool""]"
+324,1,"["" struct wccp2_service_list_t"", null, null]","[""ntohs_ret"", ""StoreEntry""]"
+925,7,"["" struct wccp2_service_list_t"", null, null]","[""ntohs_ret"", ""StoreEntry"", ""bool""]"
+325,1,"["" struct wccp2_service_list_t"", null, null]","[""StoreEntry"", "" struct wccp2_service_list_t"", null, null, null]"
+326,1,"[""fqdncache_gethostbyaddr_ret"", ""fqdncache_gethostbyaddr_ret""]","[""StoreEntry"", ""fqdncache_gethostbyaddr_ret""]"
+327,1,"[""fqdncache_gethostbyaddr_ret"", ""fqdncache_gethostbyaddr_ret""]","[""StoreEntry"", ""hash_next_ret"", null]"
+809,2,"[""fqdncache_gethostbyaddr_ret"", ""fqdncache_gethostbyaddr_ret""]","[""StoreEntry"", ""hash_next_ret"", null, null]"
+328,1,"[""fqdncache_gethostbyaddr_ret"", ""fqdncache_gethostbyaddr_ret""]","[""LogTags_ret"", ""c_str_ret"", "" Math intPercent_ret"", ""StoreEntry"", ""hash_next_ret"", null, null, ""LogTags_arg""]"
+329,1,"[""fqdncache_gethostbyaddr_ret"", ""fqdncache_gethostbyaddr_ret""]","[""LogTags_ret"", ""c_str_ret"", "" Math intPercent_ret"", ""StoreEntry"", ""hash_next_ret"", null, null, ""LogTags_ot""]"
+810,2,"[""fqdncache_gethostbyaddr_ret"", ""fqdncache_gethostbyaddr_ret""]","[""StoreEntry""]"
+811,2,"[""fqdncache_gethostbyaddr_ret"", ""fqdncache_gethostbyaddr_ret""]","["" Math intPercent_ret"", ""StoreEntry"", ""int"", ""int""]"
+812,2,"[""vsnprintf_ret"", ""vsnprintf_ret""]","[""xstrerr_ret""]"
+330,1,"[""EBIT_TEST_ret"", ""validLength_ret""]",[]
+331,1,"[""mimeGetContentType_ret"", null]",[]
+332,1,"["" reply setHeaders_arg"", "" HttpRequest FromUrl_ret""]","[""debugs_arg""]"
+333,1,"[""DenyInfoLocation_arg""]","["" redirect_location content_ret"", ""HttpReply"", null, null, null, null]"
+334,1,"[""strchr_ret"", ""strchr_arg_ret"", ""strchr_arg_ret"", ""strchr_arg_ret"", ""strchr_arg_ret""]","[""HttpReply"", null, null, null, null, "" rep setHeaders_arg""]"
+335,1,"[""strchr_ret"", ""strchr_arg_ret"", ""strchr_arg_ret"", ""strchr_arg_ret"", ""strchr_arg_ret""]","[""HttpReply"", null, null, null, null, ""DenyInfoLocation_arg_ret"", null]"
+336,1,[null],"["" stats dump_arg"", "" map entryLimit_ret""]"
+337,1,"["" map entryLimit_ret""]","[""currentCount_ret"", ""currentCount_ret"", "" stats dump_arg"", null, "" map entryLimit_ret""]"
+338,1,[null],"["" stats dump_arg"", "" map sliceLimit_ret""]"
+339,1,"["" Ipc Mem PagesAvailable_ret"", null, ""static_cast_arg"", "" map sliceLimit_ret""]","["" stats dump_arg"", ""int"", ""int"", "" map sliceLimit_ret""]"
+340,1,"["" Ipc Mem Segment Enabled_ret"", null, null]",[]
+813,2,"[""GopherStateData"", null]","[""gopherHTMLHeader_arg_ret""]"
+814,2,"[""GopherStateData"", null, null, null]","[""gopherHTMLHeader_arg_ret""]"
+815,2,"[""hash_lookup_ret"", null]",[]
+341,1,"[""ipcCreate_ret""]",[]
+342,1,"["" snmpIncomingConn local setIPv4_ret"", null, null]",[]
+343,1,"["" snmpOutgoingConn local setIPv4_ret"", null, null]",[]
+344,1,"["" Comm IsConnOpen_ret""]","["" Comm ConnectionPointer"", null, null, null]"
+345,1,"["" Comm ConnectionPointer"", null, null, null]","["" conn local port_ret"", null, "" Comm ConnectionPointer"", null]"
+346,1,"[null, null, ""fflush_arg"", null]","[null, ""syslog_arg_ret""]"
+347,1,"[null, null, ""fflush_arg"", null]","[""fflush_arg"", null]"
+816,2,"[""authenticateFixHeader_arg"", null, null, ""authenticateFixHeader_arg"", null, null]","[""httpHdrMangleList_arg"", null, null, null]"
+348,1,"[""authenticateFixHeader_arg"", null, null, ""authenticateFixHeader_arg"", null, null]","[""getMyHostname_ret"", ""httpHdrMangleList_arg"", null, null, null, "" http logType isTcpHit_ret""]"
+349,1,"[""authenticateFixHeader_arg"", null, null, ""authenticateFixHeader_arg"", null, null]","[""getMyHostname_ret"", ""getMyPort_ret"", ""httpHdrMangleList_arg"", null, null, null, null, null]"
+350,1,"["" Auth UserRequest Pointer"", null]",[]
+351,1,"["" ch fastCheck_ret"", ""allowed_ret""]",[]
+352,1,"[""debugs_arg""]","[""debugs_arg_ret""]"
+353,1,"["" inBuf length_ret"", "" Proxy2p0magic length_ret""]",[]
+354,1,"["" tok prefix_ret"", "" Proxy1p0magic length_ret""]","["" inBuf length_ret"", null]"
+355,1,"["" tok skipOne_ret""]",[]
+817,2,"["" tok skip_ret""]",[]
+356,1,"["" tok prefix_ret""]",[]
+357,1,"["" originalClient GetHostByName_ret"", "" ipa c_str_ret""]",[]
+358,1,"["" originalDest GetHostByName_ret"", "" ipb c_str_ret""]",[]
+818,2,"[""static_cast_arg"", ""static_cast_arg""]",[]
+359,1,"[null, "" Proxy2p0magic length_ret""]",[]
+819,3,"[""char""]",[]
+360,1,[null],"[""FdNote_ret""]"
+361,1,"[null, ""int""]","[""int""]"
+362,1,"[""isIPv6_ret"", ""debugs_arg"", ""inet_ntop_arg"", ""debugs_arg"", ""debugs_arg""]","[null, ""int"", null, null, null]"
+820,2,"["" thePlan current_ret"", "" theMsg body_pipe consumedSize_ret"", null]",[]
+821,2,"["" service cfg_ret"", "" service cfg_ret"", "" service cfg_ret""]","[""debugs_arg""]"
+363,1,"[""at_ret"", null]","[""String""]"
+822,2,"["" s cfg_ret"", "" checkedService cfg_ret"", ""at_ret"", null, null, null]","["" s cfg_ret"", null]"
+364,1,"["" cfg parse_ret""]","[null, null]"
+823,2,"[""service_ret"", ""cfg_ret"", null, null]",[]
+365,1,"[""service_ret"", ""up_ret""]",[]
+824,2,"[null, ""debugs_arg"", null, ""min_ret"", null]",[]
+825,2,"[""virginContentSize_ret""]",[]
+826,2,"["" adapted body_pipe buf_ret"", ""contentSize_ret""]",[]
+366,1,"[""retriable_ret"", null, null, null]",[]
+367,1,"["" theInitiator set_ret""]",[]
+368,1,"[null, null, "" theSessionFailures count_ret"", null, null]",[]
+369,1,"[""SSL_CTX_set_cipher_list_ret"", "" ctx get_ret""]","["" Security ErrorString_ret"", ""SSL_CTX_set_cipher_list_arg_ret""]"
+370,1,"[""SSL_CTX_use_certificate_chain_file_ret"", "" ctx get_ret""]","["" Security ErrorString_ret"", ""SSL_CTX_use_certificate_chain_file_arg_ret""]"
+371,1,"[""SSL_CTX_use_PrivateKey_file_ret"", "" ctx get_ret""]","["" Security ErrorString_ret"", ""SSL_CTX_use_PrivateKey_file_arg_ret""]"
+372,1,"[""SSL_CTX_check_private_key_ret"", "" ctx get_ret""]","["" Security ErrorString_ret"", ""SSL_CTX_use_certificate_chain_file_arg_ret"", ""SSL_CTX_use_PrivateKey_file_arg_ret""]"
+373,1,"[""xisdigit_ret""]","[""strtol_arg_ret""]"
+374,1,"[""xisdigit_ret""]","["" TheSslErrorShortcuts find_arg_ret""]"
+375,1,"["" A valid_ret""]","["" Acl Make_ret"", null]"
+376,1,"[""hier_code"", null]","["" ConfigParser strtokFile_ret""]"
+377,1,"["" errors empty_ret""]",[]
+378,1,"["" ranges empty_ret""]",[]
+379,1,"[""vsnprintf_ret""]","[null, ""fflush_arg""]"
+380,1,"[""getopt_ret""]","[null, ""usage_arg_ret"", ""getopt_ret""]"
+381,1,"[""fopen_arg"", ""strtok_arg""]","[null, ""usage_arg_ret""]"
+382,1,"[""fopen_ret""]","[""xstrerr_ret"", null, ""usage_arg_ret"", ""fopen_arg_ret""]"
+383,1,"[""strchr_ret"", ""strchr_ret"", ""strtok_arg""]","[null, ""usage_arg_ret"", ""sizeof_arg""]"
+384,1,"[""strchr_ret"", ""strchr_ret"", ""strtok_arg""]","[null, ""usage_arg_ret"", ""strchr_arg""]"
+926,4,"[""char""]",[null]
+958,8,"[""strcmp_ret""]","[null, null, ""strcmp_arg_ret""]"
+927,4,"[""char""]","[null, null]"
+928,4,"[""atoi_ret""]",[null]
+385,1,"[""ldap_set_option_arg"", null]","[null, ""ldap_set_option_arg""]"
+929,4,"[""char""]","[null, null, ""char""]"
+386,1,"[null, null]","[null, null, null]"
+940,5,"[null, null]","[null, null]"
+968,24,"[null, null]",[null]
+827,2,"[""GetProcAddress_ret"", ""GetProcAddress_ret"", null, ""strtok_arg""]","[null, null]"
+387,1,"[""strchr_ret""]","[null, ""char"", ""sizeof_arg""]"
+388,1,"[""strchr_ret""]","[null, ""char"", ""strchr_arg""]"
+389,1,"[""ldap_initialize_ret"", null]","[null, ""char"", ""ldap_initialize_arg_ret""]"
+930,4,"[""ldapssl_client_init_ret"", null, null]","[null, null]"
+390,1,"[""ldapssl_init_ret"", ""ldapssl_init_ret"", ""ldap_start_tls_s_arg""]","[null, ""ldapssl_init_arg_ret"", ""atoi_ret""]"
+391,1,"[""ldap_init_ret"", ""ldap_init_ret"", ""ldap_start_tls_s_arg""]","[null, ""HLP_MSG_ret"", ""ldap_init_arg_ret"", ""atoi_ret""]"
+392,1,"[""ldap_set_option_ret"", null]","[null, ""HLP_MSG_ret"", ""ldap_set_option_arg_ret""]"
+880,3,"[""ldap_set_option_arg_ret"", null]",[null]
+393,1,"[""ldap_start_tls_s_ret"", null]","[null, ""HLP_MSG_ret""]"
+394,1,"[""ldap_simple_bind_s_ret"", null]","[""ldap_err2string_ret"", null, null, ""HLP_MSG_ret""]"
+395,1,"[""char""]","[null, ""char""]"
+931,4,"[""fopen_ret"", ""fopen_ret""]","[null, null, ""fopen_arg_ret""]"
+932,4,"[""fgets_ret""]","[null, null, ""fopen_arg_ret""]"
+882,3,"[""xstrdup_ret""]","[null, null]"
+396,1,"[""NetServerGetInfo_ret"", null]","[null, null]"
+397,1,"[""NetGetDCName_ret"", null]","[null, null, ""debug_arg""]"
+398,1,"[""NetUserGetGroups_ret"", null]","[null, null]"
+399,1,"[""NetGetDCName_ret"", null]","[null, null, null]"
+828,2,"[""getopt_ret""]","[null, null, ""getopt_ret""]"
+829,2,"[""GetDomainName_ret"", ""GetDomainName_ret"", ""strtok_arg""]","[null, ""strrchr_ret""]"
+400,1,"[""strtok_ret"", ""strtok_ret"", ""strtok_arg""]","[null, ""unsigned int"", ""fopen_arg_ret""]"
+401,1,"[""strtok_ret"", ""strtok_ret"", null]","[null, ""unsigned int"", ""fopen_arg_ret""]"
+402,1,"[""getpwnam_ret"", ""getpwnam_ret"", null]","[null, ""getpwnam_arg_ret""]"
+403,1,"[""getgrnam_ret"", ""getgrnam_ret"", null]","[null, ""getgrnam_arg_ret""]"
+830,2,"[""xisprint_ret""]","[null, null]"
+831,2,"[null, ""int""]","[null, null, null]"
+404,1,"[""strchr_ret"", ""strchr_ret"", ""strtok_arg""]","[null, null, ""sizeof_arg""]"
+405,1,"[""strchr_ret"", ""strchr_ret"", ""strtok_arg""]","[null, null, ""strchr_arg""]"
+406,1,"[""strchr_ret"", ""strtok_arg""]","[null, null, ""fgets_arg""]"
+407,1,"[""strchr_ret"", ""strtok_arg""]","[null, null, ""strchr_arg""]"
+408,1,"["" db_env open_ret""]","[null, null, "" db open_arg""]"
+409,1,"["" db open_ret""]","[null, null, "" db open_arg""]"
+410,1,"["" db open_ret""]","[null, null, null]"
+411,1,"["" db get_arg_ret"", null, ""sizeof_arg""]","[null, null, ""char""]"
+412,1,"[""strtok_ret"", null]","[null, null]"
+933,4,"[""int""]","[""strtok_ret""]"
+413,1,"[""session_active_ret""]","[""strtok_ret""]"
+971,49,"[""getopt_ret""]",[null]
+414,1,[null],"[null, null, ""debug_arg"", ""debug_arg_ret"", ""int""]"
+415,1,[null],"[null, null, ""debug_arg"", ""debug_arg_ret"", ""unsigned int""]"
+416,1,"["" repl Stats_arg""]","["" repl Stats_arg"", "" repl Stats_arg"", null]"
+934,4,"[null, null]","[""StoreEntry""]"
+417,1,"["" pipeline front_ret"", null, null, null, null]","[""Must_arg""]"
+418,1,"["" Http StreamPointer"", null, null, null, null]","[""HttpReply""]"
+834,3,"["" pipeline front_ret"", null, null, null, null]","[""HttpReply""]"
+833,2,"["" pipeline front_ret"", null, null, null, null]",[]
+419,1,"[""checkDataConnPost_ret""]",[]
+420,1,"["" pipeline front_ret"", ""socketState_ret""]",[]
+421,1,"["" pipeline front_ret"", ""CommIoCbParams"", null]",[]
+422,1,"["" Ssl generateUntrustedCert_arg""]","["" s toUrl_ret"", null, null, null, null]"
+423,1,[null],"["" s toUrl_ret"", null, null, null, null]"
+424,1,"["" clientCA get_ret"", null]",[null]
+425,1,"["" secure createStaticServerContext_ret""]","["" s toUrl_ret"", null, null, null, null]"
+426,1,"[""clientHttpRequestStatus_ret""]",[]
+427,1,"[""socketState_ret"", null, null]",[]
+835,2,"[""socketState_ret"", null, null, null]",[]
+428,1,"["" http request range specs size_ret""]","[""SQUIDSTRINGPRINT_ret"", ""httpHeaderAddContRange_arg_ret"", null, null, null, null]"
+941,7,"[""getopt_ret""]","[null, ""getopt_ret""]"
+429,1,"[""strtoll_arg_ret""]",[null]
+430,1,"[""strtoll_arg_ret""]","[null, null, ""strtoll_ret""]"
+431,1,"[""mkdir_ret""]",[]
+432,1,"[""open_ret""]",[]
+836,2,"[""write_ret"", null]",[]
+433,1,"[""ftruncate_ret"", ""maxSize_ret""]",[]
+434,1,"["" DiskIOModule Find_ret"", null, "" DiskIOModule Find_ret""]",[]
+935,4,"[""GetInteger_ret""]",[]
+435,1,"[null, null]","[""StoreEntry"", null, null, null, null]"
+436,1,"[null, null]","[""StoreEntry"", null, null]"
+437,1,"[""static_cast_arg""]",[]
+438,1,"["" theFile error_ret""]","[""xstrerr_ret"", null]"
+439,1,"[null, ""entryLimitActual_ret""]","["" stats dump_arg"", "" map entryCount_ret"", "" map entryCount_ret"", ""entryLimitActual_ret""]"
+440,1,"[null, ""entryLimitActual_ret""]","["" stats dump_arg"", ""slotLimitActual_ret""]"
+441,1,"["" freeSlots size_ret"", null, ""static_cast_arg"", ""slotLimitActual_ret""]","["" stats dump_arg"", ""int"", ""int"", ""slotLimitActual_ret""]"
+442,1,"["" freeSlots size_ret"", null, ""static_cast_arg"", ""slotLimitActual_ret""]","[""StoreEntry"", null, null, null]"
+443,1,"["" freeSlots size_ret"", null, ""static_cast_arg"", ""slotLimitActual_ret""]","[""StoreEntry""]"
+444,1,"[""UsingSmp_ret"", ""IamDiskProcess_ret""]",[]
+445,1,"["" le anchored_ret""]","[""importEntry_arg""]"
+446,1,"[""importEntry_ret""]","[""finalizeOrFree_arg""]"
+447,1,"[""debugs_arg"", "" sd map writeableEntry_ret"", null, null]","[""finalizeOrFree_arg""]"
+448,1,"[""debugs_arg"", ""loadingEntry_ret"", null, ""debugs_arg""]","[""finalizeOrFree_arg""]"
+449,1,"[""sameEntry_ret""]","["" sd map fileNoByKey_ret""]"
+450,1,"[""verifyCacheDirs_ret""]","[""char""]"
+837,2,"[""fsStats_ret""]","["" Math intPercent_ret"", "" IO statfs_arg"", ""fsStats_arg_ret"", ""fsStats_arg_ret"", ""fsStats_arg_ret""]"
+451,1,"[""fsStats_ret""]","["" IO statfs_arg""]"
+838,3,"[null, null]","["" IO statfs_arg""]"
+452,1,"[""S_ISDIR_ret""]","[""debugs_arg_ret""]"
+453,1,"["" stat_ret""]","[""xstrerr_ret"", ""debugs_arg_ret""]"
+454,1,"[""file_open_ret""]",[]
+455,1,"[""xrename_ret""]","[""xrename_arg_ret"", ""xrename_arg_ret""]"
+839,2,"[""file_open_ret""]","[""debugs_arg_ret""]"
+456,1,"[""fopen_ret""]","[""debugs_arg_ret""]"
+457,1,"[""int"", ""int""]","[""setbuf_arg"", null]"
+840,2,"[null, ""int""]","[null, null]"
+458,1,"[""int""]","[""setbuf_arg"", null]"
+459,1,"[""select_ret""]",[]
+841,2,"[""rfc1035AnswersUnpack_ret""]","[""rfc1035AnswersUnpack_ret""]"
+460,1,"[""rfc1035AnswersUnpack_arg_ret"", ""rfc1035BuildAQuery_ret""]","[""rfc1035BuildAQuery_ret"", ""rfc1035AnswersUnpack_arg_ret""]"
+461,1,"[""rfc1035AnswersUnpack_arg_ret"", ""int"", null, null]","[""inet_ntop_ret"", ""rfc1035AnswersUnpack_arg_ret"", ""int"", null]"
+462,1,"[""rfc1035AnswersUnpack_arg_ret"", ""int"", null, null]","[""rfc1035AnswersUnpack_arg_ret"", ""int"", null, null]"
+463,1,"[""rfc1035AnswersUnpack_arg_ret"", ""int"", null, null]","[null, null, ""rfc1035AnswersUnpack_arg_ret"", ""int"", null]"
+464,1,"[""handledEarlyAdaptationAbort_ret""]",[]
+842,3,"["" entry isEmpty_ret""]",[]
+465,1,"[""master_ret"", null]",[]
+466,1,"["" fwd request header has_ret""]",[]
+467,1,"[""strcmp_arg""]",[]
+468,1,"[""xmalloc_ret""]","[""xstrerr_ret""]"
+469,1,"[""epoll_create_ret""]","[""xstrerr_ret""]"
+470,1,"["" newConnDetails isOpen_ret""]",[]
+471,1,"[""open_ret""]","[""xstrerr_ret""]"
+472,1,"[""kqueue_ret""]",[]
+473,1,"[null, "" Auth UserRequest tryToAuthenticateAndSetAuthUser_arg""]",[]
+474,1,"["" Auth UserRequest tryToAuthenticateAndSetAuthUser_ret"", null, null]",[]
+475,1,"["" keyExtrasLine size_ret""]","["" scheme type_ret"", "" keyExtrasLine termedBuf_ret"", ""StoreEntry"", ""char""]"
+844,2,"[""user_ret"", ""credentials_ret"", null, null]",[]
+476,1,"["" reply notes findFirst_ret"", null, "" reply notes findFirst_ret"", null]","["" reply other_ret"", ""content_ret""]"
+845,2,"["" Auth UserRequest Pointer"", ""assert_arg""]","[""HttpReply"", null, ""debugs_arg""]"
+477,1,"[""assert_arg_ret"", null]","[""HttpReply"", null, ""debugs_arg"", ""assert_arg_ret"", null]"
+478,1,"[""assert_arg_ret"", null]","[""HttpReply"", null, ""debugs_arg""]"
+479,1,"["" negotiate_request user_ret"", ""credentials_ret"", null, null]","[""HttpReply"", null, ""debugs_arg""]"
+480,1,"["" negotiate_request user_ret"", ""credentials_ret"", null, null]","[""HttpReply"", null, "" Http HdrType"", ""assert_arg_ret"", null]"
+481,1,"["" negotiate_request user_ret"", ""credentials_ret""]",[]
+846,2,"[""base64_decode_update_ret"", ""strlen_ret"", ""base64_decode_final_ret""]","[null, ""reinterpret_cast_arg_ret""]"
+847,2,"[""int""]","[null, ""strlen_arg""]"
+848,2,"[""memchr_ret""]","[null, ""strlen_arg""]"
+482,1,"[""token_decode_arg_ret"", ""FormatMessage_arg""]",[null]
+849,2,[null],"[""token_decode_arg_ret"", ""SEND3_arg""]"
+850,2,[null],"[""token_decode_arg_ret""]"
+483,1,"[""token_decode_arg_ret"", null]",[null]
+851,2,"[""memcmp_ret""]","[null, null]"
+484,1,"[""LoadSecurityDll_ret"", ""setbuf_arg""]","[""setbuf_arg"", null]"
+485,1,"[""krb5_get_error_message_arg"", ""krb5_get_error_message_arg"", null]","[""LogTime_ret"", null, null, ""debug_arg_ret"", ""debug_arg_ret""]"
+486,1,"[""gethostname_ret""]","[""LogTime_ret"", null, ""debug_arg"", ""getaddrinfo_arg""]"
+487,1,"[""getaddrinfo_ret"", ""getaddrinfo_arg_ret"", ""getnameinfo_arg""]","[""LogTime_ret"", ""gai_strerror_ret"", null, ""debug_arg""]"
+488,1,"[""getnameinfo_ret""]","[""LogTime_ret"", ""gai_strerror_ret"", null, null]"
+489,1,"[""int""]","[null, ""debug_arg_ret"", null]"
+490,1,"[""int""]","[""LogTime_ret"", null, null]"
+491,1,"[""xcalloc_ret""]","[""LogTime_ret"", ""strerror_ret"", null, ""debug_arg""]"
+492,1,"[""xmalloc_ret""]","[""LogTime_ret"", ""strerror_ret"", null, ""debug_arg""]"
+493,1,"[""xmalloc_ret"", null]","[""LogTime_ret"", ""strerror_ret"", null, null]"
+936,4,"[""xstrdup_arg""]",[null]
+494,1,"[null, ""strerror_arg""]","[null, ""strchr_arg_ret""]"
+495,1,"[null, ""strerror_arg""]","[""strerror_ret"", null, ""strchr_arg_ret""]"
+496,1,"[""S_ISREG_ret""]","[null, ""strchr_arg_ret""]"
+497,1,"[""access_ret""]","[null, ""strchr_arg_ret""]"
+498,1,"[null, ""strerror_arg""]","[null, ""stat_arg_ret""]"
+499,1,"[null, ""strerror_arg""]","[""strerror_ret"", null, ""stat_arg_ret""]"
+500,1,"[""S_ISDIR_ret""]","[null, ""stat_arg_ret""]"
+501,1,"[""access_ret""]","[null, ""access_arg_ret""]"
+502,1,"[""gethost_name_ret""]","[""LogTime_ret"", null, ""debug_arg""]"
+503,1,"[""gethost_name_ret""]",[null]
+852,2,"[""ferror_ret""]",[null]
+504,1,"[""fgets_ret"", ""gss_delete_sec_context_arg""]",[null]
+853,2,"[""strlen_arg""]",[null]
+854,2,"[""strncmp_ret"", ""strncmp_ret""]",[null]
+505,1,"[""base64_decode_update_ret"", ""base64_decode_final_ret""]",[null]
+506,1,"[""memcmp_ret"", ""gss_release_buffer_arg_ret"", ""long"", ""memcmp_arg""]","[null, null, null, ""debug_arg"", ""gss_release_buffer_arg_ret"", null, null]"
+855,2,"[""xmalloc_ret"", ""gss_display_name_arg""]",[null]
+507,1,"[""gss_accept_sec_context_ret"", null]","[null, ""reinterpret_cast_arg_ret""]"
+508,1,"[""gss_accept_sec_context_arg_ret"", ""long""]","[null, ""reinterpret_cast_arg_ret"", ""rfc1738_escape_ret"", ""debug_arg_ret"", ""debug_arg_ret""]"
+509,1,"[""gss_accept_sec_context_arg_ret"", ""long""]","[null, ""reinterpret_cast_arg_ret"", ""rfc1738_escape_ret""]"
+510,1,"[""check_gss_err_arg""]","[""LogTime_ret"", null, ""debug_arg"", ""debug_arg_ret""]"
+511,1,"[""gss_map_name_to_any_ret"", null]","[null, ""debug_arg_ret""]"
+512,1,"[""xmalloc_ret"", null]",[null]
+513,1,"[""gss_accept_sec_context_arg_ret"", ""long""]","[null, ""rfc1738_escape_ret"", ""debug_arg_ret"", ""debug_arg_ret""]"
+514,1,"[""gss_accept_sec_context_arg_ret"", ""long""]","[null, ""rfc1738_escape_ret""]"
+515,1,"[""int""]","[""LogTime_ret"", null, null, ""debug_arg_ret""]"
+856,3,"[""fgets_ret"", null]",[null]
+516,1,[null],"[""LogTime_ret"", ""ferror_ret"", ""strerror_ret"", ""ferror_ret"", null, null]"
+517,1,[null],"[""LogTime_ret"", null, null, ""strlen_arg"", ""xmalloc_arg""]"
+938,5,[null],"[""LogTime_ret"", null, null]"
+518,1,"[""memchr_ret""]",[null]
+519,1,[null],"[""LogTime_ret"", null, null, ""strncmp_arg""]"
+858,2,[null],"[""LogTime_ret"", null, null, ""strlen_arg""]"
+520,1,[null],"[""LogTime_ret"", null, null, ""reinterpret_cast_arg"", null, ""BASE64_DECODE_LENGTH_ret""]"
+521,1,"[""xmalloc_ret"", ""xmalloc_ret"", ""reinterpret_cast_arg""]","[""LogTime_ret"", null, null]"
+862,3,[null],"[""LogTime_ret"", null, null, null]"
+522,1,"[""base64_decode_update_ret"", ""strlen_ret"", ""base64_decode_final_ret""]",[null]
+523,1,[null],"[""LogTime_ret"", null, null, null, null, null, ""memcmp_arg_ret"", null]"
+859,2,"[""memcmp_ret"", null, ""BASE64_DECODE_LENGTH_ret"", ""memcmp_arg""]","[""FILE"", null]"
+860,2,"[""ferror_ret""]","[""ferror_ret"", ""strerror_ret"", ""ferror_ret"", null]"
+861,2,"[""fgets_ret"", null]","[""LogTime_ret"", null, null]"
+524,1,"[""fgets_ret"", null]","[null, null]"
+863,2,"[""xmalloc_ret"", ""xmalloc_ret"", ""sizeof_arg"", ""setbuf_arg""]","[""LogTime_ret"", null, null]"
+864,2,[null],"[null, ""memcpy_arg_ret"", ""int""]"
+939,4,"[""pipe_ret""]","[""LogTime_ret"", null, null]"
+865,2,"[""vfork_ret"", ""vfork_ret""]","[""LogTime_ret"", null, null]"
+866,2,"[""vfork_ret""]","[""LogTime_ret"", ""strerror_ret"", null, null, ""execv_arg_ret""]"
+525,1,"[""fdopen_ret"", ""fdopen_ret"", ""fdopen_ret"", ""fdopen_ret""]","[""LogTime_ret"", null, null]"
+526,1,[null],"[""SQUIDSBUFPRINT_ret"", ""HttpReply"", null, "" Http HdrType"", null]"
+867,2,"[""LoadSecurityDll_ret"", ""setbuf_arg""]","[""setbuf_arg""]"
+527,1,[null],"[""getpid_ret"", ""vfprintf_arg""]"
+528,1,"[""sscanf_ret""]",[]
+529,1,"[""rfc1738_unescape_arg"", ""rfc1738_unescape_arg""]",[]
+868,2,"[""validate_user_ret""]",[]
+530,1,"[""strtok_ret"", ""strtok_ret"", ""strtok_arg""]",[]
+531,1,"[""strtok_ret"", ""strtok_ret"", null]",[]
+532,1,"[""get_nis_password_ret""]",[]
+869,3,"[""crypt_ret"", ""strcmp_ret"", ""crypt_ret""]",[]
+533,1,"[""ldap_initialize_ret"", null]","[null, ""ldap_initialize_arg_ret""]"
+534,1,"[""ldapssl_init_ret"", ""ldapssl_init_ret"", ""ldap_start_tls_s_arg""]","[null, ""ldapssl_init_arg_ret"", ""ldap_init_arg""]"
+535,1,"[""ldap_init_ret"", ""ldap_init_ret"", ""ldap_start_tls_s_arg""]","[null, ""ldap_init_arg_ret"", ""int""]"
+879,3,"[""ldap_set_option_ret"", null]","[null, ""ldap_set_option_arg_ret""]"
+870,2,"[""ldap_start_tls_s_ret"", null]",[null]
+536,1,"[""strtok_ret""]",[]
+537,1,"[""strtok_ret"", ""strtok_ret""]","[""strtok_ret""]"
+538,1,"[""validUsername_ret""]","[""validUsername_arg_ret"", ""rfc1738_unescape_arg_ret""]"
+539,1,"[""checkLDAP_ret""]","[""ldap_err2string_ret"", ""squid_ldap_errno_ret""]"
+540,1,"[""checkLDAP_ret""]",[]
+881,3,"[""ldap_simple_bind_s_ret"", null]","[""ldap_err2string_ret"", null, null]"
+942,5,"[null, ""ldap_search_s_ret"", null]","[""ldap_err2string_ret"", null, null]"
+878,3,"[null, ""ldap_search_s_ret"", null, ""ldap_search_s_ret"", null]","[""ldapssl_err2string_ret"", null, null, ""PORT_GetError_ret""]"
+541,1,"[""ldap_get_dn_ret""]","[null, null, ""ldap_escape_value_arg_ret""]"
+542,1,"[""calloc_ret""]","[null, null]"
+543,1,"[""sasl_server_init_ret"", null]","[""sasl_errstring_ret"", null, ""sasl_server_init_ret""]"
+544,1,"[""sasl_server_new_ret"", null]","[""sasl_errstring_ret"", null, ""sasl_server_new_ret""]"
+545,1,"[""xstrerr_arg"", null, ""xstrerr_arg"", null]","[""xstrerr_ret"", null]"
+546,1,"[""xstrerr_arg"", null, ""xstrerr_arg"", null]","[null, null]"
+547,1,"[""rad_auth_config_ret""]","[null, ""getopt_arg_ret"", ""rad_auth_config_arg_ret""]"
+548,1,"[""get_ipaddr_arg""]","[null, ""getopt_arg_ret""]"
+549,1,[null],"[null, ""getopt_arg_ret""]"
+550,1,"[""get_ipaddr_ret"", ""get_ipaddr_ret""]","[null, ""getopt_arg_ret"", null]"
+551,1,"[""fcntl_ret"", ""fcntl_ret""]","[""xstrerr_ret"", null, ""getopt_arg_ret""]"
+552,1,"[""fopen_ret""]","[""xstrerr_ret"", null, ""fopen_arg_ret""]"
+553,1,"[""strtok_ret"", ""strtok_arg""]","[null, ""fopen_arg_ret"", ""unsigned int""]"
+554,1,"[""stat_ret""]","[null, ""char""]"
+555,1,"[""int"", null]","[null, ""FILE""]"
+556,1,"[""int""]","[null, ""FILE""]"
+557,1,"["" ntlm_request user_ret"", ""credentials_ret"", null, null, null, null, null, null]","[""HttpReply"", null, ""debugs_arg""]"
+558,1,"["" ntlm_request user_ret"", ""credentials_ret"", null, null]","[""HttpReply"", null, "" Http HdrType"", ""assert_arg_ret"", null]"
+559,1,"["" ntlm_request user_ret"", ""credentials_ret""]",[]
+560,1,"[""ntlm_validate_packet_arg_ret"", null, null, null, null]","[null, null, null]"
+561,1,[null],"[""SEND3_arg"", ""base64_encode_update_ret"", ""base64_encode_final_arg_ret""]"
+871,2,"[""memcmp_ret""]","[null, ""memcpy_arg_ret"", ""debug_arg_ret""]"
+562,1,"[""strchr_ret"", ""strchr_ret"", null, ""strchr_ret"", null, ""strchr_ret""]","[null, ""strchr_arg_ret""]"
+563,1,"[""strchr_ret"", ""strchr_ret"", null, null]","[null, ""free_arg_ret""]"
+564,1,"[""xmalloc_ret""]",[null]
+565,1,"[""fgets_ret"", null]","[""strerror_ret"", null, ""strerror_arg""]"
+566,1,[null],"[""getpid_ret"", null, null]"
+567,1,"[""RFCNB_Get_Last_Error_ret""]","[""abs_ret"", null, ""RFCNB_Get_Last_Error_ret"", null]"
+568,1,"["" Auth Config Find_ret"", ""authDigestNonceLastRequest_ret"", null, null, null, null]","[""authenticateDigestNonceNonceb64_ret"", ""HttpReply"", null, "" Http HdrType""]"
+872,2,"[""ldap_search_s_ret"", null]","[""ldap_err2string_ret"", null, null]"
+873,2,"[""GetProcAddress_ret"", ""GetProcAddress_ret"", null, ""ldapssl_client_init_arg""]","[null, null]"
+874,2,"[""ldap_initialize_ret"", null]","[null, ""ldapssl_init_arg""]"
+875,2,"[""ldapssl_init_ret"", ""ldapssl_init_ret"", ""ldap_start_tls_s_arg""]","[null, ""ldap_init_arg"", ""ldap_init_arg""]"
+876,2,"[""ldap_init_ret"", ""ldap_init_ret"", ""ldap_start_tls_s_arg""]","[null, null, null]"
+569,1,"[""ldap_start_tls_s_ret"", ""ldap_set_option_arg_ret"", null, null]",[null]
+877,2,"[null, null, null, null, null, null, null, null]","[null, null]"
+969,24,"[null, null, null, null, null, null, null, null]",[null]
+943,6,"[""GetHHA1_arg_ret"", null]","[""GetHHA1_arg_ret"", null]"
+883,3,"[""ParseBuffer_arg_ret"", null]","[""ParseBuffer_arg_ret"", null]"
+962,10,"[null, null, null, null]","[null, null]"
+970,24,"[null, null, null, null]",[null]
+570,1,"[""strtok_arg"", ""hash_create_ret""]",[null]
+571,1,"[""fopen_ret""]","[""xstrerr_ret"", null]"
+572,1,"[""strtok_ret""]","[null, ""unsigned int"", ""fopen_arg_ret""]"
+573,1,"[""strlen_ret"", ""strlen_arg_ret""]","[null, ""strlen_arg_ret""]"
+884,2,"[""stat_arg""]",[null]
+574,1,"[""stat_ret""]","[null, null]"
+887,3,"[null, null, null]","[""Logfile"", "" Format QuoteMimeBlob_ret"", "" Format QuoteMimeBlob_ret""]"
+575,1,"[""Logfile"", null, null]","[""Logfile"", ""xstrdup_arg_ret""]"
+576,1,"[""Logfile"", null, null]",[]
+577,1,"[""Logfile"", null, null]","[""xstrerr_ret"", ""Logfile"", ""xstrdup_arg_ret""]"
+578,1,"[null, ""xstrerr_arg"", ""int""]","[""xstrdup_arg_ret""]"
+579,1,"[null, ""xstrerr_arg"", ""int""]","[""xstrdup_arg_ret"", null, null]"
+885,2,"[""FD_WRITE_METHOD_ret""]",[]
+580,1,"[""xcalloc_ret"", null]",[]
+581,1,"[""commSetNonBlocking_ret""]","[""logfileHandleWrite_arg_ret"", null]"
+582,1,"["" Log Format SquidCustom_arg"", null]","["" Log Format SquidCustom_arg_ret"", null]"
+583,1,"[""comm_open_ret""]",[]
+584,1,"[""strlen_ret""]",[]
+585,1,"[""int""]","[""strncmp_arg_ret""]"
+586,1,"[null, ""l_stdio_t"", null, ""logfileFlush_arg_ret"", null, null]","[""xstrerr_ret"", ""logfileFlush_arg_ret"", null]"
+886,2,"[null, ""xstrerr_arg"", ""int""]","[""file_open_arg_ret""]"
+587,1,"[null, ""xstrerr_arg"", ""int""]","[""file_open_arg_ret"", null, null]"
+588,1,"[""StillLogging_arg_ret"", null, null]","[""StillLogging_arg_ret"", ""xstrdup_arg_ret""]"
+888,2,"[""remove_ret""]","[""xstrerr_ret"", null, ""rename_arg""]"
+589,1,"[""rename_ret"", null, null]","[""xstrerr_ret"", null, null, ""snprintf_arg""]"
+590,1,"[""rename_ret"", null, null]","[""xstrerr_ret"", null, ""rename_arg_ret"", null]"
+591,1,"[""atoi_arg""]","[""fopen_ret"", ""atoi_arg""]"
+592,1,"[""ferror_ret"", null, ""ferror_ret"", null]","[""xstrerr_ret"", null, null]"
+593,1,"[""ferror_ret"", null, ""ferror_ret"", null]","[""fopen_ret"", ""atoi_arg""]"
+594,1,"[""atoi_arg""]","[""fflush_arg_ret"", null]"
+889,2,"[""pthread_mutex_init_ret""]",[]
+890,2,"[""pthread_cond_init_ret""]",[]
+595,1,"[""pthread_create_ret""]",[null]
+596,1,"[""DuplicateHandle_ret"", ""GetCurrentProcess_ret"", ""GetCurrentThread_ret"", ""GetCurrentProcess_ret""]",[]
+891,2,"[""CreateMutex_ret"", null, null, ""CreateEvent_arg""]",[]
+597,1,"[""CreateEvent_ret"", null, null, ""CreateMutex_arg""]",[]
+598,1,"[""CreateEvent_ret"", null, null, ""CreateThread_arg""]",[]
+599,1,"[""CreateThread_ret"", "" squidaio_thread_pool alloc_ret"", null, null]",[null]
+600,1,"[""WaitForSingleObject_ret"", null]",[]
+601,1,"[""DuplicateHandle_ret"", ""GetCurrentProcess_ret"", ""GetCurrentProcess_ret""]",[]
+892,2,"[""ReleaseMutex_ret""]",[]
+893,2,"[""SetEvent_ret""]",[]
+602,1,"[""open_ret""]","[null, null, null, ""open_arg_ret""]"
+603,1,"[""open_ret""]","[null, null, null, ""hash_join_arg_ret"", null, ""hash_join_arg_ret"", ""open_ret"", ""hash_join_arg_ret""]"
+895,3,"[null, ""hash_lookup_ret""]","[null, null, null, ""diomsg"", null]"
+604,1,"[null, ""hash_lookup_ret""]","[null, null, null, ""diomsg"", null, ""hash_remove_link_arg_ret"", ""close_arg"", ""hash_remove_link_arg_ret""]"
+605,1,"[""diomsg"", null, ""diomsg"", null, ""hash_lookup_ret"", null]","[null, null, null, ""diomsg"", null]"
+894,2,"[""lseek_ret""]","[null, null, null, null, ""hash_lookup_ret"", null, null, ""diomsg"", null]"
+606,1,"[""lseek_ret""]","[null, null, null, null, ""hash_lookup_ret"", null, ""int"", null, ""diomsg"", null, ""read_ret""]"
+607,1,"[""read_ret""]","[null, null, null, ""hash_lookup_ret"", null]"
+608,1,"[""lseek_ret""]","[null, null, null, null, ""hash_lookup_ret"", null, ""write_arg"", null, ""diomsg"", null]"
+609,1,"[""write_ret""]","[null, null, null, ""hash_lookup_ret"", null]"
+610,1,"[""unlink_ret""]","[null, null, null, ""diomsg"", null, ""unlink_arg_ret""]"
+611,1,"[""unlink_ret""]","[null, null, null, ""unlink_arg_ret""]"
+612,1,"[""do_open_arg"", null, null]","[null, null, null, ""diomsg"", null]"
+896,2,"[""msgget_ret""]",[]
+613,1,"[""ipcCreate_ret""]","[null, null, null]"
+614,1,"[""shmget_ret""]",[]
+615,1,"[""shmat_ret"", null]",[]
+897,2,"["" strategy findSlot_ret""]",[]
+616,1,"[""aio_read_ret""]","[""xstrerr_arg""]"
+617,1,"[""aio_write_ret""]","[""xstrerr_arg""]"
+618,1,"["" elements size_ret""]",[]
+619,1,"["" input getRaw_ret""]",[]
+620,1,"[""process_ret"", null, ""size_t"", null, null, null, null]",[]
+621,1,"["" srccontent getRaw_ret""]",[]
+622,1,"["" ESIStreamContext Pointer"", null]",[]
+623,1,"[null, null]","[""char""]"
+624,1,"[""char""]","[""StoreEntry"", ""char"", ""Format"", null]"
+625,1,"[""Token"", null, null]","[""StoreEntry"", ""Token"", null, null]"
+898,2,"[""Token"", null]","[""StoreEntry"", ""Token"", null]"
+626,1,"[""char""]","[""StoreEntry"", ""char""]"
+627,1,"[""Token"", null, null]","[""StoreEntry"", ""Token"", null]"
+628,1,"[null, null]","[""StoreEntry"", null, null, ""int""]"
+629,1,"[null, null]","[""StoreEntry"", null, null, ""int"", null, ""double""]"
+630,1,"[""aggregate_ret""]",[]
+631,1,"[""ftruncate_arg""]","["" theName termedBuf_ret"", ""xstrerr_ret""]"
+632,1,"[""ftruncate_ret""]","["" theName termedBuf_ret"", ""xstrerr_ret""]"
+633,1,"[""shm_open_ret""]","["" theName termedBuf_ret"", ""xstrerr_ret""]"
+634,1,"[""mmap_ret"", null]","["" theName termedBuf_ret"", ""xstrerr_ret""]"
+635,1,"[""munmap_ret""]","["" theName termedBuf_ret"", ""xstrerr_ret""]"
+636,1,"[""mlock_ret""]","["" theName termedBuf_ret"", ""xstrerr_ret"", null, null, ""debugs_arg""]"
+637,1,"[""fstat_ret""]","["" theName termedBuf_ret"", ""xstrerr_ret"", ""debugs_arg_ret""]"
+638,1,"["" Segments insert_ret""]","["" theName termedBuf_ret""]"
+639,1,"["" Segments end_ret"", "" Segments find_ret""]","["" theName termedBuf_ret""]"
+640,1,"[""Enabled_ret""]","[""debugs_arg_ret""]"
+899,2,"[""UsingSmp_ret""]","[""Must_arg_ret"", null]"
+641,1,"[""atomic_ret"", ""UsingSmp_ret""]","[""handler_arg_ret"", null]"
+642,1,"[""UsingSmp_ret""]","[""DumpMallocStatistics_arg_ret"", null]"
+643,1,"[""prepareSocket_ret"", ""initialize_ret""]",[]
+644,1,"["" certs empty_ret"", "" certs back_ret"", "" certFile isEmpty_ret""]",[]
+900,2,"["" flags tlsDefaultCa configured_ret"", null, null]","[""strncmp_arg_ret""]"
+645,1,"[""SSL_CTX_new_ret""]","["" Security ErrorString_ret""]"
+646,1,"[""gnutls_certificate_allocate_credentials_ret"", null, ""gnutls_certificate_allocate_credentials_ret""]","["" Security ErrorString_ret""]"
+647,1,"["" tok skipAll_ret"", "" tok atEnd_ret""]","[""SQUIDSBUFPRINT_ret"", "" tok remaining_ret"", null]"
+648,1,"[""gnutls_priority_init_ret"", null]","[""gnutls_priority_init_arg_ret""]"
+649,1,"[""long""]","[""SQUIDSBUFPRINT_ret"", "" tok remaining_ret"", null]"
+650,1,"["" flags tlsDefaultCa configured_ret"", null, null]",[]
+651,1,"[""LruNode""]","[""double_ret"", ""double_ret"", ""StoreEntry""]"
+652,1,"[null, ""strchr_arg_ret""]","[null, null, ""strchr_ret""]"
+653,1,[null],"[null, null, ""strchr_ret""]"
+654,1,"[""squid_rn_insert_arg_ret""]",[null]
+655,1,"[""squid_MKGet_arg_ret""]",[null]
+656,1,"[""squid_rn_insert_ret"", null, null]",[null]
+657,1,"[""squid_MKFree_arg"", null, ""squid_rn_search_ret"", ""squid_MKFree_arg"", null]",[null]
+658,1,"[""squid_MKFree_arg"", null, ""squid_rn_search_ret"", null]",[null]
+659,1,"[""squid_MKFree_arg_ret""]",[null]
+660,1,"["" struct squid_radix_node""]",[null]
+661,1,"[""squid_MKFree_arg_ret""]","[null, null, ""squid_MKFree_arg_ret"", null, ""squid_rn_addmask_ret""]"
+662,1,"[""squid_R_Malloc_arg""]",[null]
+663,1,"[""memset_arg"", null]",[null]
+664,1,"[""squid_rn_inithead_ret""]",[null]
+901,3,"[""hash_create_ret"", ""hash_create_ret""]",[]
+665,1,"[""hash_create_ret"", ""hash_create_ret""]","[""hash_create_ret""]"
+666,1,"[""hash_create_ret"", ""hash_create_ret""]","[""xstrdup_arg"", ""xstrdup_arg"", ""hash_create_ret""]"
+667,1,"[""hash_create_ret"", ""hash_create_ret""]","[""int"", ""hash_next_ret"", null, ""hash_next_ret"", null]"
+668,1,"[""hash_delete_arg""]","[""hash_delete_arg"", ""hash_next_arg_ret""]"
+945,4,"[""hash_delete_ret""]",[]
+669,1,"[""hash_delete_ret""]","[""int"", ""hash_next_ret"", null, ""hash_next_ret"", null]"
+670,1,"[""PAUTH_SEQ"", null]","[null, ""_AcquireCredentialsHandle_ret""]"
+671,1,"[""_AcquireCredentialsHandle_ret""]","[null, ""_AcquireCredentialsHandle_ret""]"
+672,1,"[""_AcquireCredentialsHandle_ret""]","[null, ""_AcceptSecurityContext_ret""]"
+673,1,"[""_AcceptSecurityContext_ret""]","[null, ""_AcceptSecurityContext_ret""]"
+674,1,"[""_AcceptSecurityContext_ret"", null, ""_AcceptSecurityContext_ret"", null]","[null, ""_CompleteAuthToken_ret""]"
+675,1,"[""_CompleteAuthToken_ret""]","[null, ""_CompleteAuthToken_ret""]"
+676,1,"[""strncpy_arg"", null, ""_CompleteAuthToken_ret"", null, ""_CompleteAuthToken_ret"", null]","[null, ""_QueryContextAttributes_ret""]"
+677,1,"[""_QueryContextAttributes_ret""]","[null, ""_QueryContextAttributes_ret""]"
+678,1,"[""memcmp_ret""]",[null]
+679,1,"[""le16toh_ret"", ""le16toh_ret""]","[null, ""le16toh_ret""]"
+680,1,"[""xisprint_ret"", ""xisprint_arg_ret""]","[null, ""xisprint_arg_ret""]"
+681,1,"[""ntlm_validate_packet_ret""]",[null]
+682,1,"[""memcpy_arg_ret"", null, null]","[""memcpy_arg_ret"", null]"
+683,1,"[""memcpy_arg_ret"", null, null, null, ""memcpy_arg_ret"", null]","[""memcpy_arg_ret"", null]"
+902,2,"[""memcpy_arg_ret"", null, null, null, ""memcpy_arg_ret"", null]","[null, null, ""xfree_arg_ret""]"
+684,1,"[""memcpy_arg_ret"", null, null, null, ""memcpy_arg_ret"", null]","[null, null, ""xfree_arg_ret"", null]"
+685,1,"[null, ""snmp_var_new_ret"", null, null]","[""snmp_var_new_ret"", null, null, ""asn_parse_int_arg_ret""]"
+686,1,"[null, ""snmp_var_new_ret"", null, null, null, null]","[""snmp_var_new_ret"", null, null, ""asn_parse_unsigned_int_arg_ret""]"
+687,1,"[null, ""snmp_var_new_ret"", null, null, null, null]","[""snmp_var_new_ret"", null, null, ""snmp_var_new_ret"", null, ""asn_parse_string_arg_ret""]"
+688,1,"[null, ""snmp_var_new_ret"", null, null]","[""snmp_var_new_ret"", null, ""asn_parse_objid_arg_ret""]"
+689,1,"[null, ""snmp_var_new_ret"", null, null]",[]
+690,1,"[""get_token_ret"", ""get_token_ret"", null]","[""get_token_arg"", ""get_token_ret""]"
+691,1,"[""get_token_ret"", null, ""get_token_ret"", null]","[""strlen_arg"", ""get_token_ret""]"
+692,1,"[""get_token_ret"", ""get_token_ret"", null]","[""atoi_arg"", ""get_token_ret""]"
+903,2,"[""get_token_ret"", null]","[""atoi_arg"", ""get_token_ret""]"
+946,4,"[""get_token_ret"", null]","[null, ""get_token_ret""]"
+693,1,"["" struct subid"", null]","[""memset_arg_ret"", null, ""get_token_ret""]"
+694,1,"[""int"", ""getoid_ret""]","[null, null, ""get_token_ret""]"
+904,2,"[""getoid_ret"", ""getoid_ret""]","[null, null, ""get_token_ret""]"
+947,6,"[""get_token_ret"", null]","[""get_token_arg"", ""get_token_ret""]"
+905,2,"[""get_token_ret"", null]","[""strcpy_arg"", ""get_token_ret""]"
+695,1,"[""get_token_ret""]","[""get_token_arg"", ""get_token_ret""]"
+696,1,"[""get_token_ret"", null, ""get_token_ret"", null, ""get_token_ret"", null, ""get_token_ret"", null]","[null, ""get_token_ret""]"
+697,1,"[""get_token_ret"", null, ""get_token_ret"", null, ""get_token_ret"", null, ""get_token_ret"", null]","[""get_token_arg"", ""get_token_ret""]"
+698,1,"[""get_token_ret"", null, ""get_token_ret"", null, ""get_token_ret"", null]","[""get_token_arg"", ""get_token_ret""]"
+699,1,"[""get_token_ret"", null, ""get_token_ret"", null]","[""get_token_arg"", ""get_token_ret""]"
+700,1,"[null, ""getoid_ret"", null]","[""free_node_arg_ret"", ""xfree_arg"", ""get_token_ret""]"
+701,1,"[""get_token_ret"", null]","[""strncpy_arg"", ""get_token_ret""]"
+702,1,"[""parse_objecttype_ret"", null]","[null, null, ""get_token_ret""]"
+703,1,"[""parse_objecttype_ret"", null, null]","[null, null, ""get_token_ret""]"
+704,1,"[""parse_objectid_ret"", null]","[null, null, ""get_token_ret""]"
+705,1,"[""parse_objectid_ret"", null, null]","[null, null, ""get_token_ret""]"
+706,1,"[""get_token_ret"", null]","[null, null, ""parse_asntype_ret""]"
+707,1,"[""get_token_ret"", null]","[""parse_objectid_ret"", null, ""parse_objectid_ret"", null, ""parse_objectid_ret"", null, ""parse_objectid_ret"", ""parse_asntype_ret""]"
+708,1,"[""parse_objectid_ret"", null]",[]
+709,1,"[""parse_objectid_ret"", null]","["" struct enum_list"", null, "" struct enum_list"", null]"
+906,2,"[""int""]","[""FILE"", null]"
+710,1,"[""int""]","[""FILE""]"
+711,1,"[""RFCNB_Pkt_Type_ret"", null]","[""RFCNB_Pkt_Len_ret"", ""RFCNB_Print_Hex_arg""]"
+907,3,"[""RFCNB_Pkt_Type_ret"", null]","[""RFCNB_Pkt_Len_ret"", ""Prot_Print_Routine_arg_ret""]"
+712,1,"[""RFCNB_Pkt_Type_ret"", null]","[""Prot_Print_Routine_arg_ret"", ""RFCNB_NBName_To_AName_arg""]"
+713,1,"[""RFCNB_Pkt_Type_ret"", null]","[""Prot_Print_Routine_arg_ret"", null]"
+714,1,"[""RFCNB_Pkt_Len_ret""]","[""Prot_Print_Routine_arg_ret""]"
+715,1,"[""RFCNB_Pkt_Len_ret""]","[""CVAL_ret"", ""Prot_Print_Routine_arg_ret""]"
+908,2,"[""RFCNB_Pkt_Len_ret""]","[""RFCNB_Pkt_Len_ret"", ""Prot_Print_Routine_arg_ret""]"
+716,1,"[""RFCNB_Get_Pkt_ret"", ""RFCNB_Get_Pkt_ret""]",[null]
+717,1,"[""int"", null]","[""RFCNB_Print_Pkt_arg""]"
+718,1,"[""read_ret"", ""read_ret""]","[""RFCNB_Print_Pkt_arg""]"
+719,1,"[""read_ret""]","[""RFCNB_Print_Pkt_arg""]"
+720,1,"[""RFCNB_Pkt_Type_ret"", null]","[""RFCNB_Print_Pkt_arg""]"
+721,1,"[""RFCNB_Pkt_Type_ret"", null]","[""RFCNB_Print_Pkt_arg"", ""RFCNB_Pkt_Len_ret""]"
+722,1,"[""RFCNB_Pkt_Type_ret"", null]","[""RFCNB_Print_Pkt_arg"", ""int"", ""read_ret"", ""int"", ""int""]"
+723,1,"[""RFCNB_Pkt_Type_ret"", null]","[""RFCNB_Print_Pkt_arg"", ""RFCNB_Pkt_Len_ret"", ""read_ret""]"
+948,4,"[""RFCNB_Send_ret""]",[null]
+949,4,"[""RFCNB_Recv_ret""]",[null]
+950,4,"[""CVAL_ret"", ""SMB_Hdr_ret"", null]","[""CVAL_ret"", ""SMB_Hdr_ret"", ""SVAL_ret"", ""SMB_Hdr_ret"", null]"
+724,1,"[""CVAL_ret"", ""SMB_Hdr_ret"", null]","[""SVAL_ret"", ""SMB_Hdr_ret"", null]"
+725,1,"[""SVAL_ret"", ""SMB_Hdr_ret""]",[null]
+726,1,"[""CVAL_ret"", ""SMB_Hdr_ret""]",[null]
+727,1,"[""CVAL_ret"", ""SMB_Hdr_ret""]","[""CVAL_ret"", ""SMB_Hdr_ret"", null]"
+728,1,"[""CVAL_ret"", ""SMB_Hdr_ret""]","[null, ""SVAL_ret"", null, ""SVAL_ret""]"
+729,1,"[""gethostname_ret""]",[null]
+730,1,"[""strlen_arg"", null, ""strlen_arg"", null, ""strlen_arg"", null]",[null]
+731,1,"[""CVAL_ret"", ""SMB_Hdr_ret"", null]","[null, ""malloc_ret"", null, ""malloc_ret"", null]"
+732,1,"[""CVAL_ret"", ""SMB_Hdr_ret"", null]",[null]
+733,1,"[""char"", ""char""]","[null, ""char""]"
+734,1,"[""int"", ""int"", null]","[null, null, ""int""]"
+735,1,"[""int"", ""int"", null]",[null]
+736,1,"[""unsigned""]",[]
+961,11,"[null, ""printchar_arg"", null]",[]
+737,1,"[null, ""printchar_arg"", null]","[""extract_number_and_incr_arg""]"
+909,2,"[null, ""printchar_arg"", null]","[""extract_number_and_incr_arg"", ""printchar_arg_ret""]"
+738,1,"[null, ""printchar_arg"", null]","[""printchar_arg_ret""]"
+739,1,"[null, ""printchar_arg"", null, null]","[null, ""printchar_arg_ret"", null]"
+740,1,"[null, ""printchar_arg"", null, null, null]",[]
+951,7,"[null, ""printchar_arg"", null]","[""extract_number_and_incr_arg_ret""]"
+910,3,"[null, ""printchar_arg"", null]","[""extract_number_and_incr_arg_ret"", ""extract_number_and_incr_arg_ret""]"
+741,1,"[null, ""printchar_arg"", null, null]",[]
+742,1,"[null, ""printchar_arg""]","[""extract_number_and_incr_arg_ret""]"
+743,1,"[null, ""printchar_arg""]",[]
+744,1,"[null, null, null, null]",[]
+745,1,"[""FIRST_STRING_P_arg"", null]",[]

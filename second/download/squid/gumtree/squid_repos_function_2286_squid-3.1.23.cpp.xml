@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/squid/gumtree/squid_repos_function_2286_squid-3.1.23.cpp" pos:tabs="8"><function><type><name pos:line="1" pos:column="1">void<pos:position pos:line="1" pos:column="5"/></name></type>
+<name pos:line="2" pos:column="1">redirectShutdown<pos:position pos:line="2" pos:column="17"/></name><parameter_list pos:line="2" pos:column="17">(<parameter><decl><type><name pos:line="2" pos:column="18">void<pos:position pos:line="2" pos:column="22"/></name></type></decl></parameter>)<pos:position pos:line="2" pos:column="23"/></parameter_list>
+<block pos:line="3" pos:column="1">{
+    <if pos:line="4" pos:column="5">if <condition pos:line="4" pos:column="8">(<expr><operator pos:line="4" pos:column="9">!<pos:position pos:line="4" pos:column="10"/></operator><name pos:line="4" pos:column="10">redirectors<pos:position pos:line="4" pos:column="21"/></name></expr>)<pos:position pos:line="4" pos:column="22"/></condition><then pos:line="4" pos:column="22">
+        <block type="pseudo"><return pos:line="5" pos:column="9">return;<pos:position pos:line="5" pos:column="16"/></return></block></then></if>
+
+    <expr_stmt><expr><call><name pos:line="7" pos:column="5">helperShutdown<pos:position pos:line="7" pos:column="19"/></name><argument_list pos:line="7" pos:column="19">(<argument><expr><name pos:line="7" pos:column="20">redirectors<pos:position pos:line="7" pos:column="31"/></name></expr></argument>)<pos:position pos:line="7" pos:column="32"/></argument_list></call></expr>;<pos:position pos:line="7" pos:column="33"/></expr_stmt>
+
+    <if pos:line="9" pos:column="5">if <condition pos:line="9" pos:column="8">(<expr><operator pos:line="9" pos:column="9">!<pos:position pos:line="9" pos:column="10"/></operator><name pos:line="9" pos:column="10">shutting_down<pos:position pos:line="9" pos:column="23"/></name></expr>)<pos:position pos:line="9" pos:column="24"/></condition><then pos:line="9" pos:column="24">
+        <block type="pseudo"><return pos:line="10" pos:column="9">return;<pos:position pos:line="10" pos:column="16"/></return></block></then></if>
+
+    <expr_stmt><expr><call><name pos:line="12" pos:column="5">helperFree<pos:position pos:line="12" pos:column="15"/></name><argument_list pos:line="12" pos:column="15">(<argument><expr><name pos:line="12" pos:column="16">redirectors<pos:position pos:line="12" pos:column="27"/></name></expr></argument>)<pos:position pos:line="12" pos:column="28"/></argument_list></call></expr>;<pos:position pos:line="12" pos:column="29"/></expr_stmt>
+
+    <expr_stmt><expr><name pos:line="14" pos:column="5">redirectors<pos:position pos:line="14" pos:column="16"/></name> <operator pos:line="14" pos:column="17">=<pos:position pos:line="14" pos:column="18"/></operator> <name pos:line="14" pos:column="19">NULL<pos:position pos:line="14" pos:column="23"/></name></expr>;<pos:position pos:line="14" pos:column="24"/></expr_stmt>
+}<pos:position pos:line="15" pos:column="2"/></block></function></unit>

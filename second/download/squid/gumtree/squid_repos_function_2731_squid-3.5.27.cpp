@@ -1,0 +1,1 @@
+bool waitingForConnectResponse() const { return connectRespBuf; }

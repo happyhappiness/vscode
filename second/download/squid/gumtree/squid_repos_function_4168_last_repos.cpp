@@ -1,0 +1,1 @@
+bool operator()(TypeName a, TypeName b) const { return strcmp(a, b) < 0; }

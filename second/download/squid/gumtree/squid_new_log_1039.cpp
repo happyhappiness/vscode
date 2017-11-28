@@ -1,0 +1,1 @@
+storeAppendPrintf(&e, "Maximum entries: %9d\n", entryLimit);

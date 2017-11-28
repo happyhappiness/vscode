@@ -1,0 +1,1 @@
+static int SectionLevel() { return Current ? Current->sectionLevel : 1; }

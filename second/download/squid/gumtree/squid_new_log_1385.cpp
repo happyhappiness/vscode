@@ -1,0 +1,1 @@
+mb.appendf("%-*.*s", minWidth, maxWidth, out);

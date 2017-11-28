@@ -1,0 +1,1 @@
+hdr->putStr(HDR_MIME_VERSION, "1.0");

@@ -1,0 +1,1 @@
+fatal("peerDigestSwapInHeaders() - shouldn't get here!\n");

@@ -1,0 +1,1 @@
+fatalf("Unknown SSL option '%s'", option);

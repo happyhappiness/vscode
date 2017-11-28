@@ -1,0 +1,1 @@
+mb->appendf("\t%s\n", storeEntryFlags(e));

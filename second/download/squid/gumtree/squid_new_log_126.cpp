@@ -1,0 +1,1 @@
+storeAppendPrintf(entry, "%s %d", name, cfg.service_failure_limit);

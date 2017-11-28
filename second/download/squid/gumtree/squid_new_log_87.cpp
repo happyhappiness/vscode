@@ -1,0 +1,1 @@
+fatalf("'endif' without 'if'\n");

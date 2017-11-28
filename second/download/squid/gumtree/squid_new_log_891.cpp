@@ -1,0 +1,1 @@
+fprintf(stderr, "Sending HTTP request ... ");

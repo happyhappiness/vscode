@@ -1,0 +1,1 @@
+fprintf(stderr, "Connecting... %s(%s)\n", hostname, iaddr.toStr(ipbuf, MAX_IPSTRLEN));

@@ -1,0 +1,1 @@
+bool timedOut(time_t timeout) {return (squid_curtime - dispatch_time.tv_sec) > timeout;}

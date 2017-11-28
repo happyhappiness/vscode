@@ -1,0 +1,1 @@
+void resetSslCommonName(const char *name) {sslCommonName_ = name;}

@@ -1,0 +1,1 @@
+const char *text() { return textBuf.content(); }

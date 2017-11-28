@@ -1,0 +1,1 @@
+entry->append(i->rawContent(), i->length());

@@ -1,0 +1,1 @@
+fprintf(stderr, "ERROR: server host missing\n");

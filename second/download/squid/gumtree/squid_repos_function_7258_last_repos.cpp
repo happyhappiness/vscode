@@ -1,0 +1,1 @@
+Class *getRaw() { return Base::getRaw()->theObject; }

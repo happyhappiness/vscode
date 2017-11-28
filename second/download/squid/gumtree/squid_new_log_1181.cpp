@@ -1,0 +1,1 @@
+buf.appendf("Preview: %d\r\n", (int)preview.ad());

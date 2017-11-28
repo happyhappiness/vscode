@@ -1,0 +1,1 @@
+virtual Security::EncryptorAnswer &answer() { return arg1; }

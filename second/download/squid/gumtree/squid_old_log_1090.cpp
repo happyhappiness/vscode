@@ -1,0 +1,2 @@
+storeAppendPrintf(sentry, "%6d\t%6.2f\tTOTAL\n",
+                      rc->total, xpercent(rc->total, tot));

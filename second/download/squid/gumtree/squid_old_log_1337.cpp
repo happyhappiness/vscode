@@ -1,0 +1,1 @@
+str.Printf("DNS ErrMsg: %s\r\n", dnsError.termedBuf());

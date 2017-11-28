@@ -1,0 +1,1 @@
+hdr_out->putStr(Http::HdrType::X_FORWARDED_FOR, strFwd.termedBuf());

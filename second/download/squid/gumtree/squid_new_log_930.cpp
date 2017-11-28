@@ -1,0 +1,1 @@
+fprintf(stderr, "-k keytab name\n");

@@ -1,0 +1,1 @@
+mb.Printf("%s", getMyHostname());

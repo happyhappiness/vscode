@@ -1,0 +1,3 @@
+void
+DelayTaggedFree(DelayTaggedBucket::Pointer &)
+{}

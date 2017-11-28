@@ -1,0 +1,1 @@
+fatalf("Unable to open %s",FdNote(portType));

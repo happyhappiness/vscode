@@ -1,0 +1,1 @@
+printf("For legal restrictions on distribution see https://www.openssl.org/source/license.html\n\n");

@@ -1,0 +1,1 @@
+buf.Printf("P(%d)", (int) preview.debt());

@@ -1,0 +1,1 @@
+str.appendf("CacheErrorInfo - %s", errorPageName(type));

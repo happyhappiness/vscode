@@ -1,0 +1,1 @@
+mb.Printf("%s", sign_mb->content());

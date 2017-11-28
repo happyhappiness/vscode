@@ -1,0 +1,1 @@
+storeAppendPrintf(sentry, "  Used      \tChecks    \t%% Matches\tPattern\n");

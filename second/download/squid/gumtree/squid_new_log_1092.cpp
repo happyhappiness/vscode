@@ -1,0 +1,1 @@
+fatalf("Sign hash '%s' is not supported\n", defName);

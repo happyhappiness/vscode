@@ -1,0 +1,1 @@
+printf("\nStatus of %s Service:\n", WIN32_Service_name);

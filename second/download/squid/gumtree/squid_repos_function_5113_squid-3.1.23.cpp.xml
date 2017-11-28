@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/squid/gumtree/squid_repos_function_5113_squid-3.1.23.cpp" pos:tabs="8"><function><specifier pos:line="1" pos:column="1">static<pos:position pos:line="1" pos:column="7"/></specifier> <type><name pos:line="1" pos:column="8">void<pos:position pos:line="1" pos:column="12"/></name></type>
+<name pos:line="2" pos:column="1">squidaio_do_opendir<pos:position pos:line="2" pos:column="20"/></name><parameter_list pos:line="2" pos:column="20">(<parameter><decl><type><name pos:line="2" pos:column="21">squidaio_request_t<pos:position pos:line="2" pos:column="39"/></name> <modifier pos:line="2" pos:column="40">*<pos:position pos:line="2" pos:column="41"/></modifier></type> <name pos:line="2" pos:column="42">requestp<pos:position pos:line="2" pos:column="50"/></name></decl></parameter>)<pos:position pos:line="2" pos:column="51"/></parameter_list>
+<block pos:line="3" pos:column="1">{
+    <comment type="block" pos:line="4" pos:column="5">/* NOT IMPLEMENTED */</comment>
+}<pos:position pos:line="5" pos:column="2"/></block></function></unit>

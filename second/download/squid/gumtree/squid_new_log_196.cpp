@@ -1,0 +1,1 @@
+mustStop("FtpStateData::ctrlClosed");

@@ -1,0 +1,1 @@
+storeAppendPrintf(entry, " buffer-size=%" PRIuSIZE, log->bufferSize);

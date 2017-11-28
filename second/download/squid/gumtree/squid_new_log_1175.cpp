@@ -1,0 +1,1 @@
+buf.appendf("Proxy-Authorization: Basic %.*s\r\n", (int)resultLen, base64buf);

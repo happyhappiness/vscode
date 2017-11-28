@@ -1,0 +1,1 @@
+const MemBuf &rBufData() {return rbuf;}

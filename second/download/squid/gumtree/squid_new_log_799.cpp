@@ -1,0 +1,1 @@
+ctxLine.Printf("(%s %s line)", cfg_directive, label);

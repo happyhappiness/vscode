@@ -1,0 +1,1 @@
+fatalf("Failed to initialise SSL engine: %s\n", ERR_error_string(ssl_error, NULL));

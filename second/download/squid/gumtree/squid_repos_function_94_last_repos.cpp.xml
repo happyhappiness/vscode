@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/squid/gumtree/squid_repos_function_94_last_repos.cpp" pos:tabs="8"><function><type><name pos:line="1" pos:column="1">void<pos:position pos:line="1" pos:column="5"/></name></type>
+<name pos:line="2" pos:column="1">helpMe<pos:position pos:line="2" pos:column="7"/></name><parameter_list pos:line="2" pos:column="7">( <parameter><decl><type><name pos:line="2" pos:column="9">void<pos:position pos:line="2" pos:column="13"/></name></type></decl></parameter> )<pos:position pos:line="2" pos:column="15"/></parameter_list>
+<comment type="line" pos:line="3" pos:column="1">// purpuse: write help message and exit</comment>
+<block pos:line="4" pos:column="1">{
+    <expr_stmt><expr><call><name pos:line="5" pos:column="5">printf<pos:position pos:line="5" pos:column="11"/></name><argument_list pos:line="5" pos:column="11">( <argument><expr><literal type="string" pos:line="5" pos:column="13">"\nUsage:\t%s\t[-a] [-c cf] [-d l] [-(f|F) fn | -(e|E) re] "<pos:position pos:line="5" pos:column="73"/></literal>
+            <literal type="string" pos:line="6" pos:column="13">"[-p h[:p]]\n\t\t[-P #] [-s] [-v] [-C dir [-H]] [-n]\n\n"<pos:position pos:line="6" pos:column="70"/></literal></expr></argument>,
+            <argument><expr><name><operator pos:line="7" pos:column="13">::<pos:position pos:line="7" pos:column="15"/></operator><name pos:line="7" pos:column="15">programname<pos:position pos:line="7" pos:column="26"/></name></name></expr></argument> )<pos:position pos:line="7" pos:column="28"/></argument_list></call></expr>;<pos:position pos:line="7" pos:column="29"/></expr_stmt>
+    <expr_stmt><expr><call><name pos:line="8" pos:column="5">printf<pos:position pos:line="8" pos:column="11"/></name><argument_list pos:line="8" pos:column="11">(
+        <argument><expr><literal type="string" pos:line="9" pos:column="9">" -a\tdisplay a little rotating thingy to indicate that I am alive (tty only).\n"<pos:position pos:line="9" pos:column="90"/></literal>
+        <literal type="string" pos:line="10" pos:column="9">" -c c\tsquid.conf location, default \"%s\".\n"<pos:position pos:line="10" pos:column="56"/></literal>
+        <literal type="string" pos:line="11" pos:column="9">" -C dir\tbase directory for content extraction (copy-out mode).\n"<pos:position pos:line="11" pos:column="76"/></literal>
+        <literal type="string" pos:line="12" pos:column="9">" -d l\tdebug level, an OR mask of different debug options.\n"<pos:position pos:line="12" pos:column="71"/></literal>
+        <literal type="string" pos:line="13" pos:column="9">" -e re\tsingle regular expression per -e instance (use quotes!).\n"<pos:position pos:line="13" pos:column="77"/></literal>
+        <literal type="string" pos:line="14" pos:column="9">" -E re\tsingle case sensitive regular expression like -e.\n"<pos:position pos:line="14" pos:column="70"/></literal>
+        <literal type="string" pos:line="15" pos:column="9">" -f fn\tname of textfile containing one regular expression per line.\n"<pos:position pos:line="15" pos:column="81"/></literal>
+        <literal type="string" pos:line="16" pos:column="9">" -F fn\tname of textfile like -f containing case sensitive REs.\n"<pos:position pos:line="16" pos:column="76"/></literal>
+        <literal type="string" pos:line="17" pos:column="9">" -H\tprepend HTTP reply header to destination files in copy-out mode.\n"<pos:position pos:line="17" pos:column="82"/></literal>
+        <literal type="string" pos:line="18" pos:column="9">" -n\tdo not fork() when using more than one cache_dir.\n"<pos:position pos:line="18" pos:column="67"/></literal>
+        <literal type="string" pos:line="19" pos:column="9">" -p h:p\tcache runs on host h and optional port p, default is %s:%u.\n"<pos:position pos:line="19" pos:column="81"/></literal>
+        <literal type="string" pos:line="20" pos:column="9">" -P #\tif 0, just print matches; otherwise OR the following purge modes:\n"<pos:position pos:line="20" pos:column="85"/></literal>
+        <literal type="string" pos:line="21" pos:column="9">"\t   0x01 really send PURGE to the cache.\n"<pos:position pos:line="21" pos:column="54"/></literal>
+        <literal type="string" pos:line="22" pos:column="9">"\t   0x02 remove all caches files reported as 404 (not found).\n"<pos:position pos:line="22" pos:column="75"/></literal>
+        <literal type="string" pos:line="23" pos:column="9">"\t   0x04 remove all weird (inaccessible or too small) cache files.\n"<pos:position pos:line="23" pos:column="80"/></literal>
+        <literal type="string" pos:line="24" pos:column="9">"\t0 and 1 are recommended - slow rebuild your cache with other modes.\n"<pos:position pos:line="24" pos:column="82"/></literal>
+        <literal type="string" pos:line="25" pos:column="9">" -s\tshow all options after option parsing, but before really starting.\n"<pos:position pos:line="25" pos:column="84"/></literal>
+        <literal type="string" pos:line="26" pos:column="9">" -v\tshow more information about the file, e.g. MD5, timestamps and flags.\n"<pos:position pos:line="26" pos:column="87"/></literal>
+        <literal type="string" pos:line="27" pos:column="9">"\n"<pos:position pos:line="27" pos:column="13"/></literal></expr></argument>, <argument><expr><name pos:line="27" pos:column="15">DEFAULT_SQUID_CONF<pos:position pos:line="27" pos:column="33"/></name></expr></argument>, <argument><expr><name pos:line="27" pos:column="35">DEFAULTHOST<pos:position pos:line="27" pos:column="46"/></name></expr></argument>, <argument><expr><name pos:line="27" pos:column="48">DEFAULTPORT<pos:position pos:line="27" pos:column="59"/></name></expr></argument> )<pos:position pos:line="27" pos:column="61"/></argument_list></call></expr>;<pos:position pos:line="27" pos:column="62"/></expr_stmt>
+
+}<pos:position pos:line="29" pos:column="2"/></block></function></unit>

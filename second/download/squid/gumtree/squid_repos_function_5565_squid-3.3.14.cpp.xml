@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/squid/gumtree/squid_repos_function_5565_squid-3.3.14.cpp" pos:tabs="8"><function><type><name pos:line="1" pos:column="1">int<pos:position pos:line="1" pos:column="4"/></name></type>
+<name><name pos:line="2" pos:column="1">MmappedIOStrategy<pos:position pos:line="2" pos:column="18"/></name><operator pos:line="2" pos:column="18">::<pos:position pos:line="2" pos:column="20"/></operator><name pos:line="2" pos:column="20">load<pos:position pos:line="2" pos:column="24"/></name></name><parameter_list pos:line="2" pos:column="24">()<pos:position pos:line="2" pos:column="26"/></parameter_list>
+<block pos:line="3" pos:column="1">{
+    <comment type="block" pos:line="4" pos:column="5">/* Return 999 (99.9%) constant load */</comment>
+    <return pos:line="5" pos:column="5">return <expr><literal type="number" pos:line="5" pos:column="12">999<pos:position pos:line="5" pos:column="15"/></literal></expr>;<pos:position pos:line="5" pos:column="16"/></return>
+}<pos:position pos:line="6" pos:column="2"/></block></function></unit>

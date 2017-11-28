@@ -1,0 +1,1 @@
+inline void *BIO_get_data(BIO *table) { return table->ptr; }

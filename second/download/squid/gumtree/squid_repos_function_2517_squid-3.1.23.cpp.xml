@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/squid/gumtree/squid_repos_function_2517_squid-3.1.23.cpp" pos:tabs="8"><function><type><name pos:line="1" pos:column="1">void<pos:position pos:line="1" pos:column="5"/></name></type>
+<name><name pos:line="2" pos:column="1">FtpStateData<pos:position pos:line="2" pos:column="13"/></name><operator pos:line="2" pos:column="13">::<pos:position pos:line="2" pos:column="15"/></operator><name pos:line="2" pos:column="15">dataComplete<pos:position pos:line="2" pos:column="27"/></name></name><parameter_list pos:line="2" pos:column="27">()<pos:position pos:line="2" pos:column="29"/></parameter_list>
+<block pos:line="3" pos:column="1">{
+    <expr_stmt><expr><call><name pos:line="4" pos:column="5">debugs<pos:position pos:line="4" pos:column="11"/></name><argument_list pos:line="4" pos:column="11">(<argument><expr><literal type="number" pos:line="4" pos:column="12">9<pos:position pos:line="4" pos:column="13"/></literal></expr></argument>, <argument><expr><literal type="number" pos:line="4" pos:column="15">3<pos:position pos:line="4" pos:column="16"/></literal></expr></argument>,<argument><expr><name pos:line="4" pos:column="17">HERE<pos:position pos:line="4" pos:column="21"/></name></expr></argument>)<pos:position pos:line="4" pos:column="22"/></argument_list></call></expr>;<pos:position pos:line="4" pos:column="23"/></expr_stmt>
+
+    <comment type="block" pos:line="6" pos:column="5">/* Connection closed; transfer done. */</comment>
+
+    <comment type="line" format="doxygen" pos:line="8" pos:column="5">/// Close data channel, if any, to conserve resources while we wait.</comment>
+    <expr_stmt><expr><call><name><name pos:line="9" pos:column="5">data<pos:position pos:line="9" pos:column="9"/></name><operator pos:line="9" pos:column="9">.<pos:position pos:line="9" pos:column="10"/></operator><name pos:line="9" pos:column="10">close<pos:position pos:line="9" pos:column="15"/></name></name><argument_list pos:line="9" pos:column="15">()<pos:position pos:line="9" pos:column="17"/></argument_list></call></expr>;<pos:position pos:line="9" pos:column="18"/></expr_stmt>
+
+    <comment type="block" pos:line="11" pos:column="5">/* expect the "transfer complete" message on the control socket */</comment>
+    <comment type="block" pos:line="12" pos:column="5">/*
+     * DPW 2007-04-23
+     * Previously, this was the only place where we set the
+     * 'buffered_ok' flag when calling scheduleReadControlReply().
+     * It caused some problems if the FTP server returns an unexpected
+     * status code after the data command.  FtpStateData was being
+     * deleted in the middle of dataRead().
+     */</comment>
+    <expr_stmt><expr><call><name pos:line="20" pos:column="5">scheduleReadControlReply<pos:position pos:line="20" pos:column="29"/></name><argument_list pos:line="20" pos:column="29">(<argument><expr><literal type="number" pos:line="20" pos:column="30">0<pos:position pos:line="20" pos:column="31"/></literal></expr></argument>)<pos:position pos:line="20" pos:column="32"/></argument_list></call></expr>;<pos:position pos:line="20" pos:column="33"/></expr_stmt>
+}<pos:position pos:line="21" pos:column="2"/></block></function></unit>

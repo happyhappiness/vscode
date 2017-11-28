@@ -1,0 +1,1 @@
+printf("var s = document.getElementById(\"server\");\n");

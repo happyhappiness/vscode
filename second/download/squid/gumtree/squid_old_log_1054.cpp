@@ -1,0 +1,1 @@
+fprintf(stderr, "%s: ICMP support not compiled in.\n", argv[0]);

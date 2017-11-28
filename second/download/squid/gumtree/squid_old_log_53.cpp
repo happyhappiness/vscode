@@ -1,0 +1,1 @@
+digest_request->setDenyMessage("Incorrect password");

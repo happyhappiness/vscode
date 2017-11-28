@@ -1,0 +1,1 @@
+fprintf(stderr, "No auth at all. Returning no-auth\n");

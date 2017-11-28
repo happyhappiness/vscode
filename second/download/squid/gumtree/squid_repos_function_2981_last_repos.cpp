@@ -1,0 +1,1 @@
+virtual void dial(AsyncCall &) { (handler)(portCfg, portTypeNote, sub); }

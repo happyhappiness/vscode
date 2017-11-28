@@ -1,0 +1,1 @@
+void *operator new(size_t, void *where) {return where;}

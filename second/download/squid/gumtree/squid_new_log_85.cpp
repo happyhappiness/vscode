@@ -1,0 +1,1 @@
+fatalf("String is not a integer number: '%s'\n", rvalue);

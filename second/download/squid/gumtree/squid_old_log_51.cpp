@@ -1,0 +1,1 @@
+currentRequest->setDenyMessage("Request denied because you provided an empty password. Users MUST have a password.");

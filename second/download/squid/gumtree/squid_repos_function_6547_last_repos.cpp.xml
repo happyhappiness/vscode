@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/squid/gumtree/squid_repos_function_6547_last_repos.cpp" pos:tabs="8"><function><type><name pos:line="1" pos:column="1">int<pos:position pos:line="1" pos:column="4"/></name></type>
+<name><name pos:line="2" pos:column="1">AIODiskIOStrategy<pos:position pos:line="2" pos:column="18"/></name><operator pos:line="2" pos:column="18">::<pos:position pos:line="2" pos:column="20"/></operator><name pos:line="2" pos:column="20">callback<pos:position pos:line="2" pos:column="28"/></name></name><parameter_list pos:line="2" pos:column="28">()<pos:position pos:line="2" pos:column="30"/></parameter_list>
+<block pos:line="3" pos:column="1">{
+    <return pos:line="4" pos:column="5">return <expr><literal type="number" pos:line="4" pos:column="12">0<pos:position pos:line="4" pos:column="13"/></literal></expr>;<pos:position pos:line="4" pos:column="14"/></return>
+<cpp:if pos:line="5" pos:column="1">#<cpp:directive pos:line="5" pos:column="2">if<pos:position pos:line="5" pos:column="4"/></cpp:directive> <expr><literal type="number" pos:line="5" pos:column="5">0<pos:position pos:line="5" pos:column="6"/></literal></expr></cpp:if>
+    int i;
+    int retval, reterr;
+    FREE *freefunc;
+    void *cbdata;
+    int callback_valid;
+    void *buf;
+    async_queue_entry_t *aqe;
+    async_queue_entry_type_t type;
+
+    assert(aq.aq_state == AQ_STATE_SETUP);
+
+    <comment type="block" pos:line="17" pos:column="5">/* Loop through all slots */</comment>
+
+    for (i = 0; i &lt; MAX_ASYNCOP; ++i) {
+        if (aq.aq_queue[i].aq_e_state == AQ_ENTRY_USED) {
+            aqe = &amp;aq.aq_queue[i];
+            <comment type="block" pos:line="22" pos:column="13">/* Active, get status */</comment>
+            reterr = aio_error(&amp;aqe-&gt;aq_e_aiocb);
+
+            if (reterr &lt; 0) {
+                fatal("aio_error returned an error!\n");
+            }
+
+            if (reterr != EINPROGRESS) {
+                <comment type="block" pos:line="30" pos:column="17">/* Get the return code */</comment>
+                retval = aio_return(&amp;aqe-&gt;aq_e_aiocb);
+
+                <comment type="block" pos:line="33" pos:column="17">/* Get the callback parameters */</comment>
+                freefunc = aqe-&gt;aq_e_free;
+                buf = aqe-&gt;aq_e_buf;
+                type = aqe-&gt;aq_e_type;
+                callback_valid = cbdataReferenceValidDone(aqe-&gt;aq_e_callback_data, &amp;cbdata);
+                AIODiskFile * theFile = NULL;
+                void *theFileVoid = NULL;
+                void *theTmpFile = aqe-&gt;theFile;
+                bool fileOk = cbdataReferenceValidDone(theTmpFile, &amp;theFileVoid);
+
+                if (fileOk) {
+                    theFile = static_cast&lt;AIODiskFile *&gt;(theFileVoid);
+                }
+
+                <comment type="block" pos:line="47" pos:column="17">/* Free slot */</comment>
+                memset(aqe, 0, sizeof(async_queue_entry_t));
+
+                aqe-&gt;aq_e_state = AQ_ENTRY_FREE;
+
+                --aq.aq_numpending;
+
+                <comment type="block" pos:line="54" pos:column="17">/* Callback */</comment>
+
+                if (callback_valid) {
+                    assert (fileOk);
+
+                    if (type == AQ_ENTRY_READ)
+                        theFile-&gt;ioRequestor-&gt;readCompleted((const char *)buf, retval, reterr, static_cast&lt;ReadRequest *&gt;(cbdata));
+
+                    if (type == AQ_ENTRY_WRITE)
+                        theFile-&gt;ioRequestor-&gt;writeCompleted(reterr,retval, static_cast&lt;WriteRequest *&gt;(cbdata));
+                }
+
+                if (type == AQ_ENTRY_WRITE &amp;&amp; freefunc)
+                    freefunc(buf);
+            }
+        }
+    }
+
+    return 0;
+<cpp:endif pos:line="73" pos:column="1">#<cpp:directive pos:line="73" pos:column="2">endif<pos:position pos:line="73" pos:column="7"/></cpp:directive></cpp:endif>
+}<pos:position pos:line="74" pos:column="2"/></block></function></unit>

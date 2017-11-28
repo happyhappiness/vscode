@@ -1,0 +1,1 @@
+fatalf("comm_select_init: can't open /dev/poll: %s\n", xstrerr(xerrno));

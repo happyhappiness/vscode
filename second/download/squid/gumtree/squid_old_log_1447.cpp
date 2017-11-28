@@ -1,0 +1,1 @@
+hdr_out->putStr(HDR_HOST, request->peer_domain);

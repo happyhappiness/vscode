@@ -1,0 +1,1 @@
+storeAppendPrintf(entry, "%s ", Ssl::bumpMode(sb->allow.kind));

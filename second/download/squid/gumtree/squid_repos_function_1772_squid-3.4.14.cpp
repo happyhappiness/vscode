@@ -1,0 +1,1 @@
+bool closing() { return flags.close_request; }

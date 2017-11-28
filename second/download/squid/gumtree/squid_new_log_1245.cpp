@@ -1,0 +1,1 @@
+storeAppendPrintf(e, " protocol=%s", AnyP::ProtocolType_str[s->transport.protocol]);

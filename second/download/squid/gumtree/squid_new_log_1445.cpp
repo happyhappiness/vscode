@@ -1,0 +1,1 @@
+hdr_out->putStr(Http::HdrType::FRONT_END_HTTPS, "On");

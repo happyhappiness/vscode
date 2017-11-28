@@ -1,0 +1,1 @@
+fatal("MemStore::get(key,callback,data) should not be called");

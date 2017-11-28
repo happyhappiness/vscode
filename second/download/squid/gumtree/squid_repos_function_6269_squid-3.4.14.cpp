@@ -1,0 +1,1 @@
+static size_t SharedMemorySize(const int, const int, const int, const int) { return sizeof(Metadata); }

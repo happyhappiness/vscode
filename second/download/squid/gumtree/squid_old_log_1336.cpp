@@ -1,0 +1,1 @@
+str.Printf("Auth ErrMsg: %s\r\n", auth_user_request->denyMessage());

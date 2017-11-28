@@ -1,0 +1,1 @@
+storeAppendPrintf(entry, "%s %s %s\n", option, name, m.replacement);

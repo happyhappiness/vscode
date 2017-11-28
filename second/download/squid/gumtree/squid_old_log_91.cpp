@@ -1,0 +1,1 @@
+fatal("maximum_single_addr_tries cannot be larger than 10");

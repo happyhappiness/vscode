@@ -1,0 +1,1 @@
+storeAppendPrintf(entry, " in %d seconds", (int)cfg.oldest_service_failure);

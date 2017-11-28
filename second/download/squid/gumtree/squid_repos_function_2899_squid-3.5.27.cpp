@@ -1,0 +1,1 @@
+void Public(bool v) {setMask(CC_PUBLIC,v);}

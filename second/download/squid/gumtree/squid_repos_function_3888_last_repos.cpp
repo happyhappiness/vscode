@@ -1,0 +1,1 @@
+X509 *peerCert() { return peer_cert.get(); }

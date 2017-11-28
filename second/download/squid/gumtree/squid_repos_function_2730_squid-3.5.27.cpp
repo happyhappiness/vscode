@@ -1,0 +1,1 @@
+bool waitingForConnectRequest() const { return connectReqWriting; }

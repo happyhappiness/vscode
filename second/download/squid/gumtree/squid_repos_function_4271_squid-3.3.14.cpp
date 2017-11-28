@@ -1,0 +1,94 @@
+static int
+ssl_verify_cb(int ok, X509_STORE_CTX * ctx)
+{
+    // preserve original ctx->error before SSL_ calls can overwrite it
+    Ssl::ssl_error_t error_no = ok ? SSL_ERROR_NONE : ctx->error;
+
+    char buffer[256] = "";
+    SSL *ssl = (SSL *)X509_STORE_CTX_get_ex_data(ctx, SSL_get_ex_data_X509_STORE_CTX_idx());
+    SSL_CTX *sslctx = SSL_get_SSL_CTX(ssl);
+    const char *server = (const char *)SSL_get_ex_data(ssl, ssl_ex_index_server);
+    void *dont_verify_domain = SSL_CTX_get_ex_data(sslctx, ssl_ctx_ex_index_dont_verify_domain);
+    ACLChecklist *check = (ACLChecklist*)SSL_get_ex_data(ssl, ssl_ex_index_cert_error_check);
+    X509 *peeked_cert = (X509 *)SSL_get_ex_data(ssl, ssl_ex_index_ssl_peeked_cert);
+    X509 *peer_cert = ctx->cert;
+
+    X509_NAME_oneline(X509_get_subject_name(peer_cert), buffer,
+                      sizeof(buffer));
+
+    if (ok) {
+        debugs(83, 5, "SSL Certificate signature OK: " << buffer);
+
+        if (server) {
+            if (!Ssl::checkX509ServerValidity(peer_cert, server)) {
+                debugs(83, 2, "SQUID_X509_V_ERR_DOMAIN_MISMATCH: Certificate " << buffer << " does not match domainname " << server);
+                ok = 0;
+                error_no = SQUID_X509_V_ERR_DOMAIN_MISMATCH;
+            }
+        }
+    }
+
+    if (ok && peeked_cert) {
+        // Check whether the already peeked certificate matches the new one.
+        if (X509_cmp(peer_cert, peeked_cert) != 0) {
+            debugs(83, 2, "SQUID_X509_V_ERR_CERT_CHANGE: Certificate " << buffer << " does not match peeked certificate");
+            ok = 0;
+            error_no =  SQUID_X509_V_ERR_CERT_CHANGE;
+        }
+    }
+
+    if (!ok) {
+        Ssl::Errors *errs = static_cast<Ssl::Errors *>(SSL_get_ex_data(ssl, ssl_ex_index_ssl_errors));
+        if (!errs) {
+            errs = new Ssl::Errors(error_no);
+            if (!SSL_set_ex_data(ssl, ssl_ex_index_ssl_errors,  (void *)errs)) {
+                debugs(83, 2, "Failed to set ssl error_no in ssl_verify_cb: Certificate " << buffer);
+                delete errs;
+                errs = NULL;
+            }
+        } else // remember another error number
+            errs->push_back_unique(error_no);
+
+        if (const char *err_descr = Ssl::GetErrorDescr(error_no))
+            debugs(83, 5, err_descr << ": " << buffer);
+        else
+            debugs(83, DBG_IMPORTANT, "SSL unknown certificate error " << error_no << " in " << buffer);
+
+        if (check) {
+            ACLFilledChecklist *filledCheck = Filled(check);
+            assert(!filledCheck->sslErrors);
+            filledCheck->sslErrors = new Ssl::Errors(error_no);
+            if (check->fastCheck() == ACCESS_ALLOWED) {
+                debugs(83, 3, "bypassing SSL error " << error_no << " in " << buffer);
+                ok = 1;
+            } else {
+                debugs(83, 5, "confirming SSL error " << error_no);
+            }
+            delete filledCheck->sslErrors;
+            filledCheck->sslErrors = NULL;
+        }
+    }
+
+    if (!dont_verify_domain && server) {}
+
+    if (!ok && !SSL_get_ex_data(ssl, ssl_ex_index_ssl_error_detail) ) {
+
+        // Find the broken certificate. It may be intermediate.
+        X509 *broken_cert = peer_cert; // reasonable default if search fails
+        // Our SQUID_X509_V_ERR_DOMAIN_MISMATCH implies peer_cert is at fault.
+        if (error_no != SQUID_X509_V_ERR_DOMAIN_MISMATCH) {
+            if (X509 *last_used_cert = X509_STORE_CTX_get_current_cert(ctx))
+                broken_cert = last_used_cert;
+        }
+
+        Ssl::ErrorDetail *errDetail =
+            new Ssl::ErrorDetail(error_no, peer_cert, broken_cert);
+
+        if (!SSL_set_ex_data(ssl, ssl_ex_index_ssl_error_detail,  errDetail)) {
+            debugs(83, 2, "Failed to set Ssl::ErrorDetail in ssl_verify_cb: Certificate " << buffer);
+            delete errDetail;
+        }
+    }
+
+    return ok;
+}

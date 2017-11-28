@@ -1,0 +1,1 @@
+fprintf(stderr, "----- Memory map ----\n");

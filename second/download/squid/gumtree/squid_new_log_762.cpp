@@ -1,0 +1,1 @@
+PEM_read_DHparams(in, NULL, NULL, NULL);

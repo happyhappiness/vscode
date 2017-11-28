@@ -1,0 +1,1 @@
+storeAppendPrintf(sentry, "  cancel\t%" PRIu64 "\t-\n", squidaio_counts.cancel);

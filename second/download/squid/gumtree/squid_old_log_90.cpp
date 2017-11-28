@@ -1,0 +1,1 @@
+fatal("No dnsservers allocated");

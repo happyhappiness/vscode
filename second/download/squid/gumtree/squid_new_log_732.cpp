@@ -1,0 +1,1 @@
+fprintf(stderr, "%s failed: %s\n", function, buf);

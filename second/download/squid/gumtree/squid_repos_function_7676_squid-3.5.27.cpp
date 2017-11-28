@@ -1,0 +1,1 @@
+inline FILE * tmpfile(void) { return tmpfile64(); }

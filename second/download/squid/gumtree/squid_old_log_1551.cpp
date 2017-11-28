@@ -1,0 +1,1 @@
+fatalf("Unknown SSL error name '%s'", name);

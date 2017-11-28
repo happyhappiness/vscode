@@ -1,0 +1,1 @@
+void clearPublic() {setMask(HttpHdrCcType::CC_PUBLIC,false);}

@@ -1,0 +1,1 @@
+mb->appendf("\tinmem_hi: %" PRId64 "\n", data_hdr.endOffset());

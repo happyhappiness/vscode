@@ -1,0 +1,1 @@
+virtual Ssl::PeerConnectorAnswer &answer() { return answer_; }

@@ -11,3 +11,16 @@ number of log is:213
 addLog:64, removeLog:21, updateLog:31, addVariable:61, removeVariable:60, updateVariable:24, moveVariable:11, addContent:8, removeContent:6, updateContent:48, moveContent:0, 
 #rule info
 insert rule:12, modify rule:26
+
+#now analyzing repos:squid
+#edition cluster info
+addLog:15, removeLog:12, updateLog:105, addVariable:66, removeVariable:34, updateVariable:51, moveVariable:2, addContent:12, removeContent:5, updateContent:27, moveContent:0, 
+cluster is:337, repeted cluster is:49, repeted log is:226
+#edition and feature cluster info
+addLog:8, removeLog:0, updateLog:33, addVariable:10, removeVariable:7, updateVariable:6, moveVariable:0, addContent:4, removeContent:3, updateContent:13, moveContent:0, 
+cluster is:476, repeted cluster is:24, repeted log is:62
+#log info
+number of log is:519
+addLog:137, removeLog:75, updateLog:141, addVariable:130, removeVariable:76, updateVariable:90, moveVariable:6, addContent:36, removeContent:26, updateContent:80, moveContent:3, 
+#rule info
+insert rule:3, modify rule:21

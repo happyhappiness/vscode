@@ -1,0 +1,1 @@
+name.Printf("(%s rules)", desc);

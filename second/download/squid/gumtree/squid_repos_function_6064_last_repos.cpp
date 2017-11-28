@@ -1,0 +1,1 @@
+bool canceled() { return isCanceled != NULL; }

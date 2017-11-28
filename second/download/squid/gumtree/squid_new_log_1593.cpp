@@ -1,0 +1,1 @@
+fatalf("FATAL: setuid: %s", xstrerr(xerrno));

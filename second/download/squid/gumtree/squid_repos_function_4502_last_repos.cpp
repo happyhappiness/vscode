@@ -1,0 +1,2 @@
+void
+Store::Disk::writeCleanDone() {}

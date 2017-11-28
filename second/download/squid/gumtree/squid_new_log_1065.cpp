@@ -1,0 +1,1 @@
+printf("\nThis binary uses %s. ", SSLeay_version(SSLEAY_VERSION));

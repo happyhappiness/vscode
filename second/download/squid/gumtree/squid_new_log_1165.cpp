@@ -1,0 +1,1 @@
+buf.appendf("M%d", static_cast<int>(makingVb));

@@ -1,0 +1,1 @@
+auth_user_request->denyMessage("NTLM Authentication denied with no reason given");

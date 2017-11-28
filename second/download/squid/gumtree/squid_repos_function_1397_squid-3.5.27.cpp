@@ -1,0 +1,1 @@
+static bool LastTokenWasQuoted() {return (LastTokenType == ConfigParser::QuotedToken);}

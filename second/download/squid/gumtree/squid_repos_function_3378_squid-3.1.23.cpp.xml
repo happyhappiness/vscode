@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/squid/gumtree/squid_repos_function_3378_squid-3.1.23.cpp" pos:tabs="8"><function><type><name pos:line="1" pos:column="1">LONG<pos:position pos:line="1" pos:column="5"/></name> <name pos:line="1" pos:column="6">CALLBACK<pos:position pos:line="1" pos:column="14"/></name></type> <name pos:line="1" pos:column="15">WIN32_ExceptionHandler<pos:position pos:line="1" pos:column="37"/></name><parameter_list pos:line="1" pos:column="37">(<parameter><decl><type><name pos:line="1" pos:column="38">EXCEPTION_POINTERS<pos:position pos:line="1" pos:column="56"/></name><modifier pos:line="1" pos:column="56">*<pos:position pos:line="1" pos:column="57"/></modifier></type> <name pos:line="1" pos:column="58">ep<pos:position pos:line="1" pos:column="60"/></name></decl></parameter>)<pos:position pos:line="1" pos:column="61"/></parameter_list>
+<block pos:line="2" pos:column="1">{
+    <decl_stmt><decl><type><name pos:line="3" pos:column="5">EXCEPTION_RECORD<pos:position pos:line="3" pos:column="21"/></name><modifier pos:line="3" pos:column="21">*<pos:position pos:line="3" pos:column="22"/></modifier></type> <name pos:line="3" pos:column="23">er<pos:position pos:line="3" pos:column="25"/></name></decl>;<pos:position pos:line="3" pos:column="26"/></decl_stmt>
+
+    <expr_stmt><expr><name pos:line="5" pos:column="5">er<pos:position pos:line="5" pos:column="7"/></name> <operator pos:line="5" pos:column="8">=<pos:position pos:line="5" pos:column="9"/></operator> <name><name pos:line="5" pos:column="10">ep<pos:position pos:line="5" pos:column="12"/></name><operator pos:line="5" pos:column="12">-&gt;<pos:position pos:line="5" pos:column="17"/></operator><name pos:line="5" pos:column="14">ExceptionRecord<pos:position pos:line="5" pos:column="29"/></name></name></expr>;<pos:position pos:line="5" pos:column="30"/></expr_stmt>
+
+    <switch pos:line="7" pos:column="5">switch <condition pos:line="7" pos:column="12">(<expr><name><name pos:line="7" pos:column="13">er<pos:position pos:line="7" pos:column="15"/></name><operator pos:line="7" pos:column="15">-&gt;<pos:position pos:line="7" pos:column="20"/></operator><name pos:line="7" pos:column="17">ExceptionCode<pos:position pos:line="7" pos:column="30"/></name></name></expr>)<pos:position pos:line="7" pos:column="31"/></condition> <block pos:line="7" pos:column="32">{
+
+    <case pos:line="9" pos:column="5">case <expr><name pos:line="9" pos:column="10">EXCEPTION_ACCESS_VIOLATION<pos:position pos:line="9" pos:column="36"/></name></expr>:<pos:position pos:line="9" pos:column="37"/></case>
+        <expr_stmt><expr><call><name pos:line="10" pos:column="9">raise<pos:position pos:line="10" pos:column="14"/></name><argument_list pos:line="10" pos:column="14">(<argument><expr><name pos:line="10" pos:column="15">SIGSEGV<pos:position pos:line="10" pos:column="22"/></name></expr></argument>)<pos:position pos:line="10" pos:column="23"/></argument_list></call></expr>;<pos:position pos:line="10" pos:column="24"/></expr_stmt>
+        <break pos:line="11" pos:column="9">break;<pos:position pos:line="11" pos:column="15"/></break>
+
+    <case pos:line="13" pos:column="5">case <expr><name pos:line="13" pos:column="10">EXCEPTION_DATATYPE_MISALIGNMENT<pos:position pos:line="13" pos:column="41"/></name></expr>:<pos:position pos:line="13" pos:column="42"/></case>
+
+    <case pos:line="15" pos:column="5">case <expr><name pos:line="15" pos:column="10">EXCEPTION_ARRAY_BOUNDS_EXCEEDED<pos:position pos:line="15" pos:column="41"/></name></expr>:<pos:position pos:line="15" pos:column="42"/></case>
+
+    <case pos:line="17" pos:column="5">case <expr><name pos:line="17" pos:column="10">EXCEPTION_IN_PAGE_ERROR<pos:position pos:line="17" pos:column="33"/></name></expr>:<pos:position pos:line="17" pos:column="34"/></case>
+        <expr_stmt><expr><call><name pos:line="18" pos:column="9">death<pos:position pos:line="18" pos:column="14"/></name><argument_list pos:line="18" pos:column="14">(<argument><expr><name pos:line="18" pos:column="15">SIGBUS<pos:position pos:line="18" pos:column="21"/></name></expr></argument>)<pos:position pos:line="18" pos:column="22"/></argument_list></call></expr>;<pos:position pos:line="18" pos:column="23"/></expr_stmt>
+        <break pos:line="19" pos:column="9">break;<pos:position pos:line="19" pos:column="15"/></break>
+
+    <default pos:line="21" pos:column="5">default:<pos:position pos:line="21" pos:column="13"/></default>
+        <break pos:line="22" pos:column="9">break;<pos:position pos:line="22" pos:column="15"/></break>
+    }<pos:position pos:line="23" pos:column="6"/></block></switch>
+
+    <return pos:line="25" pos:column="5">return <expr><name pos:line="25" pos:column="12">EXCEPTION_CONTINUE_SEARCH<pos:position pos:line="25" pos:column="37"/></name></expr>;<pos:position pos:line="25" pos:column="38"/></return>
+}<pos:position pos:line="26" pos:column="2"/></block></function></unit>

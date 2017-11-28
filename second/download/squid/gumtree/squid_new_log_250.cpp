@@ -1,0 +1,1 @@
+abortTransaction("late adaptation block");

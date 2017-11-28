@@ -1,0 +1,1 @@
+fatal("Rock store requires a positive slot-size");

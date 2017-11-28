@@ -1,0 +1,1 @@
+fatalf("Unable to connect to %s for UDP log: %s\n", lf->path, xstrerror());

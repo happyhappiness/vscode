@@ -1,0 +1,1 @@
+bool used() const { return freed() || mapped() || more != -1; }

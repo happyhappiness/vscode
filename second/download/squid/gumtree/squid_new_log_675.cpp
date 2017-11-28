@@ -1,0 +1,1 @@
+fatal("'store_avg_object_size' should be larger than 0.");

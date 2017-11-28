@@ -1,0 +1,1 @@
+void path(const char *p) {path_=p; touch();}

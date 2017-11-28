@@ -1,0 +1,1 @@
+mb.Printf("query %s\r\nquit", t);

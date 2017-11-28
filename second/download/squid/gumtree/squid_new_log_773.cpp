@@ -1,0 +1,1 @@
+fprintf( stderr, "%c requires a mode argument!\n", option );

@@ -1,0 +1,4 @@
+void
+Rock::StoreFileSystem::done()
+{
+}

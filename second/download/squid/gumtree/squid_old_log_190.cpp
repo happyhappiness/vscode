@@ -1,0 +1,1 @@
+storeAppendPrintf(&entry, " %" PRIu64, (max_size >> 10));

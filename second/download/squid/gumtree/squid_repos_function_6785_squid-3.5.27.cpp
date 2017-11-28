@@ -1,0 +1,1 @@
+void clearSignal() { unblock(); popSignal.swap_if(1,0); }

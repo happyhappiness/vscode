@@ -1,0 +1,1 @@
+debug("cmgr: decoded uname: '%s'\n", user_name);

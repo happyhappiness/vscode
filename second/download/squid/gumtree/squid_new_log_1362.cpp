@@ -1,0 +1,1 @@
+mb.appendf("%s", Time::FormatHttpd(squid_curtime));

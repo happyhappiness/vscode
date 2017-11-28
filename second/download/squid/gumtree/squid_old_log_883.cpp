@@ -1,0 +1,1 @@
+fatalf("parse_wccp2_service_ports: port value '%s' isn't valid (1..65535)\n", port);

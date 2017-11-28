@@ -1,0 +1,1 @@
+inline void BIO_set_data(BIO *table, void *data) { table->ptr = data; }

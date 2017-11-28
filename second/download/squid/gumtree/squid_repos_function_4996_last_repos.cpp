@@ -1,0 +1,1 @@
+void finalized(const bool beFinalized) { flags.finalized = beFinalized; }

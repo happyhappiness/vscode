@@ -1,0 +1,1 @@
+fatalf("ERROR: unknown external_acl_type format %u", (uint8_t)format->type);

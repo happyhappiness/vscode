@@ -1,0 +1,1 @@
+str.appendf("DNS ErrMsg: %s\r\n", dnsError.termedBuf());

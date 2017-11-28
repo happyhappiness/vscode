@@ -1,0 +1,1 @@
+buf.append("Connection: close\r\n", 19);

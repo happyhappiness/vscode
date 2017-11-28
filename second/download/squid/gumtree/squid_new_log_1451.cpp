@@ -1,0 +1,1 @@
+buf.appendf("%x\r\n", static_cast<unsigned int>(rawDataSize));

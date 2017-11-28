@@ -1,0 +1,1 @@
+error_stylesheet.appendf("%s",tmpl.text());

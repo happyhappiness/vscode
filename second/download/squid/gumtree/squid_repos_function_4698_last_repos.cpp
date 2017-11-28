@@ -1,0 +1,1 @@
+SBuf& append(const char * S) { return append(S,npos); }

@@ -1,0 +1,1 @@
+printf("  if (x.readyState==4) {\n");

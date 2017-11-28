@@ -1,0 +1,1 @@
+void CallCounter::recordNew() { ++_news;}

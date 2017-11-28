@@ -1,0 +1,1 @@
+fprintf(stderr, "%s: ERROR: Could not send ", APP_SHORTNAME);

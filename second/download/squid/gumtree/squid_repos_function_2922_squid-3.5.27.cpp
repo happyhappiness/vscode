@@ -1,0 +1,1 @@
+void clearOnlyIfCached() {setMask(CC_ONLY_IF_CACHED,false);}

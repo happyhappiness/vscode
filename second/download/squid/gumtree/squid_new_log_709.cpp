@@ -1,0 +1,1 @@
+printf("<h2>CGI Managed Proxies</h2>\n");

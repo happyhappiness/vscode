@@ -1,0 +1,1 @@
+fatalf ("Attempt to register %s twice", typeString);

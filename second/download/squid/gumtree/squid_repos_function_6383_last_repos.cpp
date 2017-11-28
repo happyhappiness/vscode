@@ -1,0 +1,1 @@
+static void alarm_handler(int) {}

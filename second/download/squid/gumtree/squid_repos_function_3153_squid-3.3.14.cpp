@@ -1,0 +1,1 @@
+inline int fqdncacheCount() { return fqdn_table ? fqdn_table->count : 0; }

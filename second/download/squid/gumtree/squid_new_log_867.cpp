@@ -1,0 +1,1 @@
+fatalf("chdir to / after chroot to %s failed", Config.chroot_dir);

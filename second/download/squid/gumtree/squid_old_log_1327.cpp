@@ -1,0 +1,1 @@
+fatalf("Aiee! aio_read() returned error (%d)  FIXME and wrap file_read !\n", errno);

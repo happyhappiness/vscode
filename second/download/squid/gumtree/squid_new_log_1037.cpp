@@ -1,0 +1,1 @@
+storeAppendPrintf(e, " slot-size=%" PRId64, slotSize);

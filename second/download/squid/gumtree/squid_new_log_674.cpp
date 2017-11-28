@@ -1,0 +1,1 @@
+fatal("'store_objects_per_bucket' should be larger than 0.");

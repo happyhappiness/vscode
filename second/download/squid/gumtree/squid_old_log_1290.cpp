@@ -1,0 +1,1 @@
+reply->header.putStr(HDR_CONTENT_ENCODING, mime_enc);

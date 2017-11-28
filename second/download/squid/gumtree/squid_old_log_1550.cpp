@@ -1,0 +1,1 @@
+fatalf("Too small or too bug SSL error code '%s'", name);

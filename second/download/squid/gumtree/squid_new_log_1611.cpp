@@ -1,0 +1,1 @@
+storeAppendPrintf(e, " ports=%d", ntohs(srv->info.port0));

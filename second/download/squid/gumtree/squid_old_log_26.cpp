@@ -1,0 +1,1 @@
+fatal("unexpected authenticateAuthenticate reply\n");

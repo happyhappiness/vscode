@@ -1,0 +1,5 @@
+void
+FwdState::initModule()
+{
+    RegisterWithCacheManager();
+}

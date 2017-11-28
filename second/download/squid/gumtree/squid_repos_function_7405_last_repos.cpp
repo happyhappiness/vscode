@@ -1,0 +1,1 @@
+virtual void dial(AsyncCall &call) { ((&(*peerConnector_))->*method_)(object, status); }

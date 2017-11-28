@@ -1,0 +1,1 @@
+mb->appendf("<TD>%s</TD></TR>\n", u->flags.cached ? "    [cached]" : " ");

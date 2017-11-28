@@ -1,0 +1,1 @@
+str.append("\r\n", 2);

@@ -1,0 +1,1 @@
+virtual void transientsAbandon(StoreEntry &e) {}

@@ -1,0 +1,44 @@
+        // TODO: cancel the pending timeout callback and allow re-use of the conn.
+        if (fd_table[theList_[i]->fd].timeoutHandler == NULL)
+            continue;
+
+        // finally, a match. pop and return it.
+        Comm::ConnectionPointer result = theList_[i];
+        clearHandlers(result);
+        /* may delete this */
+        removeAt(i);
+        return result;
+    }
+
+    return Comm::ConnectionPointer();
+}
+
+/* might delete list */
+void
+IdleConnList::findAndClose(const Comm::ConnectionPointer &conn)
+{
+    const int index = findIndexOf(conn);
+    if (index >= 0) {
+        if (parent_)
+            parent_->notifyManager("idle conn closure");
+        clearHandlers(conn);
+        /* might delete this */
+        removeAt(index);
+        conn->close();
+    }
+}
+
+void
+IdleConnList::Read(const Comm::ConnectionPointer &conn, char *buf, size_t len, Comm::Flag flag, int xerrno, void *data)
+{
+    debugs(48, 3, HERE << len << " bytes from " << conn);
+
+    if (flag == Comm::ERR_CLOSING) {
+        debugs(48, 3, HERE << "Comm::ERR_CLOSING from " << conn);
+        /* Bail out on Comm::ERR_CLOSING - may happen when shutdown aborts our idle FD */
+        return;
+    }
+
+    IdleConnList *list = (IdleConnList *) data;
+    /* may delete list/data */
+    list->findAndClose(conn);

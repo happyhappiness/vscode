@@ -1,0 +1,1 @@
+Comm::UdpOpenDialer(&snmpPortOpened);

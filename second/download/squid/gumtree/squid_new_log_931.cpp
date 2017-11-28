@@ -1,0 +1,1 @@
+fprintf(stderr, "-c replay cache directory\n");

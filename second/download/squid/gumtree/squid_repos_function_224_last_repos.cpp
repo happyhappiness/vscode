@@ -1,0 +1,1 @@
+void Mem::AllocatorProxy::freeOne(void *address) {xfree(address);}

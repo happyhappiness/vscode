@@ -1,0 +1,1 @@
+proxyProtocolError("PROXY/1.0 error: missing TCP version");

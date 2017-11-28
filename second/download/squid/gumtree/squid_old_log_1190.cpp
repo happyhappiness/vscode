@@ -1,0 +1,1 @@
+buf.Printf("S(%d)", state.sending);

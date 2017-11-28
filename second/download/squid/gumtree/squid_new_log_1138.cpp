@@ -1,0 +1,1 @@
+informUserOfPeerError("malformed CONNECT response from peer", 0);

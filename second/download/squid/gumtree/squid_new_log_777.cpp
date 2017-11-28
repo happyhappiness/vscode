@@ -1,0 +1,1 @@
+printf("OK ha1=\"%s\"\n", requestData->HHA1);

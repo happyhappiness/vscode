@@ -1,0 +1,1 @@
+storeAppendPrintf(s, "\tnrequests: %u\n", conn->pipeline.nrequests);

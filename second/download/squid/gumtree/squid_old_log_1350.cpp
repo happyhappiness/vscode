@@ -1,0 +1,1 @@
+mb->Printf("&body=%s", rfc1738_escape_part(str.buf));

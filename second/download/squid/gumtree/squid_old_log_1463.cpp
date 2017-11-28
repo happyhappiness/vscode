@@ -1,0 +1,1 @@
+mb.Printf("http://%s", lc_host);

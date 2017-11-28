@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/squid/gumtree/squid_repos_function_4815_squid-3.4.14.cpp" pos:tabs="8"><function><type><name pos:line="1" pos:column="1">void<pos:position pos:line="1" pos:column="5"/></name></type> <name><name pos:line="1" pos:column="6">Fs<pos:position pos:line="1" pos:column="8"/></name><operator pos:line="1" pos:column="8">::<pos:position pos:line="1" pos:column="10"/></operator><name pos:line="1" pos:column="10">Clean<pos:position pos:line="1" pos:column="15"/></name></name><parameter_list pos:line="1" pos:column="15">()<pos:position pos:line="1" pos:column="17"/></parameter_list>
+<block pos:line="2" pos:column="1">{
+<cpp:if pos:line="3" pos:column="1">#<cpp:directive pos:line="3" pos:column="2">if<pos:position pos:line="3" pos:column="4"/></cpp:directive> <expr><name pos:line="3" pos:column="5">HAVE_FS_UFS<pos:position pos:line="3" pos:column="16"/></name></expr></cpp:if>
+    <expr_stmt><expr><operator pos:line="4" pos:column="5">delete<pos:position pos:line="4" pos:column="11"/></operator> <name pos:line="4" pos:column="12">UfsInstance<pos:position pos:line="4" pos:column="23"/></name></expr>;<pos:position pos:line="4" pos:column="24"/></expr_stmt>
+<cpp:endif pos:line="5" pos:column="1">#<cpp:directive pos:line="5" pos:column="2">endif<pos:position pos:line="5" pos:column="7"/></cpp:directive></cpp:endif>
+
+<cpp:if pos:line="7" pos:column="1">#<cpp:directive pos:line="7" pos:column="2">if<pos:position pos:line="7" pos:column="4"/></cpp:directive> <expr><name pos:line="7" pos:column="5">HAVE_FS_AUFS<pos:position pos:line="7" pos:column="17"/></name></expr></cpp:if>
+    <expr_stmt><expr><operator pos:line="8" pos:column="5">delete<pos:position pos:line="8" pos:column="11"/></operator> <name pos:line="8" pos:column="12">AufsInstance<pos:position pos:line="8" pos:column="24"/></name></expr>;<pos:position pos:line="8" pos:column="25"/></expr_stmt>
+<cpp:endif pos:line="9" pos:column="1">#<cpp:directive pos:line="9" pos:column="2">endif<pos:position pos:line="9" pos:column="7"/></cpp:directive></cpp:endif>
+
+<cpp:if pos:line="11" pos:column="1">#<cpp:directive pos:line="11" pos:column="2">if<pos:position pos:line="11" pos:column="4"/></cpp:directive> <expr><name pos:line="11" pos:column="5">HAVE_FS_DISKD<pos:position pos:line="11" pos:column="18"/></name></expr></cpp:if>
+    <expr_stmt><expr><operator pos:line="12" pos:column="5">delete<pos:position pos:line="12" pos:column="11"/></operator> <name pos:line="12" pos:column="12">DiskdInstance<pos:position pos:line="12" pos:column="25"/></name></expr>;<pos:position pos:line="12" pos:column="26"/></expr_stmt>
+<cpp:endif pos:line="13" pos:column="1">#<cpp:directive pos:line="13" pos:column="2">endif<pos:position pos:line="13" pos:column="7"/></cpp:directive></cpp:endif>
+
+<cpp:if pos:line="15" pos:column="1">#<cpp:directive pos:line="15" pos:column="2">if<pos:position pos:line="15" pos:column="4"/></cpp:directive> <expr><name pos:line="15" pos:column="5">HAVE_FS_ROCK<pos:position pos:line="15" pos:column="17"/></name></expr></cpp:if>
+    <expr_stmt><expr><operator pos:line="16" pos:column="5">delete<pos:position pos:line="16" pos:column="11"/></operator> <name pos:line="16" pos:column="12">RockInstance<pos:position pos:line="16" pos:column="24"/></name></expr>;<pos:position pos:line="16" pos:column="25"/></expr_stmt>
+<cpp:endif pos:line="17" pos:column="1">#<cpp:directive pos:line="17" pos:column="2">endif<pos:position pos:line="17" pos:column="7"/></cpp:directive></cpp:endif>
+
+}<pos:position pos:line="19" pos:column="2"/></block></function></unit>

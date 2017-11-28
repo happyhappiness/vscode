@@ -1,0 +1,1 @@
+mb.Printf("/squid-internal-static/icons/%s", icon);

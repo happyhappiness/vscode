@@ -1,0 +1,1 @@
+bool waitingForConnectExchange() const { return waitingForConnectRequest() || waitingForConnectResponse(); }

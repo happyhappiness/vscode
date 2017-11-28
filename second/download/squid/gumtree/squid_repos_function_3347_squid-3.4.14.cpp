@@ -1,0 +1,1 @@
+void clearContent() { setMask(SC_CONTENT,false); content_.clean(); }

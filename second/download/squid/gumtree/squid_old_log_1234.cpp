@@ -1,0 +1,1 @@
+fatalf("Unable to open configuration file: %s: %s", file_name, xstrerror());

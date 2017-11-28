@@ -1,0 +1,1 @@
+storeAppendPrintf(sentry, "max_away: %d\n", diskd_stats.max_away);

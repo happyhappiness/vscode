@@ -1,0 +1,1 @@
+MemPools &MemPools::GetInstance() {return tmpMemPools;}

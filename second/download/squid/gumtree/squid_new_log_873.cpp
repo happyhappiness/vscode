@@ -1,0 +1,1 @@
+storeAppendPrintf(sentry, "No StoreId helpers defined\n");

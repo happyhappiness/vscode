@@ -1,0 +1,1 @@
+mb.appendf("(%d) %s", xerrno, strerror(xerrno));

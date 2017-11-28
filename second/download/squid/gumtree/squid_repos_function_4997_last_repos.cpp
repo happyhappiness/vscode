@@ -1,0 +1,1 @@
+bool freed() const { return flags.freed; }

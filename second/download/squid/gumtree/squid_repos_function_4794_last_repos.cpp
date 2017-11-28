@@ -1,0 +1,1 @@
+void reset(const SBuf &newBuf) { undoParse(newBuf, 0); }

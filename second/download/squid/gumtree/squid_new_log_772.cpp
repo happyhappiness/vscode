@@ -1,0 +1,1 @@
+fprintf( stderr, "%c requires a port argument!\n", option );

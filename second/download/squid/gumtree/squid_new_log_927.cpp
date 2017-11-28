@@ -1,0 +1,1 @@
+fprintf(stderr, "ERROR: replay cache directory %s is not accessible\n",rcache_dir);

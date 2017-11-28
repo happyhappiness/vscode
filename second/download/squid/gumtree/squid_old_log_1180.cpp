@@ -1,0 +1,1 @@
+buf.Printf("res-body=%d", (int) httpBuf.contentSize());

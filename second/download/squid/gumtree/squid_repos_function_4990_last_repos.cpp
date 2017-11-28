@@ -1,0 +1,1 @@
+void state(State aState) const { flags.state = aState; }

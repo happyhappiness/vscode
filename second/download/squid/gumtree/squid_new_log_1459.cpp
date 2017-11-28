@@ -1,0 +1,1 @@
+hdr->putStr(Http::HdrType::CONTENT_TYPE, ctype);

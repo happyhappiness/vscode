@@ -1,0 +1,1 @@
+buf.Printf("Proxy-Authorization: Basic %s\r\n", old_base64_encode(loginbuf));

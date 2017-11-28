@@ -1,0 +1,1 @@
+httpHeaderPutStrf(&rep->header, type, "Negotiate %s", server_blob);

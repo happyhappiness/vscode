@@ -1,0 +1,1 @@
+void clearMinFresh() {setValue(min_fresh,MIN_FRESH_UNKNOWN,HttpHdrCcType::CC_MIN_FRESH,false);}

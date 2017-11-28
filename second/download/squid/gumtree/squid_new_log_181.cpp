@@ -1,0 +1,1 @@
+storeAppendPrintf(sentry, " children-max=%d", node->children.n_max);

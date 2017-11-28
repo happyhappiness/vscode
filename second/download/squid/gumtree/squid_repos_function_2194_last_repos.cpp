@@ -1,0 +1,1 @@
+void dial(AsyncCall &call) { ((&(*tunnel_))->*method_)(answer_); }

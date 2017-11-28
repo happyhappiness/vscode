@@ -1,0 +1,1 @@
+fatal(xstrerr(errno));

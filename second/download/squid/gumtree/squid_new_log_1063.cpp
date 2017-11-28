@@ -1,0 +1,1 @@
+fatal("A service name is required for the -n option");

@@ -1,0 +1,1 @@
+html->Printf("<tr class=\"entry\"><td colspan=\"5\">%s</td></tr>\n", line);

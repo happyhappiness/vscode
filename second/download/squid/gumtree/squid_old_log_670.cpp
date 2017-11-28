@@ -1,0 +1,1 @@
+fatal("StoreController has no independent size\n");

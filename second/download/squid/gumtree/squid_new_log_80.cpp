@@ -1,0 +1,1 @@
+fatal("Auth::UserRequest not directly allocatable\n");

@@ -1,0 +1,1 @@
+storeAppendPrintf(entry, "%s %s", name, scheme->type());

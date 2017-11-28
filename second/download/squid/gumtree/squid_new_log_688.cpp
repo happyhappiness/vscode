@@ -1,0 +1,1 @@
+Ip::Interceptor.StopTransparency("Missing needed capability support.");

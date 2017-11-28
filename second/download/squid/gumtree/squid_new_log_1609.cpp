@@ -1,0 +1,1 @@
+rep->header.putStr(Http::HdrType::LOCATION, min_u->url);

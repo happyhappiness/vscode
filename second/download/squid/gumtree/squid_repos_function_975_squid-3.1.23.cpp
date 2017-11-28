@@ -1,0 +1,1 @@
+char *content() { return buf; }

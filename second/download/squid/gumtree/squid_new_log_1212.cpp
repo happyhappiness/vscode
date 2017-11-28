@@ -1,0 +1,1 @@
+auth_user_request->setDenyMessage("NTLM authentication requires a persistent connection");

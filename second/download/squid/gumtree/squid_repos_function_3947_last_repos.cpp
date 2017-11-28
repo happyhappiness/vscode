@@ -1,0 +1,1 @@
+inline void BIO_set_init(BIO *table, int init) { table->init = init; }

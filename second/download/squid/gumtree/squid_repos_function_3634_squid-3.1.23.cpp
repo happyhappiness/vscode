@@ -1,0 +1,1 @@
+inline int InterceptActive() { return intercept_active; }

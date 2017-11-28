@@ -1,0 +1,1 @@
+void connectionTag(const char *aTag) { connectionTag_ = aTag; }

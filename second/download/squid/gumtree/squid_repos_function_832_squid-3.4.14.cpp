@@ -1,0 +1,1 @@
+inline void unlinkdClose(void) { return; }

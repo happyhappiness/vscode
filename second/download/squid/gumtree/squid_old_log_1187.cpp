@@ -1,0 +1,1 @@
+buf.Printf("w(%d)", state.writing);

@@ -1,0 +1,1 @@
+inline int DH_up_ref(DH *t) {if (t) CRYPTO_add(&t->references, 1, CRYPTO_LOCK_DH); return 0;}

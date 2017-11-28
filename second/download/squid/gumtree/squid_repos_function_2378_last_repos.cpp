@@ -1,0 +1,1 @@
+void clearMaxStale() {setValue(max_stale,MAX_STALE_UNKNOWN,HttpHdrCcType::CC_MAX_STALE,false);}

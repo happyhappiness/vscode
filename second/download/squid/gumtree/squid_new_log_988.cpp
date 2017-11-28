@@ -1,0 +1,1 @@
+proxyProtocolError("PROXY protocol error: invalid header");

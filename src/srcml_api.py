@@ -203,6 +203,8 @@ class SrcmlApi:
                 check = self.get_control_info()
                 # ignore log without control statement
                 if check == []:
+                    # call info
+                    self.calls.add(name)
                     continue
                 # variable (argumentlist)
                 variable, temp_loc = self._get_info_for_node(call_node[1])
@@ -605,7 +607,7 @@ if __name__ == "__main__":
     # input function cpp file
     # srcml_api = SrcmlApi('second/download/git/repos/git-2.6.7/commit.c', is_function=False)
     # print srcml_api.get_functions(0, "_test")
-    srcml_api = SrcmlApi('second/download/git/gumtree/git_repos_function_4004_git-2.1.4.cpp', is_function=True)
+    srcml_api = SrcmlApi('second/download/collectd/gumtree/collectd_repos_function_770_collectd-4.3.0.cpp', is_function=True)
     print srcml_api.get_logs_calls_types()
     # srcml_api = SrcmlApi('/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2380_httpd-2.2.34.cpp', True)
     # if srcml_api.set_log_loc(36):

@@ -1,0 +1,1 @@
+storeAppendPrintf(&e, "Maximum slots:   %9d\n", slotLimit);

@@ -1,0 +1,1 @@
+void onlyIfCached(bool v) {setMask(HttpHdrCcType::CC_ONLY_IF_CACHED,v);}

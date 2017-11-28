@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/squid/gumtree/squid_repos_function_3458_squid-3.3.14.cpp" pos:tabs="8"><function><type><specifier pos:line="1" pos:column="1">const<pos:position pos:line="1" pos:column="6"/></specifier> <name pos:line="1" pos:column="7">char<pos:position pos:line="1" pos:column="11"/></name> <modifier pos:line="1" pos:column="12">*<pos:position pos:line="1" pos:column="13"/></modifier></type>
+<name pos:line="2" pos:column="1">httpStatusString<pos:position pos:line="2" pos:column="17"/></name><parameter_list pos:line="2" pos:column="17">(<parameter><decl><type><name pos:line="2" pos:column="18">http_status<pos:position pos:line="2" pos:column="29"/></name></type> <name pos:line="2" pos:column="30">status<pos:position pos:line="2" pos:column="36"/></name></decl></parameter>)<pos:position pos:line="2" pos:column="37"/></parameter_list>
+<block pos:line="3" pos:column="1">{
+    <comment type="block" pos:line="4" pos:column="5">/* why not to return matching string instead of using "p" ? @?@ */</comment>
+    <decl_stmt><decl><type><specifier pos:line="5" pos:column="5">const<pos:position pos:line="5" pos:column="10"/></specifier> <name pos:line="5" pos:column="11">char<pos:position pos:line="5" pos:column="15"/></name> <modifier pos:line="5" pos:column="16">*<pos:position pos:line="5" pos:column="17"/></modifier></type><name pos:line="5" pos:column="17">p<pos:position pos:line="5" pos:column="18"/></name> <init pos:line="5" pos:column="19">= <expr><name pos:line="5" pos:column="21">NULL<pos:position pos:line="5" pos:column="25"/></name></expr></init></decl>;<pos:position pos:line="5" pos:column="26"/></decl_stmt>
+
+    <switch pos:line="7" pos:column="5">switch <condition pos:line="7" pos:column="12">(<expr><name pos:line="7" pos:column="13">status<pos:position pos:line="7" pos:column="19"/></name></expr>)<pos:position pos:line="7" pos:column="20"/></condition> <block pos:line="7" pos:column="21">{
+
+    <case pos:line="9" pos:column="5">case <expr><literal type="number" pos:line="9" pos:column="10">0<pos:position pos:line="9" pos:column="11"/></literal></expr>:<pos:position pos:line="9" pos:column="12"/></case>
+        <expr_stmt><expr><name pos:line="10" pos:column="9">p<pos:position pos:line="10" pos:column="10"/></name> <operator pos:line="10" pos:column="11">=<pos:position pos:line="10" pos:column="12"/></operator> <literal type="string" pos:line="10" pos:column="13">"Init"<pos:position pos:line="10" pos:column="19"/></literal></expr>;<pos:position pos:line="10" pos:column="20"/></expr_stmt>		<comment type="block" pos:line="10" pos:column="33">/* we init .status with code 0 */</comment>
+        <break pos:line="11" pos:column="9">break;<pos:position pos:line="11" pos:column="15"/></break>
+
+    <case pos:line="13" pos:column="5">case <expr><name pos:line="13" pos:column="10">HTTP_CONTINUE<pos:position pos:line="13" pos:column="23"/></name></expr>:<pos:position pos:line="13" pos:column="24"/></case>
+        <expr_stmt><expr><name pos:line="14" pos:column="9">p<pos:position pos:line="14" pos:column="10"/></name> <operator pos:line="14" pos:column="11">=<pos:position pos:line="14" pos:column="12"/></operator> <literal type="string" pos:line="14" pos:column="13">"Continue"<pos:position pos:line="14" pos:column="23"/></literal></expr>;<pos:position pos:line="14" pos:column="24"/></expr_stmt>
+        <break pos:line="15" pos:column="9">break;<pos:position pos:line="15" pos:column="15"/></break>
+
+    <case pos:line="17" pos:column="5">case <expr><name pos:line="17" pos:column="10">HTTP_SWITCHING_PROTOCOLS<pos:position pos:line="17" pos:column="34"/></name></expr>:<pos:position pos:line="17" pos:column="35"/></case>
+        <expr_stmt><expr><name pos:line="18" pos:column="9">p<pos:position pos:line="18" pos:column="10"/></name> <operator pos:line="18" pos:column="11">=<pos:position pos:line="18" pos:column="12"/></operator> <literal type="string" pos:line="18" pos:column="13">"Switching Protocols"<pos:position pos:line="18" pos:column="34"/></literal></expr>;<pos:position pos:line="18" pos:column="35"/></expr_stmt>
+        <break pos:line="19" pos:column="9">break;<pos:position pos:line="19" pos:column="15"/></break>
+
+    <case pos:line="21" pos:column="5">case <expr><name pos:line="21" pos:column="10">HTTP_OK<pos:position pos:line="21" pos:column="17"/></name></expr>:<pos:position pos:line="21" pos:column="18"/></case>
+        <expr_stmt><expr><name pos:line="22" pos:column="9">p<pos:position pos:line="22" pos:column="10"/></name> <operator pos:line="22" pos:column="11">=<pos:position pos:line="22" pos:column="12"/></operator> <literal type="string" pos:line="22" pos:column="13">"OK"<pos:position pos:line="22" pos:column="17"/></literal></expr>;<pos:position pos:line="22" pos:column="18"/></expr_stmt>
+        <break pos:line="23" pos:column="9">break;<pos:position pos:line="23" pos:column="15"/></break>
+
+    <case pos:line="25" pos:column="5">case <expr><name pos:line="25" pos:column="10">HTTP_CREATED<pos:position pos:line="25" pos:column="22"/></name></expr>:<pos:position pos:line="25" pos:column="23"/></case>
+        <expr_stmt><expr><name pos:line="26" pos:column="9">p<pos:position pos:line="26" pos:column="10"/></name> <operator pos:line="26" pos:column="11">=<pos:position pos:line="26" pos:column="12"/></operator> <literal type="string" pos:line="26" pos:column="13">"Created"<pos:position pos:line="26" pos:column="22"/></literal></expr>;<pos:position pos:line="26" pos:column="23"/></expr_stmt>
+        <break pos:line="27" pos:column="9">break;<pos:position pos:line="27" pos:column="15"/></break>
+
+    <case pos:line="29" pos:column="5">case <expr><name pos:line="29" pos:column="10">HTTP_ACCEPTED<pos:position pos:line="29" pos:column="23"/></name></expr>:<pos:position pos:line="29" pos:column="24"/></case>
+        <expr_stmt><expr><name pos:line="30" pos:column="9">p<pos:position pos:line="30" pos:column="10"/></name> <operator pos:line="30" pos:column="11">=<pos:position pos:line="30" pos:column="12"/></operator> <literal type="string" pos:line="30" pos:column="13">"Accepted"<pos:position pos:line="30" pos:column="23"/></literal></expr>;<pos:position pos:line="30" pos:column="24"/></expr_stmt>
+        <break pos:line="31" pos:column="9">break;<pos:position pos:line="31" pos:column="15"/></break>
+
+    <case pos:line="33" pos:column="5">case <expr><name pos:line="33" pos:column="10">HTTP_NON_AUTHORITATIVE_INFORMATION<pos:position pos:line="33" pos:column="44"/></name></expr>:<pos:position pos:line="33" pos:column="45"/></case>
+        <expr_stmt><expr><name pos:line="34" pos:column="9">p<pos:position pos:line="34" pos:column="10"/></name> <operator pos:line="34" pos:column="11">=<pos:position pos:line="34" pos:column="12"/></operator> <literal type="string" pos:line="34" pos:column="13">"Non-Authoritative Information"<pos:position pos:line="34" pos:column="44"/></literal></expr>;<pos:position pos:line="34" pos:column="45"/></expr_stmt>
+        <break pos:line="35" pos:column="9">break;<pos:position pos:line="35" pos:column="15"/></break>
+
+    <case pos:line="37" pos:column="5">case <expr><name pos:line="37" pos:column="10">HTTP_NO_CONTENT<pos:position pos:line="37" pos:column="25"/></name></expr>:<pos:position pos:line="37" pos:column="26"/></case>
+        <expr_stmt><expr><name pos:line="38" pos:column="9">p<pos:position pos:line="38" pos:column="10"/></name> <operator pos:line="38" pos:column="11">=<pos:position pos:line="38" pos:column="12"/></operator> <literal type="string" pos:line="38" pos:column="13">"No Content"<pos:position pos:line="38" pos:column="25"/></literal></expr>;<pos:position pos:line="38" pos:column="26"/></expr_stmt>
+        <break pos:line="39" pos:column="9">break;<pos:position pos:line="39" pos:column="15"/></break>
+
+    <case pos:line="41" pos:column="5">case <expr><name pos:line="41" pos:column="10">HTTP_RESET_CONTENT<pos:position pos:line="41" pos:column="28"/></name></expr>:<pos:position pos:line="41" pos:column="29"/></case>
+        <expr_stmt><expr><name pos:line="42" pos:column="9">p<pos:position pos:line="42" pos:column="10"/></name> <operator pos:line="42" pos:column="11">=<pos:position pos:line="42" pos:column="12"/></operator> <literal type="string" pos:line="42" pos:column="13">"Reset Content"<pos:position pos:line="42" pos:column="28"/></literal></expr>;<pos:position pos:line="42" pos:column="29"/></expr_stmt>
+        <break pos:line="43" pos:column="9">break;<pos:position pos:line="43" pos:column="15"/></break>
+
+    <case pos:line="45" pos:column="5">case <expr><name pos:line="45" pos:column="10">HTTP_PARTIAL_CONTENT<pos:position pos:line="45" pos:column="30"/></name></expr>:<pos:position pos:line="45" pos:column="31"/></case>
+        <expr_stmt><expr><name pos:line="46" pos:column="9">p<pos:position pos:line="46" pos:column="10"/></name> <operator pos:line="46" pos:column="11">=<pos:position pos:line="46" pos:column="12"/></operator> <literal type="string" pos:line="46" pos:column="13">"Partial Content"<pos:position pos:line="46" pos:column="30"/></literal></expr>;<pos:position pos:line="46" pos:column="31"/></expr_stmt>
+        <break pos:line="47" pos:column="9">break;<pos:position pos:line="47" pos:column="15"/></break>
+
+    <case pos:line="49" pos:column="5">case <expr><name pos:line="49" pos:column="10">HTTP_MULTI_STATUS<pos:position pos:line="49" pos:column="27"/></name></expr>:<pos:position pos:line="49" pos:column="28"/></case>
+        <expr_stmt><expr><name pos:line="50" pos:column="9">p<pos:position pos:line="50" pos:column="10"/></name> <operator pos:line="50" pos:column="11">=<pos:position pos:line="50" pos:column="12"/></operator> <literal type="string" pos:line="50" pos:column="13">"Multi-Status"<pos:position pos:line="50" pos:column="27"/></literal></expr>;<pos:position pos:line="50" pos:column="28"/></expr_stmt>
+        <break pos:line="51" pos:column="9">break;<pos:position pos:line="51" pos:column="15"/></break>
+
+    <case pos:line="53" pos:column="5">case <expr><name pos:line="53" pos:column="10">HTTP_MULTIPLE_CHOICES<pos:position pos:line="53" pos:column="31"/></name></expr>:<pos:position pos:line="53" pos:column="32"/></case>
+        <expr_stmt><expr><name pos:line="54" pos:column="9">p<pos:position pos:line="54" pos:column="10"/></name> <operator pos:line="54" pos:column="11">=<pos:position pos:line="54" pos:column="12"/></operator> <literal type="string" pos:line="54" pos:column="13">"Multiple Choices"<pos:position pos:line="54" pos:column="31"/></literal></expr>;<pos:position pos:line="54" pos:column="32"/></expr_stmt>
+        <break pos:line="55" pos:column="9">break;<pos:position pos:line="55" pos:column="15"/></break>
+
+    <case pos:line="57" pos:column="5">case <expr><name pos:line="57" pos:column="10">HTTP_MOVED_PERMANENTLY<pos:position pos:line="57" pos:column="32"/></name></expr>:<pos:position pos:line="57" pos:column="33"/></case>
+        <expr_stmt><expr><name pos:line="58" pos:column="9">p<pos:position pos:line="58" pos:column="10"/></name> <operator pos:line="58" pos:column="11">=<pos:position pos:line="58" pos:column="12"/></operator> <literal type="string" pos:line="58" pos:column="13">"Moved Permanently"<pos:position pos:line="58" pos:column="32"/></literal></expr>;<pos:position pos:line="58" pos:column="33"/></expr_stmt>
+        <break pos:line="59" pos:column="9">break;<pos:position pos:line="59" pos:column="15"/></break>
+
+    <case pos:line="61" pos:column="5">case <expr><name pos:line="61" pos:column="10">HTTP_MOVED_TEMPORARILY<pos:position pos:line="61" pos:column="32"/></name></expr>:<pos:position pos:line="61" pos:column="33"/></case>
+        <expr_stmt><expr><name pos:line="62" pos:column="9">p<pos:position pos:line="62" pos:column="10"/></name> <operator pos:line="62" pos:column="11">=<pos:position pos:line="62" pos:column="12"/></operator> <literal type="string" pos:line="62" pos:column="13">"Moved Temporarily"<pos:position pos:line="62" pos:column="32"/></literal></expr>;<pos:position pos:line="62" pos:column="33"/></expr_stmt>
+        <break pos:line="63" pos:column="9">break;<pos:position pos:line="63" pos:column="15"/></break>
+
+    <case pos:line="65" pos:column="5">case <expr><name pos:line="65" pos:column="10">HTTP_SEE_OTHER<pos:position pos:line="65" pos:column="24"/></name></expr>:<pos:position pos:line="65" pos:column="25"/></case>
+        <expr_stmt><expr><name pos:line="66" pos:column="9">p<pos:position pos:line="66" pos:column="10"/></name> <operator pos:line="66" pos:column="11">=<pos:position pos:line="66" pos:column="12"/></operator> <literal type="string" pos:line="66" pos:column="13">"See Other"<pos:position pos:line="66" pos:column="24"/></literal></expr>;<pos:position pos:line="66" pos:column="25"/></expr_stmt>
+        <break pos:line="67" pos:column="9">break;<pos:position pos:line="67" pos:column="15"/></break>
+
+    <case pos:line="69" pos:column="5">case <expr><name pos:line="69" pos:column="10">HTTP_NOT_MODIFIED<pos:position pos:line="69" pos:column="27"/></name></expr>:<pos:position pos:line="69" pos:column="28"/></case>
+        <expr_stmt><expr><name pos:line="70" pos:column="9">p<pos:position pos:line="70" pos:column="10"/></name> <operator pos:line="70" pos:column="11">=<pos:position pos:line="70" pos:column="12"/></operator> <literal type="string" pos:line="70" pos:column="13">"Not Modified"<pos:position pos:line="70" pos:column="27"/></literal></expr>;<pos:position pos:line="70" pos:column="28"/></expr_stmt>
+        <break pos:line="71" pos:column="9">break;<pos:position pos:line="71" pos:column="15"/></break>
+
+    <case pos:line="73" pos:column="5">case <expr><name pos:line="73" pos:column="10">HTTP_USE_PROXY<pos:position pos:line="73" pos:column="24"/></name></expr>:<pos:position pos:line="73" pos:column="25"/></case>
+        <expr_stmt><expr><name pos:line="74" pos:column="9">p<pos:position pos:line="74" pos:column="10"/></name> <operator pos:line="74" pos:column="11">=<pos:position pos:line="74" pos:column="12"/></operator> <literal type="string" pos:line="74" pos:column="13">"Use Proxy"<pos:position pos:line="74" pos:column="24"/></literal></expr>;<pos:position pos:line="74" pos:column="25"/></expr_stmt>
+        <break pos:line="75" pos:column="9">break;<pos:position pos:line="75" pos:column="15"/></break>
+
+    <case pos:line="77" pos:column="5">case <expr><name pos:line="77" pos:column="10">HTTP_TEMPORARY_REDIRECT<pos:position pos:line="77" pos:column="33"/></name></expr>:<pos:position pos:line="77" pos:column="34"/></case>
+        <expr_stmt><expr><name pos:line="78" pos:column="9">p<pos:position pos:line="78" pos:column="10"/></name> <operator pos:line="78" pos:column="11">=<pos:position pos:line="78" pos:column="12"/></operator> <literal type="string" pos:line="78" pos:column="13">"Temporary Redirect"<pos:position pos:line="78" pos:column="33"/></literal></expr>;<pos:position pos:line="78" pos:column="34"/></expr_stmt>
+        <break pos:line="79" pos:column="9">break;<pos:position pos:line="79" pos:column="15"/></break>
+
+    <case pos:line="81" pos:column="5">case <expr><name pos:line="81" pos:column="10">HTTP_PERMANENT_REDIRECT<pos:position pos:line="81" pos:column="33"/></name></expr>:<pos:position pos:line="81" pos:column="34"/></case>
+        <expr_stmt><expr><name pos:line="82" pos:column="9">p<pos:position pos:line="82" pos:column="10"/></name> <operator pos:line="82" pos:column="11">=<pos:position pos:line="82" pos:column="12"/></operator> <literal type="string" pos:line="82" pos:column="13">"Permanent Redirect"<pos:position pos:line="82" pos:column="33"/></literal></expr>;<pos:position pos:line="82" pos:column="34"/></expr_stmt>
+        <break pos:line="83" pos:column="9">break;<pos:position pos:line="83" pos:column="15"/></break>
+
+    <case pos:line="85" pos:column="5">case <expr><name pos:line="85" pos:column="10">HTTP_BAD_REQUEST<pos:position pos:line="85" pos:column="26"/></name></expr>:<pos:position pos:line="85" pos:column="27"/></case>
+        <expr_stmt><expr><name pos:line="86" pos:column="9">p<pos:position pos:line="86" pos:column="10"/></name> <operator pos:line="86" pos:column="11">=<pos:position pos:line="86" pos:column="12"/></operator> <literal type="string" pos:line="86" pos:column="13">"Bad Request"<pos:position pos:line="86" pos:column="26"/></literal></expr>;<pos:position pos:line="86" pos:column="27"/></expr_stmt>
+        <break pos:line="87" pos:column="9">break;<pos:position pos:line="87" pos:column="15"/></break>
+
+    <case pos:line="89" pos:column="5">case <expr><name pos:line="89" pos:column="10">HTTP_UNAUTHORIZED<pos:position pos:line="89" pos:column="27"/></name></expr>:<pos:position pos:line="89" pos:column="28"/></case>
+        <expr_stmt><expr><name pos:line="90" pos:column="9">p<pos:position pos:line="90" pos:column="10"/></name> <operator pos:line="90" pos:column="11">=<pos:position pos:line="90" pos:column="12"/></operator> <literal type="string" pos:line="90" pos:column="13">"Unauthorized"<pos:position pos:line="90" pos:column="27"/></literal></expr>;<pos:position pos:line="90" pos:column="28"/></expr_stmt>
+        <break pos:line="91" pos:column="9">break;<pos:position pos:line="91" pos:column="15"/></break>
+
+    <case pos:line="93" pos:column="5">case <expr><name pos:line="93" pos:column="10">HTTP_PAYMENT_REQUIRED<pos:position pos:line="93" pos:column="31"/></name></expr>:<pos:position pos:line="93" pos:column="32"/></case>
+        <expr_stmt><expr><name pos:line="94" pos:column="9">p<pos:position pos:line="94" pos:column="10"/></name> <operator pos:line="94" pos:column="11">=<pos:position pos:line="94" pos:column="12"/></operator> <literal type="string" pos:line="94" pos:column="13">"Payment Required"<pos:position pos:line="94" pos:column="31"/></literal></expr>;<pos:position pos:line="94" pos:column="32"/></expr_stmt>
+        <break pos:line="95" pos:column="9">break;<pos:position pos:line="95" pos:column="15"/></break>
+
+    <case pos:line="97" pos:column="5">case <expr><name pos:line="97" pos:column="10">HTTP_FORBIDDEN<pos:position pos:line="97" pos:column="24"/></name></expr>:<pos:position pos:line="97" pos:column="25"/></case>
+        <expr_stmt><expr><name pos:line="98" pos:column="9">p<pos:position pos:line="98" pos:column="10"/></name> <operator pos:line="98" pos:column="11">=<pos:position pos:line="98" pos:column="12"/></operator> <literal type="string" pos:line="98" pos:column="13">"Forbidden"<pos:position pos:line="98" pos:column="24"/></literal></expr>;<pos:position pos:line="98" pos:column="25"/></expr_stmt>
+        <break pos:line="99" pos:column="9">break;<pos:position pos:line="99" pos:column="15"/></break>
+
+    <case pos:line="101" pos:column="5">case <expr><name pos:line="101" pos:column="10">HTTP_NOT_FOUND<pos:position pos:line="101" pos:column="24"/></name></expr>:<pos:position pos:line="101" pos:column="25"/></case>
+        <expr_stmt><expr><name pos:line="102" pos:column="9">p<pos:position pos:line="102" pos:column="10"/></name> <operator pos:line="102" pos:column="11">=<pos:position pos:line="102" pos:column="12"/></operator> <literal type="string" pos:line="102" pos:column="13">"Not Found"<pos:position pos:line="102" pos:column="24"/></literal></expr>;<pos:position pos:line="102" pos:column="25"/></expr_stmt>
+        <break pos:line="103" pos:column="9">break;<pos:position pos:line="103" pos:column="15"/></break>
+
+    <case pos:line="105" pos:column="5">case <expr><name pos:line="105" pos:column="10">HTTP_METHOD_NOT_ALLOWED<pos:position pos:line="105" pos:column="33"/></name></expr>:<pos:position pos:line="105" pos:column="34"/></case>
+        <expr_stmt><expr><name pos:line="106" pos:column="9">p<pos:position pos:line="106" pos:column="10"/></name> <operator pos:line="106" pos:column="11">=<pos:position pos:line="106" pos:column="12"/></operator> <literal type="string" pos:line="106" pos:column="13">"Method Not Allowed"<pos:position pos:line="106" pos:column="33"/></literal></expr>;<pos:position pos:line="106" pos:column="34"/></expr_stmt>
+        <break pos:line="107" pos:column="9">break;<pos:position pos:line="107" pos:column="15"/></break>
+
+    <case pos:line="109" pos:column="5">case <expr><name pos:line="109" pos:column="10">HTTP_NOT_ACCEPTABLE<pos:position pos:line="109" pos:column="29"/></name></expr>:<pos:position pos:line="109" pos:column="30"/></case>
+        <expr_stmt><expr><name pos:line="110" pos:column="9">p<pos:position pos:line="110" pos:column="10"/></name> <operator pos:line="110" pos:column="11">=<pos:position pos:line="110" pos:column="12"/></operator> <literal type="string" pos:line="110" pos:column="13">"Not Acceptable"<pos:position pos:line="110" pos:column="29"/></literal></expr>;<pos:position pos:line="110" pos:column="30"/></expr_stmt>
+        <break pos:line="111" pos:column="9">break;<pos:position pos:line="111" pos:column="15"/></break>
+
+    <case pos:line="113" pos:column="5">case <expr><name pos:line="113" pos:column="10">HTTP_PROXY_AUTHENTICATION_REQUIRED<pos:position pos:line="113" pos:column="44"/></name></expr>:<pos:position pos:line="113" pos:column="45"/></case>
+        <expr_stmt><expr><name pos:line="114" pos:column="9">p<pos:position pos:line="114" pos:column="10"/></name> <operator pos:line="114" pos:column="11">=<pos:position pos:line="114" pos:column="12"/></operator> <literal type="string" pos:line="114" pos:column="13">"Proxy Authentication Required"<pos:position pos:line="114" pos:column="44"/></literal></expr>;<pos:position pos:line="114" pos:column="45"/></expr_stmt>
+        <break pos:line="115" pos:column="9">break;<pos:position pos:line="115" pos:column="15"/></break>
+
+    <case pos:line="117" pos:column="5">case <expr><name pos:line="117" pos:column="10">HTTP_REQUEST_TIMEOUT<pos:position pos:line="117" pos:column="30"/></name></expr>:<pos:position pos:line="117" pos:column="31"/></case>
+        <expr_stmt><expr><name pos:line="118" pos:column="9">p<pos:position pos:line="118" pos:column="10"/></name> <operator pos:line="118" pos:column="11">=<pos:position pos:line="118" pos:column="12"/></operator> <literal type="string" pos:line="118" pos:column="13">"Request Time-out"<pos:position pos:line="118" pos:column="31"/></literal></expr>;<pos:position pos:line="118" pos:column="32"/></expr_stmt>
+        <break pos:line="119" pos:column="9">break;<pos:position pos:line="119" pos:column="15"/></break>
+
+    <case pos:line="121" pos:column="5">case <expr><name pos:line="121" pos:column="10">HTTP_CONFLICT<pos:position pos:line="121" pos:column="23"/></name></expr>:<pos:position pos:line="121" pos:column="24"/></case>
+        <expr_stmt><expr><name pos:line="122" pos:column="9">p<pos:position pos:line="122" pos:column="10"/></name> <operator pos:line="122" pos:column="11">=<pos:position pos:line="122" pos:column="12"/></operator> <literal type="string" pos:line="122" pos:column="13">"Conflict"<pos:position pos:line="122" pos:column="23"/></literal></expr>;<pos:position pos:line="122" pos:column="24"/></expr_stmt>
+        <break pos:line="123" pos:column="9">break;<pos:position pos:line="123" pos:column="15"/></break>
+
+    <case pos:line="125" pos:column="5">case <expr><name pos:line="125" pos:column="10">HTTP_GONE<pos:position pos:line="125" pos:column="19"/></name></expr>:<pos:position pos:line="125" pos:column="20"/></case>
+        <expr_stmt><expr><name pos:line="126" pos:column="9">p<pos:position pos:line="126" pos:column="10"/></name> <operator pos:line="126" pos:column="11">=<pos:position pos:line="126" pos:column="12"/></operator> <literal type="string" pos:line="126" pos:column="13">"Gone"<pos:position pos:line="126" pos:column="19"/></literal></expr>;<pos:position pos:line="126" pos:column="20"/></expr_stmt>
+        <break pos:line="127" pos:column="9">break;<pos:position pos:line="127" pos:column="15"/></break>
+
+    <case pos:line="129" pos:column="5">case <expr><name pos:line="129" pos:column="10">HTTP_LENGTH_REQUIRED<pos:position pos:line="129" pos:column="30"/></name></expr>:<pos:position pos:line="129" pos:column="31"/></case>
+        <expr_stmt><expr><name pos:line="130" pos:column="9">p<pos:position pos:line="130" pos:column="10"/></name> <operator pos:line="130" pos:column="11">=<pos:position pos:line="130" pos:column="12"/></operator> <literal type="string" pos:line="130" pos:column="13">"Length Required"<pos:position pos:line="130" pos:column="30"/></literal></expr>;<pos:position pos:line="130" pos:column="31"/></expr_stmt>
+        <break pos:line="131" pos:column="9">break;<pos:position pos:line="131" pos:column="15"/></break>
+
+    <case pos:line="133" pos:column="5">case <expr><name pos:line="133" pos:column="10">HTTP_PRECONDITION_FAILED<pos:position pos:line="133" pos:column="34"/></name></expr>:<pos:position pos:line="133" pos:column="35"/></case>
+        <expr_stmt><expr><name pos:line="134" pos:column="9">p<pos:position pos:line="134" pos:column="10"/></name> <operator pos:line="134" pos:column="11">=<pos:position pos:line="134" pos:column="12"/></operator> <literal type="string" pos:line="134" pos:column="13">"Precondition Failed"<pos:position pos:line="134" pos:column="34"/></literal></expr>;<pos:position pos:line="134" pos:column="35"/></expr_stmt>
+        <break pos:line="135" pos:column="9">break;<pos:position pos:line="135" pos:column="15"/></break>
+
+    <case pos:line="137" pos:column="5">case <expr><name pos:line="137" pos:column="10">HTTP_REQUEST_ENTITY_TOO_LARGE<pos:position pos:line="137" pos:column="39"/></name></expr>:<pos:position pos:line="137" pos:column="40"/></case>
+        <expr_stmt><expr><name pos:line="138" pos:column="9">p<pos:position pos:line="138" pos:column="10"/></name> <operator pos:line="138" pos:column="11">=<pos:position pos:line="138" pos:column="12"/></operator> <literal type="string" pos:line="138" pos:column="13">"Request Entity Too Large"<pos:position pos:line="138" pos:column="39"/></literal></expr>;<pos:position pos:line="138" pos:column="40"/></expr_stmt>
+        <break pos:line="139" pos:column="9">break;<pos:position pos:line="139" pos:column="15"/></break>
+
+    <case pos:line="141" pos:column="5">case <expr><name pos:line="141" pos:column="10">HTTP_REQUEST_URI_TOO_LARGE<pos:position pos:line="141" pos:column="36"/></name></expr>:<pos:position pos:line="141" pos:column="37"/></case>
+        <expr_stmt><expr><name pos:line="142" pos:column="9">p<pos:position pos:line="142" pos:column="10"/></name> <operator pos:line="142" pos:column="11">=<pos:position pos:line="142" pos:column="12"/></operator> <literal type="string" pos:line="142" pos:column="13">"Request-URI Too Large"<pos:position pos:line="142" pos:column="36"/></literal></expr>;<pos:position pos:line="142" pos:column="37"/></expr_stmt>
+        <break pos:line="143" pos:column="9">break;<pos:position pos:line="143" pos:column="15"/></break>
+
+    <case pos:line="145" pos:column="5">case <expr><name pos:line="145" pos:column="10">HTTP_UNSUPPORTED_MEDIA_TYPE<pos:position pos:line="145" pos:column="37"/></name></expr>:<pos:position pos:line="145" pos:column="38"/></case>
+        <expr_stmt><expr><name pos:line="146" pos:column="9">p<pos:position pos:line="146" pos:column="10"/></name> <operator pos:line="146" pos:column="11">=<pos:position pos:line="146" pos:column="12"/></operator> <literal type="string" pos:line="146" pos:column="13">"Unsupported Media Type"<pos:position pos:line="146" pos:column="37"/></literal></expr>;<pos:position pos:line="146" pos:column="38"/></expr_stmt>
+        <break pos:line="147" pos:column="9">break;<pos:position pos:line="147" pos:column="15"/></break>
+
+    <case pos:line="149" pos:column="5">case <expr><name pos:line="149" pos:column="10">HTTP_REQUESTED_RANGE_NOT_SATISFIABLE<pos:position pos:line="149" pos:column="46"/></name></expr>:<pos:position pos:line="149" pos:column="47"/></case>
+        <expr_stmt><expr><name pos:line="150" pos:column="9">p<pos:position pos:line="150" pos:column="10"/></name> <operator pos:line="150" pos:column="11">=<pos:position pos:line="150" pos:column="12"/></operator> <literal type="string" pos:line="150" pos:column="13">"Requested Range Not Satisfiable"<pos:position pos:line="150" pos:column="46"/></literal></expr>;<pos:position pos:line="150" pos:column="47"/></expr_stmt>
+        <break pos:line="151" pos:column="9">break;<pos:position pos:line="151" pos:column="15"/></break>
+
+    <case pos:line="153" pos:column="5">case <expr><name pos:line="153" pos:column="10">HTTP_EXPECTATION_FAILED<pos:position pos:line="153" pos:column="33"/></name></expr>:<pos:position pos:line="153" pos:column="34"/></case>
+        <expr_stmt><expr><name pos:line="154" pos:column="9">p<pos:position pos:line="154" pos:column="10"/></name> <operator pos:line="154" pos:column="11">=<pos:position pos:line="154" pos:column="12"/></operator> <literal type="string" pos:line="154" pos:column="13">"Expectation Failed"<pos:position pos:line="154" pos:column="33"/></literal></expr>;<pos:position pos:line="154" pos:column="34"/></expr_stmt>
+        <break pos:line="155" pos:column="9">break;<pos:position pos:line="155" pos:column="15"/></break>
+
+    <case pos:line="157" pos:column="5">case <expr><name pos:line="157" pos:column="10">HTTP_INTERNAL_SERVER_ERROR<pos:position pos:line="157" pos:column="36"/></name></expr>:<pos:position pos:line="157" pos:column="37"/></case>
+        <expr_stmt><expr><name pos:line="158" pos:column="9">p<pos:position pos:line="158" pos:column="10"/></name> <operator pos:line="158" pos:column="11">=<pos:position pos:line="158" pos:column="12"/></operator> <literal type="string" pos:line="158" pos:column="13">"Internal Server Error"<pos:position pos:line="158" pos:column="36"/></literal></expr>;<pos:position pos:line="158" pos:column="37"/></expr_stmt>
+        <break pos:line="159" pos:column="9">break;<pos:position pos:line="159" pos:column="15"/></break>
+
+    <case pos:line="161" pos:column="5">case <expr><name pos:line="161" pos:column="10">HTTP_NOT_IMPLEMENTED<pos:position pos:line="161" pos:column="30"/></name></expr>:<pos:position pos:line="161" pos:column="31"/></case>
+        <expr_stmt><expr><name pos:line="162" pos:column="9">p<pos:position pos:line="162" pos:column="10"/></name> <operator pos:line="162" pos:column="11">=<pos:position pos:line="162" pos:column="12"/></operator> <literal type="string" pos:line="162" pos:column="13">"Not Implemented"<pos:position pos:line="162" pos:column="30"/></literal></expr>;<pos:position pos:line="162" pos:column="31"/></expr_stmt>
+        <break pos:line="163" pos:column="9">break;<pos:position pos:line="163" pos:column="15"/></break>
+
+    <case pos:line="165" pos:column="5">case <expr><name pos:line="165" pos:column="10">HTTP_BAD_GATEWAY<pos:position pos:line="165" pos:column="26"/></name></expr>:<pos:position pos:line="165" pos:column="27"/></case>
+        <expr_stmt><expr><name pos:line="166" pos:column="9">p<pos:position pos:line="166" pos:column="10"/></name> <operator pos:line="166" pos:column="11">=<pos:position pos:line="166" pos:column="12"/></operator> <literal type="string" pos:line="166" pos:column="13">"Bad Gateway"<pos:position pos:line="166" pos:column="26"/></literal></expr>;<pos:position pos:line="166" pos:column="27"/></expr_stmt>
+        <break pos:line="167" pos:column="9">break;<pos:position pos:line="167" pos:column="15"/></break>
+
+    <case pos:line="169" pos:column="5">case <expr><name pos:line="169" pos:column="10">HTTP_SERVICE_UNAVAILABLE<pos:position pos:line="169" pos:column="34"/></name></expr>:<pos:position pos:line="169" pos:column="35"/></case>
+        <expr_stmt><expr><name pos:line="170" pos:column="9">p<pos:position pos:line="170" pos:column="10"/></name> <operator pos:line="170" pos:column="11">=<pos:position pos:line="170" pos:column="12"/></operator> <literal type="string" pos:line="170" pos:column="13">"Service Unavailable"<pos:position pos:line="170" pos:column="34"/></literal></expr>;<pos:position pos:line="170" pos:column="35"/></expr_stmt>
+        <break pos:line="171" pos:column="9">break;<pos:position pos:line="171" pos:column="15"/></break>
+
+    <case pos:line="173" pos:column="5">case <expr><name pos:line="173" pos:column="10">HTTP_GATEWAY_TIMEOUT<pos:position pos:line="173" pos:column="30"/></name></expr>:<pos:position pos:line="173" pos:column="31"/></case>
+        <expr_stmt><expr><name pos:line="174" pos:column="9">p<pos:position pos:line="174" pos:column="10"/></name> <operator pos:line="174" pos:column="11">=<pos:position pos:line="174" pos:column="12"/></operator> <literal type="string" pos:line="174" pos:column="13">"Gateway Time-out"<pos:position pos:line="174" pos:column="31"/></literal></expr>;<pos:position pos:line="174" pos:column="32"/></expr_stmt>
+        <break pos:line="175" pos:column="9">break;<pos:position pos:line="175" pos:column="15"/></break>
+
+    <case pos:line="177" pos:column="5">case <expr><name pos:line="177" pos:column="10">HTTP_HTTP_VERSION_NOT_SUPPORTED<pos:position pos:line="177" pos:column="41"/></name></expr>:<pos:position pos:line="177" pos:column="42"/></case>
+        <expr_stmt><expr><name pos:line="178" pos:column="9">p<pos:position pos:line="178" pos:column="10"/></name> <operator pos:line="178" pos:column="11">=<pos:position pos:line="178" pos:column="12"/></operator> <literal type="string" pos:line="178" pos:column="13">"HTTP Version not supported"<pos:position pos:line="178" pos:column="41"/></literal></expr>;<pos:position pos:line="178" pos:column="42"/></expr_stmt>
+        <break pos:line="179" pos:column="9">break;<pos:position pos:line="179" pos:column="15"/></break>
+
+        <comment type="line" pos:line="181" pos:column="9">// RFC 6585</comment>
+    <case pos:line="182" pos:column="5">case <expr><name pos:line="182" pos:column="10">HTTP_PRECONDITION_REQUIRED<pos:position pos:line="182" pos:column="36"/></name></expr>:<pos:position pos:line="182" pos:column="37"/></case> <comment type="line" pos:line="182" pos:column="38">// 428</comment>
+        <expr_stmt><expr><name pos:line="183" pos:column="9">p<pos:position pos:line="183" pos:column="10"/></name> <operator pos:line="183" pos:column="11">=<pos:position pos:line="183" pos:column="12"/></operator> <literal type="string" pos:line="183" pos:column="13">"Precondition Required"<pos:position pos:line="183" pos:column="36"/></literal></expr>;<pos:position pos:line="183" pos:column="37"/></expr_stmt>
+        <break pos:line="184" pos:column="9">break;<pos:position pos:line="184" pos:column="15"/></break>
+
+    <case pos:line="186" pos:column="5">case <expr><name pos:line="186" pos:column="10">HTTP_TOO_MANY_REQUESTS<pos:position pos:line="186" pos:column="32"/></name></expr>:<pos:position pos:line="186" pos:column="33"/></case> <comment type="line" pos:line="186" pos:column="34">// 429</comment>
+        <expr_stmt><expr><name pos:line="187" pos:column="9">p<pos:position pos:line="187" pos:column="10"/></name> <operator pos:line="187" pos:column="11">=<pos:position pos:line="187" pos:column="12"/></operator> <literal type="string" pos:line="187" pos:column="13">"Too Many Requests"<pos:position pos:line="187" pos:column="32"/></literal></expr>;<pos:position pos:line="187" pos:column="33"/></expr_stmt>
+        <break pos:line="188" pos:column="9">break;<pos:position pos:line="188" pos:column="15"/></break>
+
+    <case pos:line="190" pos:column="5">case <expr><name pos:line="190" pos:column="10">HTTP_REQUEST_HEADER_FIELDS_TOO_LARGE<pos:position pos:line="190" pos:column="46"/></name></expr>:<pos:position pos:line="190" pos:column="47"/></case> <comment type="line" pos:line="190" pos:column="48">// 431</comment>
+        <expr_stmt><expr><name pos:line="191" pos:column="9">p<pos:position pos:line="191" pos:column="10"/></name> <operator pos:line="191" pos:column="11">=<pos:position pos:line="191" pos:column="12"/></operator> <literal type="string" pos:line="191" pos:column="13">"Request Header Fields Too Large"<pos:position pos:line="191" pos:column="46"/></literal></expr>;<pos:position pos:line="191" pos:column="47"/></expr_stmt>
+        <break pos:line="192" pos:column="9">break;<pos:position pos:line="192" pos:column="15"/></break>
+
+    <case pos:line="194" pos:column="5">case <expr><name pos:line="194" pos:column="10">HTTP_NETWORK_AUTHENTICATION_REQUIRED<pos:position pos:line="194" pos:column="46"/></name></expr>:<pos:position pos:line="194" pos:column="47"/></case> <comment type="line" pos:line="194" pos:column="48">// 511</comment>
+        <expr_stmt><expr><name pos:line="195" pos:column="9">p<pos:position pos:line="195" pos:column="10"/></name> <operator pos:line="195" pos:column="11">=<pos:position pos:line="195" pos:column="12"/></operator> <literal type="string" pos:line="195" pos:column="13">"Network Authentication Required"<pos:position pos:line="195" pos:column="46"/></literal></expr>;<pos:position pos:line="195" pos:column="47"/></expr_stmt>
+        <break pos:line="196" pos:column="9">break;<pos:position pos:line="196" pos:column="15"/></break>
+
+    <default pos:line="198" pos:column="5">default:<pos:position pos:line="198" pos:column="13"/></default>
+        <expr_stmt><expr><name pos:line="199" pos:column="9">p<pos:position pos:line="199" pos:column="10"/></name> <operator pos:line="199" pos:column="11">=<pos:position pos:line="199" pos:column="12"/></operator> <literal type="string" pos:line="199" pos:column="13">"Unknown"<pos:position pos:line="199" pos:column="22"/></literal></expr>;<pos:position pos:line="199" pos:column="23"/></expr_stmt>
+        <expr_stmt><expr><call><name pos:line="200" pos:column="9">debugs<pos:position pos:line="200" pos:column="15"/></name><argument_list pos:line="200" pos:column="15">(<argument><expr><literal type="number" pos:line="200" pos:column="16">57<pos:position pos:line="200" pos:column="18"/></literal></expr></argument>, <argument><expr><literal type="number" pos:line="200" pos:column="20">3<pos:position pos:line="200" pos:column="21"/></literal></expr></argument>, <argument><expr><literal type="string" pos:line="200" pos:column="23">"Unknown HTTP status code: "<pos:position pos:line="200" pos:column="51"/></literal> <operator pos:line="200" pos:column="52">&lt;&lt;<pos:position pos:line="200" pos:column="60"/></operator> <name pos:line="200" pos:column="55">status<pos:position pos:line="200" pos:column="61"/></name></expr></argument>)<pos:position pos:line="200" pos:column="62"/></argument_list></call></expr>;<pos:position pos:line="200" pos:column="63"/></expr_stmt>
+        <break pos:line="201" pos:column="9">break;<pos:position pos:line="201" pos:column="15"/></break>
+    }<pos:position pos:line="202" pos:column="6"/></block></switch>
+
+    <return pos:line="204" pos:column="5">return <expr><name pos:line="204" pos:column="12">p<pos:position pos:line="204" pos:column="13"/></name></expr>;<pos:position pos:line="204" pos:column="14"/></return>
+}<pos:position pos:line="205" pos:column="2"/></block></function></unit>

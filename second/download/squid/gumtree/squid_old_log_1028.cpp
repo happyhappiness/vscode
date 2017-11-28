@@ -1,0 +1,1 @@
+fatal("Rock Store db creation error");

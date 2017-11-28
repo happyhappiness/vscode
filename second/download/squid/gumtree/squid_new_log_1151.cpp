@@ -1,0 +1,1 @@
+out.Printf("<LI type=\"disk\"><A HREF=\"%s\">%s</A>\n", a_url, d);

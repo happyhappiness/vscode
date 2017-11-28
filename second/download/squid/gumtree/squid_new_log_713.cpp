@@ -1,0 +1,1 @@
+printf("for (var i = 0; i < s.childElementCount; i++) {\n");

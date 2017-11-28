@@ -1,0 +1,1 @@
+void maxStale(int v) { max_stale=v; }

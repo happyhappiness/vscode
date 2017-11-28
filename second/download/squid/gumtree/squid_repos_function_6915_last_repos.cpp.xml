@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/squid/gumtree/squid_repos_function_6915_last_repos.cpp" pos:tabs="8"><function><type><name pos:line="1" pos:column="1">bool<pos:position pos:line="1" pos:column="5"/></name></type>
+<name><name pos:line="2" pos:column="1">Eui<pos:position pos:line="2" pos:column="4"/></name><operator pos:line="2" pos:column="4">::<pos:position pos:line="2" pos:column="6"/></operator><name pos:line="2" pos:column="6">Eui64<pos:position pos:line="2" pos:column="11"/></name><operator pos:line="2" pos:column="11">::<pos:position pos:line="2" pos:column="13"/></operator><name pos:line="2" pos:column="13">lookupNdp<pos:position pos:line="2" pos:column="22"/></name></name><parameter_list pos:line="2" pos:column="22">(<parameter><decl><type><specifier pos:line="2" pos:column="23">const<pos:position pos:line="2" pos:column="28"/></specifier> <name><name pos:line="2" pos:column="29">Ip<pos:position pos:line="2" pos:column="31"/></name><operator pos:line="2" pos:column="31">::<pos:position pos:line="2" pos:column="33"/></operator><name pos:line="2" pos:column="33">Address<pos:position pos:line="2" pos:column="40"/></name></name> <modifier pos:line="2" pos:column="41">&amp;<pos:position pos:line="2" pos:column="46"/></modifier></type></decl></parameter><comment type="block" pos:line="2" pos:column="42">/*c*/</comment>)<pos:position pos:line="2" pos:column="48"/></parameter_list>
+<block pos:line="3" pos:column="1">{
+<cpp:if pos:line="4" pos:column="1">#<cpp:directive pos:line="4" pos:column="2">if<pos:position pos:line="4" pos:column="4"/></cpp:directive> <expr><literal type="number" pos:line="4" pos:column="5">0<pos:position pos:line="4" pos:column="6"/></literal></expr></cpp:if> <comment type="block" pos:line="4" pos:column="7">/* no actual lookup coded yet */</comment>
+
+    <comment type="block" pos:line="6" pos:column="5">/* no OS yet supported for NDP protocol lookup */</comment>
+    debugs(28, DBG_CRITICAL, "ERROR: ARP / MAC / EUI-* operations not supported on this operating system.");
+
+    <comment type="block" pos:line="9" pos:column="5">/*
+     * Address was not found on any interface
+     */</comment>
+    debugs(28, 3, "id=" &lt;&lt; (void*)this &lt;&lt; ' ' &lt;&lt; c &lt;&lt; " NOT found");
+<cpp:endif pos:line="13" pos:column="1">#<cpp:directive pos:line="13" pos:column="2">endif<pos:position pos:line="13" pos:column="7"/></cpp:directive></cpp:endif> <comment type="block" pos:line="13" pos:column="8">/* 0 */</comment>
+
+    <expr_stmt><expr><call><name pos:line="15" pos:column="5">clear<pos:position pos:line="15" pos:column="10"/></name><argument_list pos:line="15" pos:column="10">()<pos:position pos:line="15" pos:column="12"/></argument_list></call></expr>;<pos:position pos:line="15" pos:column="13"/></expr_stmt>
+    <return pos:line="16" pos:column="5">return <expr><literal type="boolean" pos:line="16" pos:column="12">false<pos:position pos:line="16" pos:column="17"/></literal></expr>;<pos:position pos:line="16" pos:column="18"/></return>
+}<pos:position pos:line="17" pos:column="2"/></block></function></unit>

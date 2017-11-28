@@ -1,0 +1,1 @@
+mb.Printf("%i-%s\r\n", scode, errorPageName(request->errType));

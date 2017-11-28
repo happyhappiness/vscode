@@ -1,0 +1,1 @@
+fprintf(stderr, "-h help\n");

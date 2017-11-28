@@ -1,0 +1,1 @@
+printf("$fail A system error occured looking up Domain/IP '%s': %s.\n", buf, xgai_strerror(res));

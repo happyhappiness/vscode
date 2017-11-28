@@ -1,0 +1,1 @@
+void block() { popBlocked.store(true); }

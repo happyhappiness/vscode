@@ -1,0 +1,1 @@
+fatalf("invalid carp-key '%s'",key);

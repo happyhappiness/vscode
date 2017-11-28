@@ -1,0 +1,1 @@
+void detailError(int dCode) {detailCode = dCode;}

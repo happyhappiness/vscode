@@ -1,0 +1,1 @@
+fatalf("comm_select_init: xmalloc() failed: %s\n",xstrerror());

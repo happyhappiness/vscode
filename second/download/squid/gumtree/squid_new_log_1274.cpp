@@ -1,0 +1,1 @@
+storeAppendPrintf(entry, " response=\"%s\"", config.response);

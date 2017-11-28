@@ -1,0 +1,1 @@
+inline bool unlinkdNeeded(void) { return false; }

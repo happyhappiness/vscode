@@ -1,0 +1,1 @@
+fputs(munge_menu_line(buf, req), stdout);

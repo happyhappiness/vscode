@@ -1,0 +1,1 @@
+fprintf(stderr, "cmgr: decoding pub: '%s'\n", safe_str(req->pub_auth));

@@ -1,0 +1,1 @@
+void zeroBlocks(bool doIt) {doZero = doIt;}

@@ -1,0 +1,1 @@
+void minFresh(int32_t v) {if (v < 0) return; setValue(min_fresh,v,CC_MIN_FRESH); }

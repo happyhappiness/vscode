@@ -1,0 +1,1 @@
+storeAppendPrintf(sentry, "close\t%d\t%d\n", squidaio_counts.close_start, squidaio_counts.close_finish);

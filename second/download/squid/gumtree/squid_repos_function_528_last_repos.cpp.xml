@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/squid/gumtree/squid_repos_function_528_last_repos.cpp" pos:tabs="8"><function><type><name pos:line="1" pos:column="1">void<pos:position pos:line="1" pos:column="5"/></name></type>
+<name><name pos:line="2" pos:column="1">Transients<pos:position pos:line="2" pos:column="11"/></name><operator pos:line="2" pos:column="11">::<pos:position pos:line="2" pos:column="13"/></operator><name pos:line="2" pos:column="13">reference<pos:position pos:line="2" pos:column="22"/></name></name><parameter_list pos:line="2" pos:column="22">(<parameter><decl><type><name pos:line="2" pos:column="23">StoreEntry<pos:position pos:line="2" pos:column="33"/></name> <modifier pos:line="2" pos:column="34">&amp;<pos:position pos:line="2" pos:column="39"/></modifier></type></decl></parameter>)<pos:position pos:line="2" pos:column="36"/></parameter_list>
+<block pos:line="3" pos:column="1">{
+    <comment type="line" pos:line="4" pos:column="5">// no replacement policy (but the cache(s) storing the entry may have one)</comment>
+}<pos:position pos:line="5" pos:column="2"/></block></function></unit>

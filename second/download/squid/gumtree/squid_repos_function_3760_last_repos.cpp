@@ -1,0 +1,14 @@
+Helper::ChildConfig &
+Helper::ChildConfig::updateLimits(const Helper::ChildConfig &rhs)
+{
+    // Copy the limits only.
+    // Preserve the local state values (n_running and n_active)
+    n_max = rhs.n_max;
+    n_startup = rhs.n_startup;
+    n_idle = rhs.n_idle;
+    concurrency = rhs.concurrency;
+    queue_size = rhs.queue_size;
+    onPersistentOverload = rhs.onPersistentOverload;
+    defaultQueueSize = rhs.defaultQueueSize;
+    return *this;
+}

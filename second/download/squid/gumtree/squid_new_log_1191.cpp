@@ -1,0 +1,1 @@
+buf.appendf("P%s", preview.ieof() ? "(ieof)" : "");

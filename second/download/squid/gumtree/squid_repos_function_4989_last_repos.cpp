@@ -1,0 +1,1 @@
+State state() const { return static_cast<State>(flags.state); }

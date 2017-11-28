@@ -1,0 +1,1 @@
+createError("truncate");

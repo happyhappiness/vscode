@@ -1,0 +1,1 @@
+bool controlMsgIsPending() {return cbControlMsgSent != NULL;}

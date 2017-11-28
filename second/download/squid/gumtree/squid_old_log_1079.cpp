@@ -1,0 +1,1 @@
+fatal("mimeLoadIcon: cannot parse internal URL");

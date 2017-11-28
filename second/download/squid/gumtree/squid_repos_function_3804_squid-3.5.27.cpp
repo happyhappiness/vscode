@@ -1,0 +1,1 @@
+inline void StartInterception() { interceptActive_=1; }

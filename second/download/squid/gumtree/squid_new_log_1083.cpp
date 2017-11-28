@@ -1,0 +1,1 @@
+storeAppendPrintf(e, "\t%d\t%d\n", i, hist[i]);

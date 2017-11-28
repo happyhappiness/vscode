@@ -1,0 +1,1 @@
+fprintf(stderr, "%s: ERROR: No running copy\n", APP_SHORTNAME);

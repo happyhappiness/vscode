@@ -1,0 +1,1 @@
+printf(" x.open('GET', 'http' + s + '://' + t + '/squid-internal-mgr/', true);\n");

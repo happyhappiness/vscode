@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/squid/gumtree/squid_repos_function_2423_squid-3.1.23.cpp" pos:tabs="8"><function><type><name pos:line="1" pos:column="1">bool<pos:position pos:line="1" pos:column="5"/></name></type>
+<name><name pos:line="2" pos:column="1">FwdState<pos:position pos:line="2" pos:column="9"/></name><operator pos:line="2" pos:column="9">::<pos:position pos:line="2" pos:column="11"/></operator><name pos:line="2" pos:column="11">reforwardableStatus<pos:position pos:line="2" pos:column="30"/></name></name><parameter_list pos:line="2" pos:column="30">(<parameter><decl><type><name pos:line="2" pos:column="31">http_status<pos:position pos:line="2" pos:column="42"/></name></type> <name pos:line="2" pos:column="43">s<pos:position pos:line="2" pos:column="44"/></name></decl></parameter>)<pos:position pos:line="2" pos:column="45"/></parameter_list>
+<block pos:line="3" pos:column="1">{
+    <switch pos:line="4" pos:column="5">switch <condition pos:line="4" pos:column="12">(<expr><name pos:line="4" pos:column="13">s<pos:position pos:line="4" pos:column="14"/></name></expr>)<pos:position pos:line="4" pos:column="15"/></condition> <block pos:line="4" pos:column="16">{
+
+    <case pos:line="6" pos:column="5">case <expr><name pos:line="6" pos:column="10">HTTP_BAD_GATEWAY<pos:position pos:line="6" pos:column="26"/></name></expr>:<pos:position pos:line="6" pos:column="27"/></case>
+
+    <case pos:line="8" pos:column="5">case <expr><name pos:line="8" pos:column="10">HTTP_GATEWAY_TIMEOUT<pos:position pos:line="8" pos:column="30"/></name></expr>:<pos:position pos:line="8" pos:column="31"/></case>
+        <return pos:line="9" pos:column="9">return <expr><literal type="boolean" pos:line="9" pos:column="16">true<pos:position pos:line="9" pos:column="20"/></literal></expr>;<pos:position pos:line="9" pos:column="21"/></return>
+
+    <case pos:line="11" pos:column="5">case <expr><name pos:line="11" pos:column="10">HTTP_FORBIDDEN<pos:position pos:line="11" pos:column="24"/></name></expr>:<pos:position pos:line="11" pos:column="25"/></case>
+
+    <case pos:line="13" pos:column="5">case <expr><name pos:line="13" pos:column="10">HTTP_INTERNAL_SERVER_ERROR<pos:position pos:line="13" pos:column="36"/></name></expr>:<pos:position pos:line="13" pos:column="37"/></case>
+
+    <case pos:line="15" pos:column="5">case <expr><name pos:line="15" pos:column="10">HTTP_NOT_IMPLEMENTED<pos:position pos:line="15" pos:column="30"/></name></expr>:<pos:position pos:line="15" pos:column="31"/></case>
+
+    <case pos:line="17" pos:column="5">case <expr><name pos:line="17" pos:column="10">HTTP_SERVICE_UNAVAILABLE<pos:position pos:line="17" pos:column="34"/></name></expr>:<pos:position pos:line="17" pos:column="35"/></case>
+        <return pos:line="18" pos:column="9">return <expr><name><name pos:line="18" pos:column="16">Config<pos:position pos:line="18" pos:column="22"/></name><operator pos:line="18" pos:column="22">.<pos:position pos:line="18" pos:column="23"/></operator><name pos:line="18" pos:column="23">retry<pos:position pos:line="18" pos:column="28"/></name><operator pos:line="18" pos:column="28">.<pos:position pos:line="18" pos:column="29"/></operator><name pos:line="18" pos:column="29">onerror<pos:position pos:line="18" pos:column="36"/></name></name></expr>;<pos:position pos:line="18" pos:column="37"/></return>
+
+    <default pos:line="20" pos:column="5">default:<pos:position pos:line="20" pos:column="13"/></default>
+        <return pos:line="21" pos:column="9">return <expr><literal type="boolean" pos:line="21" pos:column="16">false<pos:position pos:line="21" pos:column="21"/></literal></expr>;<pos:position pos:line="21" pos:column="22"/></return>
+    }<pos:position pos:line="22" pos:column="6"/></block></switch>
+
+    <comment type="block" pos:line="24" pos:column="5">/* NOTREACHED */</comment>
+}<pos:position pos:line="25" pos:column="2"/></block></function></unit>

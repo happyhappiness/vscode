@@ -1,0 +1,23 @@
+void Ssl::CertificateStorageAction::run (StoreEntry *sentry)
+{
+    StoreEntryStream stream(sentry);
+    const char delimiter = '\t';
+    const char endString = '\n';
+    // Page title.
+    stream << "Cached ssl certificates statistic.\n";
+    // Title of statistic table.
+    stream << "Port" << delimiter << "Max mem(KB)" << delimiter << "Cert number" << delimiter << "KB/cert" << delimiter << "Mem used(KB)" << delimiter << "Mem free(KB)" << endString;
+
+    // Add info for each port.
+    for (std::map<IpAddress, LocalContextStorage *>::iterator i = TheGlobalContextStorage.storage.begin(); i != TheGlobalContextStorage.storage.end(); i++) {
+        stream << i->first << delimiter;
+        LocalContextStorage & ssl_store_policy(*(i->second));
+        stream << ssl_store_policy.max_memory / 1024 << delimiter;
+        stream << ssl_store_policy.memory_used / SSL_CTX_SIZE << delimiter;
+        stream << SSL_CTX_SIZE / 1024 << delimiter;
+        stream << ssl_store_policy.memory_used / 1024 << delimiter;
+        stream << (ssl_store_policy.max_memory - ssl_store_policy.memory_used) / 1024 << endString;
+    }
+    stream << endString;
+    stream.flush();
+}

@@ -1,0 +1,1 @@
+void lastModified(const time_t when) { lastModified_ = when; }

@@ -1,0 +1,1 @@
+fprintf(stderr, "xstrdup: tried to dup a NULL pointer!\n");

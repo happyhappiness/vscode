@@ -1,0 +1,1 @@
+fatalf("Garbage after alphanumeric service name in the -n option value: %s", optarg);

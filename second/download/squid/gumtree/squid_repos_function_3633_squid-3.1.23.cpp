@@ -1,0 +1,1 @@
+inline void StartTransparency() { transparent_active=1; }

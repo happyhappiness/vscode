@@ -1,0 +1,1 @@
+fprintf(stderr, "ERROR: keytab file %s does not exist\n",keytab_name);

@@ -1,0 +1,1 @@
+fprintf( stderr, "invalid HTTP status in reply: %s\n", buffer+8);

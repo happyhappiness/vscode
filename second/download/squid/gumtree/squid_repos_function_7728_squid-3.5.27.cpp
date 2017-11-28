@@ -1,0 +1,1 @@
+static void DefaultFree (Value &aValue) {delete aValue;}

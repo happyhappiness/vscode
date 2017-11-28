@@ -1,0 +1,3 @@
+void
+DelayUserFree(DelayUserBucket::Pointer &)
+{}

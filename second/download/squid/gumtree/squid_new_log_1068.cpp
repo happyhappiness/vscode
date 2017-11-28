@@ -1,0 +1,1 @@
+mb->Printf("\tvary_headers: " SQUIDSBUFPH "\n", SQUIDSBUFPRINT(vary_headers));

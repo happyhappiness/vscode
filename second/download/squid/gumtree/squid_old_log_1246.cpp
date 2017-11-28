@@ -1,0 +1,1 @@
+storeAppendPrintf(e, " cert=%s", s->cert);

@@ -1,0 +1,1 @@
+storeAppendPrintf(entry, "%s %d seconds\n", name, (int)(var/1000) );

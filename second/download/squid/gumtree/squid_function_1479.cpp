@@ -1,0 +1,20 @@
+void
+Log::Format::SquidReferer(const AccessLogEntry::Pointer &al, Logfile *logfile)
+{
+    const char *referer = NULL;
+    if (al->request)
+        referer = al->request->header.getStr(HDR_REFERER);
+
+    if (!referer || *referer == '\0')
+        referer = "-";
+
+    char clientip[MAX_IPSTRLEN];
+    al->getLogClientIp(clientip, MAX_IPSTRLEN);
+
+    logfilePrintf(logfile, "%9ld.%03d %s %s %s\n",
+                  (long int) current_time.tv_sec,
+                  (int) current_time.tv_usec / 1000,
+                  clientip,
+                  referer,
+                  al->url ? al->url : "-");
+}

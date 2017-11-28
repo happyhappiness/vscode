@@ -1,0 +1,1 @@
+void noStoreRemote(bool v) { setMask(SC_NO_STORE_REMOTE,v); }

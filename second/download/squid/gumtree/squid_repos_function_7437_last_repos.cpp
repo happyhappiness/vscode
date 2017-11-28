@@ -1,0 +1,1 @@
+bool fatal() const { return level == 2; }

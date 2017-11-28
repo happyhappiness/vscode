@@ -1,0 +1,1 @@
+void reinput(const SBuf &data, const bool expectMore) { data_ = data; expectMore_ = expectMore; }

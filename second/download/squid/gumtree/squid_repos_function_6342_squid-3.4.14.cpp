@@ -1,0 +1,1 @@
+bool swap_if(const Value comparand, const Value replacement) { return __sync_bool_compare_and_swap(&value, comparand, replacement); }

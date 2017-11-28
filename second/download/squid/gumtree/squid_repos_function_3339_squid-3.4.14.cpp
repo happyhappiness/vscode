@@ -1,0 +1,1 @@
+void clearNoStore() { setMask(SC_NO_STORE, false); }

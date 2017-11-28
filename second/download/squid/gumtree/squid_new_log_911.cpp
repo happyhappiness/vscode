@@ -1,0 +1,1 @@
+fprintf(stderr, "ERROR: %s %d\n", broken, version);

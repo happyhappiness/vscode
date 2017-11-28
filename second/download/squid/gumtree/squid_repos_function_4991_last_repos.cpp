@@ -1,0 +1,1 @@
+bool anchored() const { return flags.anchored; }

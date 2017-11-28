@@ -1,0 +1,1 @@
+icapBuf.Printf("%s=%d, ", section, (int) httpBuf.contentSize());

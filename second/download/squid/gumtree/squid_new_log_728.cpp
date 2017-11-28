@@ -1,0 +1,1 @@
+debug("cmgr: verified auth. info.\n");

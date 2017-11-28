@@ -1,0 +1,1 @@
+wordlistDestroy(&values);

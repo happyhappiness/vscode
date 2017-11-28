@@ -1,0 +1,1 @@
+void clearImmutable() {setMask(HttpHdrCcType::CC_IMMUTABLE,false);}

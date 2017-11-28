@@ -1,0 +1,1 @@
+void lock() { if (msg) HTTPMSGLOCK(msg); }

@@ -1,0 +1,1 @@
+int numIdle() { return nfds; }

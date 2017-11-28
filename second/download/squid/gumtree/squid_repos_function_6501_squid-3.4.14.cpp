@@ -1,0 +1,1 @@
+inline size_t PagesAvailable(const int purpose) { return PageLimit(purpose) - PageLevel(purpose); }

@@ -1,0 +1,1 @@
+buf.appendf("Date: %s\r\n", mkrfc1123(squid_curtime));

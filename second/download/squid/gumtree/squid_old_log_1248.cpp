@@ -1,0 +1,1 @@
+storeAppendPrintf(e, " version=%d", s->version);

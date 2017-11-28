@@ -1,0 +1,1 @@
+printf("%s\n", requestData->HHA1);

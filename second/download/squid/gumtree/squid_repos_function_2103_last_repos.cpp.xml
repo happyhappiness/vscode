@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/squid/gumtree/squid_repos_function_2103_last_repos.cpp" pos:tabs="8"><function><type><name pos:line="1" pos:column="1">bool<pos:position pos:line="1" pos:column="5"/></name></type>
+<name pos:line="2" pos:column="1">IamMasterProcess<pos:position pos:line="2" pos:column="17"/></name><parameter_list pos:line="2" pos:column="17">()<pos:position pos:line="2" pos:column="19"/></parameter_list>
+<block pos:line="3" pos:column="1">{
+    <return pos:line="4" pos:column="5">return <expr><name pos:line="4" pos:column="12">KidIdentifier<pos:position pos:line="4" pos:column="25"/></name> <operator pos:line="4" pos:column="26">==<pos:position pos:line="4" pos:column="28"/></operator> <literal type="number" pos:line="4" pos:column="29">0<pos:position pos:line="4" pos:column="30"/></literal></expr>;<pos:position pos:line="4" pos:column="31"/></return>
+}<pos:position pos:line="5" pos:column="2"/></block></function></unit>

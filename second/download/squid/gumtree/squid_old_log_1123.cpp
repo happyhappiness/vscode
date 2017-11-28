@@ -1,0 +1,1 @@
+fprintf(debug_log, "Memory usage for " APP_SHORTNAME " via mallinfo():\n");

@@ -1,0 +1,1 @@
+fprintf(stderr, "No memory leaks detected\n");

@@ -1,0 +1,1 @@
+void anchored(const bool beAnchored) { flags.anchored = beAnchored; }

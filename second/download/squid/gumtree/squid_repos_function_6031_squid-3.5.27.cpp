@@ -1,0 +1,28 @@
+void
+Log::LogConfig::parseFormats()
+{
+    char *name, *def;
+
+    if ((name = ConfigParser::NextToken()) == NULL)
+        self_destruct();
+
+    ::Format::Format *nlf = new ::Format::Format(name);
+
+    ConfigParser::EnableMacros();
+    if ((def = ConfigParser::NextQuotedOrToEol()) == NULL) {
+        self_destruct();
+        return;
+    }
+    ConfigParser::DisableMacros();
+
+    debugs(3, 2, "Log Format for '" << name << "' is '" << def << "'");
+
+    if (!nlf->parse(def)) {
+        self_destruct();
+        return;
+    }
+
+    // add to global config list
+    nlf->next = logformats;
+    logformats = nlf;
+}

@@ -1,0 +1,1 @@
+storeAppendPrintf(sentry, " children=%d", node->children);

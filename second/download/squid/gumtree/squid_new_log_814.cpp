@@ -1,0 +1,1 @@
+auth_user_request->denyMessage("Negotiate authentication requires a persistent connection");

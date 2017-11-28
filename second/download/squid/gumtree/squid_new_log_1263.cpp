@@ -1,0 +1,1 @@
+storeAppendPrintf(entry, "%s logformat=combined", log->filename);

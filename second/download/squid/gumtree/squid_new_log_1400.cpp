@@ -1,0 +1,1 @@
+p->appendf("  requests sent: %d\n", stats.requests);

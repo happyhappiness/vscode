@@ -1,0 +1,1 @@
+_SQUID_EXTERNNEW_ void *operator new[] (size_t size) throw (std::bad_alloc

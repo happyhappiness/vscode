@@ -1,0 +1,1 @@
+inline bool nilFunction(const void *) { return false; }

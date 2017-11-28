@@ -1,0 +1,1 @@
+ctxBuf.Printf("%s#%d", directive, ruleId);

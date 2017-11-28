@@ -1,0 +1,1 @@
+void Ssl::CrtdMessage::setCode(std::string const & aCode) { code = aCode; }

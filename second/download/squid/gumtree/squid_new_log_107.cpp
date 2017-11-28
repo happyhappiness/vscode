@@ -1,0 +1,1 @@
+storeAppendPrintf(entry, "%s %d %s\n", name, (int) var, B_BYTES_STR);

@@ -105,26 +105,27 @@ def perform_series(repos_list):
     @ involve do everything for this repos\n
     """
     for repos in repos_list:
+        my_constant.reset_repos(repos)
         print '\n****************now analyzing repos %s***************' %repos
         # analyze hunk
-        fetch_hunk.fetch_version_diff(True)
-        analyze_hunk.fetch_hunk()
-        # analyze gumtree and srcml
-        analyze_control_old_new.analyze_old_new(True)
-        # generate rule
-        analyze_control_old_new_cluster.cluster()
-        analyze_control_old_new_cluster.generate_class()
-        statistics.perform_statistic('data/evaluate/series.txt')
+        # fetch_hunk.fetch_version_diff(True)
+        # analyze_hunk.fetch_hunk()
+        # # analyze gumtree and srcml
+        # analyze_control_old_new.analyze_old_new(True)
+        # # generate rule
+        # analyze_control_old_new_cluster.cluster()
+        # analyze_control_old_new_cluster.generate_class()
+        # statistics.perform_statistic('data/evaluate/series.txt')
         # apply rule
-        analyze_control_clone.seek_clone_for_corresponding_repos()
-        analyze_control_clone.seek_clone_for_lastest_repos()
+        analyze_control_clone.seek_clone_for_corresponding_repos(True)
+        analyze_control_clone.seek_clone_for_lastest_repos(True)
 
 """
 main function
 """
 if __name__ == "__main__":
     # 'httpd', 'git',
-    reposes = ['httpd', 'git', 'mutt', 'curl', 'rsync', 'collectd']
+    reposes = ['httpd', 'git', 'mutt', 'curl', 'rsync', 'collectd', 'squid']
     repos_names = ['httpd-2.3.8', 'git-2.6.7', 'mutt-1.7.2', 'curl-7.41.0', 'rsync-1.4.4']
     # seek_clone_for_given_repos(reposes, repos_names)
     # seek_clone_for_corresponding_repos(reposes[0:1], True, False, False)
@@ -133,9 +134,9 @@ if __name__ == "__main__":
     # seek_clone_for_corresponding_repos(reposes[0:1], False, True, False)
     # seek_clone_for_corresponding_repos(reposes, False, False, True)
     # seek_clone_for_lastest_repos(reposes, False, False, False)
-    repos_name = 'collectd'
-    # perform_series([repos_name])
-    do_statistics([repos_name])
+    repos_name = 'squid'
+    perform_series(reposes[-2:-1])
+    # do_statistics([repos_name])
     # regenerate_hunk(reposes)
     # do_statistics(reposes)
 

@@ -1,0 +1,1 @@
+fprintf(stderr, " -r        Detect and remove Negotiate/NTLM realm from username\n");

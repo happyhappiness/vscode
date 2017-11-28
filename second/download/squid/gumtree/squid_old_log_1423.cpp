@@ -1,0 +1,1 @@
+storeAppendPrintf(sentry, "   C = CLOSING\n");

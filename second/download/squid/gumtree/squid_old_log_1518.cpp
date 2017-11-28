@@ -1,0 +1,1 @@
+req->header.putStr(HDR_ACCEPT, "text/html");

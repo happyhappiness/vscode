@@ -1,0 +1,1 @@
+storeAppendPrintf(sentry, " protocol=2.5");

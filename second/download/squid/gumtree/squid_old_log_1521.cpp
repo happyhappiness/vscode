@@ -1,0 +1,1 @@
+fatal("peerDigestSwapInMask(): shouldn't get here!\n");

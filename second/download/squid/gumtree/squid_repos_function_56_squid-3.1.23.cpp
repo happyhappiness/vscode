@@ -1,0 +1,1 @@
+void CallCounter::recordDelete() { ++_deletes;}

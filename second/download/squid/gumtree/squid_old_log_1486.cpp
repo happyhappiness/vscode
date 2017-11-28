@@ -1,0 +1,1 @@
+fprintf(stderr, "missing -n command line switch.\n");

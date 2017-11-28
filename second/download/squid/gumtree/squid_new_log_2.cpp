@@ -1,0 +1,1 @@
+fprintf(stderr, "  EDNS packets my be up to %d\n", PACKET_BUFSZ);

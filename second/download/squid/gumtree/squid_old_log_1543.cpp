@@ -1,0 +1,1 @@
+mb.Printf("%i-Information: %s\r\n", scode, info.termedBuf());

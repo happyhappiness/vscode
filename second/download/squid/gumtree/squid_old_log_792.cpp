@@ -1,0 +1,1 @@
+fprintf(stderr, " size %d", malloc_size[B][I]);

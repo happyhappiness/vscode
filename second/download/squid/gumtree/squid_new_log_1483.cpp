@@ -1,0 +1,1 @@
+fatalf("chroot to %s failed: %s", Config.chroot_dir, xstrerr(xerrno));

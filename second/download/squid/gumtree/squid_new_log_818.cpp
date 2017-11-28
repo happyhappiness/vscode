@@ -1,0 +1,1 @@
+auth_user_request->denyMessage("Negotiate Authentication denied with no reason given");

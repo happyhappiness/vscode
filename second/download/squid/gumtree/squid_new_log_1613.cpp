@@ -1,0 +1,1 @@
+out.appendf("<LI type=\"circle\">%s (disabled)<A HREF=\"%s\">.</A>\n", d, a_url);

@@ -183,5 +183,5 @@ if __name__ == "__main__":
     # analyze_repos('httpd-2.3.8')
     # cluster_repos_log()
     # cluster_repos_log()
-    repos_name = 'httpd-2.0.65'
+    repos_name = 'collectd-4.10.7'
     analyze_repos(repos_name, '_' + repos_name)

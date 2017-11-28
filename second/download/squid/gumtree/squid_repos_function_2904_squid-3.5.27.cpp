@@ -1,0 +1,1 @@
+void clearNoCache() {setMask(CC_NO_CACHE,false); no_cache.clean();}

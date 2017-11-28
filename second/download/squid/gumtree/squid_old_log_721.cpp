@@ -1,0 +1,1 @@
+fprintf(stderr, "cmgr: encoded: '%s'\n", base64_encode(buf));

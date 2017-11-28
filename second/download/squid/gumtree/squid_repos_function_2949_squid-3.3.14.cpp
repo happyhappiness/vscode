@@ -1,0 +1,1 @@
+inline void commMarkHalfClosed(int fd) { commStartHalfClosedMonitor(fd); }

@@ -1,0 +1,1 @@
+storeAppendPrintf(entry, "%s %" PRId64 " milliseconds\n", name, var);

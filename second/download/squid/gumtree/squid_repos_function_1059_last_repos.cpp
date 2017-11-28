@@ -1,0 +1,1 @@
+static void DisableMacros() {AllowMacros_ = false;}

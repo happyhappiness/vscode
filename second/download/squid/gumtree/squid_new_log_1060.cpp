@@ -1,0 +1,1 @@
+fatalf("Expected alphanumeric service name for the -n option but got: %s", optarg);

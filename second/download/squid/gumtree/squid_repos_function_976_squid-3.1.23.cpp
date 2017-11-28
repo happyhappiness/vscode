@@ -1,0 +1,1 @@
+char *space() { return buf + size; }

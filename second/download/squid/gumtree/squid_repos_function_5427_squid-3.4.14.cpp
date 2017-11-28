@@ -1,0 +1,1 @@
+void change() {value = ++Last ? Last : ++Last;}

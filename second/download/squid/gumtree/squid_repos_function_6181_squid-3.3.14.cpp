@@ -1,0 +1,1 @@
+bool raiseSignal() { return blocked() && popSignal.swap_if(0,1); }

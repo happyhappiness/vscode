@@ -1,0 +1,1 @@
+fatalf("authenticateNTLMHandleReply: *** Unsupported helper response ***, '%s'\n", reply);

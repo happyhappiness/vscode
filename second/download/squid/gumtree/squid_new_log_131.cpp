@@ -1,0 +1,2 @@
+storeAppendPrintf(sentry, "\tclose_hits: %d ( %d%%) /* cd said hit, doc was in the peer cache, but we got a miss */\n",
+                      stats->closeHits, xpercentInt(stats->closeHits, stats->falseHits));

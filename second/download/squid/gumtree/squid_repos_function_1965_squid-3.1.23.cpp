@@ -1,0 +1,1 @@
+size_t dataSize() const { return sizeof(data);}

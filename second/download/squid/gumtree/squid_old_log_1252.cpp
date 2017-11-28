@@ -1,0 +1,1 @@
+storeAppendPrintf(e, " capath=%s", s->capath);

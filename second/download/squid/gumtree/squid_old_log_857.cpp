@@ -1,0 +1,1 @@
+storeAppendPrintf(entry, "format %s ", format->name);

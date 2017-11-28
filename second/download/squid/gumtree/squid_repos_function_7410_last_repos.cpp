@@ -1,0 +1,1 @@
+inline int X509_CRL_up_ref(X509_CRL *t) {if (t) CRYPTO_add(&t->references, 1, CRYPTO_LOCK_X509_CRL); return 0;}

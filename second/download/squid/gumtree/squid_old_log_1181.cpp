@@ -1,0 +1,1 @@
+buf.Printf("Preview: %d\r\n", (int)preview.ad());

@@ -1,0 +1,1 @@
+virtual bool updateCollapsed(StoreEntry &collapsed) { return false; }

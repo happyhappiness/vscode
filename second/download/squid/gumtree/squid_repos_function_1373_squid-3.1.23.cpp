@@ -1,0 +1,1 @@
+void ftpPasvFailed(bool val) { flags.ftp_pasv_failed = val; }

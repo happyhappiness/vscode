@@ -1,0 +1,1 @@
+storeAppendPrintf(sentry, "cancel\t%d\t-\n", squidaio_counts.cancel);

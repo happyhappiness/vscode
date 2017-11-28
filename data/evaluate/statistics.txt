@@ -87,3 +87,5 @@ number of log is:213
 addLog:64, removeLog:21, updateLog:31, addVariable:61, removeVariable:60, updateVariable:24, moveVariable:11, addContent:8, removeContent:6, updateContent:48, moveContent:0, 
 #rule info
 insert rule:12, modify rule:26
+squid: log hunk, hunk
+1240,18295

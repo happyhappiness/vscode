@@ -1,0 +1,1 @@
+hdr_out->putStr(HDR_SURROGATE_CAPABILITY, strSurrogate.termedBuf());

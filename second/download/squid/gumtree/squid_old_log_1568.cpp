@@ -1,0 +1,1 @@
+mb->Printf("\t%s\n", storeEntryFlags(e));

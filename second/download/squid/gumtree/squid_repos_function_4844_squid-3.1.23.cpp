@@ -1,0 +1,3 @@
+void
+AuthConfig::registerWithCacheManager(void)
+{}

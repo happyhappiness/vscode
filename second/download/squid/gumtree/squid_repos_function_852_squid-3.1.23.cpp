@@ -1,0 +1,6 @@
+int
+comm_udp_recv(int fd, void *buf, size_t len, int flags)
+{
+    IpAddress nul;
+    return comm_udp_recvfrom(fd, buf, len, flags, nul);
+}

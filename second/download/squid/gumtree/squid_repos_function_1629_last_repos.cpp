@@ -1,0 +1,1 @@
+virtual void delayRead(DeferredRead const &) {fatal("Not implemented");}

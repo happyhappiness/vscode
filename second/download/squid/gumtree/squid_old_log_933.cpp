@@ -1,0 +1,1 @@
+fprintf(stdout, "BH input error\n");

@@ -1,0 +1,1 @@
+initiateClose("STREAM_FAILED");

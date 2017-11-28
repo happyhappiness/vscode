@@ -1,0 +1,1 @@
+reply->header.putStr(Http::HdrType::CONNECTION, "close");

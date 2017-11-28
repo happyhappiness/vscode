@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/squid/gumtree/squid_repos_function_4703_squid-3.3.14.cpp" pos:tabs="8"><function><type><name pos:line="1" pos:column="1">void<pos:position pos:line="1" pos:column="5"/></name></type> <name><name pos:line="1" pos:column="6">StoreEntry<pos:position pos:line="1" pos:column="16"/></name><operator pos:line="1" pos:column="16">::<pos:position pos:line="1" pos:column="18"/></operator><name pos:line="1" pos:column="18">invokeHandlers<pos:position pos:line="1" pos:column="32"/></name></name><parameter_list pos:line="1" pos:column="32">()<pos:position pos:line="1" pos:column="34"/></parameter_list>
+<block pos:line="2" pos:column="1">{
+    <comment type="block" pos:line="3" pos:column="5">/* do nothing for tests */</comment>
+}<pos:position pos:line="4" pos:column="2"/></block></function></unit>

@@ -1,0 +1,1 @@
+virtual void logEntry(const StoreEntry & e, int op) const;

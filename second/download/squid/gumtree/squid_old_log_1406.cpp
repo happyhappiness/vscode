@@ -1,0 +1,13 @@
+storeAppendPrintf(sentry, "%7u\t%7d\t%7d\t%11" PRIu64 "\t%11" PRIu64 "\t%c%c%c%c\t%7.3f\t%7d\t%s\n",
+                          srv->index.value,
+                          srv->readPipe->fd,
+                          srv->pid,
+                          srv->stats.uses,
+                          srv->stats.replies,
+                          srv->stats.pending ? 'B' : ' ',
+                          srv->flags.writing ? 'W' : ' ',
+                          srv->flags.closing ? 'C' : ' ',
+                          srv->flags.shutdown ? 'S' : ' ',
+                          tt < 0.0 ? 0.0 : tt,
+                          (int) srv->roffset,
+                          srv->requests[0] ? Format::QuoteMimeBlob(srv->requests[0]->buf) : "(none)");

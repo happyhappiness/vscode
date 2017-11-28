@@ -1,0 +1,1 @@
+hdr->putStr(Http::HdrType::SERVER, APP_FULLNAME);

@@ -1,0 +1,1 @@
+CharacterSet &rename(const char *label) { name = label; return *this; }

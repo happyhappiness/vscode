@@ -1,0 +1,3 @@
+void Adaptation::Icap::CleanModule()
+{
+}

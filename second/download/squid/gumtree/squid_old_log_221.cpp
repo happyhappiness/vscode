@@ -1,0 +1,1 @@
+hdr_out->putStr(HDR_AUTHORIZATION, auth);

@@ -1,0 +1,1 @@
+inline int TransparentActive() { return transparent_active; }

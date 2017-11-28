@@ -1,0 +1,1 @@
+putStr(HDR_WARNING, buf);

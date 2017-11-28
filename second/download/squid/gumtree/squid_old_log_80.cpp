@@ -1,0 +1,1 @@
+fatal ("AuthUserRequest not directly allocatable\n");

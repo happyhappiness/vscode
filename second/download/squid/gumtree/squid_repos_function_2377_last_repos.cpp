@@ -1,0 +1,1 @@
+void maxStale(int32_t v) {setValue(max_stale,v,HttpHdrCcType::CC_MAX_STALE);}

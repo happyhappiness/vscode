@@ -1,0 +1,1 @@
+printf("X-Error: message=\"Unable to open config %s\"", DEFAULT_CACHEMGR_CONFIG);

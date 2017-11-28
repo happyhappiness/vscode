@@ -1,0 +1,1 @@
+httpHeaderPutStrf(hdr, Http::HdrType::CONNECTION, "Proxy-support");

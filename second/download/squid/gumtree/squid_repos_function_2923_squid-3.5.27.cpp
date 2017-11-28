@@ -1,0 +1,1 @@
+void staleIfError(int32_t v) {setValue(stale_if_error,v,CC_STALE_IF_ERROR); }

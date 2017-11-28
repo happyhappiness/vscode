@@ -1,0 +1,4 @@
+void
+commResetSelect(int fd)
+{
+}

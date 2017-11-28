@@ -1,0 +1,1 @@
+bool isIntercepted() { return natIntercept||tproxyIntercept ;}

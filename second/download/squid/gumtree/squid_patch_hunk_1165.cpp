@@ -1,0 +1,23 @@
+             break;
+ 
+         case DIGEST_READ_NONE:
+             break;
+ 
+         case DIGEST_READ_DONE:
+-            goto finish;
++            return;
+             break;
+ 
+         default:
+             fatal("Bad digest transfer mode!\n");
+         }
+ 
+         if (retsize < 0)
+-            goto finish;
++            return;
+ 
+         /*
+          * The returned size indicates how much of the buffer was read -
+          * so move the remainder of the buffer to the beginning
+          * and update the bufofs / bufsize
+          */
