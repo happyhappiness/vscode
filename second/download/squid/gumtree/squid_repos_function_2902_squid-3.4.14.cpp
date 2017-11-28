@@ -1,0 +1,1 @@
+void clearProxyRevalidate() {setMask(CC_PROXY_REVALIDATE,false);}

@@ -1,0 +1,1 @@
+p->appendf("  replies received: %d\n", stats.replies);

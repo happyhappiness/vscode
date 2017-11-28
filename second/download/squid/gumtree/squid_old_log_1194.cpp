@@ -1,0 +1,1 @@
+buf.Printf("Connection: close\r\n");

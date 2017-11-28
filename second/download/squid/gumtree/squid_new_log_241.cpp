@@ -1,0 +1,1 @@
+printf( "configure options: %s\n", SQUID_CONFIGURE_OPTIONS);

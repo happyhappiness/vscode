@@ -1,0 +1,1 @@
+fatalf("parse_peer: carp-key specified on non-carp peer %s/%d\n", p->host, p->http_port);

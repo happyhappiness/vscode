@@ -1,0 +1,1 @@
+static inline void xfree(const void *p) { if (p) free_const(p); }

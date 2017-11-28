@@ -1,0 +1,1 @@
+void setLibError(unsigned long lib_err_no) {lib_error_no = lib_err_no;}

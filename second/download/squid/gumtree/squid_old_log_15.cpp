@@ -1,0 +1,1 @@
+fprintf(stderr, " allocation %d\n", malloc_count[B][I]);

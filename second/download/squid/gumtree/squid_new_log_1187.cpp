@@ -1,0 +1,1 @@
+buf.appendf("w(%d)", state.writing);

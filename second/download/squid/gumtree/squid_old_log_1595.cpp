@@ -1,0 +1,1 @@
+fprintf(stderr, APP_SHORTNAME ": ERROR: Could not read pid file\n");

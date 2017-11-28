@@ -1,0 +1,1 @@
+fputs("WARNING: file corruption detected. 32-bit overflow in size field.\n", stderr);

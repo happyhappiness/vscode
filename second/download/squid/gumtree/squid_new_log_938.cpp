@@ -1,0 +1,1 @@
+fprintf(stdout, "%" PRId64 " ERR\n", channelId);

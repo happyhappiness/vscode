@@ -1,0 +1,1 @@
+virtual bool anchorCollapsed(StoreEntry &collapsed, bool &inSync) { return false; }

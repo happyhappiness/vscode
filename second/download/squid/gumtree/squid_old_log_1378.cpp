@@ -1,0 +1,1 @@
+storeAppendPrintf(sentry, " %%>ha{%s}", format->header);

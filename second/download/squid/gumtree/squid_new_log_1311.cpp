@@ -1,0 +1,1 @@
+request->header.putStr(Http::HOST, useHost.c_str());

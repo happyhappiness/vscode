@@ -1,0 +1,1 @@
+printf("    if (v.substring(0,8) == 'squid/3.' && (v[8]=='H' || parseInt(v.substring(8)) >= 2)) {\n");

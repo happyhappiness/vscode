@@ -1,0 +1,1 @@
+storeAppendPrintf(entry, "%s ", Ssl::certSignAlgorithm(cs->alg));

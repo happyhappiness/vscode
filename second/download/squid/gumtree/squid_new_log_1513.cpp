@@ -1,0 +1,1 @@
+storeAppendPrintf(sentry, " connect-timeout=%d", (int)p->connect_timeout_raw);

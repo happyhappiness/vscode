@@ -1,0 +1,1 @@
+mb->Printf("KEY %s\n", e->getMD5Text());

@@ -1,0 +1,1 @@
+storeAppendPrintf(&sentry, "Current Size: %" PRIu64 " KB\n", cur_size);

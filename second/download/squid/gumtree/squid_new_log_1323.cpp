@@ -1,0 +1,1 @@
+fatalf("comm_select_init: epoll_create(): %s\n", xstrerr(xerrno));

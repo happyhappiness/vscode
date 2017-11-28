@@ -1,0 +1,1 @@
+void emplace(HLPCB *callback, void *data) { requestors.emplace_back(callback, data); }

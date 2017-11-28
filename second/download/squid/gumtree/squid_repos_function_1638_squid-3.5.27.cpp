@@ -1,0 +1,1 @@
+virtual void memoryOut(StoreEntry &e, const bool preserveSwappable) {}

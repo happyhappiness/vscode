@@ -1,0 +1,1 @@
+inline int ipcacheCount() { return ip_table ? ip_table->count : 0; }

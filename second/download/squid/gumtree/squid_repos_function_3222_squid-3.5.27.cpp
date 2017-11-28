@@ -1,0 +1,1 @@
+void noteConnectionRemoved() { assert(theCount > 0); --theCount; }

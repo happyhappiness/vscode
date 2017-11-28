@@ -1,0 +1,1 @@
+storeAppendPrintf(e, " min-size=%" PRId64, min_objsize);

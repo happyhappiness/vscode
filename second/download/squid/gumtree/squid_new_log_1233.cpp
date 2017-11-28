@@ -1,0 +1,1 @@
+fatalf("Unable to find configuration file: %s: %s", path, xstrerr(xerrno));

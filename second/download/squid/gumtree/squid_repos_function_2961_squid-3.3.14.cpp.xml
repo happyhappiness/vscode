@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/squid/gumtree/squid_repos_function_2961_squid-3.3.14.cpp" pos:tabs="8"><function><type><name pos:line="1" pos:column="1">void<pos:position pos:line="1" pos:column="5"/></name></type>
+<name><name pos:line="2" pos:column="1">StoreEntry<pos:position pos:line="2" pos:column="11"/></name><operator pos:line="2" pos:column="11">::<pos:position pos:line="2" pos:column="13"/></operator><name pos:line="2" pos:column="13">makePrivate<pos:position pos:line="2" pos:column="24"/></name></name><parameter_list pos:line="2" pos:column="24">()<pos:position pos:line="2" pos:column="26"/></parameter_list>
+<block pos:line="3" pos:column="1">{
+    <comment type="block" pos:line="4" pos:column="5">/* This object should never be cached at all */</comment>
+    <expr_stmt><expr><call><name pos:line="5" pos:column="5">expireNow<pos:position pos:line="5" pos:column="14"/></name><argument_list pos:line="5" pos:column="14">()<pos:position pos:line="5" pos:column="16"/></argument_list></call></expr>;<pos:position pos:line="5" pos:column="17"/></expr_stmt>
+    <expr_stmt><expr><call><name pos:line="6" pos:column="5">releaseRequest<pos:position pos:line="6" pos:column="19"/></name><argument_list pos:line="6" pos:column="19">()<pos:position pos:line="6" pos:column="21"/></argument_list></call></expr>;<pos:position pos:line="6" pos:column="22"/></expr_stmt> <comment type="block" pos:line="6" pos:column="23">/* delete object when not used */</comment>
+    <comment type="block" pos:line="7" pos:column="5">/* releaseRequest clears ENTRY_CACHABLE flag */</comment>
+}<pos:position pos:line="8" pos:column="2"/></block></function></unit>

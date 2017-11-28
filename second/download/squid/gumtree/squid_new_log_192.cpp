@@ -1,0 +1,1 @@
+storeAppendPrintf(&sentry, "Current Size: %.2f KB\n", currentSize() / 1024.0);

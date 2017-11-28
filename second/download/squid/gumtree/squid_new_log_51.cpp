@@ -1,0 +1,1 @@
+auth_user_request->setDenyMessage("Request denied because you provided an empty password. Users MUST have a password.");

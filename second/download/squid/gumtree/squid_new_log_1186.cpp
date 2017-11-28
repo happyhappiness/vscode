@@ -1,0 +1,1 @@
+icapBuf.appendf("%s=%d, ", section, (int) httpBuf.contentSize());

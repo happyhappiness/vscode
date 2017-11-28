@@ -1,0 +1,1 @@
+hdr->putStr(HDR_CONTENT_TYPE, ctype);

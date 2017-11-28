@@ -1,0 +1,1 @@
+storeAppendPrintf(entry, "%s logformat=icap_squid", log->filename);

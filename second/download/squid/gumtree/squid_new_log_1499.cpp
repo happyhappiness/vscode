@@ -1,0 +1,1 @@
+mb->appendf("\ttransient index: %d state: %d\n", xitTable.index, xitTable.io);

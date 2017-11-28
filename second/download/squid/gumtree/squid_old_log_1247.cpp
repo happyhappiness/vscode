@@ -1,0 +1,1 @@
+storeAppendPrintf(e, " key=%s", s->key);

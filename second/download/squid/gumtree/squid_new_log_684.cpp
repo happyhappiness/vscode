@@ -1,0 +1,1 @@
+debugs(21, DBG_CRITICAL, "ERROR: No forward-proxy ports configured.");

@@ -1,0 +1,1 @@
+fatalf("logfileWrite: %s: %s\n", lf->path, xstrerror());

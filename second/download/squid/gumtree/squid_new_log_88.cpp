@@ -1,0 +1,1 @@
+fatalf("'else' without 'if'\n");

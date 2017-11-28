@@ -1,0 +1,1 @@
+buf.appendf("Stopped, reason:%s", stopReason);

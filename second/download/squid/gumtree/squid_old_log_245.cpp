@@ -1,0 +1,1 @@
+storeAppendPrintf(sentry, " htcp-no-purge-clr");

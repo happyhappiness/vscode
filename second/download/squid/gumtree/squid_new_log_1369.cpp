@@ -1,0 +1,1 @@
+httpHeaderPutStrf(&rep->header, Http::HdrType::LOCATION, "%s", redirect_location.content() );

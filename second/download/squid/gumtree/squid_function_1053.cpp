@@ -1,0 +1,1 @@
+void abortTransaction(const char *reason) { abortAll(reason); }

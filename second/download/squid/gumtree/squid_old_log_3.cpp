@@ -1,0 +1,1 @@
+printf("ERROR %d\n", rfc1035_errno);

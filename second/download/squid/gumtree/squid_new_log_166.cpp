@@ -1,0 +1,1 @@
+printf("$fail DNS Domain/IP '%s' exists without any FQDN/IPs: %s.\n", buf, gai_strerror(res));

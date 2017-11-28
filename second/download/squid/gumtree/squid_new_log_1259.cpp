@@ -1,0 +1,1 @@
+fatalf("%s %s: %s", name, path, xstrerr(xerrno));

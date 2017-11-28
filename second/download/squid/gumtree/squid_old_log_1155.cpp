@@ -1,0 +1,1 @@
+fputs(munge_other_line(buf, req), stdout);

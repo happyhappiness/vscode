@@ -1,0 +1,1 @@
+void mustRevalidate(bool v) {setMask(CC_MUST_REVALIDATE,v);}

@@ -1,0 +1,1 @@
+hdr_out->putStr(HDR_X_FORWARDED_FOR, strFwd.termedBuf());

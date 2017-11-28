@@ -1,0 +1,1 @@
+bool raiseSignal() { return blocked() && !popSignal.exchange(true); }

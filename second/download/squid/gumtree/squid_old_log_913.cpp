@@ -1,0 +1,1 @@
+fprintf(stderr, PROGRAM_NAME ": WARNING: could not bind to binddn '%s'\n", ldap_err2string(rc));

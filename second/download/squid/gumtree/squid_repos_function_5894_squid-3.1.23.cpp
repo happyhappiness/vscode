@@ -1,0 +1,1 @@
+inline int fgetpos(FILE *f, fpos64_t *p) { return fgetpos64(f,p); }

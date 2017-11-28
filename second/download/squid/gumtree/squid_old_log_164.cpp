@@ -1,0 +1,1 @@
+fatal("Could not create a DNS socket");

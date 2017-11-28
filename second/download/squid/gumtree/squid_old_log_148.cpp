@@ -1,0 +1,1 @@
+storeAppendPrintf(sentry, "max_shmuse: %d\n", diskd_stats.max_shmuse);

@@ -1,0 +1,3 @@
+void
+StoreFileSystem::registerWithCacheManager(void)
+{}

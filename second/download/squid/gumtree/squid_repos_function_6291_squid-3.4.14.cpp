@@ -1,0 +1,4 @@
+void
+Ipc::Forwarder::cleanup()
+{
+}

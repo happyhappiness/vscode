@@ -1,0 +1,1 @@
+void dial(AsyncCall &call) { ((&(*fwd_))->*method_)(answer_); }

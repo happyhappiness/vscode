@@ -1,0 +1,3 @@
+void
+StoreHashIndex::dereference(StoreEntry&)
+{}

@@ -1,0 +1,1 @@
+inline void unlinkdUnlink(const char * path) { ::unlink(path); }

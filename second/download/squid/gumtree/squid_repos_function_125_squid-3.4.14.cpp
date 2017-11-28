@@ -1,0 +1,1 @@
+size_t CallCounter::news() const {return _news;}

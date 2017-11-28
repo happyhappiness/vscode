@@ -1,0 +1,1 @@
+inline size_t PagesAvailable() { return PageLimit() - PageLevel(); }

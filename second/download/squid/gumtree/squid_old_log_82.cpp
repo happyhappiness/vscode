@@ -1,0 +1,1 @@
+fatal("AuthUserRequest::connLastHeader should always be overridden by conn based auth schemes");

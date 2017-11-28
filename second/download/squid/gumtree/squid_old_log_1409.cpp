@@ -1,0 +1,1 @@
+storeAppendPrintf(sentry, "   W = WRITING\n");

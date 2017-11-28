@@ -1,0 +1,1 @@
+virtual void doDial() { ((&(*this->job))->*method)(); }

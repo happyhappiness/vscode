@@ -1,0 +1,1 @@
+storeAppendPrintf(sentry, "Build Info: " SQUID_BUILD_INFO "\n");

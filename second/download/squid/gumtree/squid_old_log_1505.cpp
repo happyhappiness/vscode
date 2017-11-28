@@ -1,0 +1,1 @@
+fatal("memory_cache_shared is on, but no support for atomic operations detected");

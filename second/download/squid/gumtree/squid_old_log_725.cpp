@@ -1,0 +1,1 @@
+fprintf(stderr, "cmgr: decoded time: '%s' (now: %d)\n", time_str, (int) now);

@@ -1,0 +1,1 @@
+fatal ("unreachable code\n");

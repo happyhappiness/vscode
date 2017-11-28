@@ -1,0 +1,1 @@
+bool doneAll() const {return done && AsyncJob::doneAll();}

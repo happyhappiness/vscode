@@ -1,0 +1,1 @@
+IpInterceptor.StopTransparency("Error enabling needed capabilities.");

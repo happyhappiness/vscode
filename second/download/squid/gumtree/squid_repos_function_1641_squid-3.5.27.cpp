@@ -1,0 +1,1 @@
+virtual void syncCollapsed(const sfileno xitIndex) {}

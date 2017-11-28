@@ -1,0 +1,1 @@
+hdr_out->putStr(Http::HdrType::HOST, authority.c_str());

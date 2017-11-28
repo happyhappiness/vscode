@@ -1,0 +1,1 @@
+char *space(mb_size_t required) { if (size + required >= capacity) grow(size + required +1); return buf + size; }

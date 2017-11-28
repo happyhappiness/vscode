@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/squid/gumtree/squid_repos_function_4445_squid-3.1.23.cpp" pos:tabs="8"><function><type><name pos:line="1" pos:column="1">int<pos:position pos:line="1" pos:column="4"/></name></type>
+<name><name pos:line="2" pos:column="1">store_client<pos:position pos:line="2" pos:column="13"/></name><operator pos:line="2" pos:column="13">::<pos:position pos:line="2" pos:column="15"/></operator><name pos:line="2" pos:column="15">getType<pos:position pos:line="2" pos:column="22"/></name></name><parameter_list pos:line="2" pos:column="22">()<pos:position pos:line="2" pos:column="24"/></parameter_list> <specifier pos:line="2" pos:column="25">const<pos:position pos:line="2" pos:column="30"/></specifier>
+<block pos:line="3" pos:column="1">{
+    <return pos:line="4" pos:column="5">return <expr><name pos:line="4" pos:column="12">type<pos:position pos:line="4" pos:column="16"/></name></expr>;<pos:position pos:line="4" pos:column="17"/></return>
+}<pos:position pos:line="5" pos:column="2"/></block></function></unit>

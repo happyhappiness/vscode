@@ -1,0 +1,1 @@
+fatal("FATAL: error while accepting new client connection: [unknown]\n");

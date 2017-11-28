@@ -1,0 +1,1 @@
+fatalf("mimeLoadIcon: cannot parse internal URL: %s", url_);

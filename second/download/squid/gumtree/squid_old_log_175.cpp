@@ -1,0 +1,1 @@
+mb.Printf("%s", mkhttpdlogtime(&squid_curtime));

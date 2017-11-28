@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/squid/gumtree/squid_repos_function_6134_squid-3.5.27.cpp" pos:tabs="8"><function><type><name pos:line="1" pos:column="1">int<pos:position pos:line="1" pos:column="4"/></name></type>
+<name pos:line="2" pos:column="1">squidaio_sync<pos:position pos:line="2" pos:column="14"/></name><parameter_list pos:line="2" pos:column="14">(<parameter><decl><type><name pos:line="2" pos:column="15">void<pos:position pos:line="2" pos:column="19"/></name></type></decl></parameter>)<pos:position pos:line="2" pos:column="20"/></parameter_list>
+<block pos:line="3" pos:column="1">{
+    <comment type="block" pos:line="4" pos:column="5">/* XXX This might take a while if the queue is large.. */</comment>
+
+    <do pos:line="6" pos:column="5">do <block pos:line="6" pos:column="8">{
+        <expr_stmt><expr><call><name pos:line="7" pos:column="9">squidaio_poll_queues<pos:position pos:line="7" pos:column="29"/></name><argument_list pos:line="7" pos:column="29">()<pos:position pos:line="7" pos:column="31"/></argument_list></call></expr>;<pos:position pos:line="7" pos:column="32"/></expr_stmt>
+    }<pos:position pos:line="8" pos:column="6"/></block> while <condition pos:line="8" pos:column="13">(<expr><name pos:line="8" pos:column="14">request_queue_len<pos:position pos:line="8" pos:column="31"/></name> <operator pos:line="8" pos:column="32">&gt;<pos:position pos:line="8" pos:column="36"/></operator> <literal type="number" pos:line="8" pos:column="34">0<pos:position pos:line="8" pos:column="35"/></literal></expr>)<pos:position pos:line="8" pos:column="36"/></condition>;<pos:position pos:line="8" pos:column="37"/></do>
+
+    <return pos:line="10" pos:column="5">return <expr><call><name pos:line="10" pos:column="12">squidaio_operations_pending<pos:position pos:line="10" pos:column="39"/></name><argument_list pos:line="10" pos:column="39">()<pos:position pos:line="10" pos:column="41"/></argument_list></call></expr>;<pos:position pos:line="10" pos:column="42"/></return>
+}<pos:position pos:line="11" pos:column="2"/></block></function></unit>

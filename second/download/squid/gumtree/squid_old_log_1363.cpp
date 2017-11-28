@@ -1,0 +1,1 @@
+mb.Printf("%s", mkrfc1123(squid_curtime));

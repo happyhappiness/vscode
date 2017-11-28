@@ -1,0 +1,1 @@
+bool testsTrue() const { return testValue;}

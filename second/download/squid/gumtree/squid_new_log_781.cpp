@@ -1,0 +1,1 @@
+fprintf(stdout, "OK user=\"%s\\%s\"", domain, user);

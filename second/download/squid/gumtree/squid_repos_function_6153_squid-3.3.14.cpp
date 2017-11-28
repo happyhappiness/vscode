@@ -1,0 +1,1 @@
+void clear() { memset(eui, 0, SZ_EUI48_BUF); }

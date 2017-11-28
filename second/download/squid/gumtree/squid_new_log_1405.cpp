@@ -1,0 +1,11 @@
+p->appendf("%7s\t%7s\t%7s\t%11s\t%11s\t%11s\t%6s\t%7s\t%7s\t%7s\n",
+               "ID #",
+               "FD",
+               "PID",
+               "# Requests",
+               "# Replies",
+               "# Timed-out",
+               "Flags",
+               "Time",
+               "Offset",
+               "Request");

@@ -1,0 +1,1 @@
+fprintf( stderr, "%c expects a mask parameter. Debug disabled.\n", option );

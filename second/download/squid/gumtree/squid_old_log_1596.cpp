@@ -1,0 +1,1 @@
+fprintf(stderr, "\t%s: %s\n", f, xstrerror());

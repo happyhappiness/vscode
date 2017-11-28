@@ -1,0 +1,1 @@
+size_t CallCounter::deletes() const {return _deletes;}

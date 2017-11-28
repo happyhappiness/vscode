@@ -1,0 +1,1 @@
+r->auth_user_request->setDenyMessage(reply.other().content());

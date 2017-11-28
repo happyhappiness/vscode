@@ -1,0 +1,1 @@
+httpHeaderPutStrf(&rep->header, HDR_LOCATION, "%s", redirect_location.content() );

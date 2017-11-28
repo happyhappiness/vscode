@@ -1,0 +1,5 @@
+void
+storeFsInit(void)
+{
+    storeReplSetup();
+}

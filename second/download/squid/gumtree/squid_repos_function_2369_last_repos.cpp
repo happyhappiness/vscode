@@ -1,0 +1,1 @@
+void mustRevalidate(bool v) {setMask(HttpHdrCcType::CC_MUST_REVALIDATE,v);}

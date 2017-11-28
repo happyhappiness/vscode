@@ -1,0 +1,1 @@
+fatalf("authenticateNegotiateHandleReply: *** Unsupported helper response ***, '%s'\n", reply);

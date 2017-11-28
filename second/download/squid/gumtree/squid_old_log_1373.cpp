@@ -1,0 +1,1 @@
+rep->header.putStr(HDR_CONTENT_LANGUAGE, err_language);

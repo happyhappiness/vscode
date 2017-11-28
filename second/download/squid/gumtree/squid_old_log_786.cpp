@@ -1,0 +1,1 @@
+fprintf(stderr, "=== %d bytes\n", sum);

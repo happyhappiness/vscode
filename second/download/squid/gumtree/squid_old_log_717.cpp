@@ -1,0 +1,1 @@
+fprintf(stderr, "wrote request: '%s'\n", buf);

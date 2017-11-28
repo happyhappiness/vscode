@@ -1,0 +1,1 @@
+fprintf(stderr, "ERROR: Error %s during stat of keytab file %s\n",strerror(errno),keytab_name);

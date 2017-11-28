@@ -1,0 +1,1 @@
+IpInterceptor.StopTransparency("Can't get current capabilities");

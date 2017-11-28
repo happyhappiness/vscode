@@ -1,0 +1,1 @@
+storeAppendPrintf(sentry, "\tsmall block rounding factor:\t%.0f\n", static_cast<double>(mp.grain));

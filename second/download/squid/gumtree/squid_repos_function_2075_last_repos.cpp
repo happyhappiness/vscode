@@ -1,0 +1,1 @@
+static const size_type SizeMaxXXX() { return SizeMax_; }

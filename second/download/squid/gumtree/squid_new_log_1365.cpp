@@ -1,0 +1,1 @@
+mb.appendf("%s", detail->errorName());

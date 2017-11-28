@@ -1,0 +1,1 @@
+virtual void memoryUnlink(StoreEntry &e) {}

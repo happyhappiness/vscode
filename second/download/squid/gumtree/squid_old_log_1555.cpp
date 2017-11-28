@@ -1,0 +1,1 @@
+fatalf("Unknown ssl flag '%s'", flag);

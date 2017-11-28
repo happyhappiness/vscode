@@ -1,0 +1,1 @@
+fatal("peerDigestSwapInCBlock(): shouldn't get here!\n");

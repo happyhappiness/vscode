@@ -1,0 +1,1 @@
+static int Level() { return Current ? Current->level : 1; }

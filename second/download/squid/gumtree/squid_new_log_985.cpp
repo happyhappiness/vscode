@@ -1,0 +1,1 @@
+proxyProtocolError("PROXY client not permitted by default ACL");

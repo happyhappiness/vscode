@@ -1,0 +1,11 @@
+u_int32_t get_ipaddr(char *host)
+{
+    struct hostent	*hp;
+
+    if (good_ipaddr(host) == 0) {
+        return(ipstr2long(host));
+    } else if ((hp = gethostbyname(host)) == (struct hostent *)NULL) {
+        return((u_int32_t)0);
+    }
+    return(ntohl(*(u_int32_t *)hp->h_addr));
+}

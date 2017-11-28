@@ -1,0 +1,1 @@
+bool lastACLResult(bool x) { return lastACLResult_ = x; }

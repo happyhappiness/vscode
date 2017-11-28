@@ -1,0 +1,1 @@
+Value fetchAndAnd(const Value v2) { return __sync_fetch_and_and(&value, v2); }

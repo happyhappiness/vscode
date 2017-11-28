@@ -1,0 +1,1 @@
+buf.Printf("null-body=%d", (int) httpBuf.contentSize());

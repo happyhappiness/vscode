@@ -1,0 +1,1 @@
+fprintf(stderr, "ERROR: proxy server host missing\n");

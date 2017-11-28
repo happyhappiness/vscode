@@ -1,0 +1,1 @@
+mb.appendf("query %s\r\nquit", t);

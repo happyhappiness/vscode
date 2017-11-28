@@ -1,0 +1,1 @@
+httpHeaderPutStrf(hdr, HDR_CONNECTION, "Proxy-support");

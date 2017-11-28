@@ -1,0 +1,1 @@
+fprintf( stderr, "%c requires a regex pattern argument!\n", option );

@@ -1,0 +1,1 @@
+proxyProtocolError("PROXY/2.0 error: invalid protocol type");

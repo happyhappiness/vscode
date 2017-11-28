@@ -1,0 +1,4 @@
+void
+Adaptation::Service::finalize()
+{
+}

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/squid/gumtree/squid_repos_function_5939_squid-3.1.23.cpp" pos:tabs="8"><function><specifier pos:line="1" pos:column="1">static<pos:position pos:line="1" pos:column="7"/></specifier> <specifier pos:line="1" pos:column="8">inline<pos:position pos:line="1" pos:column="14"/></specifier> <type><name pos:line="1" pos:column="15">hrtime_t<pos:position pos:line="1" pos:column="23"/></name></type>
+<name pos:line="2" pos:column="1">get_tick<pos:position pos:line="2" pos:column="9"/></name><parameter_list pos:line="2" pos:column="9">(<parameter><decl><type><name pos:line="2" pos:column="10">void<pos:position pos:line="2" pos:column="14"/></name></type></decl></parameter>)<pos:position pos:line="2" pos:column="15"/></parameter_list>
+<block pos:line="3" pos:column="1">{
+    <decl_stmt><decl><type><name pos:line="4" pos:column="5">hrtime_t<pos:position pos:line="4" pos:column="13"/></name></type> <name pos:line="4" pos:column="14">regs<pos:position pos:line="4" pos:column="18"/></name></decl>;<pos:position pos:line="4" pos:column="19"/></decl_stmt>
+
+<asm pos:line="6" pos:column="1">asm <specifier pos:line="6" pos:column="5">volatile<pos:position pos:line="6" pos:column="13"/></specifier> ("rdtsc":"=A" (regs));<pos:position pos:line="6" pos:column="36"/></asm>
+    <return pos:line="7" pos:column="5">return <expr><name pos:line="7" pos:column="12">regs<pos:position pos:line="7" pos:column="16"/></name></expr>;<pos:position pos:line="7" pos:column="17"/></return>
+    <comment type="block" pos:line="8" pos:column="5">/* We need return value, we rely on CC to optimise out needless subf calls */</comment>
+    <comment type="block" pos:line="9" pos:column="5">/* Note that "rdtsc" is relatively slow OP and stalls the CPU pipes, so use it wisely */</comment>
+}<pos:position pos:line="10" pos:column="2"/></block></function></unit>

@@ -1,0 +1,48 @@
+static void
+icpHandleIcpV2(int fd, Ip::Address &from, char *buf, int len)
+{
+    if (len <= 0) {
+        debugs(12, 3, "icpHandleIcpV2: ICP message is too small");
+        return;
+    }
+
+    icp_common_t header(buf, len);
+    /*
+     * Length field should match the number of bytes read
+     */
+
+    if (len != header.length) {
+        debugs(12, 3, "icpHandleIcpV2: ICP message is too small");
+        return;
+    }
+
+    switch (header.opcode) {
+
+    case ICP_QUERY:
+        /* We have a valid packet */
+        doV2Query(fd, from, buf, header);
+        break;
+
+    case ICP_HIT:
+
+    case ICP_DECHO:
+
+    case ICP_MISS:
+
+    case ICP_DENIED:
+
+    case ICP_MISS_NOFETCH:
+        header.handleReply(buf, from);
+        break;
+
+    case ICP_INVALID:
+
+    case ICP_ERR:
+        break;
+
+    default:
+        debugs(12, DBG_CRITICAL, "icpHandleIcpV2: UNKNOWN OPCODE: " << header.opcode << " from " << from);
+
+        break;
+    }
+}

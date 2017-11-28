@@ -1,0 +1,1 @@
+fprintf(stderr, " %d\n", xmalloc_count);

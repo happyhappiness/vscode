@@ -1,0 +1,1 @@
+informUserOfPeerError("unsupported CONNECT response status code", (relay ? rep.hdr_sz : 0));

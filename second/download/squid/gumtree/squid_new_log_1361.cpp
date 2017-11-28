@@ -1,0 +1,1 @@
+mb.append(sign_mb->content(), sign_mb->contentSize());

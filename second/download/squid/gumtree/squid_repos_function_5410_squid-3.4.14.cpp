@@ -1,0 +1,1 @@
+bool use(void *ptr=NULL) { return ptr != (void*)&FileNameHashCached; }

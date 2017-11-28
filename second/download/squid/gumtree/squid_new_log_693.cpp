@@ -1,0 +1,1 @@
+printf(" x.onreadystatechange=function() {\n");

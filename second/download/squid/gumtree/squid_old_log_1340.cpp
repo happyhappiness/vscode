@@ -1,0 +1,1 @@
+str.Printf("ServerIP: %s\r\n", request->hier.host);

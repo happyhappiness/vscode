@@ -1,0 +1,1 @@
+fatalf("Unknown TLS error name '%s'", name);

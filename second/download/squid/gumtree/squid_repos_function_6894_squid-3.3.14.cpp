@@ -1,0 +1,1 @@
+inline int sched_getaffinity(int, size_t, cpu_set_t *) { return ENOTSUP; }

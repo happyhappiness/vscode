@@ -1,0 +1,1 @@
+storeAppendPrintf(entry, "%s 0x%02X", name, l->nfmark);

@@ -1,0 +1,1 @@
+storeAppendPrintf(s, "logType %s\n", LogTags_str[http->logType]);

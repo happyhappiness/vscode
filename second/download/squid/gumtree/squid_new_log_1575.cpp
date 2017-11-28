@@ -1,0 +1,1 @@
+storeAppendPrintf(s, "logType %s\n", http->logType.c_str());

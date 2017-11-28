@@ -1,0 +1,1 @@
+void noStore(bool v) {setMask(HttpHdrCcType::CC_NO_STORE,v);}

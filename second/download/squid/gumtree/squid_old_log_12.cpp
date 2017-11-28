@@ -1,0 +1,1 @@
+fprintf(stderr, " %s", malloc_file[B][I]);

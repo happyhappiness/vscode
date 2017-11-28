@@ -1,0 +1,1 @@
+storeAppendPrintf(sentry, "\tmax size of small blocks:\t%.0f\n", static_cast<double>(mp.mxfast));

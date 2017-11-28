@@ -1,0 +1,1 @@
+storeAppendPrintf(sentry, "syscalls.selects = %f/sec\n", stats.syscalls_selects);

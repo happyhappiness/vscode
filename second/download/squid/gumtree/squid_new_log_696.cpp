@@ -1,0 +1,1 @@
+printf("    var v = x.getResponseHeader('Server');\n");

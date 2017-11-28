@@ -1,0 +1,1 @@
+void *Mem::AllocatorProxy::alloc() {return xmalloc(64*1024);}

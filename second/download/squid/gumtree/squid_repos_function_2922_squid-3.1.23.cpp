@@ -1,0 +1,1 @@
+inline bool commIsHalfClosed(int fd) { return commHasHalfClosedMonitor(fd); }

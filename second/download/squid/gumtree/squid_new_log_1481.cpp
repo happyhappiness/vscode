@@ -1,0 +1,1 @@
+fatalf("Cannot open %s: %s", lf->path, xstrerr(xerrno));

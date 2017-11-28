@@ -1,0 +1,1 @@
+storeAppendPrintf(sentry, "\n\n%s histogram:\n", rc.proto);

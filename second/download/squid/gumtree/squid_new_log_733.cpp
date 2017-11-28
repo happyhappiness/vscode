@@ -1,0 +1,1 @@
+fprintf(stderr, "Error: No server name\n");

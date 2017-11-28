@@ -1,0 +1,1 @@
+storeAppendPrintf(sentry, "number of reads: %.0f\n", stats.ftp_reads);

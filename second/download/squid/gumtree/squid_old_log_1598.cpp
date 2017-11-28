@@ -1,0 +1,1 @@
+fatal("Transients::get(key,callback,data) should not be called");

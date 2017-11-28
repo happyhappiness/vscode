@@ -1,0 +1,1 @@
+inline int WIN32_Subsystem_Init(int *foo, char ***bar) {return 0; }

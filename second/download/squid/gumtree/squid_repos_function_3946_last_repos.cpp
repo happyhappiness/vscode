@@ -1,0 +1,1 @@
+inline int BIO_get_init(BIO *table) { return table->init; }

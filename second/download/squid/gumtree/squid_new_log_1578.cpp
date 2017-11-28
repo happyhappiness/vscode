@@ -1,0 +1,1 @@
+rep->header.putStr(Http::HdrType::VARY, vary.termedBuf());

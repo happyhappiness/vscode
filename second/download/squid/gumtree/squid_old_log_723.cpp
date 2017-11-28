@@ -1,0 +1,1 @@
+fprintf(stderr, "cmgr: length ok\n");

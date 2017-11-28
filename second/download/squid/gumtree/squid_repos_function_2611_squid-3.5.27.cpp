@@ -1,0 +1,1 @@
+static bool CanGrowTo(size_type totalLen, const size_type extras = 0) { return SafeAdd(totalLen, extras) && SafeAdd(totalLen, 1); }

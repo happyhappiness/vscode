@@ -1,0 +1,1 @@
+virtual DelaySpec *rate() {return &spec;}

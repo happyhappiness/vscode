@@ -1,0 +1,9 @@
+memBufReport(MemBuf * mb)
+{
+    assert(mb);
+    mb->Printf("memBufReport is not yet implemented @?@\n");
+}
+
+#if !_USE_INLINE_
+#include "MemBuf.cci"
+#endif

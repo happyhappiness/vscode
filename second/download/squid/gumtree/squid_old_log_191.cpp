@@ -1,0 +1,1 @@
+storeAppendPrintf(&sentry, "Maximum Size: %" PRIu64 " KB\n", max_size);

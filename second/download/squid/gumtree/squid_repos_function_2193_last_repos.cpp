@@ -1,0 +1,1 @@
+virtual bool canDial(AsyncCall &call) { return tunnel_.valid(); }

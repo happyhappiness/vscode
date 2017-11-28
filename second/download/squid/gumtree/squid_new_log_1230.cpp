@@ -1,0 +1,1 @@
+outputBuffer.appendf(" pipe%p", this);

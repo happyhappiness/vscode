@@ -1,0 +1,1 @@
+buf.Printf("%x\r\n", static_cast<unsigned int>(rawDataSize));

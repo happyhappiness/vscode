@@ -1,0 +1,1 @@
+fprintf(stderr, "usage: %s [-6|-4] [-E packet-size] ip port\n", argv[0]);

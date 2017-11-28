@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/squid/gumtree/squid_repos_function_4714_squid-3.1.23.cpp" pos:tabs="8"><function><type><name pos:line="1" pos:column="1">void<pos:position pos:line="1" pos:column="5"/></name></type>
+<name><name pos:line="2" pos:column="1">UFSStoreState<pos:position pos:line="2" pos:column="14"/></name><operator pos:line="2" pos:column="14">::<pos:position pos:line="2" pos:column="16"/></operator><name pos:line="2" pos:column="16">drainWriteQueue<pos:position pos:line="2" pos:column="31"/></name></name><parameter_list pos:line="2" pos:column="31">()<pos:position pos:line="2" pos:column="33"/></parameter_list>
+<block pos:line="3" pos:column="1">{
+    <comment type="block" pos:line="4" pos:column="5">/*
+     * DPW 2007-04-12
+     * We might find that flags.write_draining is already set
+     * because schemes like diskd can process I/O acks
+     * before sending another I/O request.    e.g. the following
+     * sequence of events: open request -&gt; write request -&gt;
+     * drainWriteQueue() -&gt; queue full -&gt; callbacks -&gt; openDone() -&gt;
+     * drainWriteQueue().
+     */</comment>
+    <if pos:line="13" pos:column="5">if <condition pos:line="13" pos:column="8">(<expr><name><name pos:line="13" pos:column="9">flags<pos:position pos:line="13" pos:column="14"/></name><operator pos:line="13" pos:column="14">.<pos:position pos:line="13" pos:column="15"/></operator><name pos:line="13" pos:column="15">write_draining<pos:position pos:line="13" pos:column="29"/></name></name></expr>)<pos:position pos:line="13" pos:column="30"/></condition><then pos:line="13" pos:column="30">
+        <block type="pseudo"><return pos:line="14" pos:column="9">return;<pos:position pos:line="14" pos:column="16"/></return></block></then></if>
+
+    <if pos:line="16" pos:column="5">if <condition pos:line="16" pos:column="8">(<expr><operator pos:line="16" pos:column="9">!<pos:position pos:line="16" pos:column="10"/></operator><call><name><name pos:line="16" pos:column="10">theFile<pos:position pos:line="16" pos:column="17"/></name><operator pos:line="16" pos:column="17">-&gt;<pos:position pos:line="16" pos:column="22"/></operator><name pos:line="16" pos:column="19">canWrite<pos:position pos:line="16" pos:column="27"/></name></name><argument_list pos:line="16" pos:column="27">()<pos:position pos:line="16" pos:column="29"/></argument_list></call></expr>)<pos:position pos:line="16" pos:column="30"/></condition><then pos:line="16" pos:column="30">
+        <block type="pseudo"><return pos:line="17" pos:column="9">return;<pos:position pos:line="17" pos:column="16"/></return></block></then></if>
+
+    <expr_stmt><expr><name><name pos:line="19" pos:column="5">flags<pos:position pos:line="19" pos:column="10"/></name><operator pos:line="19" pos:column="10">.<pos:position pos:line="19" pos:column="11"/></operator><name pos:line="19" pos:column="11">write_draining<pos:position pos:line="19" pos:column="25"/></name></name> <operator pos:line="19" pos:column="26">=<pos:position pos:line="19" pos:column="27"/></operator> <literal type="boolean" pos:line="19" pos:column="28">true<pos:position pos:line="19" pos:column="32"/></literal></expr>;<pos:position pos:line="19" pos:column="33"/></expr_stmt>
+
+    <while pos:line="21" pos:column="5">while <condition pos:line="21" pos:column="11">(<expr><name pos:line="21" pos:column="12">pending_writes<pos:position pos:line="21" pos:column="26"/></name> <operator pos:line="21" pos:column="27">!=<pos:position pos:line="21" pos:column="29"/></operator> <name pos:line="21" pos:column="30">NULL<pos:position pos:line="21" pos:column="34"/></name></expr>)<pos:position pos:line="21" pos:column="35"/></condition> <block pos:line="21" pos:column="36">{
+        <expr_stmt><expr><call><name pos:line="22" pos:column="9">doWrite<pos:position pos:line="22" pos:column="16"/></name><argument_list pos:line="22" pos:column="16">()<pos:position pos:line="22" pos:column="18"/></argument_list></call></expr>;<pos:position pos:line="22" pos:column="19"/></expr_stmt>
+    }<pos:position pos:line="23" pos:column="6"/></block></while>
+
+    <expr_stmt><expr><name><name pos:line="25" pos:column="5">flags<pos:position pos:line="25" pos:column="10"/></name><operator pos:line="25" pos:column="10">.<pos:position pos:line="25" pos:column="11"/></operator><name pos:line="25" pos:column="11">write_draining<pos:position pos:line="25" pos:column="25"/></name></name> <operator pos:line="25" pos:column="26">=<pos:position pos:line="25" pos:column="27"/></operator> <literal type="boolean" pos:line="25" pos:column="28">false<pos:position pos:line="25" pos:column="33"/></literal></expr>;<pos:position pos:line="25" pos:column="34"/></expr_stmt>
+
+    <if pos:line="27" pos:column="5">if <condition pos:line="27" pos:column="8">(<expr><name><name pos:line="27" pos:column="9">flags<pos:position pos:line="27" pos:column="14"/></name><operator pos:line="27" pos:column="14">.<pos:position pos:line="27" pos:column="15"/></operator><name pos:line="27" pos:column="15">try_closing<pos:position pos:line="27" pos:column="26"/></name></name></expr>)<pos:position pos:line="27" pos:column="27"/></condition><then pos:line="27" pos:column="27">
+        <block type="pseudo"><expr_stmt><expr><call><name pos:line="28" pos:column="9">tryClosing<pos:position pos:line="28" pos:column="19"/></name><argument_list pos:line="28" pos:column="19">()<pos:position pos:line="28" pos:column="21"/></argument_list></call></expr>;<pos:position pos:line="28" pos:column="22"/></expr_stmt></block></then></if>
+}<pos:position pos:line="29" pos:column="2"/></block></function></unit>

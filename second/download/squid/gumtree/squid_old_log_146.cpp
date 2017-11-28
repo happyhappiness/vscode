@@ -1,0 +1,1 @@
+storeAppendPrintf(sentry, "recv_count: %d\n", diskd_stats.recv_count);

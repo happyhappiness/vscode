@@ -1,0 +1,4 @@
+void *
+RFCNB_Listen()
+{
+}

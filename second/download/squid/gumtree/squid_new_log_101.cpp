@@ -1,0 +1,1 @@
+fatalf("parse_peer: userhash requires authentication. peer %s/%d\n", p->host, p->http_port);

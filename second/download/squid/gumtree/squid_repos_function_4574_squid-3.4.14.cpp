@@ -1,0 +1,1 @@
+void makeSet(const ACLFlag f) { flags_ |= flagToInt(f); }

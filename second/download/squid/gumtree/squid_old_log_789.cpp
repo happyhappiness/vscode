@@ -1,0 +1,1 @@
+fprintf(stderr, "Leak found: %p", malloc_ptrs[B][I]);

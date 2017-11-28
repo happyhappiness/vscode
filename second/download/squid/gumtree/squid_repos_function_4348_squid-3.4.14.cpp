@@ -1,0 +1,1 @@
+void useRequest(HttpRequest *aRequest) { if (aRequest != NULL) request = aRequest;}

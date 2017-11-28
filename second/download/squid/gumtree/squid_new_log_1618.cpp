@@ -1,0 +1,1 @@
+out.appendf("%s", html_quote(buf));

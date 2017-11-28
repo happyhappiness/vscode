@@ -1,0 +1,1 @@
+str.Printf("ErrPage: %s\r\n", errorPageName(type));

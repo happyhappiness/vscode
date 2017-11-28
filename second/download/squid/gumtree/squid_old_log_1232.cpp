@@ -1,0 +1,1 @@
+outputBuffer.Printf(" cons%p", theConsumer.get());

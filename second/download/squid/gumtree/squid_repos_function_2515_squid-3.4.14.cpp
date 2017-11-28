@@ -1,0 +1,1 @@
+bool dontRetry() { return flags.dont_retry; }

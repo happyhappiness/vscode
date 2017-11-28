@@ -1,0 +1,26 @@
+ 
+ void Adaptation::Icap::ModXact::parseBody()
+ {
+     Must(state.parsing == State::psBody);
+     Must(bodyParser);
+ 
+-    debugs(93, 5, HERE << "have " << readBuf.contentSize() << " body bytes to parse");
++    debugs(93, 5, "have " << readBuf.length() << " body bytes to parse");
+ 
+     // the parser will throw on errors
+     BodyPipeCheckout bpc(*adapted.body_pipe);
+-    const bool parsed = bodyParser->parse(&readBuf, &bpc.buf);
++    bodyParser->setPayloadBuffer(&bpc.buf);
++    const bool parsed = bodyParser->parse(readBuf);
++    readBuf = bodyParser->remaining(); // sync buffers after parse
+     bpc.checkIn();
+ 
+-    debugs(93, 5, HERE << "have " << readBuf.contentSize() << " body bytes after " <<
+-           "parse; parsed all: " << parsed);
++    debugs(93, 5, "have " << readBuf.length() << " body bytes after parsed all: " << parsed);
+     replyHttpBodySize += adapted.body_pipe->buf().contentSize();
+ 
+     // TODO: expose BodyPipe::putSize() to make this check simpler and clearer
+     // TODO: do we really need this if we disable when sending headers?
+     if (adapted.body_pipe->buf().contentSize() > 0) { // parsed something sometime
+         disableRepeats("sent adapted content");

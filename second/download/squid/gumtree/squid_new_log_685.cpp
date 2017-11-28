@@ -1,0 +1,1 @@
+Ip::Interceptor.StopTransparency("capability setting has failed.");

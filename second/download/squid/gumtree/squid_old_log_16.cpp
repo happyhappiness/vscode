@@ -1,0 +1,1 @@
+fprintf(stderr, "Total leaked memory: %d\n", leak_sum);

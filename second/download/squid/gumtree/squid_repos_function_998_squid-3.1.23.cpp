@@ -1,0 +1,31 @@
+static void
+debugOpenLog(const char *logfile)
+{
+    if (logfile == NULL) {
+        debug_log = stderr;
+        return;
+    }
+
+    if (debug_log_file)
+        xfree(debug_log_file);
+
+    debug_log_file = xstrdup(logfile);	/* keep a static copy */
+
+    if (debug_log && debug_log != stderr)
+        fclose(debug_log);
+
+    debug_log = fopen(logfile, "a+");
+
+    if (!debug_log) {
+        fprintf(stderr, "WARNING: Cannot write log file: %s\n", logfile);
+        perror(logfile);
+        fprintf(stderr, "         messages will be sent to 'stderr'.\n");
+        fflush(stderr);
+        debug_log = stderr;
+    }
+
+#ifdef _SQUID_WIN32_
+    setmode(fileno(debug_log), O_TEXT);
+
+#endif
+}

@@ -1,0 +1,1 @@
+printf("%s\n",SQUID_BUILD_INFO);

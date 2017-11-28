@@ -1,0 +1,1 @@
+fatalf("Too small or too big TLS error code '%s'", name);

@@ -1,0 +1,1 @@
+putStr(Http::HdrType::WARNING, buf);

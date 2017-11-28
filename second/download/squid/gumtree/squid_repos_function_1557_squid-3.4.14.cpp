@@ -1,0 +1,1 @@
+virtual DelaySpec const *rate() const {return &spec;}

@@ -1,0 +1,1 @@
+void staleIfError(int32_t v) {setValue(stale_if_error,v,HttpHdrCcType::CC_STALE_IF_ERROR); }

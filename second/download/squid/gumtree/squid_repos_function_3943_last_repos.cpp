@@ -1,0 +1,1 @@
+const SBuf &rBufData() {return rbuf;}

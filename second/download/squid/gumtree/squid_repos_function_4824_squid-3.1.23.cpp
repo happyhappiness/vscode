@@ -1,0 +1,3 @@
+void
+AuthUserRequest::onConnectionClose(ConnStateData *)
+{}

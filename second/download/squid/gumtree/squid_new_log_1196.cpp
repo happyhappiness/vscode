@@ -1,0 +1,1 @@
+buf.appendf(",fail%d", failures);

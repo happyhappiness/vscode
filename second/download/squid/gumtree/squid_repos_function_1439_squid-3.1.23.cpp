@@ -1,0 +1,2 @@
+void
+SwapDir::dereference(StoreEntry &) {}

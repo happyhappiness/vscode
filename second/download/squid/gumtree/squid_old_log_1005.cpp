@@ -1,0 +1,1 @@
+_db_print("%s\n", CurrentDebug->str().c_str());

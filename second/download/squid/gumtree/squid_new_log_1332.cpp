@@ -1,0 +1,1 @@
+str.appendf("CacheHost: %s\r\n", getMyHostname());

@@ -1,0 +1,1 @@
+bool finalized() const { return flags.finalized; }

@@ -1,0 +1,1 @@
+storeAppendPrintf(sentry, "write\t%d\t%d\n", squidaio_counts.write_start, squidaio_counts.write_finish);

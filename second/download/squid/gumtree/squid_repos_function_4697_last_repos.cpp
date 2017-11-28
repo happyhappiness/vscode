@@ -1,0 +1,1 @@
+SBuf& assign(const char *S) {return assign(S,npos);}

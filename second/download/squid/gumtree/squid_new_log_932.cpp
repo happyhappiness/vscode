@@ -1,0 +1,1 @@
+fprintf(stderr, "-t replay cache type\n");

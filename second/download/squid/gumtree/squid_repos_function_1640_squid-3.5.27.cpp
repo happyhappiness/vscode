@@ -1,0 +1,1 @@
+virtual void transientsCompleteWriting(StoreEntry &e) {}

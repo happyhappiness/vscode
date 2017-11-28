@@ -1,0 +1,1 @@
+fatalf("Aiee! aio_write() returned error (%d) FIXME and wrap file_write !\n", xerrno);

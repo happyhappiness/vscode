@@ -1,0 +1,1 @@
+storeAppendPrintf(e, "\t item %d:\t%s\n", i, (char *)(walker->key));

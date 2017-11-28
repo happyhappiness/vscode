@@ -1,0 +1,1 @@
+void freed(const bool beFreed) { flags.freed = beFreed; }

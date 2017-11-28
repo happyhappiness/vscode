@@ -1,0 +1,1 @@
+FileOpeningConfig &openedByRoot() { openByRoot = true; return *this; }

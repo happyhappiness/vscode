@@ -1,0 +1,1 @@
+fputs( "WARNING: Partial meta data loaded.\n", stderr );

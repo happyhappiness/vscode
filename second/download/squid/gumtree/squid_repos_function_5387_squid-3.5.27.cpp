@@ -1,0 +1,1 @@
+bool weAreTrackingDir() const {return savedReply.message != NULL;}

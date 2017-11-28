@@ -1,0 +1,1 @@
+virtual void setChunkSize(size_t chunksize) {}

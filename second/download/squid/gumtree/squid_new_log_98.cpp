@@ -1,0 +1,1 @@
+fatalf("invalid HTCP mode '%s'", mode);

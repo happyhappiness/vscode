@@ -1,0 +1,1 @@
+void reset(const SBuf &newBuf) { buf_ = newBuf; parsed_ = 0; }

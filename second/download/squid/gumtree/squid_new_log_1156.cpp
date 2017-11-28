@@ -1,0 +1,1 @@
+fputs(out.buf, stdout);

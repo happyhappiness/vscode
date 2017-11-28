@@ -1,0 +1,1 @@
+void Ssl::CrtdMessage::setBody(std::string const & aBody) { body = aBody; }

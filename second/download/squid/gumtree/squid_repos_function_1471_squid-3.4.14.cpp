@@ -1,0 +1,1 @@
+inline void WIN32_sendSignal(int foo) { return; }

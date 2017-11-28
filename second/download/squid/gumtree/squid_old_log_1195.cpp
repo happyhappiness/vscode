@@ -1,0 +1,1 @@
+buf.Printf("Allow: 206\r\n");

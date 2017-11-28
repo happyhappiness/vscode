@@ -1,0 +1,1 @@
+const char *language() {return errLanguage.termedBuf();}

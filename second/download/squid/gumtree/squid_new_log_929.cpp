@@ -1,0 +1,1 @@
+fprintf(stderr, "ERROR: service principal not given\n");

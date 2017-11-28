@@ -1,0 +1,1 @@
+rep->header.putStr(HDR_VARY, vary.termedBuf());

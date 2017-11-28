@@ -1,0 +1,1 @@
+void clearMaxStale() { max_stale=MAX_STALE_UNSET; }

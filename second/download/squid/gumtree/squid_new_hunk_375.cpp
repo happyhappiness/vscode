@@ -1,0 +1,18 @@
+        l->next = NULL;
+        cbdataFree(l);
+    }
+}
+#endif /* SO_MARK */
+
+CBDATA_TYPE(AclSizeLimit);
+
+static void
+dump_acl_b_size_t(StoreEntry * entry, const char *name, AclSizeLimit * head)
+{
+    AclSizeLimit *l;
+
+    for (l = head; l; l = l->next) {
+        if (l->size != -1)
+            storeAppendPrintf(entry, "%s %d %s\n", name, (int) l->size, B_BYTES_STR);
+        else
+            storeAppendPrintf(entry, "%s none", name);

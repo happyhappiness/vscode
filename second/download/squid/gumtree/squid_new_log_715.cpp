@@ -1,0 +1,1 @@
+printf(" TS(s.children[i].value, 's');\n");

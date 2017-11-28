@@ -1,0 +1,1 @@
+freeBadEntry(fileno, "size mismatch");

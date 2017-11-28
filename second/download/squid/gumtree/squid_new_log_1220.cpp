@@ -1,0 +1,1 @@
+storeAppendPrintf(output, "Cached Usernames: %d", static_cast<int32_t>(userlist.size()));

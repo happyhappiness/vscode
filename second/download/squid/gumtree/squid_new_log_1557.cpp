@@ -1,0 +1,1 @@
+fatalf("Failed to initialise SSL engine: %s\n", Security::ErrorString(ssl_error));

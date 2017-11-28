@@ -1,0 +1,1 @@
+storeAppendPrintf(entry, " rotate=%d", log->rotateCount);

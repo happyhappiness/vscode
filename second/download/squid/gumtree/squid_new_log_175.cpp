@@ -1,0 +1,1 @@
+mb.Printf("%s", Time::FormatHttpd(squid_curtime));

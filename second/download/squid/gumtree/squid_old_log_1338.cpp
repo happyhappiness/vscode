@@ -1,0 +1,1 @@
+str.Printf("TimeStamp: %s\r\n\r\n", mkrfc1123(squid_curtime));

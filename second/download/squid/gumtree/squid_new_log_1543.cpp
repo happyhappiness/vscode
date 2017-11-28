@@ -1,0 +1,1 @@
+mb.appendf("%i-Information: %s\r\n", scode, info.termedBuf());

@@ -1,0 +1,1 @@
+void clearNoTransform() {setMask(HttpHdrCcType::CC_NO_TRANSFORM,false);}

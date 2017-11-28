@@ -1,0 +1,3 @@
+void
+AIODiskIOModule::init()
+{}

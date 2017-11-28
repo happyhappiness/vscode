@@ -1,0 +1,1 @@
+str.Printf("FTP Reply: %s\r\n", (ftp.reply? ftp.reply:"[none]"));

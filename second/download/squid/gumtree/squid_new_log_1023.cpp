@@ -1,0 +1,1 @@
+freeBadEntry(fileno, "corrupted metainfo");

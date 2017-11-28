@@ -1,0 +1,1 @@
+printf("     var d = document.getElementById('H' + s + 'mgr');\n");

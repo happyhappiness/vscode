@@ -1,0 +1,1 @@
+inline size_t detailEntryEnd(const char *s, size_t len) {return headersEnd(s, len);}

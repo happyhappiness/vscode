@@ -1,0 +1,1 @@
+fprintf(stderr, "cmgr: decoded passwd: '%s'\n", passwd);

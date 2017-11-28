@@ -1,0 +1,1 @@
+out.Printf("%s", html_quote(buf));

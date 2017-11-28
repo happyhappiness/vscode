@@ -1,0 +1,1 @@
+void *validDone() { void *result; return cbdataReferenceValidDone(data_, &result) ? result : nullptr; }

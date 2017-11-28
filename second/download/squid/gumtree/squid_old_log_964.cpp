@@ -1,0 +1,1 @@
+fatal("No DNS helpers allocated");

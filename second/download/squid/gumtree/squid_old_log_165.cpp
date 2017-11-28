@@ -1,0 +1,1 @@
+printf("$fail DNS Domain/IP '%s' does not exist: %s.\n", buf, xgai_strerror(res));

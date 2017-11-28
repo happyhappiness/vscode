@@ -1,0 +1,1 @@
+state->queryMsg.Printf("%d, %d\r\n", conn->remote.port(), conn->local.port());

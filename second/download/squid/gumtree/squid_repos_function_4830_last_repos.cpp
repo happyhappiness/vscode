@@ -1,0 +1,1 @@
+void resetReason() { reason_ = nullptr; }

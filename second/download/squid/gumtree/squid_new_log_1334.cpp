@@ -1,0 +1,1 @@
+str.appendf("Err: (%d) %s\r\n", xerrno, strerror(xerrno));

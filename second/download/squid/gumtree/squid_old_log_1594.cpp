@@ -1,0 +1,1 @@
+fprintf(stderr, APP_SHORTNAME ": ERROR: No pid file name defined\n");

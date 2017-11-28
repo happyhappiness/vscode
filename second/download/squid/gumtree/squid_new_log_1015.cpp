@@ -1,0 +1,1 @@
+storeAppendPrintf(sentry, "  check_callback\t%" PRIu64 "\t-\n", squidaio_counts.check_callback);

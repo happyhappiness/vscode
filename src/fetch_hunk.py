@@ -213,6 +213,7 @@ main function
 """
 if __name__ == "__main__":
     # param is about whether call create version diff before analysis
-    fetch_version_diff(True)
+    # fetch_version_diff(True)
+    create_version_diff()
 
 

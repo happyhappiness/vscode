@@ -1,0 +1,1 @@
+fatal ("Unknown acl type in ACL::Factory");

@@ -1,0 +1,1 @@
+iterator begin() { return notes.begin(); }

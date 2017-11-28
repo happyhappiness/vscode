@@ -1,0 +1,1 @@
+auth_user_request->denyMessageFromHelper("Negotiate", reply);

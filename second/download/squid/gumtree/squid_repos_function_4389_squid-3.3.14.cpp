@@ -1,0 +1,1 @@
+std::string const & Ssl::CrtdMessage::getCode() const { return code; }

@@ -1,0 +1,1 @@
+storeAppendPrintf(e, " protocol=%s", s->protocol);

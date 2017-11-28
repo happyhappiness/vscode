@@ -1,0 +1,1 @@
+virtual AuthUser *user() {return _auth_user;}

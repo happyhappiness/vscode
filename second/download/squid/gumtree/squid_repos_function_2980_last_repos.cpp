@@ -1,0 +1,1 @@
+virtual bool canDial(AsyncCall &) const { return true; }

@@ -1,0 +1,1 @@
+buf.Printf(",fail%d", theSessionFailures);

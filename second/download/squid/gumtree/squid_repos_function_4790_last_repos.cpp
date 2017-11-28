@@ -1,0 +1,1 @@
+int Mem::AllocatorProxy::inUseCount() const {return 0;}

@@ -1,0 +1,1 @@
+inline void squid_gnutls_free(void *d) {gnutls_free(d);}

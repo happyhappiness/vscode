@@ -1,0 +1,1 @@
+void sMaxAge(int32_t v) {setValue(s_maxage,v,CC_S_MAXAGE); }

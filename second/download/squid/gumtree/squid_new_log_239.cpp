@@ -1,0 +1,1 @@
+printf("Squid Cache: Version %s\n" ,version_string);

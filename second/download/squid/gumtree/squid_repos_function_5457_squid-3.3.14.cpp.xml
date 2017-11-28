@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/squid/gumtree/squid_repos_function_5457_squid-3.3.14.cpp" pos:tabs="8"><function><type><name pos:line="1" pos:column="1">void<pos:position pos:line="1" pos:column="5"/></name></type>
+<name><name pos:line="2" pos:column="1">DiskThreadsIOStrategy<pos:position pos:line="2" pos:column="22"/></name><operator pos:line="2" pos:column="22">::<pos:position pos:line="2" pos:column="24"/></operator><name pos:line="2" pos:column="24">done<pos:position pos:line="2" pos:column="28"/></name></name><parameter_list pos:line="2" pos:column="28">(<parameter><decl><type><name pos:line="2" pos:column="29">void<pos:position pos:line="2" pos:column="33"/></name></type></decl></parameter>)<pos:position pos:line="2" pos:column="34"/></parameter_list>
+<block pos:line="3" pos:column="1">{
+    <if pos:line="4" pos:column="5">if <condition pos:line="4" pos:column="8">(<expr><operator pos:line="4" pos:column="9">!<pos:position pos:line="4" pos:column="10"/></operator><name pos:line="4" pos:column="10">initialised<pos:position pos:line="4" pos:column="21"/></name></expr>)<pos:position pos:line="4" pos:column="22"/></condition><then pos:line="4" pos:column="22">
+        <block type="pseudo"><return pos:line="5" pos:column="9">return;<pos:position pos:line="5" pos:column="16"/></return></block></then></if>
+
+    <expr_stmt><expr><call><name pos:line="7" pos:column="5">squidaio_shutdown<pos:position pos:line="7" pos:column="22"/></name><argument_list pos:line="7" pos:column="22">()<pos:position pos:line="7" pos:column="24"/></argument_list></call></expr>;<pos:position pos:line="7" pos:column="25"/></expr_stmt>
+
+    <expr_stmt><expr><operator pos:line="9" pos:column="5">delete<pos:position pos:line="9" pos:column="11"/></operator> <name pos:line="9" pos:column="12">squidaio_ctrl_pool<pos:position pos:line="9" pos:column="30"/></name></expr>;<pos:position pos:line="9" pos:column="31"/></expr_stmt>
+
+    <expr_stmt><expr><name pos:line="11" pos:column="5">squidaio_ctrl_pool<pos:position pos:line="11" pos:column="23"/></name> <operator pos:line="11" pos:column="24">=<pos:position pos:line="11" pos:column="25"/></operator> <name pos:line="11" pos:column="26">NULL<pos:position pos:line="11" pos:column="30"/></name></expr>;<pos:position pos:line="11" pos:column="31"/></expr_stmt>
+
+    <expr_stmt><expr><name pos:line="13" pos:column="5">initialised<pos:position pos:line="13" pos:column="16"/></name> <operator pos:line="13" pos:column="17">=<pos:position pos:line="13" pos:column="18"/></operator> <literal type="boolean" pos:line="13" pos:column="19">false<pos:position pos:line="13" pos:column="24"/></literal></expr>;<pos:position pos:line="13" pos:column="25"/></expr_stmt>
+}<pos:position pos:line="14" pos:column="2"/></block></function></unit>

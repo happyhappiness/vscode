@@ -1,0 +1,1 @@
+fprintf(stderr, "ERROR: replay cache directory %s does not exist\n",rcache_dir);

@@ -1,0 +1,1 @@
+bool mapped() const { return flags.mapped; }

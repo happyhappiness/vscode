@@ -1,0 +1,1 @@
+void setCurrentOffset(int64_t offset) { currentOffset = offset; }

@@ -1,0 +1,1 @@
+p->appendf("  requests timedout: %d\n", stats.timedout);

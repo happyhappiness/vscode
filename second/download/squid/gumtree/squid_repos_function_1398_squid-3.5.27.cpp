@@ -1,0 +1,1 @@
+static void EnableMacros() {AllowMacros_ = true;}

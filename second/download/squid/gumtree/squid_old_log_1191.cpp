@@ -1,0 +1,1 @@
+buf.Printf("P%s", preview.ieof() ? "(ieof)" : "");

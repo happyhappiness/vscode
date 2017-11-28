@@ -1,0 +1,1 @@
+xstrdup( (t?t:"unset-id") );

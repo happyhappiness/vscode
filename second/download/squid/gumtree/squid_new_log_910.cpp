@@ -1,0 +1,1 @@
+fprintf(stderr, "ERROR: %s:%s port:%d\n", broken, ldapServer, port);

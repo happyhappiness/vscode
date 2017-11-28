@@ -1,0 +1,1 @@
+printf("function TS(t, s) {\n");

@@ -1,0 +1,1 @@
+req->header.putStr(Http::HdrType::ACCEPT, "text/html");

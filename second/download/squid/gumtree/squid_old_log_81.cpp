@@ -1,0 +1,1 @@
+fatal ("AuthUserRequest child failed to override operator delete\n");

@@ -1,0 +1,1 @@
+mb->appendf("\tobject_sz: %" PRId64 "\n", object_sz);

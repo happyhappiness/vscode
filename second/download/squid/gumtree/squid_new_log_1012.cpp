@@ -1,0 +1,1 @@
+storeAppendPrintf(sentry, "  read\t%" PRIu64 "\t%" PRIu64 "\n", squidaio_counts.read_start, squidaio_counts.read_finish);

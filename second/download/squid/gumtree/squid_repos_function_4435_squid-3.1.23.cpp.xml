@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/squid/gumtree/squid_repos_function_4435_squid-3.1.23.cpp" pos:tabs="8"><function><type><name pos:line="1" pos:column="1">int<pos:position pos:line="1" pos:column="4"/></name></type>
+<name pos:line="2" pos:column="1">storePendingNClients<pos:position pos:line="2" pos:column="21"/></name><parameter_list pos:line="2" pos:column="21">(<parameter><decl><type><specifier pos:line="2" pos:column="22">const<pos:position pos:line="2" pos:column="27"/></specifier> <name pos:line="2" pos:column="28">StoreEntry<pos:position pos:line="2" pos:column="38"/></name> <modifier pos:line="2" pos:column="39">*<pos:position pos:line="2" pos:column="40"/></modifier></type> <name pos:line="2" pos:column="41">e<pos:position pos:line="2" pos:column="42"/></name></decl></parameter>)<pos:position pos:line="2" pos:column="43"/></parameter_list>
+<block pos:line="3" pos:column="1">{
+    <comment type="block" pos:line="4" pos:column="5">/* no clients in the tests so far */</comment>
+    <return pos:line="5" pos:column="5">return <expr><literal type="number" pos:line="5" pos:column="12">0<pos:position pos:line="5" pos:column="13"/></literal></expr>;<pos:position pos:line="5" pos:column="14"/></return>
+}<pos:position pos:line="6" pos:column="2"/></block></function></unit>

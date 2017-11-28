@@ -1,0 +1,1 @@
+ctxTree.Printf("%s %s", cfg_directive, label);

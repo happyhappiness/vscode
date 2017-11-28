@@ -1,0 +1,15 @@
+int
+ACLARP::match(ACLChecklist *cl)
+{
+    ACLFilledChecklist *checklist = Filled(cl);
+
+    /* IPv6 does not do ARP */
+    if (!checklist->src_addr.isIPv4()) {
+        debugs(14, 3, "ACLARP::match: IPv4 Required for ARP Lookups. Skipping " << checklist->src_addr );
+        return 0;
+    }
+
+    Eui::Eui48 lookingFor;
+    lookingFor.lookup(checklist->src_addr);
+    return (aclArpData.find(lookingFor) != aclArpData.end());
+}

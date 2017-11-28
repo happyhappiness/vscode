@@ -1,0 +1,1 @@
+void clearProxyRevalidate() {setMask(HttpHdrCcType::CC_PROXY_REVALIDATE,false);}

@@ -1,0 +1,1 @@
+httpHeaderPutStrf(&rep->header, Http::HdrType::X_SQUID_ERROR, "%s %d", name, xerrno);

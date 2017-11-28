@@ -1,0 +1,1 @@
+int64_t getCurrentOffset() const { return currentOffset; }

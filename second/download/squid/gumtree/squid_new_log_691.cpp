@@ -1,0 +1,1 @@
+printf(" var x = new XMLHttpRequest();\n");

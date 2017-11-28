@@ -1,0 +1,4 @@
+void
+Ipc::Inquirer::cleanup()
+{
+}

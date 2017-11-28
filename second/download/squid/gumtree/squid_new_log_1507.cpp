@@ -1,0 +1,1 @@
+mb.append("/squid-internal-static/icons/");

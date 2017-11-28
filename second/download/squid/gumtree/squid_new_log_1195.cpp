@@ -1,0 +1,1 @@
+buf.append("Allow: 206\r\n", 12);

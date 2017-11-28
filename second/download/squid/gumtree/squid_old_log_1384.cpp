@@ -1,0 +1,1 @@
+buf.Printf("%s\n", key);

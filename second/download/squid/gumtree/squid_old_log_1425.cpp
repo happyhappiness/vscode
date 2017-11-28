@@ -1,0 +1,1 @@
+storeAppendPrintf(sentry, "   S = SHUTDOWN PENDING\n");

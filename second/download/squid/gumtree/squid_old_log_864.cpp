@@ -1,0 +1,1 @@
+fatal("Need to configure --enable-xmalloc-debug-trace to use -m option");

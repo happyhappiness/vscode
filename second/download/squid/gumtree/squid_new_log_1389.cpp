@@ -1,0 +1,1 @@
+freeBadEntry(fileNo, ex.what());

@@ -1,0 +1,1 @@
+storeAppendPrintf(entry, " max-stale=%d", head->max_stale);

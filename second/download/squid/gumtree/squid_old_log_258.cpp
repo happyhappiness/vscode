@@ -1,0 +1,1 @@
+storeAppendPrintf(sentry, "number of reads: %d\n", IOStats.Ftp.reads);

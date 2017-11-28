@@ -1,0 +1,1 @@
+void mapped(const bool beMapped) { flags.mapped = beMapped; }

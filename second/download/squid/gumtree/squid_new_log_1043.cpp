@@ -1,0 +1,1 @@
+fwd->closeServerConnection("store entry aborted");

@@ -1,0 +1,1 @@
+fprintf(stderr, "ERROR: replay cache directory not given\n");

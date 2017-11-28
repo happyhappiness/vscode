@@ -1,0 +1,1 @@
+fprintf(stderr, "%s: can't identify length of file (%s)\n", argv[0], xstrerror());

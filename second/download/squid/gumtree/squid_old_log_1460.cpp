@@ -1,0 +1,1 @@
+hdr->putStr(HDR_SERVER, APP_FULLNAME);

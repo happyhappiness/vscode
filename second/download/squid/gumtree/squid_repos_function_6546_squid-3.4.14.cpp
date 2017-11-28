@@ -1,0 +1,6 @@
+void
+Mgr::IntervalAction::pack(Ipc::TypedMsgHdr& msg) const
+{
+    msg.setType(Ipc::mtCacheMgrResponse);
+    msg.putPod(data);
+}

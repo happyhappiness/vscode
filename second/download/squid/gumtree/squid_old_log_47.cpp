@@ -1,0 +1,1 @@
+storeAppendPrintf(entry, "%s basic children %d\n", name, authenticateChildren);

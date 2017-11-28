@@ -1,0 +1,27 @@
+ 
+     if (Config.onoff.httpd_suppress_version_string)
+         visible_appname_string = (char *)appname_string;
+     else
+         visible_appname_string = (char const *)APP_FULLNAME;
+ 
+-#if USE_DNSSERVERS
+-
+-    if (Config.dnsChildren < 1)
+-        fatal("No dnsservers allocated");
+-
++#if USE_DNSHELPER
++    if (Config.dnsChildren.n_max < 1)
++        fatal("No DNS helpers allocated");
+ #endif
+ 
+     if (Config.Program.redirect) {
+-        if (Config.redirectChildren < 1) {
+-            Config.redirectChildren = 0;
++        if (Config.redirectChildren.n_max < 1) {
++            Config.redirectChildren.n_max = 0;
+             wordlistDestroy(&Config.Program.redirect);
+         }
+     }
+ 
+     if (Config.appendDomain)
+         if (*Config.appendDomain != '.')

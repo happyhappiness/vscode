@@ -1,0 +1,1 @@
+void clearSMaxAge() {setValue(s_maxage,MAX_AGE_UNKNOWN,CC_S_MAXAGE,false);}

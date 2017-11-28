@@ -1,0 +1,15 @@
+static void
+clientRedirectAccessCheckDone(allow_t answer, void *data)
+{
+    ClientRequestContext *context = (ClientRequestContext *)data;
+    ClientHttpRequest *http = context->http;
+    context->acl_checklist = NULL;
+
+    if (answer == ACCESS_ALLOWED)
+        redirectStart(http, clientRedirectDoneWrapper, context);
+    else {
+        Helper::Reply nilReply;
+        nilReply.result = Helper::Error;
+        context->clientRedirectDone(nilReply);
+    }
+}

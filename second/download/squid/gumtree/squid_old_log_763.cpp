@@ -1,0 +1,1 @@
+fprintf(debug_log, "FATAL: %s\n", message);

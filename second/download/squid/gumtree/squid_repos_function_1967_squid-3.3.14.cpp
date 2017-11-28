@@ -1,0 +1,1 @@
+bool doneAll() const {return !body_pipe && AsyncJob::doneAll();}

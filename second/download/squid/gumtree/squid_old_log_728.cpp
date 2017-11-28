@@ -1,0 +1,1 @@
+fprintf(stderr, "cmgr: verified auth. info.\n");

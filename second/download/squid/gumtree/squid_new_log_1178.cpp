@@ -1,0 +1,1 @@
+buf.appendf("null-body=%d", (int) httpBuf.contentSize());

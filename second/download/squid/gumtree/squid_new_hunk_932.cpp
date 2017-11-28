@@ -1,0 +1,26 @@
+    static MemBuf buf;
+    buf.reset();
+
+    buf.append(" [", 2);
+
+    if (makingVb)
+        buf.appendf("M%d", static_cast<int>(makingVb));
+
+    const BodyPipePointer &vp = theVirginRep.raw().body_pipe;
+    if (!vp)
+        buf.append(" !V", 3);
+    else if (vp->stillConsuming(const_cast<XactionRep*>(this)))
+        buf.append(" Vc", 3);
+    else
+        buf.append(" V?", 3);
+
+    if (vbProductionFinished)
+        buf.append(".", 1);
+
+    buf.appendf(" A%d", static_cast<int>(proxyingAb));
+
+    if (proxyingAb == opOn) {
+        MessageRep *rep = dynamic_cast<MessageRep*>(theAnswerRep.get());
+        Must(rep);
+        const BodyPipePointer &ap = rep->raw().body_pipe;
+        if (!ap)

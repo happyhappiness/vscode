@@ -1,0 +1,1 @@
+fprintf(stderr, "ERROR: keytab file not given\n");

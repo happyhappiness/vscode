@@ -1,0 +1,1 @@
+void dial(AsyncCall &) { theHandler(theArg); }

@@ -1,0 +1,1 @@
+inline FILE * freopen(const char *f, const char *m, FILE *s) { return freopen64(f,m,s); }

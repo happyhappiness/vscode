@@ -1,0 +1,1 @@
+hdr_out->putStr(HDR_CONNECTION, "keep-alive");

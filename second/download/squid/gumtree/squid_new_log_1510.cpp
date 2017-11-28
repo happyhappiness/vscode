@@ -1,0 +1,1 @@
+storeAppendPrintf(sentry, "%sno-purge-clr",(doneopts?",":"="));

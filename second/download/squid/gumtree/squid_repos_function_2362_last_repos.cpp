@@ -1,0 +1,1 @@
+void clearPrivate() {setMask(HttpHdrCcType::CC_PRIVATE,false); private_.clean();}

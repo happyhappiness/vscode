@@ -1,0 +1,1 @@
+fprintf(stderr, "cmgr: encoding for pub...\n");

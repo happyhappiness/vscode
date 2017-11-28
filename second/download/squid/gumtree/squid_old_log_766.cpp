@@ -1,0 +1,1 @@
+fatal(fatal_str);

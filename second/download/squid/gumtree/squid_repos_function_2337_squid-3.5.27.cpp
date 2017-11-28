@@ -1,0 +1,1 @@
+virtual bool canDial(AsyncCall &call) { return fwd_.valid(); }

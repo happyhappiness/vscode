@@ -1,0 +1,1 @@
+mb.appendf("%i %s\r\n", scode, reason);

@@ -1,0 +1,1 @@
+void dial(AsyncCall &call) { handler(arg1.get()); }

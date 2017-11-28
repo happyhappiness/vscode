@@ -1,0 +1,1 @@
+storeAppendPrintf(e, " options=%s", s->options);

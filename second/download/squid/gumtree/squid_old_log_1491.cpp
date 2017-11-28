@@ -1,0 +1,1 @@
+fatalf(_PATH_DEVNULL " %s\n", xstrerror());

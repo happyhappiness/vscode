@@ -1,0 +1,1 @@
+state->queryMsg.appendf("%d, %d\r\n", conn->remote.port(), conn->local.port());

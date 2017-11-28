@@ -1,0 +1,1 @@
+printf("<div id=\"Hsmgr\"></div>\n");

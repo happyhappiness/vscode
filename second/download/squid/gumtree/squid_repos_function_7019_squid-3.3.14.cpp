@@ -1,0 +1,1 @@
+C * getRaw() {return const_cast<C *>(p_); }

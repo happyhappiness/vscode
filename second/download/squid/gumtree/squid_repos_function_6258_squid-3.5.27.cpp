@@ -1,0 +1,5 @@
+void
+DiskdFile::ioCompleted()
+{
+    --inProgressIOs;
+}

@@ -1,0 +1,1 @@
+void recordSBufSizeAtDestruct(SBuf::size_type) {}

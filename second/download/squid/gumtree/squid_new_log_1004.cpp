@@ -1,0 +1,1 @@
+fatalf("%s", msg.c_str());

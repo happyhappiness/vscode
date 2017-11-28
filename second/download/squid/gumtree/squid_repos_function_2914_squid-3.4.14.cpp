@@ -1,0 +1,1 @@
+void clearStaleIfError() {setValue(stale_if_error,STALE_IF_ERROR_UNKNOWN,CC_STALE_IF_ERROR,false);}

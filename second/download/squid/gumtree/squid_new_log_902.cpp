@@ -1,0 +1,1 @@
+printf("BH message=\"Missing crypto capability\"\n");

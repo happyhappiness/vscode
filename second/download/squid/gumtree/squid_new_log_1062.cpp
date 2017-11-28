@@ -1,0 +1,1 @@
+fatalf("Service name (-n option) must be limited to 32 characters but got %u", service_name.length());

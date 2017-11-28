@@ -1,0 +1,1 @@
+virtual void fire() { dialer.dial(*this); }

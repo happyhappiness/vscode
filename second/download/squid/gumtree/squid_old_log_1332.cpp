@@ -1,0 +1,1 @@
+str.Printf("CacheHost: %s\r\n", getMyHostname());

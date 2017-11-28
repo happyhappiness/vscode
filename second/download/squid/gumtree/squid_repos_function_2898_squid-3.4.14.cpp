@@ -1,0 +1,1 @@
+void clearNoTransform() {setMask(CC_NO_TRANSFORM,false);}

@@ -1,0 +1,1 @@
+httpHeaderPutStrf(hdr_out, header, "Basic %.*s", (int)blen, loginbuf);

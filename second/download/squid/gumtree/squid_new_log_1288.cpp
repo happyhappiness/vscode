@@ -1,0 +1,1 @@
+html->appendf("<tr class=\"entry\"><td colspan=\"5\">%s</td></tr>\n", line);

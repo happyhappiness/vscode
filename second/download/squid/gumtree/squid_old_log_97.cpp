@@ -1,0 +1,1 @@
+fatalf("parse_peer: can't set htcp-no-clr and htcp-only-clr simultaneously");

@@ -1,0 +1,1 @@
+void dontRetry(bool val) { flags.dont_retry = val; }

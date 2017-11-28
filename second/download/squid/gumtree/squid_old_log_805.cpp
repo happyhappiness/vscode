@@ -1,0 +1,1 @@
+buf.Printf("%s: %s\r\n", (*i)->name.termedBuf(), value);

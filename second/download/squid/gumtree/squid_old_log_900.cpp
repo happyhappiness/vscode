@@ -1,0 +1,1 @@
+fprintf(tracefp, "r:%p:%p:%d\n", p, s, sz);

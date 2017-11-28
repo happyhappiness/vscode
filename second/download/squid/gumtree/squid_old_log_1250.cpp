@@ -1,0 +1,1 @@
+storeAppendPrintf(e, " cipher=%s", s->cipher);

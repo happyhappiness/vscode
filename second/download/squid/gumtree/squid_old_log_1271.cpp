@@ -1,0 +1,1 @@
+storeAppendPrintf(entry, "%s ", hwa->fieldName.c_str());

@@ -1,0 +1,1 @@
+bool ftpPasvFailed() { return flags.ftp_pasv_failed; }

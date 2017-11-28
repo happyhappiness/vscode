@@ -1,0 +1,1 @@
+buf.appendf("P(%d)", (int) preview.debt());

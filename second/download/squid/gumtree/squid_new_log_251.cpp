@@ -1,0 +1,1 @@
+abortTransaction("timely adaptation block");

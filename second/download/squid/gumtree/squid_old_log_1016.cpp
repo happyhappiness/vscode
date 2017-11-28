@@ -1,0 +1,1 @@
+storeAppendPrintf(sentry, "queue\t%d\t-\n", squidaio_get_queue_len());

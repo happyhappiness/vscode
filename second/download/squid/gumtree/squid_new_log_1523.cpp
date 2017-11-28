@@ -1,0 +1,1 @@
+storeAppendPrintf(sentry, "\nRefresh pattern usage:\n\n");

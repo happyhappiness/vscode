@@ -1,0 +1,1 @@
+void check(int aLine) const {assert(cookie == ((long)this ^ Cookie));}

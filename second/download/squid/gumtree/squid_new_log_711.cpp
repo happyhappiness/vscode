@@ -1,0 +1,1 @@
+printf("<script type=\"text/javascript\">\n");

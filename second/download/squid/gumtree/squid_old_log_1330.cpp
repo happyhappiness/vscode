@@ -1,0 +1,1 @@
+str.Printf("CacheErrorInfo - %s", errorPageName(type));

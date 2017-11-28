@@ -1,0 +1,1 @@
+storeAppendPrintf(&e, "Maximum Size: %.0f KB\n", maxSize()/1024.0);

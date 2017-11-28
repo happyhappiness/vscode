@@ -1,0 +1,1 @@
+result.Printf("%s", t);

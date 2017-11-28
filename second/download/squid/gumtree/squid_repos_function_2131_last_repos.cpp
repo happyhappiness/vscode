@@ -1,0 +1,1 @@
+void setFrom(Ip::Address &anIp) { from = anIp; }

@@ -1,0 +1,1 @@
+fatalf("Lost SNMP port (%d) on FD %d", (int)conn->local.port(), conn->fd);

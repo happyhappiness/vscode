@@ -1,0 +1,1 @@
+error_stylesheet.Printf("%s",tmpl.text());

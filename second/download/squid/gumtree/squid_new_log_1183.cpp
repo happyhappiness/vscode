@@ -1,0 +1,1 @@
+buf.appendf("%s: %s\r\n", (*i)->key.termedBuf(), value);

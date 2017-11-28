@@ -1,0 +1,4 @@
+void
+MemStore::reference(StoreEntry &)
+{
+}

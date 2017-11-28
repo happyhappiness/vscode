@@ -1,0 +1,1 @@
+void userInfo(const SBuf &s) {userInfo_=s; touch();}

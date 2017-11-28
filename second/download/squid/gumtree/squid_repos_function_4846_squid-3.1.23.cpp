@@ -1,0 +1,1 @@
+virtual void user(AuthUser *aUser) {_auth_user=aUser;}

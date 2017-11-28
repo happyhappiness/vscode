@@ -1,0 +1,1 @@
+Ftp::ServerState serverState() const { return master().serverState; }

@@ -1,0 +1,12 @@
+        case '?':
+            if (xisprint(optopt)) {
+                fprintf(stderr, "Unknown option '-%c'.\n", optopt);
+            } else {
+                fprintf(stderr, "Unknown option character `\\x%x'.\n", optopt);
+            }
+
+        default:
+            usage(argv[0]);
+            exit(1);
+        }
+    }

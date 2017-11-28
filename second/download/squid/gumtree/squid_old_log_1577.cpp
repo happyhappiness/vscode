@@ -1,0 +1,1 @@
+fatal("Store::unlink on invalid Store\n");

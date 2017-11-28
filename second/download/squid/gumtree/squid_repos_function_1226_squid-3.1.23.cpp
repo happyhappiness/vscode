@@ -1,0 +1,1 @@
+operator C *() {return const_cast<C *>(theInstance);}

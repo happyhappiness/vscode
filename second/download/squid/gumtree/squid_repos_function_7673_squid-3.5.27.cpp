@@ -1,0 +1,1 @@
+inline FILE * fopen(const char *f, const char *m) { return fopen64(f,m); }

@@ -1,0 +1,1 @@
+virtual int callback() { return 0; }
