@@ -106,6 +106,21 @@ class SrcmlApi:
                 return True
         return False
 
+    def get_log_loc(self, log_location):
+        """
+        @ param initial log location(int from 0, location of call node)\n
+        @ return set of log location(whole statements)\n
+        @ involve add location of each sub-element of log node into location set\n
+        """
+        self.set_log_loc(log_location)
+        log_locs = set()
+        sub_nodes = self.log_node.iterdescendants()
+        # validate each name descendant
+        for sub_node in sub_nodes:
+            if sub_node.text is not None:
+                log_locs.add(self._get_location(sub_node) - 1)
+        return log_locs
+
     def get_log_info(self):
         """
         @ param [call after: self.set_log_loc()]\n
@@ -244,7 +259,7 @@ class SrcmlApi:
             self.name_tag = "{" + self.namespace_map['default'] + "}name"
             self.call_tag = "{" + self.namespace_map['default'] + "}call"
             self.function_tag = "{" + self.namespace_map['default'] + "}function"
-
+            # self.loc_tag = "{" + self.namespace_map['pos'] + "}line"
 
     def _get_info_for_node(self, node):
         """
@@ -585,7 +600,7 @@ class SrcmlApi:
         @ return loacation(int)\n
         @ involve get location directly without check\n
         """
-        return int(node.attrib.values()[0])
+        return int(node.attrib.values()[-2])
         
     def _update_dict(self, dictionary, key, rank, value):
         """

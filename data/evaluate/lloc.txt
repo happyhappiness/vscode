@@ -1,0 +1,13 @@
+# repos httpd: 9193
+
+# repos git: 6367
+
+# repos mutt: 603
+
+# repos curl: 229
+
+# repos rsync: 200
+
+# repos collectd: 318
+
+# repos squid: 2108

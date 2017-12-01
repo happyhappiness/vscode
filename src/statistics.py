@@ -1,7 +1,9 @@
 from itertools import islice 
+import srcml_api
 import csv
 import json
 import my_constant
+import my_util
 
 def statistical_cluster(csv_file_name, statistic_file):
     """
@@ -82,14 +84,39 @@ def statistical_rule_class(csv_file_name):
     records = csv.reader(reading_file)
     modify_counter = 0
     insert_counter = 0
-    for records in islice(records, 1, None):
-        old_loc = records[my_constant.CLASS_OLD_NEW_OLD_LOC]
+    for record in islice(records, 1, None):
+        old_loc = record[my_constant.CLASS_OLD_NEW_OLD_LOC]
         if old_loc == '-1':
             insert_counter += 1
         else:
             modify_counter += 1
     reading_file.close()
     return insert_counter, modify_counter
+
+
+def statistical_repos_log(postfix=my_constant.LAST_REPOS, statistic_file_name = 'data/evaluate/statistics.txt'):
+    """
+    @ param postfix of csv file name, statistical file name\n
+    @ return the line of logging codes\n
+    @ involve sumarize logging LOC in given repos decided by postfix\n
+    """
+    statistic_file = open(statistic_file_name, 'ab')
+    csv_file = file(my_util.concate_file(my_constant.ANALYZE_REPOS_LOG_FILE_NAME, postfix))
+    records = csv.reader(csv_file)
+    srcml = srcml_api.SrcmlApi()
+    log_loc = 0
+    counter = 0
+    for record in islice(records, 1, None):
+        counter += 1
+        print 'now analyzing record: %d' %counter
+        call_node_loc = int(record[my_constant.ANALYZE_REPOS_LOG_LOC])
+        function_file = record[my_constant.ANALYZE_REPOS_LOG_FUNCTION]
+        srcml.set_function_file(function_file)
+        srcml.set_log_loc(call_node_loc)
+        log_loc += len(srcml.get_log_loc(call_node_loc))
+    print >> statistic_file, "\n# repos %s: %d" %(my_constant.REPOS, log_loc)
+    csv_file.close()
+
 
 def perform_statistic(statistic_file_name = 'data/evaluate/statistics.txt'):
     """

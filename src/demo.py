@@ -98,6 +98,17 @@ def do_statistics(repos_list):
         my_constant.reset_repos(repos)
         statistics.perform_statistic()
 
+def count_lloc(repos_list):
+    """
+    @ param repos list, all the reposes you want to deal with\n
+    @ return nothing \n
+    @ involve count lloc for each repos\n
+    """
+    for repos in repos_list:
+        print '\n****************now analyzing repos %s***************' %repos
+        my_constant.reset_repos(repos)
+        statistics.statistical_repos_log(my_constant.LAST_REPOS, 'data/evaluate/lloc.txt')
+ 
 def perform_series(repos_list):
     """
     @ param repos list\n
@@ -127,15 +138,16 @@ if __name__ == "__main__":
     # 'httpd', 'git',
     reposes = ['httpd', 'git', 'mutt', 'curl', 'rsync', 'collectd', 'squid']
     repos_names = ['httpd-2.3.8', 'git-2.6.7', 'mutt-1.7.2', 'curl-7.41.0', 'rsync-1.4.4']
+    count_lloc(reposes)
     # seek_clone_for_given_repos(reposes, repos_names)
     # seek_clone_for_corresponding_repos(reposes[0:1], True, False, False)
-    # seek_clone_for_corresponding_repos(reposes, False, False, False)
+    # seek_clone_for_correspondi ng_repos(reposes, False, False, False)
     # seek_clone_for_corresponding_repos(reposes[0:1], True, False, False)    
     # seek_clone_for_corresponding_repos(reposes[0:1], False, True, False)
     # seek_clone_for_corresponding_repos(reposes, False, False, True)
     # seek_clone_for_lastest_repos(reposes, False, False, False)
-    repos_name = 'squid'
-    perform_series(reposes[-2:-1])
+    # repos_name = 'squid'
+    # perform_series(reposes[-2:-1])
     # do_statistics([repos_name])
     # regenerate_hunk(reposes)
     # do_statistics(reposes)
