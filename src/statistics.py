@@ -131,6 +131,10 @@ def perform_statistic(statistic_file_name = 'data/evaluate/statistics.txt'):
     print >> statistic_file, "#edition cluster info"
     edition_file_name = my_constant.CLUSTER_EDITION_OLD_NEW_FILE_NAME
     number_log, edit_type_for_log_dict = statistical_cluster(edition_file_name, statistic_file)
+    print >> statistic_file, "#feature cluster info"
+    # statistics about feature cluster
+    feature_file_name = my_constant.CLUSTER_FEATURE_OLD_NEW_FILE_NAME
+    statistical_cluster(feature_file_name, statistic_file)
     print >> statistic_file, "#edition and feature cluster info"
     # statistics about edition and feature cluster
     edition_and_feature_file_name = my_constant.CLUSTER_EDITION_AND_FEATURE_OLD_NEW_FILE_NAME

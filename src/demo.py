@@ -138,7 +138,7 @@ if __name__ == "__main__":
     # 'httpd', 'git',
     reposes = ['httpd', 'git', 'mutt', 'curl', 'rsync', 'collectd', 'squid']
     repos_names = ['httpd-2.3.8', 'git-2.6.7', 'mutt-1.7.2', 'curl-7.41.0', 'rsync-1.4.4']
-    count_lloc(reposes)
+    # count_lloc(reposes)
     # seek_clone_for_given_repos(reposes, repos_names)
     # seek_clone_for_corresponding_repos(reposes[0:1], True, False, False)
     # seek_clone_for_correspondi ng_repos(reposes, False, False, False)
@@ -150,6 +150,6 @@ if __name__ == "__main__":
     # perform_series(reposes[-2:-1])
     # do_statistics([repos_name])
     # regenerate_hunk(reposes)
-    # do_statistics(reposes)
+    do_statistics(reposes)
 
 

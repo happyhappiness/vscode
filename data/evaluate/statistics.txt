@@ -12,6 +12,9 @@ rsync: log hunk / hunk
 #edition cluster info
 addLog:112, removeLog:120, updateLog:119, addVariable:288, removeVariable:219, updateVariable:243, moveVariable:17, addContent:92, removeContent:123, updateContent:330, moveContent:2, 
 cluster is:3482, repeted cluster is:279, repeted log is:980
+#feature cluster info
+addLog:419, removeLog:278, updateLog:170, addVariable:946, removeVariable:279, updateVariable:269, moveVariable:18, addContent:829, removeContent:123, updateContent:590, moveContent:5, 
+cluster is:2757, repeted cluster is:675, repeted log is:2101
 #edition and feature cluster info
 addLog:60, removeLog:105, updateLog:34, addVariable:88, removeVariable:62, updateVariable:69, moveVariable:9, addContent:33, removeContent:40, updateContent:136, moveContent:2, 
 cluster is:3945, repeted cluster is:174, repeted log is:412
@@ -25,6 +28,9 @@ insert rule:27, modify rule:149
 #edition cluster info
 addLog:106, removeLog:52, updateLog:253, addVariable:456, removeVariable:193, updateVariable:279, moveVariable:2, addContent:15, removeContent:10, updateContent:176, moveContent:1, 
 cluster is:863, repeted cluster is:161, repeted log is:884
+#feature cluster info
+addLog:192, removeLog:92, updateLog:149, addVariable:255, removeVariable:98, updateVariable:181, moveVariable:1, addContent:15, removeContent:38, updateContent:133, moveContent:3, 
+cluster is:1105, repeted cluster is:221, repeted log is:702
 #edition and feature cluster info
 addLog:73, removeLog:36, updateLog:60, addVariable:110, removeVariable:34, updateVariable:78, moveVariable:0, addContent:6, removeContent:4, updateContent:45, moveContent:0, 
 cluster is:1408, repeted cluster is:114, repeted log is:292
@@ -38,6 +44,9 @@ insert rule:16, modify rule:106
 #edition cluster info
 addLog:0, removeLog:9, updateLog:43, addVariable:13, removeVariable:0, updateVariable:19, moveVariable:0, addContent:2, removeContent:9, updateContent:4, moveContent:0, 
 cluster is:61, repeted cluster is:9, repeted log is:79
+#feature cluster info
+addLog:14, removeLog:7, updateLog:26, addVariable:8, removeVariable:0, updateVariable:7, moveVariable:0, addContent:0, removeContent:6, updateContent:4, moveContent:0, 
+cluster is:93, repeted cluster is:20, repeted log is:58
 #edition and feature cluster info
 addLog:0, removeLog:1, updateLog:24, addVariable:8, removeVariable:0, updateVariable:6, moveVariable:0, addContent:0, removeContent:6, updateContent:2, moveContent:0, 
 cluster is:107, repeted cluster is:12, repeted log is:36
@@ -51,6 +60,9 @@ insert rule:0, modify rule:12
 #edition cluster info
 addLog:8, removeLog:2, updateLog:2, addVariable:29, removeVariable:25, updateVariable:21, moveVariable:0, addContent:3, removeContent:0, updateContent:9, moveContent:0, 
 cluster is:80, repeted cluster is:10, repeted log is:65
+#feature cluster info
+addLog:23, removeLog:4, updateLog:2, addVariable:10, removeVariable:9, updateVariable:11, moveVariable:0, addContent:1, removeContent:0, updateContent:17, moveContent:0, 
+cluster is:101, repeted cluster is:24, repeted log is:58
 #edition and feature cluster info
 addLog:8, removeLog:2, updateLog:2, addVariable:4, removeVariable:4, updateVariable:4, moveVariable:0, addContent:1, removeContent:0, updateContent:3, moveContent:0, 
 cluster is:124, repeted cluster is:9, repeted log is:20
@@ -64,6 +76,9 @@ insert rule:3, modify rule:6
 #edition cluster info
 addLog:7, removeLog:4, updateLog:173, addVariable:26, removeVariable:18, updateVariable:196, moveVariable:8, addContent:4, removeContent:2, updateContent:15, moveContent:0, 
 cluster is:177, repeted cluster is:28, repeted log is:403
+#feature cluster info
+addLog:64, removeLog:17, updateLog:122, addVariable:29, removeVariable:16, updateVariable:161, moveVariable:7, addContent:3, removeContent:8, updateContent:35, moveContent:0, 
+cluster is:283, repeted cluster is:124, repeted log is:393
 #edition and feature cluster info
 addLog:2, removeLog:2, updateLog:57, addVariable:4, removeVariable:4, updateVariable:47, moveVariable:2, addContent:0, removeContent:2, updateContent:2, moveContent:0, 
 cluster is:478, repeted cluster is:36, repeted log is:110
@@ -72,13 +87,14 @@ number of log is:557
 addLog:78, removeLog:27, updateLog:192, addVariable:54, removeVariable:33, updateVariable:212, moveVariable:13, addContent:6, removeContent:14, updateContent:53, moveContent:0, 
 #rule info
 insert rule:1, modify rule:35
-collectd: log hunk, hunk
-757,18750
 
 #now analyzing repos:collectd
 #edition cluster info
 addLog:35, removeLog:9, updateLog:23, addVariable:43, removeVariable:51, updateVariable:5, moveVariable:8, addContent:1, removeContent:0, updateContent:25, moveContent:0, 
 cluster is:110, repeted cluster is:35, repeted log is:135
+#feature cluster info
+addLog:52, removeLog:18, updateLog:20, addVariable:55, removeVariable:57, updateVariable:16, moveVariable:9, addContent:2, removeContent:3, updateContent:28, moveContent:0, 
+cluster is:92, repeted cluster is:50, repeted log is:168
 #edition and feature cluster info
 addLog:33, removeLog:9, updateLog:10, addVariable:39, removeVariable:49, updateVariable:2, moveVariable:6, addContent:0, removeContent:0, updateContent:10, moveContent:0, 
 cluster is:146, repeted cluster is:37, repeted log is:101
@@ -87,5 +103,19 @@ number of log is:213
 addLog:64, removeLog:21, updateLog:31, addVariable:61, removeVariable:60, updateVariable:24, moveVariable:11, addContent:8, removeContent:6, updateContent:48, moveContent:0, 
 #rule info
 insert rule:12, modify rule:26
-squid: log hunk, hunk
-1240,18295
+
+#now analyzing repos:squid
+#edition cluster info
+addLog:15, removeLog:12, updateLog:105, addVariable:66, removeVariable:34, updateVariable:51, moveVariable:2, addContent:12, removeContent:5, updateContent:27, moveContent:0, 
+cluster is:337, repeted cluster is:49, repeted log is:226
+#feature cluster info
+addLog:65, removeLog:43, updateLog:60, addVariable:32, removeVariable:23, updateVariable:17, moveVariable:0, addContent:20, removeContent:10, updateContent:32, moveContent:0, 
+cluster is:369, repeted cluster is:77, repeted log is:222
+#edition and feature cluster info
+addLog:8, removeLog:0, updateLog:33, addVariable:10, removeVariable:7, updateVariable:6, moveVariable:0, addContent:4, removeContent:3, updateContent:13, moveContent:0, 
+cluster is:476, repeted cluster is:24, repeted log is:62
+#log info
+number of log is:519
+addLog:137, removeLog:75, updateLog:141, addVariable:130, removeVariable:76, updateVariable:90, moveVariable:6, addContent:36, removeContent:26, updateContent:80, moveContent:3, 
+#rule info
+insert rule:3, modify rule:21
