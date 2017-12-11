@@ -305,14 +305,19 @@ def close_jvm():
 main function
 """
 if __name__ == "__main__":
-    old_file = 'second/gumtree/c/old.cpp'
-    new_file = 'second/gumtree/c/new.cpp'
+    old_file = 'second/download/httpd/gumtree/httpd_old_log_63.cpp'
+    new_file = 'second/download/httpd/gumtree/httpd_new_log_63.cpp'
     gumtree = Gumtree()
     gumtree.set_old_new_file(old_file, new_file)
-    print gumtree.get_log_edited_type()
+    # print gumtree.get_log_edited_type()
     # gumtree.set_old_loc(7)
     # gumtree.get_new_log()
-    # gumtree.get_word_edit_from_log('archive_string_sprintf(a_estr, errstr, path);', 'archive_string_sprintf(a_estr, "%s%s", errstr, path);')
+    old_log = 'ap_log_error(APLOG_MARK, APLOG_CRIT, errno, server_conf,\
+                "make_secure_socket: for %s, WSAIoctl: (SO_SSL_SET_FLAGS)", addr);'
+    new_log = 'ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), sconf,\
+                         "make_secure_socket: for %s, WSAIoctl: "\
+                         (SO_SSL_SET_FLAGS), addr);'
+    print gumtree.get_word_edit_from_log(old_log, new_log)
 
 
 

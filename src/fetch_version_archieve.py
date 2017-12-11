@@ -12,7 +12,7 @@ def download_file(main_url, file_name):
     """
     # main_url = 'https://git.gnome.org/browse/gedit/snapshot/'
     # do not download file downloaded
-    store_file_name = 'second/download/squid/repos/' + file_name
+    store_file_name = 'second/download/postfix/repos/' + file_name
     if os.path.isfile(store_file_name):
         print 'already downloaded %s' %store_file_name
         return True
@@ -40,8 +40,8 @@ def analyze_html(url):
     response = urllib2.urlopen(url)
     html = response.read()
     html = html.split("\n")
-    target_href_pattern = r'(?:href|HREF)=.*(squid-[0-9\.]*\.tar\.gz)">'
-    # target_href_pattern = r'Changes for Version (\d\.\d+) \(.*\)'
+    # target_href_pattern = r'(?:href|HREF)=.*(squid-[0-9\.]*\.tar\.gz)">'
+    target_href_pattern = r'href="(postfix-\d*\.\d*\.\d*\.tar.gz)"'
     count = 0
     # check html content against git-2.*.tar.gz
     for line in html:
@@ -57,4 +57,4 @@ def analyze_html(url):
 main function
 """
 if __name__ == "__main__":
-    analyze_html("http://ftp.meisei-u.ac.jp/mirror/squid/")
+    analyze_html("http://mirror.netinch.com/pub/postfix/postfix-release/official/")
